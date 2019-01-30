@@ -1,5 +1,5 @@
 """
-Generation
+Execution utilities.
 """
 from dask.distributed import Client, LocalCluster, wait
 from subprocess import Popen, PIPE
@@ -12,8 +12,7 @@ import getpass
 import shlex
 from warnings import warn
 
-from reV.utilities.loggers import REV_LOGGERS
-from reV.utilities.exceptions import ExecutionError
+from nsrdb_utilities.loggers import NSRDB_LOGGERS
 
 
 logger = logging.getLogger(__name__)
@@ -155,7 +154,7 @@ class SubprocessManager:
 class PBS(SubprocessManager):
     """Subclass for PBS subprocess jobs."""
 
-    def __init__(self, cmd, alloc, queue, name='reV',
+    def __init__(self, cmd, alloc, queue, name='nsrdb',
                  feature=None, stdout_path='./stdout'):
         """Initialize and submit a PBS job.
 
@@ -163,9 +162,9 @@ class PBS(SubprocessManager):
         ----------
         cmd : str
             Command to be submitted in PBS shell script. Example:
-                'python -m reV.generation.cli_gen'
+                'python -m nsrdb.clu'
         alloc : str
-            HPC allocation account. Example: 'rev'.
+            HPC allocation account. Example: 'prsc'.
         queue : str
             HPC queue to submit job to. Example: 'short', 'batch-h', etc...
         name : str
@@ -242,7 +241,7 @@ class PBS(SubprocessManager):
             qstat_rows = stdout.split('\n')
             return qstat_rows
 
-    def qsub(self, cmd, alloc, queue, name='reV', feature=None,
+    def qsub(self, cmd, alloc, queue, name='nsrdb', feature=None,
              stdout_path='./stdout', keep_sh=False):
         """Submit a PBS job via qsub command and PBS shell script
 
@@ -250,9 +249,9 @@ class PBS(SubprocessManager):
         ----------
         cmd : str
             Command to be submitted in PBS shell script. Example:
-                'python -m reV.generation.cli_gen'
+                'python -m nsrdb.cli'
         alloc : str
-            HPC allocation account. Example: 'rev'.
+            HPC allocation account. Example: 'nsrdb'.
         queue : str
             HPC queue to submit job to. Example: 'short', 'batch-h', etc...
         name : str
@@ -291,6 +290,7 @@ class PBS(SubprocessManager):
                       '#PBS -o {p}/{n}_$PBS_JOBID.o\n'
                       '#PBS -e {p}/{n}_$PBS_JOBID.e\n'
                       '{L}'
+                      'echo Running on: $HOSTNAME, Machine Type: $MACHTYPE\n'
                       '{cmd}'
                       .format(n=name, a=alloc, q=queue, p=stdout_path,
                               L=feature_str if feature else '',
@@ -312,7 +312,7 @@ class PBS(SubprocessManager):
 class SLURM(SubprocessManager):
     """Subclass for SLURM subprocess jobs."""
 
-    def __init__(self, cmd, alloc, memory, walltime, name='reV',
+    def __init__(self, cmd, alloc, memory, walltime, name='nsrdb',
                  stdout_path='./stdout'):
         """Initialize and submit a PBS job.
 
@@ -320,9 +320,9 @@ class SLURM(SubprocessManager):
         ----------
         cmd : str
             Command to be submitted in PBS shell script. Example:
-                'python -m reV.generation.cli_gen'
+                'python -m nsrdb.cli'
         alloc : str
-            HPC project (allocation) handle. Example: 'rev'.
+            HPC project (allocation) handle. Example: 'nsrdb'.
         memory : int
             Node memory request in GB.
         walltime : float
@@ -417,7 +417,7 @@ class SLURM(SubprocessManager):
             squeue_rows = stdout.split('\n')
             return squeue_rows
 
-    def sbatch(self, cmd, alloc, memory, walltime, name='reV',
+    def sbatch(self, cmd, alloc, memory, walltime, name='nsrdb',
                stdout_path='./stdout', keep_sh=False):
         """Submit a SLURM job via sbatch command and SLURM shell script
 
@@ -425,9 +425,9 @@ class SLURM(SubprocessManager):
         ----------
         cmd : str
             Command to be submitted in PBS shell script. Example:
-                'python -m reV.generation.cli_gen'
+                'python -m nsrdb.generation.cli_gen'
         alloc : str
-            HPC project (allocation) handle. Example: 'rev'.
+            HPC project (allocation) handle. Example: 'nsrdb'.
         memory : int
             Node memory request in GB.
         walltime : float
@@ -466,6 +466,7 @@ class SLURM(SubprocessManager):
                       '#SBATCH --mem={m} # node RAM in MB\n'
                       '#SBATCH --output={p}/{n}_%j.o\n'
                       '#SBATCH --error={p}/{n}_%j.e\n'
+                      'echo Running on: $HOSTNAME, Machine Type: $MACHTYPE\n'
                       '{cmd}'
                       .format(a=alloc, t=self.walltime(walltime), n=name,
                               m=int(memory * 1000), p=stdout_path, cmd=cmd))
@@ -508,7 +509,11 @@ def execute_parallel(fun, execution_iter, loggers=[], n_workers=None,
     """
 
     # start a local cluster on a personal comp or HPC single node
-    cluster = LocalCluster(n_workers=n_workers)
+    try:
+        cluster = LocalCluster(n_workers=n_workers)
+    except Exception as e:
+        logger.exception('Failed to start Dask LocalCluster: {}'
+                         .format(e))
 
     results = execute_futures(fun, execution_iter, cluster, loggers=loggers,
                               **kwargs)
@@ -547,7 +552,7 @@ def execute_futures(fun, execution_iter, cluster=None, loggers=[], **kwargs):
 
         # initialize loggers on workers
         for logger_name in loggers:
-            client.run(REV_LOGGERS.init_logger, logger_name)
+            client.run(NSRDB_LOGGERS.init_logger, logger_name)
 
         # iterate through split executions, submitting each to worker
         for i, exec_slice in enumerate(execution_iter):
@@ -640,12 +645,21 @@ class SmartParallelJob:
         if not hasattr(self, '_cluster'):
             # start a local cluster on a personal comp or HPC single node
             if self._n_workers is None:
-                self._cluster = LocalCluster(n_workers=None)
+                try:
+                    self._cluster = LocalCluster(n_workers=None)
+                except Exception as e:
+                    logger.exception('Failed to start Dask LocalCluster: {}'
+                                     .format(e))
+
             elif isinstance(self._n_workers, int):
-                self._cluster = LocalCluster(n_workers=self._n_workers)
+                try:
+                    self._cluster = LocalCluster(n_workers=self._n_workers)
+                except Exception as e:
+                    logger.exception('Failed to start Dask LocalCluster: {}'
+                                     .format(e))
             else:
-                raise ExecutionError('Bad number of workers: {}'
-                                     .format(self._n_workers))
+                raise Exception('Bad number of workers: {}'
+                                .format(self._n_workers))
         return self._cluster
 
     @property
@@ -720,9 +734,9 @@ class SmartParallelJob:
             faster submission to the Dask client.
         """
         if not hasattr(inp_obj, 'run') or not hasattr(inp_obj, 'flush'):
-            raise ExecutionError('Parallel execution with object: "{}" '
-                                 'failed. The target object must have methods '
-                                 'run() and flush()'.format(inp_obj))
+            raise Exception('Parallel execution with object: "{}" '
+                            'failed. The target object must have methods '
+                            'run() and flush()'.format(inp_obj))
         else:
             self._obj = inp_obj
 
@@ -741,7 +755,7 @@ class SmartParallelJob:
             on the workers in this client.
         """
         for logger_name in self.loggers:
-            client.run(REV_LOGGERS.init_logger, logger_name)
+            client.run(NSRDB_LOGGERS.init_logger, logger_name)
 
     def flush(self):
         """Flush obj.out to disk, set obj.out=None, and garbage collect."""
