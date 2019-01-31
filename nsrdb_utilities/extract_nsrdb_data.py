@@ -78,13 +78,13 @@ class ExtractNSRDB:
         """Retrieve the NSRDB meta data and save to csv."""
         self.meta.to_csv(self.target)
 
-    def filter_meta(self, value, label):
+    def filter_meta(self, values, label):
         """Return a meta df filtered where the label is equal to the value.
 
         Parameters
         ----------
-        value : str | int | float
-            Search variable. Could be a country, state, population, etc...
+        values : str | int | float | list
+            Search variable(s). Could be a country, state, population, etc...
         label : str
             Meta data column label corresponding to the value.
 
@@ -93,9 +93,42 @@ class ExtractNSRDB:
         meta : pd.DataFrame
             Filtered meta data.
         """
-        if isinstance(value, str):
-            value = value.encode()
-        return self.meta.loc[(self.meta[label] == value), :]
+        if isinstance(values, str):
+            values = values.encode()
+        if isinstance(values, list):
+            if isinstance(values[0], str):
+                values = [v.encode() for v in values]
+        if not isinstance(values, list):
+            values = [values]
+        return self.meta.loc[self.meta[label].isin(values), :]
+
+    @classmethod
+    def puerto_rico_vi_meta(cls):
+        """Extract the Puerto Rico meta data to csv."""
+        target = 'pr_nsrdb_meta.csv'
+        source = os.path.join('/projects/PXS/nsrdb/v3.0.1', 'nsrdb_2015.h5')
+
+        ex = cls(target, source)
+
+        val = ['Puerto Rico', 'U.S. Virgin Is.', 'British Virgin Is.']
+        label = 'country'
+
+        df = ex.filter_meta(val, label)
+        df.to_csv(target)
+
+    @classmethod
+    def puerto_rico_vi_data(cls, year=2015):
+        """Extract the Puerto Rico NSRDB data for a given year to target h5."""
+        target = 'pr_nsrdb_{}.h5'.format(year)
+        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
+                              'nsrdb_{}.h5'.format(year))
+
+        ex = cls(target, source)
+        val = ['Puerto Rico', 'U.S. Virgin Is.', 'British Virgin Is.']
+        label = 'country'
+        df = ex.filter_meta(val, label)
+        sites = list(df.index.values)
+        ex.extract(sites=sites)
 
     @classmethod
     def puerto_rico_meta(cls):
