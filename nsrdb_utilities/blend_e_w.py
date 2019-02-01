@@ -13,9 +13,9 @@ import logging
 from scipy.spatial import cKDTree
 import pandas as pd
 import calendar
-from warnings import warn
 
 from nsrdb_utilities import __version__
+from nsrdb_utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -25,14 +25,38 @@ class Blender:
     """East-west NSRDB data blending utility."""
 
     def __init__(self, source_dir, fout, year,
+                 chunk_shape=[None, 100], var=None,
                  f_loc='/projects/PXS/reference_grids/location_info.h5'):
+        """Initialize a blender utility object.
+
+        Parameters
+        ----------
+        source_dir : str
+            Directory containing east/west source h5 files to be blended.
+        fout : str
+            Target output file (with path) to save blended data.
+        year : int | str
+            Year to be blended. Only files with this year in the filename are
+            blended.
+        chunk_shape : list
+            Two-entry chunk shape (y chunk, x chunk). If an entry is None,
+            this value will be replaced by the corresponding dimension in the
+            final dataset.
+        var : str | NoneType
+            Optional variable flag to only blend a certain variable. If this
+            is set, only files in source_dir with var in the name will be
+            blended.
+        f_loc : str
+            h5 file (with path) containing reference grid location info.
+        """
+
         self.year = int(year)
         self.i_start = 0
         self.i_end = 0
         self.lat = []
         self.lon = []
         self.elev = []
-        self.chunk_size = 100
+        self.chunk_shape = chunk_shape
         self.source_dir = source_dir
         self.fout = fout
         self.f_loc = f_loc
@@ -40,24 +64,33 @@ class Blender:
                                  'clearsky_dni', 'dhi', 'clearsky_dhi']
         self.daysinyear = 366 if calendar.isleap(self.year) else 365
 
-        self._getFiles()
+        self._getFiles(var=var)
         self._defineIndicesMeta()
         self._dataShape()
+        self._set_chunk_shape()
         self._createHDF()
 
-    def _getFiles(self):
-        '''
-        collect all of the files to pull together
-        '''
+    def _getFiles(self, var=None):
+        """Get the target file list in dataframe format."""
         logger.debug('Getting files...')
 
-        files = os.listdir(self.source_dir)
-        east = [i for i in files if 'east' in i]
-        west = [i for i in files if 'west' in i]
+        if var is not None:
+            logger.debug('Only blending files containing "{}"'.format(var))
+
+        file_list = os.listdir(self.source_dir)
+        east = [f for f in file_list if
+                self.blend_f(f, 'east', self.year, flag=var)]
+        west = [f for f in file_list if
+                self.blend_f(f, 'west', self.year, flag=var)]
 
         # Sort all of the HDFs so that we get them in ascending index order
         east_files = sorted(east, key=lambda x: int(x.split('_')[2]))
         west_files = sorted(west, key=lambda x: int(x.split('_')[2]))
+
+        logger.debug('Blending the following east files:\n{}'
+                     .format(east_files))
+        logger.debug('Blending the following west files:\n{}'
+                     .format(west_files))
 
         self.files = pd.DataFrame(west_files + east_files)
         self.files.columns = ['files']
@@ -72,9 +105,7 @@ class Blender:
         self.files.end = pd.to_numeric(self.files.end)
 
     def _defineIndicesMeta(self):
-        '''
-        using this to contruct meta and determine indicies given overlap
-        '''
+        """Construct meta and determine indicies given overlap"""
         logger.debug('Defining Indices...')
 
         all_indices = []
@@ -102,18 +133,24 @@ class Blender:
         self.files['indices'] = np.array(all_indices)
 
     def _dataShape(self):
-        '''
-        defines shape of datasets to be created in final output
-        '''
+        """Define the shape of datasets to be created in final output"""
         logger.debug('determining shape...')
 
         self.y = 17568 if calendar.isleap(self.year) else 17520
         self.x = len(self.lon)
+        self.shape = (self.y, self.x)
+        logger.debug('Output data shape is: {}'.format(self.shape))
+
+    def _set_chunk_shape(self):
+        """Set chunk shape values that are "None" based on data shape."""
+        if hasattr(self, 'shape') and hasattr(self, 'chunk_shape'):
+            for i in range(2):
+                if self.chunk_shape[i] is None:
+                    self.chunk_shape[i] = self.shape[i]
 
     def _createHDF(self):
-        '''
-        create the output HDF with datasets and attrs
-        '''
+        """Create the output HDF with datasets and attrs"""
+
         logger.debug('creating output HDF...')
 
         self.hfile = h5py.File(self.fout, 'w')
@@ -122,13 +159,14 @@ class Blender:
         self.hfile.create_group('stats')
 
         with h5py.File(self.source_dir + self.files.files[0], 'r') as hdf:
-            self.datasets = [i for i in hdf if i not in
-                             ['latitude', 'longitude', 'elevation', 'meta']]
 
-            for dataset in self.datasets:
-                self.hfile.create_dataset(dataset, shape=(self.y, self.x),
-                                          dtype=hdf[dataset].dtype,
-                                          chunks=(self.y, self.chunk_size))
+            datasets, dtypes = self.get_dsets(
+                self.source_dir + self.files.files[0])
+
+            for i, dataset in enumerate(datasets):
+                self.hfile.create_dataset(dataset, shape=self.shape,
+                                          dtype=dtypes[i],
+                                          chunks=self.chunk_shape)
 
                 for stat in ['min', 'max', 'avg', 'std']:
                     self.hfile.create_dataset(
@@ -191,56 +229,153 @@ class Blender:
         # Add NSRDB Version
         self.hfile.attrs['version'] = __version__
 
-    def processData(self):
-        '''
-        main processing function
-        '''
-        logger.debug('Processing files... count: ', len(self.files))
+    @staticmethod
+    def blend_f(fname, region, year, flag=None, ext='.h5'):
+        """Check whether to blend a file based on various flags.
 
-        for index, row in self.files.iterrows():
+        Parameters
+        ----------
+        fname : str
+            Target filename that may have to be blended.
+        region : str
+            Region being blended (east or west).
+        year : int | str
+            Year being blended.
+        flag : str | NoneType
+            Optional additional flag to look for in fname. Could be an NSRDB
+            variable.
+        ext : str
+            Requested file extension.
+
+        Returns
+        -------
+        blend : bool
+            Whether or not to blend the target file.
+        """
+
+        blend = False
+        if region in fname and str(year) in fname and fname.endswith(ext):
+            blend = True
+        if flag is not None:
+            if flag not in fname:
+                blend = False
+        return blend
+
+    @staticmethod
+    def get_dsets(h5, ignore=('latitude', 'longitude', 'elevation', 'meta')):
+        """Get a list of datasets and dtypes to operate on from the file.
+
+        Parameters
+        ----------
+        h5 : str
+            Target h5 file to retrieve datasets from. Must include path.
+        ignore : tuple | list
+            Datasets to ignore.
+
+        Returns
+        -------
+        datasets : list
+            List of datasets.
+        dtypes : list
+            List of dataset dtypes.
+        """
+
+        with h5py.File(h5, 'r') as hdf:
+            datasets = [i for i in hdf if i not in ignore]
+            dtypes = [hdf[i].dtype for i in hdf if i not in ignore]
+        return datasets, dtypes
+
+    def blend_file(self, source_h5, indices, out_i_start, out_i_end):
+        """Blend a single source h5 file to the final output blended h5.
+
+        Parameters
+        ----------
+        source_h5 : str
+            Source h5 file (either east or west) found in self.source_dir to
+            be blended.
+        indices : np.array
+            Indices in source_h5 to retrieve and pass to the final output h5.
+        out_i_start : int
+            INCLUSIVE starting site (column) index in the output h5file to
+            write the data to.
+        out_i_end : int
+            EXCLUSIVE final site (column) index in the output h5file to write
+            the data to.
+        """
+
+        with h5py.File(self.source_dir + source_h5, 'r') as hdf:
+            logger.debug('Blending file: {}'.format(source_h5))
+
+            datasets, _ = self.get_dsets(self.source_dir + source_h5)
+
+            for dataset in datasets:
+
+                logger.debug('Performing blend on dset: {}'.format(dataset))
+
+                data = hdf[dataset][:]
+                data = data[:, indices]
+                self.hfile[dataset][:, out_i_start:out_i_end] = data
+
+                self.write_stats(data, dataset, out_i_start, out_i_end)
+
+    def write_stats(self, data, dataset, out_i_start, out_i_end):
+        """Calculate statistics on data and write summary to output h5.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Data array to calculate stats on
+        dataset : str
+            Dataset name.
+        out_i_start : int
+            INCLUSIVE starting site (column) index in the output h5file to
+            write the data to.
+        out_i_end : int
+            EXCLUSIVE final site (column) index in the output h5file to write
+            the data to.
+        """
+
+        if 'psm_scale_factor' in self.hfile[dataset].attrs:
+            data /= self.hfile[dataset].attrs['psm_scale_factor']
+
+        # create and save stats
+        if dataset in self.irradiance_dsets:
+            davg = np.sum(data, axis=0) / self.daysinyear / 1000. / 2.
+        else:
+            davg = np.mean(data, axis=0)
+
+        dmin = np.min(data, axis=0)
+        dmax = np.max(data, axis=0)
+        dstd = np.std(data, axis=0)
+
+        k1 = 'stats/{d}_{s}'.format(d=dataset, s='avg')
+        k2 = 'stats/{d}_{s}'.format(d=dataset, s='min')
+        k3 = 'stats/{d}_{s}'.format(d=dataset, s='max')
+        k4 = 'stats/{d}_{s}'.format(d=dataset, s='std')
+
+        self.hfile[k1][out_i_start:out_i_end] = davg
+        self.hfile[k2][out_i_start:out_i_end] = dmin
+        self.hfile[k3][out_i_start:out_i_end] = dmax
+        self.hfile[k4][out_i_start:out_i_end] = dstd
+
+    def process_all(self):
+        """Process and blend all files in the file list."""
+
+        logger.debug('Processing files... count: {}'.format(len(self.files)))
+
+        for _, row in self.files.iterrows():
 
             self.i_start = self.i_end
             self.i_end = self.i_start + len(row.indices)
 
-            with h5py.File(self.source_dir + row.files, 'r') as hdf:
-                logger.debug(index, row.files)
+            self.blend_file(row.files, row.indices, self.i_start, self.i_end)
 
-                for dataset in self.datasets:
+    @classmethod
+    def blend_var(cls, var, year,
+                  fout='/scratch/gbuster/blended/test_blend.h5'):
+        """Blend a single variable."""
 
-                    data = hdf[dataset][:]
-                    data = data[:, row.indices]
-                    self.hfile[dataset][:, self.i_start:self.i_end] = data
-
-                    try:
-                        data /= self.hfile[dataset].attrs['psm_scale_factor']
-                    except Exception as e:
-                        warn(e)
-                    # create and save stats
-                    if dataset in self.irradiance_dsets:
-                        davg = (np.sum(data, axis=0) / self.daysinyear /
-                                1000. / 2.)
-                    else:
-                        davg = np.mean(data, axis=0)
-
-                    dmin = np.min(data, axis=0)
-                    dmax = np.max(data, axis=0)
-                    dstd = np.std(data, axis=0)
-
-                    k1 = 'stats/{d}_{s}'.format(d=dataset, s='avg')
-                    k2 = 'stats/{d}_{s}'.format(d=dataset, s='min')
-                    k3 = 'stats/{d}_{s}'.format(d=dataset, s='max')
-                    k4 = 'stats/{d}_{s}'.format(d=dataset, s='std')
-
-                    self.hfile[k1][self.i_start:self.i_end] = davg
-                    self.hfile[k2][self.i_start:self.i_end] = dmin
-                    self.hfile[k3][self.i_start:self.i_end] = dmax
-                    self.hfile[k4][self.i_start:self.i_end] = dstd
-
-
-if __name__ == '__main__':
-    source_dir = '/projects/PXS/ancillary/gridded/striped'
-    fout = '/scratch/gbuster/blended/test_blend.h5'
-    year = 2016
-
-    blend = Blender(source_dir, fout, year)
-    blend.processData()
+        init_logger(__name__, {'log_level': 'DEBUG', 'log_file': 'blend.log'})
+        source_dir = '/projects/PXS/ancillary/gridded/striped'
+        blend = Blender(source_dir, fout, year, var=var)
+        blend.process_all()
