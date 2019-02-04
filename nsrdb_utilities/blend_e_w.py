@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 
 from nsrdb_utilities import __version__
 from nsrdb_utilities.loggers import init_logger
+from nsrdb_utilities.execution import PBS
 
 
 logger = logging.getLogger(__name__)
@@ -279,7 +280,7 @@ class Blender:
                                 np.ravel(htz['meta']['latitude'][...])))[0]
 
             # get the nearest neighbor indices
-            index = self.get_nn_ind(ref_ll, target_ll, cache=True)
+            index = self.get_nn_ind(ref_ll, target_ll, cache=False)
 
             # iterate each dataset
             for key in htz.keys():
@@ -325,7 +326,7 @@ class Blender:
                               distance_upper_bound=0.05)
         return index
 
-    def get_nn_ind(self, ref_ll, target_ll, cache=True):
+    def get_nn_ind(self, ref_ll, target_ll, cache=False):
         """Get nearest neighbor indices.
 
         Parameters
@@ -334,7 +335,7 @@ class Blender:
             Reference lat/lon array.
         target_ll : np.ndarray
             Final lat/lon array.
-        cache_nn : bool
+        cache : bool
             Flag to save/import cached nearest neighbor indices from the
             out_dir. The NN operation is the most time intensive process so
             this can speed up the code substantially. However, if this requires
@@ -585,7 +586,7 @@ class Blender:
                         self.source_dir + row.files)
                     df = pd.DataFrame({'latitude': lat, 'longitude': lon,
                                        dset: data})
-                    plot_name = '{}_{}'.format(row.files.rstrip('.h5'),
+                    plot_name = '{}_{}'.format(row.files.replace('.h5', ''),
                                                dset)
                     self.plot_geo_df(df, plot_name, self.out_dir)
 
@@ -641,17 +642,126 @@ class Blender:
             logger.warning('Could not plot "{}". Received the following '
                            'exception: {}'.format(title, e))
 
+    @staticmethod
+    def summarize(out_dir, fout, dset, save_meta=False, plot=True):
+        """Log a summary of the output file and extract meta and/or a plot.
+
+        Parameters
+        ----------
+        out_dir : str
+            Target location of the file to summarize.
+        fout : str
+            Target h5 file to summarize (must be in out_dir).
+        dset : str
+            Dataset name of interest. (meta will be extracted in addition).
+        save_meta : bool
+            Flag to export the meta data to a csv in out_dir.
+        plot : bool
+            Flag to plot 1st timestep of the dset on a lat/lon plot.
+        """
+        logger.info('Summarizing "{}" located in {}'.format(fout, out_dir))
+        try:
+            with h5py.File(os.path.join(out_dir, fout), 'r') as f:
+                logger.info('"{}" contains the following datasets: {}'
+                            .format(fout, list(f.keys())))
+                meta = pd.DataFrame(f['meta'][...])
+                logger.info('"{}" meta data head/tail are as follows:\n{}\n{}'
+                            .format(fout, meta.head(), meta.tail()))
+                logger.info('"{}" meta data shape is: {}'
+                            .format(fout, meta.shape))
+                base_name = fout.replace('.h5', '')
+                if save_meta:
+                    meta.to_csv(
+                        os.path.join(out_dir, base_name + '_meta.csv'))
+
+                logger.info('"{}" dataset "{}" has shape {} and chunk shape {}'
+                            .format(fout, dset, f[dset].shape, f[dset].chunks))
+
+                if plot:
+                    df = pd.DataFrame({'latitude': meta['latitude'],
+                                       'longitude': meta['longitude'],
+                                       dset: f[dset][0, :]})
+                    Blender.plot_geo_df(df, 'blended_{}'.format(base_name),
+                                        out_dir)
+        except Exception as e:
+            warn('Could not summarize {}. Received the following exception: '
+                 '\n{}'.format(os.path.join(out_dir, fout), e))
+
     @classmethod
     def blend_var(cls, var, year, chunk_shape=[None, 100], plot_verify=True,
-                  out_dir='/scratch/gbuster/blended/', fout='test_blend.h5',
+                  out_dir='/scratch/gbuster/blended/', fout='blend.h5',
                   source_dir='/projects/PXS/ancillary/gridded/striped/'):
-        """Blend a single variable."""
+        """Blend a single variable.
+
+        Parameters
+        ----------
+        var : str
+            Target variable to blend. This string will be searched for in the
+            file names in the source_dir.
+        year : int | str
+            Year to be blended. Only files with this year in the filename are
+            blended.
+        chunk_shape : list | tuple
+            Two-entry chunk shape (y chunk, x chunk). If an entry is None,
+            this value will be replaced by the corresponding dimension in the
+            final dataset.
+        plot_verify : bool
+            Flag for whether to plot geo maps of the source data and blended
+            output.
+        out_dir : str
+            Target output directory to save blended data.
+        fout : str
+            Target output file (without path) to save blended data.
+        source_dir : str
+            Directory containing east/west source h5 files to be blended.
+        """
 
         init_logger(__name__, log_level='DEBUG', log_file=None)
 
         blend = Blender(source_dir, out_dir, fout, year, var=var,
                         chunk_shape=chunk_shape, plot_verify=plot_verify)
         blend.process_all()
+        blend.summarize(out_dir, fout, var, save_meta=True, plot=plot_verify)
+
+    @classmethod
+    def peregrine_blend(cls, var, year_range):
+        """Blend a single variable over a range of years on Peregrine bigmem.
+
+        Parameters
+        ----------
+        var : str
+            Target variable to blend. This string will be searched for in the
+            file names in the source_dir.
+        year_range : iterable
+            Year range to be blended. Each year will be a seperate job on
+            peregrine in the BIGMEM queue. Note that if this is a python
+            range() object, the starting index is inclusive and the finishing
+            index is exclusive.
+        """
+
+        for year in year_range:
+            fout = '{}_{}.h5'.format(str(year)[-2:], var)
+
+            cmd = ["""python -c """,
+                   """'from nsrdb_utilities.blend_e_w import Blender; """,
+                   """Blender.blend_var("{var}", {year}, fout="{fout}")'"""
+                   .format(var=var, year=year, fout=fout)]
+            cmd = ''.join(cmd)
+
+            pbs = PBS(cmd, alloc='pxs', queue='bigmem',
+                      name=fout.replace('.h5', ''),
+                      stdout_path='/scratch/gbuster/blended/stdout/')
+
+            print('\ncmd:\n{}\n'.format(cmd))
+
+            if pbs.id:
+                msg = ('Kicked off job "{}" (PBS jobid #{}) on '
+                       'Peregrine.'.format(fout.replace('.h5', ''), pbs.id))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(fout.replace('.h5', '')))
+            print(msg)
 
 
 if __name__ == '__main__':
