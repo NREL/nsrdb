@@ -6,6 +6,7 @@
 
 import logging
 import numpy as np
+import pandas as pd
 import os
 import h5py
 import time
@@ -15,6 +16,34 @@ from warnings import warn
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_meta_df(fname):
+    """Get the meta dataframe from fname."""
+    with h5py.File(fname) as f:
+        meta = pd.DataFrame(f['meta'][...])
+    return meta
+
+
+def get_dset_dtype(fname, dset):
+    """Get the dset data type from fname."""
+    with h5py.File(fname) as f:
+        dtype = f[dset].dtype
+    return dtype
+
+
+def get_dset_shape(fname, dset):
+    """Get the dset shape from fname."""
+    with h5py.File(fname) as f:
+        shape = f[dset].shape
+    return shape
+
+
+def get_dset_attrs(fname, dset):
+    """Get the dset attribute dictionary from fname."""
+    with h5py.File(fname) as f:
+        attrs = dict(f[dset].attrs)
+    return attrs
 
 
 def get_dset_list(fname):
@@ -237,3 +266,84 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
 
     for dset in dsets:
         interrogate_dset(os.path.join(target_dir, target_f), dset)
+
+
+def update_dset(source_f, target_f, dsets):
+    """Update the datasets in target_f with the data from source_f.
+
+    Note that this also updates the dataset attributes but not the shape,
+    chunks, or dtype. Furthermore, this method is scaling-agnostic, such that
+    the data from source is written to target without unscaling/rescaling
+    (source data must be properly scaled with corresponding attributes).
+
+    Parameters
+    ----------
+    source_f : str
+        Source h5 file (with path) with dsets and correct data. This must
+        have the same meta lat/lon array as target_f.
+    target_f : str
+        Target file (with path) that will contain the final updated datasets.
+        This must have the same meta lat/lon array as source_f.
+    dsets : list | tuple
+        Datasets to update. Must be present in both files, have the same dtype
+        and shape.
+    """
+
+    source_meta = get_meta_df(source_f)
+    target_meta = get_meta_df(target_f)
+
+    if (all(source_meta['latitude'] != target_meta['latitude']) or
+            all(source_meta['longitude'] != target_meta['longitude'])):
+        raise ValueError('Meta data coordinate arrays do not match between '
+                         '{} and {}. Data updating should not be performed.'
+                         .format(source_f, target_f))
+
+    # check datasets present in files
+    for f in [source_f, target_f]:
+        for dset in dsets:
+            if dset not in f:
+                raise KeyError('Dataset "{}" not found in {}'.format(dset, f))
+
+    # check dataset dtypes in files
+    for dset in dsets:
+        source_dtype = get_dset_dtype(source_f, dset)
+        target_dtype = get_dset_dtype(target_f, dset)
+        if source_dtype != target_dtype:
+            raise TypeError('Datatype of dataset "{}" does not match between '
+                            '{} and {}. Respective dtypes are: {} and {}'
+                            .format(dset, source_f, target_f,
+                                    source_dtype, target_dtype))
+
+        source_shape = get_dset_shape(source_f, dset)
+        target_shape = get_dset_shape(target_f, dset)
+        if source_shape != target_shape:
+            raise ValueError('Shapes of dataset "{}" does not match between '
+                             '{} and {}. Respective shapes are: {} and {}'
+                             .format(dset, source_f, target_f,
+                                     source_shape, target_shape))
+
+        # dataset dtypes match, proceed.
+        t1 = time.time()
+        with h5py.File(target_f, 'a') as target:
+            # overwrite with new attributes.
+            target[dset].attrs = get_dset_attrs(source_f, dset)
+
+            with h5py.File(source_f, 'r') as source:
+
+                end = 0
+                chunk = 10000
+
+                for i in range(0, 300):
+                    start = end
+                    end = np.min([start + chunk, source_shape[1]])
+                    target[dset][:, start:end] = source[dset][:, start:end]
+                    min_elapsed = (time.time() - t1) / 60
+                    logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
+                                ' Time elapsed: {4:.2f} minutes.'
+                                .format(dset, start, end, i, min_elapsed))
+
+                    if end == source_shape[1]:
+                        logger.info('Reached end of dataset "{}" (dataset '
+                                    'column index {} and dataset shape is {})'
+                                    .format(dset, end, source_shape))
+                        break
