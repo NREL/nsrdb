@@ -32,7 +32,7 @@ class ExtractNSRDB:
         self.target = target
         self.source = source
 
-    def extract_map(self, dset, time_index=0):
+    def extract_map(self, dset, time_index=0, sort=False):
         """Extract a lat-lon-data csv for one timestep and all sites for
         mapping applications.
 
@@ -43,6 +43,8 @@ class ExtractNSRDB:
         time_index : int
             Time series index to extract. Data from all sites for this single
             time index will be extracted.
+        sort : bool
+            Flag on whether to sort the data by lat/lon.
         """
 
         if not self.target.endswith('.csv'):
@@ -51,7 +53,11 @@ class ExtractNSRDB:
         df = self.meta.loc[:, ['latitude', 'longitude']]
 
         with h5py.File(self.source, 'r') as f:
+            print('Extracting "{}" from {}.'.format(dset, self.source))
             df[dset] = f[dset][time_index, :]
+
+        if sort:
+            df = df.sort_values(by=['latitude', 'longitude'])
 
         df.to_csv(self.target)
 
@@ -60,7 +66,7 @@ class ExtractNSRDB:
 
         Parameters
         ----------
-        dset : list | tuple
+        dsets : list | tuple
             Target datasets in source h5 file to extract data from.
         """
 
@@ -70,6 +76,12 @@ class ExtractNSRDB:
         with h5py.File(self.target, 'w') as t:
             with h5py.File(self.source, 'r') as s:
                 for dset in dsets:
+                    if dset not in s:
+                        raise KeyError('Could not find dataset "{}" in {}'
+                                       .format(dset, self.source))
+                for dset in dsets:
+                    print('Copying "{}" from {} to {}'
+                          .format(dset, self.source, self.target))
                     chunks = None
                     if hasattr(s[dset], 'chunks'):
                         chunks = s[dset].chunks
@@ -77,7 +89,11 @@ class ExtractNSRDB:
                                      shape=s[dset].shape,
                                      dtype=s[dset].dtype,
                                      chunks=chunks)
-                    t[dset].attrs = s[dset].attrs
+
+                    if hasattr(s[dset], 'attrs'):
+                        attrs = dict(s[dset].attrs)
+                        for k, v in attrs.items():
+                            t[dset].attrs[k] = v
 
                 t.create_dataset('meta', data=s['meta'][...])
                 t.create_dataset('time_index', data=s['time_index'][...])
@@ -247,3 +263,11 @@ class ExtractNSRDB:
                               'nsrdb_{}.h5'.format(year))
         ex = cls(target, source)
         ex.extract_sites(sites=range(145809, 145810))
+
+    @classmethod
+    def copy_nsrdb_test_file(cls, dsets, year=1998):
+        """Make a copy NSRDB test file with certain dsets"""
+        target = '/scratch/gbuster/nsrdb_test_data/nsrdb_{}.h5'.format(year)
+        source = '/projects/PXS/nsrdb/v3.0.1/nsrdb_{}.h5'.format(year)
+        ex = cls(target, source)
+        ex.extract_dsets(dsets)
