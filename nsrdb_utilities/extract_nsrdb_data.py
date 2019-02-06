@@ -55,13 +55,13 @@ class ExtractNSRDB:
 
         df.to_csv(self.target)
 
-    def extract_dset(self, dset):
-        """Extract entire dataset with meta from h5 to new h5.
+    def extract_dsets(self, dsets):
+        """Extract entire datasets with meta from h5 to new h5.
 
         Parameters
         ----------
-        dset : str
-            Target dataset in source h5 file to extract data from.
+        dset : list | tuple
+            Target datasets in source h5 file to extract data from.
         """
 
         if not self.target.endswith('.h5'):
@@ -69,14 +69,15 @@ class ExtractNSRDB:
 
         with h5py.File(self.target, 'w') as t:
             with h5py.File(self.source, 'r') as s:
-                chunks = None
-                if hasattr(s[dset], 'chunks'):
-                    chunks = s[dset].chunks
-                t.create_dataset(dset, data=s[dset][...],
-                                 shape=s[dset].shape,
-                                 dtype=s[dset].dtype,
-                                 chunks=chunks)
-                t[dset].attrs = s[dset].attrs
+                for dset in dsets:
+                    chunks = None
+                    if hasattr(s[dset], 'chunks'):
+                        chunks = s[dset].chunks
+                    t.create_dataset(dset, data=s[dset][...],
+                                     shape=s[dset].shape,
+                                     dtype=s[dset].dtype,
+                                     chunks=chunks)
+                    t[dset].attrs = s[dset].attrs
 
                 t.create_dataset('meta', data=s['meta'][...])
                 t.create_dataset('time_index', data=s['time_index'][...])
