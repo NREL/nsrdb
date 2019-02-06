@@ -50,7 +50,7 @@ class ExtractNSRDB:
 
         df = self.meta.loc[:, ['latitude', 'longitude']]
 
-        with h5py.File(self.source, 'w') as f:
+        with h5py.File(self.source, 'r') as f:
             df[dset] = f[dset][time_index, :]
 
         df.to_csv(self.target)
