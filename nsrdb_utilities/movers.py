@@ -20,28 +20,28 @@ logger = logging.getLogger(__name__)
 
 def get_meta_df(fname):
     """Get the meta dataframe from fname."""
-    with h5py.File(fname) as f:
+    with h5py.File(fname, 'r') as f:
         meta = pd.DataFrame(f['meta'][...])
     return meta
 
 
 def get_dset_dtype(fname, dset):
     """Get the dset data type from fname."""
-    with h5py.File(fname) as f:
+    with h5py.File(fname, 'r') as f:
         dtype = f[dset].dtype
     return dtype
 
 
 def get_dset_shape(fname, dset):
     """Get the dset shape from fname."""
-    with h5py.File(fname) as f:
+    with h5py.File(fname, 'r') as f:
         shape = f[dset].shape
     return shape
 
 
 def get_dset_attrs(fname, dset):
     """Get the dset attribute dictionary from fname."""
-    with h5py.File(fname) as f:
+    with h5py.File(fname, 'r') as f:
         attrs = dict(f[dset].attrs)
     return attrs
 
@@ -300,9 +300,11 @@ def update_dset(source_f, target_f, dsets):
 
     # check datasets present in files
     for f in [source_f, target_f]:
-        for dset in dsets:
-            if dset not in f:
-                raise KeyError('Dataset "{}" not found in {}'.format(dset, f))
+        with h5py.File(f, 'r') as fhandler:
+            for dset in dsets:
+                if dset not in list(fhandler):
+                    raise KeyError('Dataset "{}" not found in {}. Contents: {}'
+                                   .format(dset, f, list(fhandler)))
 
     # check dataset dtypes in files
     for dset in dsets:
@@ -325,25 +327,32 @@ def update_dset(source_f, target_f, dsets):
         # dataset dtypes match, proceed.
         t1 = time.time()
         with h5py.File(target_f, 'a') as target:
+
             # overwrite with new attributes.
-            target[dset].attrs = get_dset_attrs(source_f, dset)
+            for k in dict(target[dset].attrs).keys():
+                print('Deleting attribute "{}" from {}'.format(k, target_f))
+                del target[dset].attrs[k]
+            attrs = get_dset_attrs(source_f, dset)
+            for k, v in attrs.items():
+                print('Setting attribute "{}" to: {}'.format(k, v))
+                target[dset].attrs[k] = v
 
             with h5py.File(source_f, 'r') as source:
 
                 end = 0
                 chunk = 10000
 
-                for i in range(0, 300):
+                for i in range(0, 10000):
                     start = end
                     end = np.min([start + chunk, source_shape[1]])
                     target[dset][:, start:end] = source[dset][:, start:end]
                     min_elapsed = (time.time() - t1) / 60
-                    logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
-                                ' Time elapsed: {4:.2f} minutes.'
-                                .format(dset, start, end, i, min_elapsed))
+                    print('Rewrote {0} for {1} through {2} (chunk #{3}).'
+                          ' Time elapsed: {4:.2f} minutes.'
+                          .format(dset, start, end, i, min_elapsed))
 
                     if end == source_shape[1]:
-                        logger.info('Reached end of dataset "{}" (dataset '
-                                    'column index {} and dataset shape is {})'
-                                    .format(dset, end, source_shape))
+                        print('Reached end of dataset "{}" (dataset '
+                              'column index {} and dataset shape is {})'
+                              .format(dset, end, source_shape))
                         break

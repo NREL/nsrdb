@@ -18,15 +18,15 @@ class ExtractNSRDB:
     IGNORE_LIST = ('meta', 'time_index', 'config', 'stats')
 
     def __init__(self, target, source):
-        """Initialize an extraction utility.
-
+        """
         Parameters
         ----------
         target : str
-            Target file (.csv for simple meta data extractions or .h5 for
-            nsrdb data extractions)
+            Target file (with path) to dump extracted data to (.csv for simple
+            meta data extractions or .h5 for nsrdb data extractions).
         source : str
-            Source NSRDB file with path.
+            Source NSRDB file (with path). Data is extracted from this file and
+            written to the target file.
         """
 
         self.target = target
@@ -59,6 +59,7 @@ class ExtractNSRDB:
         if sort:
             df = df.sort_values(by=['latitude', 'longitude'])
 
+        print('Writing data to "{}"'.format(self.target))
         df.to_csv(self.target)
 
     def extract_dsets(self, dsets):
