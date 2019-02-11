@@ -161,7 +161,7 @@ class Blender:
 
             # get the relevant meta data from the file
             lat, lon, elev = self.get_lat_lon_elev(
-                self.source_dir + row.files)
+                os.path.join(self.source_dir + row.files))
 
             if row.region == 'west' and np.any(lon > -105):
                 indices = np.where(lon <= -105)[0]
@@ -398,8 +398,8 @@ class Blender:
         Parameters
         ----------
         fname : str
-            Target filename containing latitude/longitude/elevation as datasets
-            or containing meta dataset with these.
+            Target filename (with path) containing latitude/longitude/elevation
+            as datasets or containing meta dataset with these.
 
         Returns
         -------
