@@ -367,3 +367,6 @@ def update_dset(source_f, target_f, dsets):
                               'column index {} and dataset shape is {})'
                               .format(dset, end, source_shape))
                         break
+    print('Finished copying datasets from {} to {}. '
+          'The following datasets were copied: {}'
+          .format(source_f, target_f, dsets))
