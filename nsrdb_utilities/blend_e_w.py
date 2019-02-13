@@ -760,8 +760,9 @@ class Blender:
             cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
                              source_dir=source_dir)
 
-            pbs = PBS(cmd, alloc='pxs', queue='bigmem', name=node_name,
-                      stdout_path=os.path.join(out_dir, 'stdout/'))
+            pbs = PBS(cmd, alloc='pxs', queue='short', name=node_name,
+                      stdout_path=os.path.join(out_dir, 'stdout/'),
+                      feature='256GB:qos=high')
 
             print('\ncmd:\n{}\n'.format(cmd))
 

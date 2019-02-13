@@ -53,8 +53,19 @@ def get_dset_list(fname):
     return keys
 
 
-def pull_data(fname, dset, slc):
-    """Get the unscaled data from the target dataset in fname."""
+def pull_data(fname, dset, slc=(slice(0, 8760), slice(0, 100))):
+    """Get the unscaled data from the target dataset in fname.
+
+    Parameters
+    ----------
+    fname : str
+        file name with path to pull data from.
+    dset : str
+        Target dataset to pull data from.
+    slc : slice | list | tuple
+        Slices of the datasets to compare. For resource data this should be a
+        2 slice entry list/tuple.
+    """
     with h5py.File(fname, 'r') as f:
         data = f[dset][slc]
         if 'psm_scale_factor' in f[dset].attrs:
