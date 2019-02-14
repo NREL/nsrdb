@@ -665,8 +665,9 @@ class Blender:
                 logger.info('"{}" contains the following datasets: {}'
                             .format(fout, list(f.keys())))
                 for dset in list(f.keys()):
-                    logger.info('Dataset "{}" has dtype: {}'
-                                .format(dset, f[dset].dtype))
+                    if dset not in ['stats']:
+                        logger.info('Dataset "{}" has dtype: {}'
+                                    .format(dset, f[dset].dtype))
                 meta = pd.DataFrame(f['meta'][...])
                 logger.info('"{}" meta data head/tail are as follows:\n{}\n{}'
                             .format(fout, meta.head(), meta.tail()))
@@ -760,9 +761,9 @@ class Blender:
             cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
                              source_dir=source_dir)
 
-            pbs = PBS(cmd, alloc='pxs', queue='short', name=node_name,
+            pbs = PBS(cmd, alloc='pxs', queue='bigmem', name=node_name,
                       stdout_path=os.path.join(out_dir, 'stdout/'),
-                      feature='256GB:qos=high')
+                      feature=None)
 
             print('\ncmd:\n{}\n'.format(cmd))
 
