@@ -67,7 +67,7 @@ class Blender:
         var : str | NoneType
             Optional variable flag to only blend a certain variable. If this
             is set, only files in source_dir with var in the name will be
-            blended.
+            blended. This is the NSRDB variable name, not the MERRA variable.
         f_loc : str
             h5 file (with path) containing reference grid location info.
         """
@@ -161,7 +161,7 @@ class Blender:
 
             # get the relevant meta data from the file
             lat, lon, elev = self.get_lat_lon_elev(
-                self.source_dir + row.files)
+                os.path.join(self.source_dir + row.files))
 
             if row.region == 'west' and np.any(lon > -105):
                 indices = np.where(lon <= -105)[0]
@@ -398,8 +398,8 @@ class Blender:
         Parameters
         ----------
         fname : str
-            Target filename containing latitude/longitude/elevation as datasets
-            or containing meta dataset with these.
+            Target filename (with path) containing latitude/longitude/elevation
+            as datasets or containing meta dataset with these.
 
         Returns
         -------
@@ -664,6 +664,10 @@ class Blender:
             with h5py.File(os.path.join(out_dir, fout), 'r') as f:
                 logger.info('"{}" contains the following datasets: {}'
                             .format(fout, list(f.keys())))
+                for dset in list(f.keys()):
+                    if dset not in ['stats']:
+                        logger.info('Dataset "{}" has dtype: {}'
+                                    .format(dset, f[dset].dtype))
                 meta = pd.DataFrame(f['meta'][...])
                 logger.info('"{}" meta data head/tail are as follows:\n{}\n{}'
                             .format(fout, meta.head(), meta.tail()))
@@ -688,19 +692,25 @@ class Blender:
                  '\n{}'.format(os.path.join(out_dir, fout), e))
 
     @classmethod
-    def blend_var(cls, var, year, chunk_shape=[None, 100], plot_verify=True,
-                  out_dir='/scratch/gbuster/blended/', fout='blend.h5',
-                  source_dir='/projects/PXS/ancillary/gridded/striped/'):
+    def blend_var(cls, var, year, out_dir, fout, source_dir,
+                  chunk_shape=[None, 100], plot_verify=True):
         """Blend a single variable.
 
         Parameters
         ----------
         var : str
             Target variable to blend. This string will be searched for in the
-            file names in the source_dir.
+            file names in the source_dir. This is the NSRDB variable name, not
+            the MERRA variable.
         year : int | str
             Year to be blended. Only files with this year in the filename are
             blended.
+        out_dir : str
+            Target output directory to save blended data.
+        fout : str
+            Target output file (without path) to save blended data.
+        source_dir : str
+            Directory containing east/west source h5 files to be blended.
         chunk_shape : list | tuple
             Two-entry chunk shape (y chunk, x chunk). If an entry is None,
             this value will be replaced by the corresponding dimension in the
@@ -708,12 +718,6 @@ class Blender:
         plot_verify : bool
             Flag for whether to plot geo maps of the source data and blended
             output.
-        out_dir : str
-            Target output directory to save blended data.
-        fout : str
-            Target output file (without path) to save blended data.
-        source_dir : str
-            Directory containing east/west source h5 files to be blended.
         """
 
         init_logger(__name__, log_level='DEBUG', log_file=None)
@@ -724,33 +728,42 @@ class Blender:
         blend.summarize(out_dir, fout, var, save_meta=True, plot=plot_verify)
 
     @classmethod
-    def peregrine_blend(cls, var, year_range):
+    def peregrine_blend(cls, var, year_range, out_dir, source_dir):
         """Blend a single variable over a range of years on Peregrine bigmem.
 
         Parameters
         ----------
         var : str
             Target variable to blend. This string will be searched for in the
-            file names in the source_dir.
+            file names in the source_dir. This is the NSRDB variable name, not
+            the MERRA variable.
         year_range : iterable
             Year range to be blended. Each year will be a seperate job on
             peregrine in the BIGMEM queue. Note that if this is a python
             range() object, the starting index is inclusive and the finishing
             index is exclusive.
+        out_dir : str
+            Target output directory to save blended data.
+        source_dir : str
+            Directory containing east/west source h5 files to be blended.
         """
 
         for year in year_range:
-            fout = '{}_{}.h5'.format(str(year)[-2:], var)
+            node_name = '{}_{}'.format(str(year)[-2:], var)
+            fout = '{}_{}.h5'.format(str(year), var)
 
-            cmd = ["""python -c """,
-                   """'from nsrdb_utilities.blend_e_w import Blender; """,
-                   """Blender.blend_var("{var}", {year}, fout="{fout}")'"""
-                   .format(var=var, year=year, fout=fout)]
-            cmd = ''.join(cmd)
+            cmd = ('python -c '
+                   '\'from nsrdb_utilities.blend_e_w import Blender; '
+                   'Blender.blend_var("{var}", {year}, fout="{fout}", '
+                   'out_dir="{out_dir}", source_dir="{source_dir}")\''
+                   )
 
-            pbs = PBS(cmd, alloc='pxs', queue='bigmem',
-                      name=fout.replace('.h5', ''),
-                      stdout_path='/scratch/gbuster/blended/stdout/')
+            cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
+                             source_dir=source_dir)
+
+            pbs = PBS(cmd, alloc='pxs', queue='bigmem', name=node_name,
+                      stdout_path=os.path.join(out_dir, 'stdout/'),
+                      feature=None)
 
             print('\ncmd:\n{}\n'.format(cmd))
 
@@ -762,7 +775,3 @@ class Blender:
                        'Please see the stdout error messages'
                        .format(fout.replace('.h5', '')))
             print(msg)
-
-
-if __name__ == '__main__':
-    Blender.blend_var('wind_speed', 2016, chunk_shape=(48, 100))
