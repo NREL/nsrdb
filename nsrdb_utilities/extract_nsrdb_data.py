@@ -18,21 +18,88 @@ class ExtractNSRDB:
     IGNORE_LIST = ('meta', 'time_index', 'config', 'stats')
 
     def __init__(self, target, source):
-        """Initialize an extraction utility.
-
+        """
         Parameters
         ----------
         target : str
-            Target file (.csv for simple meta data extractions or .h5 for
-            nsrdb data extractions)
+            Target file (with path) to dump extracted data to (.csv for simple
+            meta data extractions or .h5 for nsrdb data extractions).
         source : str
-            Source NSRDB file with path.
+            Source NSRDB file (with path). Data is extracted from this file and
+            written to the target file.
         """
 
         self.target = target
         self.source = source
 
-    def extract(self, sites=range(100)):
+    def extract_map(self, dset, time_index=0, sort=False):
+        """Extract a lat-lon-data csv for one timestep and all sites for
+        mapping applications.
+
+        Parameters
+        ----------
+        dset : str
+            Target dataset in source h5 file to extract data from.
+        time_index : int
+            Time series index to extract. Data from all sites for this single
+            time index will be extracted.
+        sort : bool
+            Flag on whether to sort the data by lat/lon.
+        """
+
+        if not self.target.endswith('.csv'):
+            raise TypeError('Target must be .csv for map data extraction.')
+
+        df = self.meta.loc[:, ['latitude', 'longitude']]
+
+        with h5py.File(self.source, 'r') as f:
+            print('Extracting "{}" from {}.'.format(dset, self.source))
+            df[dset] = f[dset][time_index, :]
+
+        if sort:
+            df = df.sort_values(by=['latitude', 'longitude'])
+
+        print('Writing data to "{}"'.format(self.target))
+        df.to_csv(self.target)
+
+    def extract_dsets(self, dsets):
+        """Extract entire datasets with meta from h5 to new h5.
+
+        Parameters
+        ----------
+        dsets : list | tuple
+            Target datasets in source h5 file to extract data from.
+        """
+
+        if not self.target.endswith('.h5'):
+            raise TypeError('Target must be .h5 for site data extraction.')
+
+        with h5py.File(self.target, 'w') as t:
+            with h5py.File(self.source, 'r') as s:
+                for dset in dsets:
+                    if dset not in s:
+                        raise KeyError('Could not find dataset "{}" in {}'
+                                       .format(dset, self.source))
+                for dset in dsets:
+                    print('Copying "{}" from {} to {}'
+                          .format(dset, self.source, self.target))
+                    chunks = None
+                    if hasattr(s[dset], 'chunks'):
+                        chunks = s[dset].chunks
+                    t.create_dataset(dset, data=s[dset][...],
+                                     shape=s[dset].shape,
+                                     dtype=s[dset].dtype,
+                                     chunks=chunks)
+
+                    if hasattr(s[dset], 'attrs'):
+                        attrs = dict(s[dset].attrs)
+                        for k, v in attrs.items():
+                            t[dset].attrs[k] = v
+
+                t.create_dataset('meta', data=s['meta'][...])
+                t.create_dataset('time_index', data=s['time_index'][...])
+
+    def extract_sites(self, sites=range(100)):
         """Extract data from h5 for given site indices and write to new h5.
 
         Parameters
@@ -41,6 +108,9 @@ class ExtractNSRDB:
             Site indicies to extract.
         """
         n_sites = len(list(sites))
+
+        if not self.target.endswith('.h5'):
+            raise TypeError('Target must be .h5 for site data extraction.')
 
         with h5py.File(self.target, 'w') as t:
             with h5py.File(self.source, 'r') as s:
@@ -104,7 +174,7 @@ class ExtractNSRDB:
 
     @classmethod
     def puerto_rico_vi_meta(cls):
-        """Extract the Puerto Rico meta data to csv."""
+        """Extract the Puerto Rico with USVI and BVI meta data to csv."""
         target = 'pr_nsrdb_meta.csv'
         source = os.path.join('/projects/PXS/nsrdb/v3.0.1', 'nsrdb_2015.h5')
 
@@ -118,7 +188,8 @@ class ExtractNSRDB:
 
     @classmethod
     def puerto_rico_vi_data(cls, year=2015):
-        """Extract the Puerto Rico NSRDB data for a given year to target h5."""
+        """Extract the Puerto Rico with USVI and BVI NSRDB data for a given
+        year to target h5."""
         target = 'pr_nsrdb_{}.h5'.format(year)
         source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
                               'nsrdb_{}.h5'.format(year))
@@ -128,7 +199,7 @@ class ExtractNSRDB:
         label = 'country'
         df = ex.filter_meta(val, label)
         sites = list(df.index.values)
-        ex.extract(sites=sites)
+        ex.extract_sites(sites=sites)
 
     @classmethod
     def puerto_rico_meta(cls):
@@ -156,7 +227,7 @@ class ExtractNSRDB:
         label = 'country'
         df = ex.filter_meta(val, label)
         sites = list(df.index.values)
-        ex.extract(sites=sites)
+        ex.extract_sites(sites=sites)
 
     @classmethod
     def puerto_rico_data_50(cls, year=2015):
@@ -170,7 +241,7 @@ class ExtractNSRDB:
         label = 'country'
         df = ex.filter_meta(val, label)
         sites = list(df.index.values)[0:50]
-        ex.extract(sites=sites)
+        ex.extract_sites(sites=sites)
 
     @classmethod
     def oregon_50(cls, year=2015):
@@ -181,7 +252,7 @@ class ExtractNSRDB:
                               'nsrdb_{}.h5'.format(year))
 
         ex = cls(target, source)
-        ex.extract(sites=range(200050, 200100))
+        ex.extract_sites(sites=range(200050, 200100))
 
     @classmethod
     def srrl_2017(cls, year=2017):
@@ -192,4 +263,12 @@ class ExtractNSRDB:
         source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
                               'nsrdb_{}.h5'.format(year))
         ex = cls(target, source)
-        ex.extract(sites=range(145809, 145810))
+        ex.extract_sites(sites=range(145809, 145810))
+
+    @classmethod
+    def copy_nsrdb_test_file(cls, dsets, year=1998):
+        """Make a copy NSRDB test file with certain dsets"""
+        target = '/scratch/gbuster/nsrdb_test_data/nsrdb_{}.h5'.format(year)
+        source = '/projects/PXS/nsrdb/v3.0.1/nsrdb_{}.h5'.format(year)
+        ex = cls(target, source)
+        ex.extract_dsets(dsets)
