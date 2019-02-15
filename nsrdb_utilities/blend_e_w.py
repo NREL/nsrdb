@@ -664,16 +664,18 @@ class Blender:
             with h5py.File(os.path.join(out_dir, fout), 'r') as f:
                 logger.info('"{}" contains the following datasets: {}'
                             .format(fout, list(f.keys())))
-                for dset in list(f.keys()):
-                    if dset not in ['stats']:
+                for d in list(f.keys()):
+                    if d not in ['stats']:
                         logger.info('Dataset "{}" has dtype: {}'
-                                    .format(dset, f[dset].dtype))
+                                    .format(d, f[d].dtype))
+
                 meta = pd.DataFrame(f['meta'][...])
                 logger.info('"{}" meta data head/tail are as follows:\n{}\n{}'
                             .format(fout, meta.head(), meta.tail()))
                 logger.info('"{}" meta data shape is: {}'
                             .format(fout, meta.shape))
                 base_name = fout.replace('.h5', '')
+
                 if save_meta:
                     meta.to_csv(
                         os.path.join(out_dir, base_name + '_meta.csv'))
