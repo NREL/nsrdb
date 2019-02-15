@@ -7,9 +7,11 @@
 import logging
 import os
 import shlex
-import subprocess
+import time
+from subprocess import Popen, PIPE
+from dask.distributed import Client, LocalCluster
 
-from nsrdb_utilities.loggers import init_logger
+from nsrdb_utilities.loggers import init_logger, NSRDB_LOGGERS
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ def convert4to5(path4, f_h4, path5, f_h5):
         Filename of final converted h5 file.
     """
 
-    if not f_h4.endswith('.h4') or not f_h4.endswith('.hdf'):
+    if not f_h4.endswith('.h4') and not f_h4.endswith('.hdf'):
         raise TypeError('Specified h4 file not recognized as an .hdf or .h4: '
                         '"{}"'.format(f_h4))
     if not f_h5.endswith('.h5'):
@@ -44,10 +46,34 @@ def convert4to5(path4, f_h4, path5, f_h5):
     h4 = os.path.join(path4, f_h4)
     h5 = os.path.join(path5, f_h5)
 
-    logger.info('Converting "{}" to "{}"'.format(h4, h5))
-    cmd = '{tool} {h4} {h5}'.format(tool=TOOL, h4=h4, h5=h5)
-    cmd = shlex.split(cmd)
-    subprocess.call(cmd)
+    if not os.path.exists(h4):
+        raise IOError('Could not locate file for conversion to h5: {}'
+                      .format(h4))
+    if os.path.exists(h5):
+        logger.info('Target h5 file already exists, may have already been '
+                    'converted, skipping: {}'.format(h5))
+        stdout = 'File already exists: {}'.format(h5)
+        stderr = ''
+    else:
+        cmd = '{tool} {h4} {h5}'.format(tool=TOOL, h4=h4, h5=h5)
+        logger.debug('Executing the command: {}'.format(cmd))
+        cmd = shlex.split(cmd)
+
+        # submit subprocess and wait for stdout/stderr
+        t0 = time.time()
+        process = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = process.communicate()
+        stderr = stderr.decode('ascii').rstrip()
+        stdout = stdout.decode('ascii').rstrip()
+        elapsed = (time.time() - t0) / 60
+        if stderr:
+            logger.warning('Conversion of "{}" returned a stderr: "{}"'
+                           .format(stderr))
+        else:
+            logger.info('Finished conversion of "{0}" in {1:.2f} min, '
+                        'stdout: "{2}"'.format(f_h5, elapsed, stdout))
+
+    return (stdout, stderr)
 
 
 def get_conversion_list(path4, path5):
@@ -92,7 +118,51 @@ def get_conversion_list(path4, path5):
     return conversion_list
 
 
-def convert_directory(path4, path5):
+def convert_list_serial(conversion_list):
+    """Convert h4 to h5 files in serial based on the conversion list.
+
+    Parameters
+    -------
+    conversion_list : list
+        List of paths and files to convert for input to convert4to5.
+        Format is: conversion_list = [[path4, f_h4, path5, f_h5], ...]
+    """
+
+    logger.info('Converting {} hdf files in serial.'
+                .format(len(conversion_list)))
+    for [path4, f_h4, path5, f_h5] in conversion_list[0:1]:
+        convert4to5(path4, f_h4, path5, f_h5)
+
+
+def convert_list_parallel(conversion_list, n_workers=2):
+    """Convert h4 to h5 files in parallel based on the conversion list.
+
+    Parameters
+    -------
+    conversion_list : list
+        List of paths and files to convert for input to convert4to5.
+        Format is: conversion_list = [[path4, f_h4, path5, f_h5], ...]
+    n_workers : int
+        Number of Dask local workers to use.
+    """
+
+    futures = []
+    # start client with n_workers to use
+    logger.info('Starting a Dask client with {} workers to convert {} '
+                'hdf files.'.format(n_workers, len(conversion_list)))
+    with Client(LocalCluster(n_workers=n_workers)) as client:
+        # initialize loggers on workers.
+        client.run(NSRDB_LOGGERS.init_logger, __name__)
+        # iterate through list to convert
+        for [path4, f_h4, path5, f_h5] in conversion_list:
+            # kick off conversion on a worker without caring about result.
+            futures.append(client.submit(
+                convert4to5, path4, f_h4, path5, f_h5))
+
+        futures = client.gather(futures)
+
+
+def convert_directory(path4, path5, n_workers=1):
     """Convert a directory of hdf4 files to hdf5 in a new directory.
 
     Parameters
@@ -100,25 +170,38 @@ def convert_directory(path4, path5):
     path4 : str
         Path of directory containing hdf4 files to be converted. Files with
         .hdf or .h4 extensions in this directory will be converted.
-    path5: str
+    path5 : str
         Path of target directory to dump converted hdf5 files (directory
         structure matching path4 will be created).
+    n_workers : int
+        Number of workers to use. 1 converts all files in serial, >1 has each
+        worker convert a file. None uses all available workers on the node.
     """
 
+    logger.info('Converting h4 files in directory "{}" to "{}"'
+                .format(path4, path5))
+
+    # get the list of paths/files to convert
     conversion_list = get_conversion_list(path4, path5)
-    print(conversion_list)
-    print('')
 
-    logger.info('Converting directory "{}" to "{}"'.format(path4, path5))
-
-    for [path4, f_h4, path5, f_h5] in conversion_list:
+    # make directory tree in new location if it doesnt exist
+    for [_, _, path5, _] in conversion_list:
         if not os.path.exists(path5):
-            # make directory tree in new location if it doesnt exist
             os.makedirs(path5)
-        print(path4, f_h4, path5, f_h5)
+
+    # kick off conversion in serial or parallel
+    if n_workers == 1:
+        convert_list_serial(conversion_list)
+    else:
+        convert_list_parallel(conversion_list, n_workers=n_workers)
+
+    logger.info('Finished converting h4 files in "{}" to "{}"'
+                .format(path4, path5))
 
 
 if __name__ == '__main__':
-    init_logger(__name__, log_level='DEBUG', log_file=None)
-    convert_directory('/scratch/mfoster/2018/adj_920/213/level2',
-                      '/scratch/gbuster/wisc_h5_data')
+    path4 = '/scratch/mfoster/2018/adj_920/213/level2/'
+    path5 = '/scratch/gbuster/wisc_h5_data'
+    init_logger(__name__, log_level='DEBUG',
+                log_file=os.path.join(path5, 'convert.log'))
+    convert_directory(path4, path5, n_workers=5)
