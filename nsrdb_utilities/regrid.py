@@ -1,6 +1,7 @@
 '''
 #@author: Anthony Lopez
 '''
+from dask.distributed import Client, LocalCluster, fire_and_forget
 import numpy as np
 import h5py
 import time
@@ -8,7 +9,6 @@ import os
 import pandas as pd
 import sys
 from scipy.spatial import cKDTree
-from configobj import ConfigObj
 import logging
 
 from nsrdb_utilities.loggers import init_logger
@@ -20,19 +20,36 @@ logger = logging.getLogger(__name__)
 class ReGrid:
     """Class to manage re-gridding of cloud data from U-Wisc."""
 
-    def __init__(self, config, region, year):
+    def __init__(self, region, year, source_dir, out_dir, temp_dir, grid_file,
+                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+                        'cld_press_acha')):
         """
         Parameters
         ----------
-        config
-        region
-        year
+        region : str
+            NSRDB extent region: 'east' or 'west'
+        year : int | str
+            NSRDB year to process.
+        source_dir : str
+            Directory containing source .h5 files to re-grid.
+        out_dir : str
+            Directory to save re-gridded .h5 files.
+        temp_dir : str
+            Directory to save temporary and intermediate files.
+        grid_file : str
+            NSRDB extent grid file for the specified region.
+        dsets : tuple | list
+            List of dataset names in the .h5 files in source_dir to re-grid.
         """
-        self.config = config
+
         self.year = int(year)
+        self.source_dir = source_dir
+        self.out_dir = out_dir
+        self.temp_dir = temp_dir
+        self.grid_file = grid_file
         self.region = region
-        self.pxs_attrs = config['regrid']['pxs_attrs']
-        self.pxs_attrs_info = None
+        self.dsets = dsets
+        self.dsets_attrs = None
         self.extent = None
         self.time_index = None
         self.existing_files = None
@@ -45,26 +62,24 @@ class ReGrid:
         self._defineTimeSteps()
         self._checkComplete()
 
-    def _fillData(self, attr):
+    def _fillData(self, dset):
         '''
         Return Fill Data for missing time-step
         '''
         fill = np.empty(shape=(len(self.extent), ),
-                        dtype=self.pxs_attrs_info[attr]['dtype'])
-        if self.pxs_attrs_info[attr]['fill_value']:
-            fill[:] = self.pxs_attrs_info[attr]['fill_value']
+                        dtype=self.dsets_attrs[dset]['dtype'])
+        if self.dsets_attrs[dset]['fill_value']:
+            fill[:] = self.dsets_attrs[dset]['fill_value']
         else:
             fill[:] = np.array([-999])\
-                .astype(self.pxs_attrs_info[attr]['dtype'])
+                .astype(self.dsets_attrs[dset]['dtype'])
         return fill
 
     def _setExtent(self):
         '''
         Returns indices of the fixed grid
         '''
-        grid_file = ('/projects/PXS/reference_grids/{region}_psm_extent.csv'
-                     .format(region=self.region))
-        self.extent = pd.read_csv(grid_file)
+        self.extent = pd.read_csv(self.grid_file)
 
     def _setTimeIndex(self):
         """Set the reference time index."""
@@ -75,8 +90,7 @@ class ReGrid:
 
     def _getFiles(self):
         file_path, day, hour, minute = [], [], [], []
-        fdir = os.path.join(self.config['regrid']['in_dir'],
-                            self.region, str(self.year))
+        fdir = os.path.join(self.source_dir, self.region, str(self.year))
         for folder, _, files in os.walk(fdir):
             for file in files:
                 try:
@@ -132,30 +146,30 @@ class ReGrid:
     def _getPXSInfo(self):
         with h5py.File(self.existing_files['file_path'].iloc[0]) as hfile:
             store = {}
-            for attr in self.pxs_attrs:
-                store.update({attr: {'scale_factor': 1, 'add_offset': 0,
+            for dset in self.dsets:
+                store.update({dset: {'scale_factor': 1, 'add_offset': 0,
                                      'fill_value': 0, 'long_name': 'N/A',
                                      'units': 'N/A'}})
-                for k, _ in store[attr].iteritems():
+                for k, _ in store[dset].iteritems():
                     try:
-                        store[attr][k] = hfile[attr].attrs[k]
+                        store[dset][k] = hfile[dset].attrs[k]
                     except Exception as e:
                         logger.exception(e)
 
                         if k == 'fill_value':
                             try:
-                                store[attr][k] = hfile[attr]\
+                                store[dset][k] = hfile[dset]\
                                     .attrs['_FillValue']
                             except Exception as e:
                                 logger.exception(e)
 
-                store[attr].update({'dtype': np.float})
+                store[dset].update({'dtype': np.float})
                 try:
-                    store[attr]['dtype'] = hfile[attr].dtype
+                    store[dset]['dtype'] = hfile[dset].dtype
                 except Exception as e:
                     logger.exception(e)
 
-        self.pxs_attrs_info = store
+        self.dsets_attrs = store
 
     def _checkComplete(self):
         '''
@@ -164,7 +178,7 @@ class ReGrid:
         tstoprocess = []
         for _, row in self.time_steps.iterrows():
             fh5 = '%s_%s_%s.h5' % (row.write_index, self.region, self.year)
-            h_name = os.path.join(self.config['regrid']['tmp_dir'], fh5)
+            h_name = os.path.join(self.temp_dir, fh5)
             try:
                 with h5py.File(h_name, 'r'):
                     pass
@@ -178,26 +192,26 @@ class ReGrid:
         """Create single HDF files"""
         fixedHDF = h5py.File(h_name, 'w')
 
-        for attr in self.pxs_attrs:
+        for dset in self.dsets:
             # create the dataset and set chunk size to be time wise -
             # compression is not yet implemented in MPI driver
-            fixedHDF.create_dataset(attr, shape=(len(self.extent), ),
-                                    dtype=self.pxs_attrs_info[attr]['dtype'])
+            fixedHDF.create_dataset(dset, shape=(len(self.extent), ),
+                                    dtype=self.dsets_attrs[dset]['dtype'])
 
-            fixedHDF[attr].attrs['scale_factor'] = \
-                self.pxs_attrs_info[attr]['scale_factor']
+            fixedHDF[dset].attrs['scale_factor'] = \
+                self.dsets_attrs[dset]['scale_factor']
 
-            fixedHDF[attr].attrs['add_offset'] = \
-                self.pxs_attrs_info[attr]['add_offset']
+            fixedHDF[dset].attrs['add_offset'] = \
+                self.dsets_attrs[dset]['add_offset']
 
-            fixedHDF[attr].attrs['fill_value'] = \
-                self.pxs_attrs_info[attr]['fill_value']
+            fixedHDF[dset].attrs['fill_value'] = \
+                self.dsets_attrs[dset]['fill_value']
 
-            fixedHDF[attr].attrs['long_name'] = \
-                self.pxs_attrs_info[attr]['long_name']
+            fixedHDF[dset].attrs['long_name'] = \
+                self.dsets_attrs[dset]['long_name']
 
-            fixedHDF[attr].attrs['units'] = \
-                self.pxs_attrs_info[attr]['units']
+            fixedHDF[dset].attrs['units'] = \
+                self.dsets_attrs[dset]['units']
 
         # lat/lng dataset
         meta = np.dtype([('longitude', np.float), ('latitude', np.float)])
@@ -223,19 +237,23 @@ class ReGrid:
 
         return fixedHDF
 
-    def processDays(self, core):
-        """Process all days"""
-        logger.info(core, 'processing...')
+    def processDays(self, ts):
+        """Process a timeseries
+
+        Parameters
+        ----------
+        ts :
+            Subset of timeseries, to process by a single worker.
+        """
         extent2d = np.dstack((self.extent['longitude'],
                               self.extent['latitude']))[0]
 
         # select out the days to process for this core
-        df = self.time_steps[np.in1d(self.time_steps.write_index,
-                                     self.tstoprocess)]
+        df = self.time_steps[np.in1d(self.time_steps.write_index, ts)]
         for time_index, row in df.iterrows():
             # create the fixedHDF for a single time-step
             fh5 = '%s_%s_%s.h5' % (row.write_index, self.region, self.year)
-            h_name = os.path.join(self.config['regrid']['tmp_dir'], fh5)
+            h_name = os.path.join(self.temp_dir, fh5)
             logger.info(h_name, row.file_path)
             fixedHDF = self.createHDFSingle(h_name)
 
@@ -243,9 +261,9 @@ class ReGrid:
                 logger.info('file is missing')
                 logger.info('Missing File Catch: {t}'.format(t=time_index))
 
-                for attr in self.pxs_attrs:
-                    data = self._fillData(attr)
-                    fixedHDF[attr][:] = data
+                for dset in self.dsets:
+                    data = self._fillData(dset)
+                    fixedHDF[dset][:] = data
             else:
                 try:
                     with h5py.File(row.file_path, 'r') as hfile:
@@ -280,54 +298,61 @@ class ReGrid:
                         _, index = tree.query(extent2d, k=1,
                                               distance_upper_bound=0.5)
 
-                        for attr in self.pxs_attrs:
-                            logger.info('writing: ', attr)
+                        for dset in self.dsets:
+                            logger.info('writing: {}'.format(dset))
                             # pull data and subset by good indices
-                            data = hfile[attr][...].ravel()[sgood]
+                            data = hfile[dset][...].ravel()[sgood]
 
-                            if self.pxs_attrs_info[attr]['fill_value']:
+                            if self.dsets_attrs[dset]['fill_value']:
                                 data = np.append(
                                     data,
-                                    self.pxs_attrs_info[attr]['fill_value'])
+                                    self.dsets_attrs[dset]['fill_value'])
                             else:
                                 data = np.append(data, -999)
                             # Get the data out according to the NN index
-                            fixedHDF[attr][:] = data[index]
+                            fixedHDF[dset][:] = data[index]
 
                 except Exception as e:
-                    logger.exception('source exists, but file is corrupt: {}'
-                                     .format(e))
                     # should only trigger if the source file exists
                     # but something is wrong with it
-                    logger.info('Existing File Error Catch: {f} : {e}'
-                                .format(f=row.file_path, e=e))
-                    for attr in self.pxs_attrs:
-                        data = self._fillData(attr)
-                        fixedHDF[attr][:] = data
+                    logger.exception('Existing File Error Catch: {f} : {e}'
+                                     .format(f=row.file_path, e=e))
+                    for dset in self.dsets:
+                        data = self._fillData(dset)
+                        fixedHDF[dset][:] = data
             fixedHDF.close()
 
+    def run_parallel(self, cores):
+        """Process ReGrid files over parallel cores."""
+        jobs = np.array_split(self.tstoprocess, cores)
 
-if __name__ == '__main__':
-    from mpi4py import MPI
+        logger.info('processing: {} files over {} workers...'
+                    .format(len(self.tstoprocess), cores))
 
-    init_logger(__name__, log_level='DEBUG', log_file=None)
+        with Client(LocalCluster(n_workers=cores)) as client:
+            for ts in jobs:
+                # kick off processing jobs without gathering futures
+                fire_and_forget(client.submit(self.processDays, ts))
 
-    # Config input file specified as input
-    config = ConfigObj('../config/{config_file}.ini'
-                       .format(config_file=sys.argv[1]), unrepr=True)
-    region = sys.argv[2]
-    year = sys.argv[3]
-    cores = int(sys.argv[4])
+    @classmethod
+    def run_regrid(cls):
+        """Execute the ReGrid data pipeline"""
 
-    time_start = time.time()
+        time_start = time.time()
+        init_logger(__name__, log_level='DEBUG', log_file=None)
 
-    regrid = ReGrid(config, region, year)
+        region = sys.argv[2]
+        year = sys.argv[3]
+        cores = int(sys.argv[4])
 
-    jobs = np.array_split(regrid.tstoprocess, cores)
-    logger.info('processing: ', len(regrid.tstoprocess), ' files...')
-    for core, ts in enumerate(jobs):
-        if core == MPI.COMM_WORLD.rank:
-            regrid.processDays(core, ts)
+        source_dir = '/projects/PXS/HDF/'
+        out_dir = '/scratch/mrossol/psm/pxgs/'
+        temp_dir = '/scratch/mrossol/psm/pxgs/tmp/'
+        grid_file = ('/projects/PXS/reference_grids/{region}_psm_extent.csv'
+                     .format(region=region))
 
-    logger.info('Finished {} in {} minutes'
-                .format(year, (time.time() - time_start) / 60))
+        regrid = cls(region, year, source_dir, out_dir, temp_dir, grid_file)
+        regrid.run_parallel(cores)
+
+        logger.info('Finished {} in {} minutes'
+                    .format(year, (time.time() - time_start) / 60))
