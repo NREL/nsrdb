@@ -14,6 +14,7 @@ import shlex
 from subprocess import Popen
 from warnings import warn
 
+from nsrdb_utilities.loggers import init_logger
 from nsrdb_utilities.execution import PBS
 
 
@@ -90,6 +91,9 @@ def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
     ignore : list | tuple
         Datasets to ignore.
     """
+
+    # initialize a logger to the stdout
+    init_logger(__name__, log_file=None, log_level='INFO')
 
     flist = os.listdir(dir1)
 
@@ -169,6 +173,9 @@ def repack_h5(f_orig, f_new, dir_orig, dir_new=None, inplace=True):
         removed.
     """
 
+    # initialize a logger to the stdout
+    init_logger(__name__, log_file=None, log_level='INFO')
+
     if dir_new is None or inplace is True:
         dir_new = dir_orig
 
@@ -225,6 +232,9 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
     new_dtype : np.dtype
         New data type to apply to the dsets in the target file.
     """
+
+    # initialize a logger to the stdout
+    init_logger(__name__, log_file=None, log_level='INFO')
 
     t1 = time.time()
     logger.info('Running re_write_dtypes for {}'.format(source_f))
@@ -301,6 +311,10 @@ def update_dset(source_f, target_f, dsets):
         Datasets to update. Must be present in both files, have the same dtype
         and shape.
     """
+
+    # initialize a logger to the stdout
+    init_logger(__name__, log_file=None, log_level='INFO')
+
     t0 = time.time()
 
     source_meta = get_meta_df(source_f)
@@ -344,11 +358,12 @@ def update_dset(source_f, target_f, dsets):
 
             # overwrite with new attributes.
             for k in dict(target[dset].attrs).keys():
-                print('Deleting attribute "{}" from {}'.format(k, target_f))
+                logger.info('Deleting attribute "{}" from {}'
+                            .format(k, target_f))
                 del target[dset].attrs[k]
             attrs = get_dset_attrs(source_f, dset)
             for k, v in attrs.items():
-                print('Setting attribute "{}" to: {}'.format(k, v))
+                logger.info('Setting attribute "{}" to: {}'.format(k, v))
                 target[dset].attrs[k] = v
 
             with h5py.File(source_f, 'r') as source:
@@ -361,19 +376,19 @@ def update_dset(source_f, target_f, dsets):
                     end = np.min([start + chunk, source_shape[1]])
                     target[dset][:, start:end] = source[dset][:, start:end]
                     min_elapsed = (time.time() - t1) / 60
-                    print('Rewrote {0} for {1} through {2} (chunk #{3}).'
-                          ' Time elapsed: {4:.2f} minutes.'
-                          .format(dset, start, end, i, min_elapsed))
+                    logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
+                                ' Time elapsed: {4:.2f} minutes.'
+                                .format(dset, start, end, i, min_elapsed))
 
                     if end == source_shape[1]:
-                        print('Reached end of dataset "{}" (dataset '
-                              'column index {} and dataset shape is {})'
-                              .format(dset, end, source_shape))
+                        logger.info('Reached end of dataset "{}" (dataset '
+                                    'column index {} and dataset shape is {})'
+                                    .format(dset, end, source_shape))
                         break
     min_elapsed = (time.time() - t0) / 60
-    print('Finished copying datasets from {0} to {1} in {2:.2f} min. '
-          'The following datasets were copied: {3}'
-          .format(source_f, target_f, min_elapsed, dsets))
+    logger.info('Finished copying datasets from {0} to {1} in {2:.2f} min. '
+                'The following datasets were copied: {3}'
+                .format(source_f, target_f, min_elapsed, dsets))
 
 
 def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',

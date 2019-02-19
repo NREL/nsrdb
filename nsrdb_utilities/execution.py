@@ -170,7 +170,8 @@ class PBS(SubprocessManager):
         name : str
             PBS job name.
         feature : str | None
-            PBS feature request (-l=feature). Example: '24core', '64GB', etc...
+            PBS feature request (-l {feature}).
+            Example: 'feature=24core', 'qos=high', etc...
         stdout_path : str
             Path to print .stdout and .stderr files.
         """
@@ -257,7 +258,8 @@ class PBS(SubprocessManager):
         name : str
             PBS job name.
         feature : str | None
-            PBS feature request (-l=feature). Example: '24core', '64GB', etc...
+            PBS feature request (-l {feature}).
+            Example: 'feature=24core', 'qos=high', etc...
         stdout_path : str
             Path to print .stdout and .stderr files.
         keep_sh : bool
@@ -281,7 +283,7 @@ class PBS(SubprocessManager):
             out = None
             err = 'already_running'
         else:
-            feature_str = '#PBS -l feature={}\n'.format(feature)
+            feature_str = '#PBS -l {}\n'.format(feature)
             fname = '{}.sh'.format(name)
             script = ('#!/bin/bash\n'
                       '#PBS -N {n} # job name\n'
