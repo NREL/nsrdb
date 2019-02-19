@@ -27,15 +27,15 @@ TOOL = os.path.join(DIR, 'h4h5tools-2.2.2-linux-x86_64-static',
 
 
 def unzip_gz(target_path):
-    """Unzip all *.gz IMS files in the target path.
+    """Unzip all *.gz files in the target path.
 
     Note that the original *.gz files are removed (unzipped in place).
     """
     flist = os.listdir(target_path)
     for i, f in enumerate(flist):
         if f.endswith('.gz'):
-            print('Unzipping file #{} (out of {}): "{}"'
-                  .format(i, len(flist), f))
+            logger.info('Unzipping file #{} (out of {}): "{}"'
+                        .format(i, len(flist), f))
             gz_file = os.path.join(target_path, f)
             target_file = os.path.join(target_path,
                                        f.replace('.gz', ''))
@@ -60,6 +60,7 @@ def url_download(url, target):
         Local target file location to dump data from url.
     """
     failed = False
+    logger.debug('URL downloading: {}'.format(url))
 
     try:
         req = urlopen(url)
@@ -68,9 +69,9 @@ def url_download(url, target):
             dfile.write(req.read())
 
     except URLError as e:
-        print('Skipping: {} was not processed for ims'
-              .format(url))
-        print(e)
+        logger.info('Skipping: {} was not downloaded'
+                    .format(url))
+        logger.exception(e)
         failed = url
         pass
 
