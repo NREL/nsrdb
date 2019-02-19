@@ -8,6 +8,10 @@ import logging
 import os
 import shlex
 import time
+import gzip
+import shutil
+from urllib.request import urlopen
+from urllib.error import URLError
 from subprocess import Popen, PIPE
 from dask.distributed import Client, LocalCluster
 
@@ -22,7 +26,58 @@ TOOL = os.path.join(DIR, 'h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
 
 
-def convert4to5(path4, f_h4, path5, f_h5):
+def unzip_gz(target_path):
+    """Unzip all *.gz IMS files in the target path.
+
+    Note that the original *.gz files are removed (unzipped in place).
+    """
+    flist = os.listdir(target_path)
+    for i, f in enumerate(flist):
+        if f.endswith('.gz'):
+            print('Unzipping file #{} (out of {}): "{}"'
+                  .format(i, len(flist), f))
+            gz_file = os.path.join(target_path, f)
+            target_file = os.path.join(target_path,
+                                       f.replace('.gz', ''))
+
+            with gzip.open(gz_file, 'rb') as f_in:
+                with open(target_file, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+            os.remove(gz_file)
+
+    return True
+
+
+def url_download(url, target):
+    """Download file from url to target location.
+
+    Parameters
+    ----------
+    url : str
+        Source file url.
+    target : str
+        Local target file location to dump data from url.
+    """
+    failed = False
+
+    try:
+        req = urlopen(url)
+        with open(target, 'wb') as dfile:
+            # gz archive must be written as a binary file
+            dfile.write(req.read())
+
+    except URLError as e:
+        print('Skipping: {} was not processed for ims'
+              .format(url))
+        print(e)
+        failed = url
+        pass
+
+    return failed
+
+
+def convert_h4(path4, f_h4, path5, f_h5):
     """Use a subprocess to convert a single h4 to h5 file.
 
     Parameters
@@ -77,7 +132,7 @@ def convert4to5(path4, f_h4, path5, f_h5):
 
 
 def get_conversion_list(path4, path5):
-    """Get a list of files to convert with source/target entries.
+    """Get a list of hdf/h4 files to convert with source/target entries.
 
     Parameters
     ----------
@@ -131,7 +186,7 @@ def convert_list_serial(conversion_list):
     logger.info('Converting {} hdf files in serial.'
                 .format(len(conversion_list)))
     for [path4, f_h4, path5, f_h5] in conversion_list[0:1]:
-        convert4to5(path4, f_h4, path5, f_h5)
+        convert_h4(path4, f_h4, path5, f_h5)
 
 
 def convert_list_parallel(conversion_list, n_workers=2):
@@ -157,7 +212,7 @@ def convert_list_parallel(conversion_list, n_workers=2):
         for [path4, f_h4, path5, f_h5] in conversion_list:
             # kick off conversion on a worker without caring about result.
             futures.append(client.submit(
-                convert4to5, path4, f_h4, path5, f_h5))
+                convert_h4, path4, f_h4, path5, f_h5))
 
         futures = client.gather(futures)
 
