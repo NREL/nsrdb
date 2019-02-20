@@ -9,8 +9,6 @@ import h5py
 import os
 import pandas as pd
 
-from downscale import __testdatadir__
-
 
 class ExtractNSRDB:
     """Utility class to manage NSRDB data extraction for subsets."""
@@ -244,10 +242,10 @@ class ExtractNSRDB:
         ex.extract_sites(sites=sites)
 
     @classmethod
-    def oregon_50(cls, year=2015):
+    def oregon_50(cls, dir_out, year=2015):
         """Extract NSRDB data from 50 sites from oregon to target h5."""
         # Random sites in Oregon
-        target = os.path.join(__testdatadir__, 'test_data_{}.h5'.format(year))
+        target = os.path.join(dir_out, 'test_data_{}.h5'.format(year))
         source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
                               'nsrdb_{}.h5'.format(year))
 
@@ -255,10 +253,10 @@ class ExtractNSRDB:
         ex.extract_sites(sites=range(200050, 200100))
 
     @classmethod
-    def srrl_2017(cls, year=2017):
+    def srrl_2017(cls, dir_out, year=2017):
         """Extract NSRDB data from NREL SRRL site to target h5."""
         # Site 145809 is close to NREL
-        target = os.path.join(__testdatadir__,
+        target = os.path.join(dir_out,
                               'test_data_NREL_{}.h5'.format(year))
         source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
                               'nsrdb_{}.h5'.format(year))

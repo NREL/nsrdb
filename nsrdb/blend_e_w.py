@@ -17,13 +17,10 @@ import psutil
 import gc
 import calendar
 from warnings import warn
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
-from nsrdb_utilities import __version__
-from nsrdb_utilities.loggers import init_logger
-from nsrdb_utilities.execution import PBS
+from nsrdb.utilities import __version__
+from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.execution import PBS
 
 
 logger = logging.getLogger(__name__)
@@ -613,6 +610,11 @@ class Blender:
         """
 
         try:
+            # HPC matplot lib import
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+
             fig = plt.figure()
             ax = fig.add_subplot(111)
             cmap = plt.get_cmap('Blues')

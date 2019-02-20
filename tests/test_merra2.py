@@ -12,7 +12,7 @@ import os
 import pytest
 import numpy as np
 
-from ancillary.merra2 import run_single
+from nsrdb.merra2 import run_single
 
 
 VARS = {'PS': 'surface_pressure',

@@ -13,7 +13,7 @@ There were four main changes from the original code
 """
 
 import numpy as np
-from all_sky import SOLAR_CONSTANT
+from nsrdb.all_sky import SOLAR_CONSTANT
 
 
 def disc(ghi, sza, doy, pressure=101325, sza_lim=87):

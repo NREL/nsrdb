@@ -19,9 +19,9 @@ import psutil
 from scipy.spatial import cKDTree
 import logging
 
-from nsrdb_utilities.loggers import init_logger, NSRDB_LOGGERS
-from nsrdb_utilities.execution import PBS
-from nsrdb_utilities.file_utils import url_download, unzip_gz
+from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
+from nsrdb.utilities.execution import PBS
+from nsrdb.utilities.file_utils import url_download, unzip_gz
 
 logger = logging.getLogger(__name__)
 

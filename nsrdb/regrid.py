@@ -11,7 +11,7 @@ import sys
 from scipy.spatial import cKDTree
 import logging
 
-from nsrdb_utilities.loggers import init_logger
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)

@@ -10,8 +10,8 @@ Adapted from Galen and Nick's original code:
 import os
 import logging
 
-from nsrdb_utilities.loggers import init_logger
-from nsrdb_utilities.file_utils import url_download
+from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.file_utils import url_download
 
 
 logger = logging.getLogger(__name__)

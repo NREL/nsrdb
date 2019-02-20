@@ -35,8 +35,8 @@ import pprint
 from datetime import date
 from dask.distributed import LocalCluster, Client
 
-from nsrdb_utilities.loggers import NSRDB_LOGGERS
-from nsrdb_utilities.execution import PBS
+from nsrdb.utilities.loggers import NSRDB_LOGGERS
+from nsrdb.utilities.execution import PBS
 
 logger = logging.getLogger(__name__)
 

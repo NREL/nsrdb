@@ -6,11 +6,11 @@ import os
 import pandas as pd
 
 __version__ = "1.0.0"
-__dir__ = os.path.dirname(os.path.realpath(__file__))
-__testdatadir__ = os.path.join(os.path.dirname(__dir__), 'tests', 'data')
+
+ALLSKYDIR = os.path.dirname(os.path.realpath(__file__))
 
 RADIUS = pd.read_csv(
-    os.path.join(__dir__, 'sun_earth_radius_vector.csv')).set_index('doy')
+    os.path.join(ALLSKYDIR, 'sun_earth_radius_vector.csv')).set_index('doy')
 
 # Constant clear/cloudy integer labels for use of AllSky
 CLEAR_TYPES = (0, 1, 11, 12)

@@ -34,8 +34,8 @@ import collections
 from warnings import warn
 import logging
 
-import all_sky.utilities as ut
-from all_sky import SOLAR_CONSTANT
+import nsrdb.all_sky.utilities as ut
+from nsrdb.all_sky import SOLAR_CONSTANT
 
 
 logger = logging.getLogger(__name__)

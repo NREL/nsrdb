@@ -20,8 +20,8 @@ import numpy as np
 import time
 import collections
 
-from all_sky import CLEAR_TYPES, ICE_TYPES, WATER_TYPES, SOLAR_CONSTANT
-import all_sky.utilities as ut
+from nsrdb.all_sky import CLEAR_TYPES, ICE_TYPES, WATER_TYPES, SOLAR_CONSTANT
+import nsrdb.all_sky.utilities as ut
 
 
 def water_phase(tau, De, solar_zenith_angle):

@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 import time
 from warnings import warn
-from all_sky.utilities import ti_to_radius, calc_beta
-from all_sky.rest2 import rest2, rest2_tddclr
+from nsrdb.all_sky.utilities import ti_to_radius, calc_beta
+from nsrdb.all_sky.rest2 import rest2, rest2_tddclr
 
 
 RTOL = 1e-03

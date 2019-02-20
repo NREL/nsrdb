@@ -14,8 +14,8 @@ import shlex
 from subprocess import Popen
 from warnings import warn
 
-from nsrdb_utilities.loggers import init_logger
-from nsrdb_utilities.execution import PBS
+from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.execution import PBS
 
 
 logger = logging.getLogger(__name__)
