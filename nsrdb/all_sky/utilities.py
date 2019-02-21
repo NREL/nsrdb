@@ -3,7 +3,7 @@
 
 import pandas as pd
 import numpy as np
-from all_sky import RADIUS
+from nsrdb.all_sky import RADIUS
 
 
 def check_range(data, name, rang=(0, 1)):

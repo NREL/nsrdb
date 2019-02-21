@@ -1,6 +1,9 @@
 # Dask stuff:
 dask-worker-space/
 
+# pytest stuff
+.pytest_cache/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

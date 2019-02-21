@@ -291,7 +291,7 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
         interrogate_dset(os.path.join(target_dir, target_f), dset)
 
 
-def update_dset(source_f, target_f, dsets):
+def update_dset(source_f, target_f, dsets, start=0):
     """Update the datasets in target_f with the data from source_f.
 
     Note that this also updates the dataset attributes but not the shape,
@@ -310,6 +310,9 @@ def update_dset(source_f, target_f, dsets):
     dsets : list | tuple
         Datasets to update. Must be present in both files, have the same dtype
         and shape.
+    start : int
+        Starting column index for dset update (column indicies equal to or
+        greater than this value will be updated).
     """
 
     # initialize a logger to the stdout
@@ -368,17 +371,17 @@ def update_dset(source_f, target_f, dsets):
 
             with h5py.File(source_f, 'r') as source:
 
-                end = 0
+                # number of columns to update at once
                 chunk = 10000
 
                 for i in range(0, 10000):
-                    start = end
                     end = np.min([start + chunk, source_shape[1]])
                     target[dset][:, start:end] = source[dset][:, start:end]
                     min_elapsed = (time.time() - t1) / 60
                     logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
                                 ' Time elapsed: {4:.2f} minutes.'
                                 .format(dset, start, end, i, min_elapsed))
+                    start = end
 
                     if end == source_shape[1]:
                         logger.info('Reached end of dataset "{}" (dataset '
