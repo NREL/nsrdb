@@ -299,6 +299,10 @@ def update_dset(source_f, target_f, dsets, start=0):
     the data from source is written to target without unscaling/rescaling
     (source data must be properly scaled with corresponding attributes).
 
+    Reference time durations (great variability on Peregrine):
+        One dataset w shape (17568, 2018392), int16, batch-h, took 37 hours
+        One dataset w shape (17520, 2018392), int8, batch-h, took 12 hours
+
     Parameters
     ----------
     source_f : str
@@ -318,6 +322,9 @@ def update_dset(source_f, target_f, dsets, start=0):
     # initialize a logger to the stdout
     init_logger(__name__, log_file=None, log_level='INFO')
 
+    logger.info('Updating dsets "{}" from source "{}" to target "{}" at '
+                'starting index {}.'
+                .format(dsets, source_f, target_f, start))
     t0 = time.time()
 
     source_meta = get_meta_df(source_f)
@@ -328,6 +335,8 @@ def update_dset(source_f, target_f, dsets, start=0):
         raise ValueError('Meta data coordinate arrays do not match between '
                          '{} and {}. Data updating should not be performed.'
                          .format(source_f, target_f))
+    else:
+        logger.info('Lat/lon meta data test passed.')
 
     # check datasets present in files
     for f in [source_f, target_f]:
@@ -336,6 +345,9 @@ def update_dset(source_f, target_f, dsets, start=0):
                 if dset not in list(fhandler):
                     raise KeyError('Dataset "{}" not found in {}. Contents: {}'
                                    .format(dset, f, list(fhandler)))
+                else:
+                    logger.info('Dataset "{}" present in both files.'
+                                .format(dset))
 
     # check dataset dtypes in files
     for dset in dsets:
@@ -346,6 +358,9 @@ def update_dset(source_f, target_f, dsets, start=0):
                             '{} and {}. Respective dtypes are: {} and {}'
                             .format(dset, source_f, target_f,
                                     source_dtype, target_dtype))
+        else:
+            logger.info('Dataset "{}" has same dtype in both files: {}.'
+                        .format(dset, source_dtype))
 
         source_shape = get_dset_shape(source_f, dset)
         target_shape = get_dset_shape(target_f, dset)
@@ -354,6 +369,9 @@ def update_dset(source_f, target_f, dsets, start=0):
                              '{} and {}. Respective shapes are: {} and {}'
                              .format(dset, source_f, target_f,
                                      source_shape, target_shape))
+        else:
+            logger.info('Dataset "{}" has same shape in both files: {}.'
+                        .format(dset, source_shape))
 
         # dataset dtypes match, proceed.
         t1 = time.time()
@@ -361,12 +379,13 @@ def update_dset(source_f, target_f, dsets, start=0):
 
             # overwrite with new attributes.
             for k in dict(target[dset].attrs).keys():
-                logger.info('Deleting attribute "{}" from {}'
-                            .format(k, target_f))
+                logger.info('Deleting attribute "{}" from dset "{}" in {}'
+                            .format(k, dset, target_f))
                 del target[dset].attrs[k]
             attrs = get_dset_attrs(source_f, dset)
             for k, v in attrs.items():
-                logger.info('Setting attribute "{}" to: {}'.format(k, v))
+                logger.info('Setting attribute "{}" in dset "{}" to: {}'
+                            .format(k, dset, v))
                 target[dset].attrs[k] = v
 
             with h5py.File(source_f, 'r') as source:
@@ -378,8 +397,8 @@ def update_dset(source_f, target_f, dsets, start=0):
                     end = np.min([start + chunk, source_shape[1]])
                     target[dset][:, start:end] = source[dset][:, start:end]
                     min_elapsed = (time.time() - t1) / 60
-                    logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
-                                ' Time elapsed: {4:.2f} minutes.'
+                    logger.info('Rewrote "{0}" for {1} through {2} '
+                                '(chunk #{3}). Time elapsed: {4:.2f} minutes.'
                                 .format(dset, start, end, i, min_elapsed))
                     start = end
 
