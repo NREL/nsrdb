@@ -12,7 +12,7 @@ import getpass
 import shlex
 from warnings import warn
 
-from nsrdb_utilities.loggers import NSRDB_LOGGERS
+from nsrdb.utilities.loggers import NSRDB_LOGGERS
 
 
 logger = logging.getLogger(__name__)
