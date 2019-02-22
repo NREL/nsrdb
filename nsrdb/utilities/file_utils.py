@@ -15,7 +15,7 @@ from urllib.error import URLError
 from subprocess import Popen, PIPE
 from dask.distributed import Client, LocalCluster
 
-from nsrdb_utilities.loggers import init_logger, NSRDB_LOGGERS
+from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
 
 
 logger = logging.getLogger(__name__)

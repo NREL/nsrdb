@@ -952,8 +952,8 @@ def peregrine_merra(config_file, var, year_range, regions=('east', 'west'),
             date_range = '[{}0101, {}0101]'.format(year, year + 1)
 
             cmd = ('python -c '
-                   '\'from ancillary.merra2 import run_single; '
-                   'from nsrdb_utilities.loggers import init_logger; '
+                   '\'from nsrdb.merra2 import run_single; '
+                   'from nsrdb.utilities.loggers import init_logger; '
                    'init_logger("{log_name}", log_level="{log_level}", '
                    'log_file=None); '
                    'run_single("{config_file}", {date_range}, '

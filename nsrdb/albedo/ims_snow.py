@@ -208,7 +208,7 @@ class RetrieveIMS:
             List of files that failed to download.
         """
         init_logger(__name__, log_file=None, log_level=log_level)
-        init_logger('nsrdb_utilities.file_utils', log_file=None,
+        init_logger('nsrdb.utilities.file_utils', log_file=None,
                     log_level=log_level)
         ims = cls(target_path, year)
         failed = ims.retrieve_data()
@@ -573,8 +573,9 @@ class ProcessIMS:
 
         name = 'IMS_{}'.format(year)
         cmd = ('python -c '
-               '\'from ancillary.albedo import ProcessIMS; '
+               '\'from nsrdb.albedo.ims_snow import ProcessIMS; '
                'ProcessIMS.process({year}, hpc=True, log_level="{log_level}")'
+               '\''
                .format(year=year, log_level=log_level))
 
         pbs = PBS(cmd, alloc=alloc, queue=queue, name=name,

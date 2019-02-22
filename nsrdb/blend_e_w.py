@@ -757,7 +757,7 @@ class Blender:
             fout = '{}_{}.h5'.format(str(year), var)
 
             cmd = ('python -c '
-                   '\'from nsrdb_utilities.blend_e_w import Blender; '
+                   '\'from nsrdb.blend_e_w import Blender; '
                    'Blender.blend_var("{var}", {year}, fout="{fout}", '
                    'out_dir="{out_dir}", source_dir="{source_dir}")\''
                    )

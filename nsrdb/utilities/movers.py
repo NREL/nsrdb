@@ -438,7 +438,7 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
         """
 
         cmd = ('python -c '
-               '\'from nsrdb_utilities.movers import {fun}; '
+               '\'from nsrdb.utilities.movers import {fun}; '
                '{fun}({args})\'')
 
         cmd = cmd.format(fun=fun_str, args=arg_str)
