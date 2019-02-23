@@ -49,7 +49,7 @@ class RetrieveIMS:
                   '24km': ('imslat_24km.bin.gz', 'imslon_24km.bin.gz'),
                   }
 
-    def __init__(self, target_path, year, res='4km'):
+    def __init__(self, target_path, year, res='1km'):
         """
         Parameters
         ----------
