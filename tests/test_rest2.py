@@ -15,7 +15,7 @@ import pandas as pd
 import time
 from warnings import warn
 from nsrdb.all_sky.utilities import ti_to_radius, calc_beta
-from nsrdb.all_sky.rest2 import rest2, rest2_tddclr
+from nsrdb.all_sky.rest2 import rest2, rest2_tddclr, rest2_tuuclr
 
 
 RTOL = 1e-03
@@ -59,6 +59,46 @@ def test_rest2_tddclr(angle):
     else:
         np.savetxt(csv, Tddclr, delimiter=",")
         raise ValueError('Baseline rest2_tddclr() outputs did not exist. '
+                         'Test failed. Printed new outputs to: {}'
+                         .format(csv))
+
+
+def test_rest2_tuuclr():
+    test_file = './data/test_nsrdb_data.h5'
+    with h5py.File(test_file, 'r') as f:
+
+        p = (f['surface_pressure'][:, 0:2] /
+             f['surface_pressure'].attrs['psm_scale_factor'])
+        albedo = (f['surface_albedo'][:, 0:2] /
+                  f['surface_albedo'].attrs['psm_scale_factor'])
+        ssa = (f['ssa'][:, 0:2] / f['ssa'].attrs['psm_scale_factor'])
+        alpha = (f['alpha'][:, 0:2] / f['alpha'].attrs['psm_scale_factor'])
+        ozone = (f['ozone'][:, 0:2] / f['ozone'].attrs['psm_scale_factor'])
+        w = (f['total_precipitable_water'][:, 0:2] /
+             f['total_precipitable_water'].attrs['psm_scale_factor'])
+
+        ti = pd.to_datetime(f['time_index'][...].astype(str))
+
+    radius = ti_to_radius(ti, n_cols=p.shape[1])
+
+    t0 = time.time()
+
+    Tuuclr = rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w,
+                          parallel=False)
+
+    print('Testing rest2_tuuclr on data shape {0} took {1:.1f} seconds.'
+          .format(p.shape, time.time() - t0))
+
+    csv = "./data/rest2/rest2_Tuuclr.csv"
+
+    if os.path.exists(csv):
+        baseline = np.genfromtxt(csv, delimiter=',')
+        result = np.allclose(Tuuclr, baseline, rtol=RTOL, atol=ATOL)
+        assert result, 'rest2_tddclr() test failed.'
+
+    else:
+        np.savetxt(csv, Tuuclr, delimiter=",")
+        raise ValueError('Baseline rest2_tuuclr() outputs did not exist. '
                          'Test failed. Printed new outputs to: {}'
                          .format(csv))
 

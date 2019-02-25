@@ -34,8 +34,7 @@ import collections
 from warnings import warn
 import logging
 import concurrent.futures as cf
-import psutil
-import time
+import gc
 
 import nsrdb.all_sky.utilities as ut
 from nsrdb.all_sky import SOLAR_CONSTANT
@@ -411,18 +410,6 @@ def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
                                    sza_lim=sza_lim)
                    for i in range(n_workers)]
 
-        max_mem = 0
-        while futures[-1].done() is False:
-            # log memory during futures to get max memory usage during process
-            mem = psutil.virtual_memory()
-            max_mem = np.max((mem.used / 1e9, max_mem))
-            time.sleep(1)
-
-        logger.info('Last future is done: {0}, maximum memory usage '
-                    'was {1:.3f} GB out of {2:.3f} GB total.'
-                    .format(futures[-1].done(), max_mem,
-                            mem.total / 1e9))
-
         futures = [future.result() for future in futures]
 
     var_list = ('ghi', 'dni', 'dhi', 'Tddclr', 'Tduclr', 'Ruuclr')
@@ -765,7 +752,6 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=89):
     del p, am, cosz, z, w
 
     # New aerosol functions in v9
-
     ambeta = masa * beta
 
     # get the two band wavelengths
@@ -818,47 +804,64 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
         Solar Energy, Volume 135, 2016, Pages 435-445, ISSN 0038-092X,
         https://doi.org/10.1016/j.solener.2016.06.003.
         (http://www.sciencedirect.com/science/article/pii/S0038092X16301827)
+
+    Parameters
+    ----------
+    p : np.ndarray
+        See rest2 doc string for description.
+    albedo : np.ndarray
+        See rest2 doc string for description.
+    ssa : np.ndarray
+        See rest2 doc string for description.
+    radius : np.ndarray
+        See rest2 doc string for description.
+    alpha : np.ndarray
+        See rest2 doc string for description.
+    ozone : np.ndarray
+        See rest2 doc string for description.
+    w : np.ndarray
+        See rest2 doc string for description.
+    parallel : bool
+        Flag to each diffuse angle on a seperate core using concurrent futures.
+    diffuse_angles : list | tuple
+        Set of solar zenith angles from 0 to near 90 used to calculate Tuuclr.
+
+    Returns
+    -------
+    Tuuclr : np.ndarray
+        Transmittance of the clear-sky atmosphere for diffuse incident and
+        diffuse outgoing fluxes (uu).
     """
 
     logger.debug('Calculating Tuuclr...')
     Tddclr_list = []
 
-    for angle in diffuse_angles:
-        logger.debug('\tGetting Tddclr for angle {}'.format(angle))
+    # ensure radius is of the correct shape
+    if radius.shape != p.shape:
+        radius = np.tile(radius, p.shape[1])
 
-        if not parallel:
-            # serial execution
+    if not parallel:
+        # serial execution
+        for angle in diffuse_angles:
+            logger.debug('\tGetting Tddclr for angle {}'.format(angle))
             Tddclr_list.append(
                 rest2_tddclr(p=p, albedo=albedo, ssa=ssa, z=angle,
-                             radius=np.tile(radius, p.shape[1]),
-                             alpha=alpha, beta=0, ozone=ozone, w=w))
-        else:
-            # parallel execution
-            n_workers = len(diffuse_angles)
-            with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
-                # submit futures for each angle
-                futures = [executor.submit(rest2_tddclr, p=p, albedo=albedo,
-                                           ssa=ssa, z=angle,
-                                           radius=np.tile(radius, p.shape[1]),
-                                           alpha=alpha, beta=0, ozone=ozone,
-                                           w=w)
-                           for angle in diffuse_angles]
+                             radius=radius, alpha=alpha, beta=0,
+                             ozone=ozone, w=w))
+            gc.collect()
+    else:
+        # parallel execution
+        n_workers = len(diffuse_angles)
+        with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
+            logger.info('Using concurrent futures to calculate Tuuclr.')
+            # submit futures for each angle
+            futures = [executor.submit(rest2_tddclr, p, albedo, ssa, angle,
+                                       radius, alpha, 0, ozone, w)
+                       for angle in diffuse_angles]
 
-                logger.info('Waiting on concurrent futures...')
-                max_mem = 0
-                while futures[-1].done() is False:
-                    # log mem util to get max memory usage during futures
-                    mem = psutil.virtual_memory()
-                    max_mem = np.max((mem.used / 1e9, max_mem))
-                    time.sleep(1)
-
-                logger.info('Last future is done: {0}, maximum memory usage '
-                            'was {1:.3f} GB out of {2:.3f} GB total.'
-                            .format(futures[-1].done(), max_mem,
-                                    mem.total / 1e9))
-
-                Tddclr_list = [future.result() for future in futures]
-                logger.info('Futures gathered and concurrent futures closed.')
+            Tddclr_list = [future.result() for future in futures]
+            logger.info('Futures gathered and concurrent futures closed.')
+        gc.collect()
 
     scalar = 1 / (len(diffuse_angles))
     for i, angle in enumerate(diffuse_angles):
@@ -867,5 +870,8 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
 
     # Get the average for various angles
     Tuuclr = np.sum(np.array(Tddclr_list), axis=0) * 2.0
+
+    del Tddclr_list
+    gc.collect()
 
     return Tuuclr
