@@ -41,7 +41,7 @@ def test_rest2_tddclr(angle):
         ti = pd.to_datetime(f['time_index'][...].astype(str))
 
     radius = ti_to_radius(ti, n_cols=p.shape[1])
-    z = angle * np.ones(p.shape)
+    z = angle
 
     t0 = time.time()
     Tddclr = rest2_tddclr(p, albedo, ssa, z, radius, alpha, 0, ozone, w)
