@@ -36,9 +36,11 @@ def gap_fill_ghi(ghi, cs_ghi, fill_mask, return_csr=False):
     # replace to-fill values with nan
     cr.values[fill_mask] = np.nan
 
-    # Set the cloud/clear ratio to zero when it's nighttime
+    # Set the cloud/clear ratio to one when it's nighttime
+    # this ensures that if a full day is missing clouds,
+    # it is filled with clearsky
     night_mask = (cs_ghi == 0)
-    cr.values[night_mask] = 0
+    cr.values[night_mask] = 1
 
     # fill nan ratio values with nearest good ratio values
     cr = cr.interpolate(method='nearest', axis=0).fillna(method='ffill')
