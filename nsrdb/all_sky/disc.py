@@ -44,6 +44,8 @@ def disc(ghi, sza, doy, pressure=101325, sza_lim=87):
     -------
     DNI : np.ndarray
         Estimated direct normal irradiance in W/m2.
+    DHI : np.ndarray
+        Estimated diffuse horizontal irradiance in W/m2.
     """
 
     A = np.zeros_like(ghi)
@@ -99,4 +101,12 @@ def disc(ghi, sza, doy, pressure=101325, sza_lim=87):
 
     DNI[np.logical_or.reduce((sza >= sza_lim, ghi < 1, DNI < 0))] = 0
 
-    return DNI
+    DHI = ghi - DNI * np.cos(np.radians(sza))
+
+    if np.min(DHI) < 0:
+        # patch for negative DHI values. Set DNI to zero, set DHI to GHI
+        pos = np.where(DHI < 0)
+        DNI[pos] = 0
+        DHI[pos] = ghi[pos]
+
+    return DNI, DHI
