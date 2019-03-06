@@ -10,6 +10,7 @@ Created on Feb 13th 2019
 import os
 import h5py
 import pytest
+import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -67,10 +68,10 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     return out
 
 
-def run_all_sky(test_file=TEST_FILE, sites=list(range(10)), debug=False):
+def run_all_sky(sites=list(range(10)), debug=False):
     """Run the all-sky processing code over the specified site list."""
 
-    source_vars = get_source_data(test_file=test_file, sites=sites)
+    source_vars = get_source_data(sites=sites)
 
     # run all_sky processing
     all_sky_out = all_sky(**source_vars, debug=debug)
@@ -199,6 +200,23 @@ def test_all_sky(sites=list(range(10)), bad_threshold=0.005):
           .format(max_perc_bad, 100 * bad_threshold))
 
 
+def iter_speed_compare(sites=list(range(10))):
+    """Run a speed test comparing broadcasted all-sky to iterated all-sky."""
+
+    t0 = time.time()
+    run_all_sky(sites=sites, debug=False)
+    t_broad = time.time() - t0
+
+    t0 = time.time()
+    for site in sites:
+        run_all_sky(sites=[site], debug=False)
+    t_iter = time.time() - t0
+
+    print('Running {0} sites through all sky took {1:.2f} seconds '
+          'broadcasted, {2:.2f} seconds iterated.'
+          .format(len(sites), t_broad, t_iter))
+
+
 def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.
 
@@ -217,5 +235,3 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 if __name__ == '__main__':
     execute_pytest()
-    # plot_benchmark(sites=[8], y_range=[0, 100])
-    # test_all_sky(sites=list(range(50)))
