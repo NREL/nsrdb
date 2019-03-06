@@ -40,48 +40,29 @@ def get_benchmark_data(test_file=TEST_FILE, sites=list(range(10))):
 def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     """Retrieve the variables required to run all-sky for a given set of sites.
     """
+    out = {}
+    var_list = ('surface_pressure', 'surface_albedo', 'ssa', 'aod', 'alpha',
+                'ozone', 'solar_zenith_angle', 'total_precipitable_water',
+                'asymmetry')
 
     with h5py.File(test_file, 'r') as f:
 
         # get unscaled source variables
-        ti = pd.to_datetime(f['time_index'][...].astype(str))
-        p = (f['surface_pressure'][:, sites] /
-             f['surface_pressure'].attrs['psm_scale_factor'])
-        albedo = (f['surface_albedo'][:, sites] /
-                  f['surface_albedo'].attrs['psm_scale_factor'])
-        ssa = (f['ssa'][:, sites] / f['ssa'].attrs['psm_scale_factor'])
-        aod = (f['aod'][:, sites] / f['aod'].attrs['psm_scale_factor'])
-        alpha = (f['alpha'][:, sites] / f['alpha'].attrs['psm_scale_factor'])
-        ozone = (f['ozone'][:, sites] / f['ozone'].attrs['psm_scale_factor'])
-        sza = (f['solar_zenith_angle'][:, sites] /
-               f['solar_zenith_angle'].attrs['psm_scale_factor'])
-        w = (f['total_precipitable_water'][:, sites] /
-             f['total_precipitable_water'].attrs['psm_scale_factor'])
-        cloud_type = f['cloud_type'][:, sites]
-        asym = (f['asymmetry'][:, sites] /
-                f['asymmetry'].attrs['psm_scale_factor'])
+        out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
+
+        for var in var_list:
+            out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
 
         # different unscaling for cloud properties
-        cld_reff_dcomp = (f['cld_reff_dcomp'][:, sites].astype(float) *
-                          f['cld_reff_dcomp'].attrs['psm_scale_factor'] +
-                          f['cld_reff_dcomp'].attrs['psm_add_offset'])
-        cld_opd_dcomp = (f['cld_opd_dcomp'][:, sites].astype(float) *
-                         f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
-                         f['cld_opd_dcomp'].attrs['psm_add_offset'])
-
-    out = {'albedo': albedo,
-           'alpha': alpha,
-           'aod': aod,
-           'asym': asym,
-           'ozone': ozone,
-           'p': p,
-           'ssa': ssa,
-           'sza': sza,
-           'ti': ti,
-           'w': w,
-           'cloud_type': cloud_type,
-           'cld_opd_dcomp': cld_opd_dcomp,
-           'cld_reff_dcomp': cld_reff_dcomp}
+        out['cloud_type'] = f['cloud_type'][:, sites]
+        out['cld_reff_dcomp'] = (
+            f['cld_reff_dcomp'][:, sites].astype(float) *
+            f['cld_reff_dcomp'].attrs['psm_scale_factor'] +
+            f['cld_reff_dcomp'].attrs['psm_add_offset'])
+        out['cld_opd_dcomp'] = (
+            f['cld_opd_dcomp'][:, sites].astype(float) *
+            f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
+            f['cld_opd_dcomp'].attrs['psm_add_offset'])
 
     return out
 
@@ -140,7 +121,7 @@ def make_df(site):
     return df_dhi, df_dni, df_ghi
 
 
-def plot_benchmark(sites):
+def plot_benchmark(sites, y_range=None):
     """Make plots benchmarking allsky irradiance against a baseline set of
     irradiances.
     """
@@ -156,10 +137,13 @@ def plot_benchmark(sites):
     for site in range(dhi.shape[1]):
         print('\nSite index {}'.format(site))
 
-        # make center of x-axis the timestep of greatest error
-        center = loc_max_diff[site]
-        t0 = center - 50
-        t1 = center + 50
+        if not y_range:
+            # make center of x-axis the timestep of greatest error
+            center = loc_max_diff[site]
+            t0 = center - 50
+            t1 = center + 50
+        else:
+            t0, t1 = y_range
 
         print('\nIndices {} through {} with diff {} at {}'
               .format(t0, t1, max_diff[site], loc_max_diff[site]))
@@ -190,6 +174,31 @@ def plot_benchmark(sites):
         plt.close()
 
 
+def test_all_sky(sites=list(range(10)), bad_threshold=0.005):
+    """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
+    dhi, dni, ghi = run_all_sky(sites=sites, debug=False)
+
+    ghi_orig, dni_orig, dhi_orig, fill_orig = get_benchmark_data(sites=sites)
+
+    max_perc_bad = 0
+
+    for i, site in enumerate(sites):
+        hist, bin_edges = np.histogram(np.abs(ghi[:, i] - ghi_orig[:, i]),
+                                       bins=100, range=(0.0, 1000.0))
+
+        n_bad = np.sum(hist[2:])
+        frac_bad = n_bad / ghi.shape[0]
+        max_perc_bad = np.max((max_perc_bad, 100 * frac_bad))
+
+        msg = ('{0:.4f}% of the values do not match the baseline '
+               'irradiance (threshold is {1:.4f}%) for site {2}.'
+               .format(100 * frac_bad, 100 * bad_threshold, site))
+        assert frac_bad < bad_threshold, msg
+
+    print('Maximum of {0:.4f}% bad timesteps. Threshold was {1:.4f}%.'
+          .format(max_perc_bad, 100 * bad_threshold))
+
+
 def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.
 
@@ -207,4 +216,6 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 
 if __name__ == '__main__':
-    plot_benchmark(sites=list(range(10)))
+    execute_pytest()
+    # plot_benchmark(sites=[8], y_range=[0, 100])
+    # test_all_sky(sites=list(range(50)))
