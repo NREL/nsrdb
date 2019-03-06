@@ -149,7 +149,10 @@ def farms(tau, cloud_type, cloud_effective_radius, solar_zenith_angle,
 
     Returns
     -------
+    ghi : np.ndarray
+        FARMS GHI values (this is the only output if debug is False).
     fast_data : collections.namedtuple
+        Additional debugging variables if debug is True.
         Named tuple with irradiance data. Attributes:
             ghi : global horizontal irradiance (w/m2)
             dni : direct normal irradiance (w/m2)
@@ -160,7 +163,7 @@ def farms(tau, cloud_type, cloud_effective_radius, solar_zenith_angle,
     ut.check_range(Tduclr, 'Tduclr')
     ut.check_range(Ruuclr, 'Ruuclr')
     ut.check_range(Tuuclr, 'Tuuclr')
-    ut.check_range(tau, 'tau (cld_opd_dcomp)', rang=(0, 80))
+    ut.check_range(tau, 'tau (cld_opd_dcomp)', rang=(0, 160))
 
     F0 = SOLAR_CONSTANT / (radius * radius)
     solar_zenith_angle = np.cos(np.radians(solar_zenith_angle))
@@ -204,15 +207,14 @@ def farms(tau, cloud_type, cloud_effective_radius, solar_zenith_angle,
         fast_data.Tddcld = np.where(clear_mask, np.nan, Tddcld)
         fast_data.Tducld = np.where(clear_mask, np.nan, Tducld)
         fast_data.Ruucld = np.where(clear_mask, np.nan, Ruucld)
+        fast_data.ghi = np.where(clear_mask, np.nan, ghi)
+        fast_data.dni = np.where(clear_mask, np.nan, dni)
+        fast_data.dhi = np.where(clear_mask, np.nan, dhi)
+
+        return fast_data
     else:
-        fast_data = collections.namedtuple('fast_data', ['ghi', 'dni', 'dhi'])
-
-    # save key irradiance variables
-    fast_data.ghi = np.where(clear_mask, np.nan, ghi)
-    fast_data.dni = np.where(clear_mask, np.nan, dni)
-    fast_data.dhi = np.where(clear_mask, np.nan, dhi)
-
-    return fast_data
+        # return only GHI
+        return np.where(clear_mask, np.nan, ghi)
 
 
 def test(ysize, xsize):
