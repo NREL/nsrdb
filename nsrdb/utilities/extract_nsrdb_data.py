@@ -8,6 +8,7 @@ Created on Tue Dec  10 08:22:26 2018
 import h5py
 import os
 import pandas as pd
+from warnings import warn
 
 
 class ExtractNSRDB:
@@ -26,6 +27,12 @@ class ExtractNSRDB:
             Source NSRDB file (with path). Data is extracted from this file and
             written to the target file.
         """
+
+        if os.path.exists(target):
+            warn('Target file already exists: "{}"'.format(target))
+            if os.path.getsize(target) > 1e9:
+                raise IOError('Refuse to write to target file; the file '
+                              'already exists and is large: {}'.format(target))
 
         self.target = target
         self.source = source
@@ -72,7 +79,7 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w') as t:
+        with h5py.File(self.target, 'w-') as t:
             with h5py.File(self.source, 'r') as s:
                 for dset in dsets:
                     if dset not in s:
@@ -110,7 +117,7 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w') as t:
+        with h5py.File(self.target, 'w-') as t:
             with h5py.File(self.source, 'r') as s:
                 for dset in s.keys():
                     if dset not in self.IGNORE_LIST:
