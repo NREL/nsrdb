@@ -15,7 +15,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.all_sky.all_sky import all_sky
 
 
@@ -43,8 +42,9 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     """Retrieve the variables required to run all-sky for a given set of sites.
     """
     out = {}
-    var_list = ('surface_pressure', 'surface_albedo', 'ssa', 'aod', 'alpha',
-                'ozone', 'total_precipitable_water', 'asymmetry')
+    var_list = ('solar_zenith_angle', 'surface_pressure', 'surface_albedo',
+                'ssa', 'aod', 'alpha', 'ozone', 'total_precipitable_water',
+                'asymmetry')
 
     with h5py.File(test_file, 'r') as f:
 
@@ -64,12 +64,6 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
             f['cld_opd_dcomp'][:, sites].astype(float) *
             f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
             f['cld_opd_dcomp'].attrs['psm_add_offset'])
-
-        meta = pd.DataFrame(f['meta'][...])
-
-    lat_lon = meta.loc[sites, ['latitude', 'longitude']].values
-    out['solar_zenith_angle'] = SolarPosition(
-        out['time_index'], lat_lon).zenith
 
     return out
 

@@ -38,7 +38,7 @@ import gc
 
 import nsrdb.all_sky.utilities as ut
 from nsrdb.all_sky import SOLAR_CONSTANT
-
+from nsrdb.all_sky import SZA_LIM
 
 logger = logging.getLogger(__name__)
 
@@ -388,7 +388,7 @@ def layer_props(transr, tauas, tranas, tabs, f, radius, cosz, albedo,
 
 
 def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
-                   sza_lim=89, n_workers=16):
+                   sza_lim=SZA_LIM, n_workers=16):
     """REST2 Clear Sky parallel execution method."""
 
     futures = []
@@ -423,7 +423,8 @@ def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     return rest_data
 
 
-def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=89):
+def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
+          sza_lim=SZA_LIM):
     """REST2 Clear Sky Model.
 
     Literature
@@ -618,7 +619,8 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=89):
     return rest_data
 
 
-def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=89):
+def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
+                 sza_lim=SZA_LIM):
     """REST2 Clear Sky Model for only calculating Tddclr for FARMS input.
 
     Literature
