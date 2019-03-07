@@ -3,6 +3,7 @@
 """
 
 import numpy as np
+import pandas as pd
 from warnings import warn
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
@@ -11,12 +12,13 @@ from nsrdb.all_sky.gap_fill import make_fill_flag, gap_fill_irrad
 from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
-                                     dark_night)
+                                     dark_night, cloud_variability)
 
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
-            time_index, total_precipitable_water, debug=False):
+            time_index, total_precipitable_water, ghi_variability=None,
+            debug=False):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -59,6 +61,9 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Time index.
     total_precipitable_water : np.ndarray
         Total precip. water (cm).
+    ghi_variability : NoneType | float
+        Variability fraction to apply to GHI. Provides synthetic variability
+        for cloudy irradiance when downscaling data.
     debug : bool
         Flag to return extra variables.
 
@@ -71,6 +76,9 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi
         Global horizontal irradiance.
     """
+
+    if isinstance(time_index, np.ndarray):
+        time_index = pd.to_datetime(time_index.astype(str))
 
     # calculate derived variables
     radius = ti_to_radius(time_index, n_cols=alpha.shape[1])
@@ -115,6 +123,11 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     ghi = merge_rest_farms(rest_data.ghi, ghi, cloud_type)
+
+    # option to add synthetic variability to cloudy ghi
+    if ghi_variability:
+        ghi = cloud_variability(ghi, rest_data.ghi, cloud_type,
+                                var_frac=ghi_variability, option='tri')
 
     # calculate the DNI using the DISC model
     dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,

@@ -4,7 +4,7 @@
 import pandas as pd
 import numpy as np
 from warnings import warn
-from nsrdb.all_sky import RADIUS, CLEAR_TYPES, SZA_LIM
+from nsrdb.all_sky import RADIUS, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
 
 
 def check_range(data, name, rang=(0, 1)):
@@ -156,6 +156,7 @@ def screen_cld(cld_data, rng=(0, 160)):
         with min/max values equal to rng.
     """
 
+    cld_data[np.isnan(cld_data)] = 0
     cld_data[(cld_data < rng[0])] = rng[0]
     cld_data[(cld_data > rng[1])] = rng[1]
     return cld_data
@@ -200,3 +201,105 @@ def dark_night(irrad_data, sza, lim=SZA_LIM):
     night_mask = np.where(sza >= lim)
     irrad_data[night_mask] = 0
     return irrad_data
+
+
+def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
+                      option='tri'):
+    """Add syntehtic variability to irradiance when it's cloudy.
+
+    Parameters
+    ----------
+    irrad : np.ndarray
+        Full FARMS + REST2 merged irradiance 2D array.
+    cs_irrad : np.ndarray
+        REST2 clearsky irradiance without bad or missing data.
+    cloud_type : np.ndarray
+        Array of numerical cloud types.
+    var_frac : float
+        Maximum variability fraction.
+    option : str
+        Variability function option ('tri' or 'linear').
+
+    Returns
+    -------
+    irrad : np.ndarray
+        Full FARMS + REST2 merged irradiance 2D array with variability added
+        to cloudy timesteps.
+    """
+
+    # disable divide by zero warnings
+    np.seterr(divide='ignore', invalid='ignore')
+
+    if var_frac:
+        # update the clearsky ratio (1 is clear, 0 is cloudy or dark)
+        csr = irrad / cs_irrad
+        # Set the cloud/clear ratio to zero when it's nighttime
+        csr[(cs_irrad == 0)] = 0
+
+        if option == 'linear':
+            var_frac_arr = linear_variability(csr, var_frac)
+        elif option == 'tri':
+            var_frac_arr = tri_variability(csr, var_frac)
+
+        # get a uniform random scalar array 0 to 1 with data shape
+        rand_arr = np.random.rand(irrad.shape[0], irrad.shape[1])
+        # Center the random array at 1 +/- var_perc_arr (with csr scaling)
+        rand_arr = 1 + var_frac_arr * (rand_arr * 2 - 1)
+
+        # only apply rand to the applicable cloudy timesteps
+        rand_arr = np.where(np.isin(cloud_type, CLOUD_TYPES), rand_arr, 1)
+        irrad *= rand_arr
+
+    return irrad
+
+
+def linear_variability(csr, var_frac):
+    """Return an array with a linear relation between clearsky ratio and
+    maximum variability fraction.
+
+    Parameters
+    ----------
+    csr : np.ndarray
+        REST2 clearsky irradiance without bad or missing data.
+    var_frac : float
+        Maximum variability fraction.
+
+    Returns
+    -------
+    out : np.ndarray
+        Array with shape matching csr with maximum variability (var_frac)
+        when the csr = 1 (clear or thin clouds).
+    """
+
+    return var_frac * csr
+
+
+def tri_variability(csr, var_frac, center=0.9):
+    """Return an array with a triangular distribution between clearsky ratio
+    and maximum variability fraction.
+
+    The max variability occurs when csr==center, and zero variability when
+    csr==0 or csr==1
+
+    Parameters
+    ----------
+    csr : np.ndarray
+        REST2 clearsky irradiance without bad or missing data.
+    var_frac : float
+        Maximum variability fraction.
+    center : float
+        Value of the clearsky ratio at which there is maximum variability.
+
+    Returns
+    -------
+    tri : np.ndarray
+        Array with shape matching csr with maximum variability (var_frac)
+        when the csr==center.
+    """
+
+    tri_left = var_frac * csr * 1.11111
+    slope = -1 / (1 - center)
+    yint = center * 10 + 1
+    tri_right = var_frac * (slope * csr + yint)
+    tri = np.where(csr < center, tri_left, tri_right)
+    return tri
