@@ -95,6 +95,8 @@ def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
         All-sky (cloudy + clear) irradiance data, merged dataset from
         FARMS and REST.
     """
+    # disable nan warnings
+    np.seterr(divide='ignore', invalid='ignore')
 
     # Don't let cloudy irradiance be greater than the clearsky irradiance.
     cloudy_irrad = np.where(cloudy_irrad > clearsky_irrad,

@@ -158,6 +158,8 @@ def farms(tau, cloud_type, cloud_effective_radius, solar_zenith_angle,
             dni : direct normal irradiance (w/m2)
             dhi : diffuse horizontal irradiance (w/m2)
     """
+    # disable divide by zero warnings
+    np.seterr(divide='ignore')
 
     ut.check_range(Tddclr, 'Tddclr')
     ut.check_range(Tduclr, 'Tduclr')

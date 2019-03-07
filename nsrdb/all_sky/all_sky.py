@@ -3,6 +3,7 @@
 """
 
 import numpy as np
+from warnings import warn
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
@@ -137,6 +138,15 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     dhi = dark_night(dhi, solar_zenith_angle, lim=SZA_LIM)
     dni = dark_night(dni, solar_zenith_angle, lim=SZA_LIM)
     ghi = dark_night(ghi, solar_zenith_angle, lim=SZA_LIM)
+
+    # check for NaN and negative irradiance values, raise warning
+    for name, var in [['dhi', dhi], ['dni', dni], ['ghi', ghi]]:
+        if np.sum(np.isnan(var)):
+            warn('NaN values are present in "{}" after all-sky irradiance '
+                 'calculation.'.format(name))
+        if np.min(var) < 0:
+            warn('Negative values are present in "{}" after all-sky '
+                 'irradiance calculation.'.format(name))
 
     if debug:
         # return extra debugging variables.

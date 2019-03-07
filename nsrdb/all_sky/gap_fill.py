@@ -69,6 +69,8 @@ def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
     csr : np.ndarray
         Irradiance cloudy/clearsky ratio numpy array.
     """
+    # disable divide by zero warnings
+    np.seterr(divide='ignore', invalid='ignore')
 
     # convert to boolean if necessary
     if np.issubdtype(fill_mask.dtype, np.integer):
