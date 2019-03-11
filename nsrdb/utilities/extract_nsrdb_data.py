@@ -7,7 +7,9 @@ Created on Tue Dec  10 08:22:26 2018
 """
 import h5py
 import os
+import numpy as np
 import pandas as pd
+from scipy.spatial import cKDTree
 from warnings import warn
 
 
@@ -142,6 +144,25 @@ class ExtractNSRDB:
                 for site_meta in s['meta'][sites]:
                     print(site_meta)
 
+    def extract_closest_meta(self, coords):
+        """Get NSRDB meta data for pixels closest to input coordinate set.
+
+        Parameters
+        ----------
+        coords : np.ndarray
+            N x 2 array of lat/lon pairs.
+
+        Returns
+        -------
+        subset_meta : pd.DataFrame
+            A subset of the source meta data with the closest sites to the
+            input coordinates. Has length N (length of coordinate array).
+        """
+
+        tree = cKDTree(self.meta[['latitude', 'longitude']].values)
+        ind = tree.query(coords)[1]
+        return self.meta.iloc[ind, :]
+
     @property
     def meta(self):
         """Get the NSRDB meta data as a DataFrame."""
@@ -168,6 +189,7 @@ class ExtractNSRDB:
         meta : pd.DataFrame
             Filtered meta data.
         """
+
         if isinstance(values, str):
             values = values.encode()
         if isinstance(values, list):
@@ -176,6 +198,13 @@ class ExtractNSRDB:
         if not isinstance(values, list):
             values = [values]
         return self.meta.loc[self.meta[label].isin(values), :]
+
+
+class ExtractPuertoRico(ExtractNSRDB):
+    """Extraction utilities for Puerto Rico data."""
+
+    def __init__(self, target, source):
+        super().__init__(target, source)
 
     @classmethod
     def puerto_rico_vi_meta(cls):
@@ -247,6 +276,40 @@ class ExtractNSRDB:
         df = ex.filter_meta(val, label)
         sites = list(df.index.values)[0:50]
         ex.extract_sites(sites=sites)
+
+
+class ExtractValidationData(ExtractNSRDB):
+    """Extraction utilities for NSRDB validation ground-measurement sites."""
+
+    # static SURFRAD validation site coordinates [lat,lon].
+    COORDS = np.array(((40.052, -88.373),  # Bondville, Illinois
+                       (40.125, -105.237),  # Table Mountain, Boulder, CO
+                       (36.624, -116.019),  # Desert Rock, Nevada
+                       (48.308, -105.102),  # Fort Peck, Montana
+                       (34.255, -89.873),  # Goodwin Creek, Mississippi
+                       (40.720, -77.931),  # Penn. State Univ., Pennsylvania
+                       (43.734, -96.623),  # Sioux Falls, South Dakota
+                       (36.604, -97.485),  # ARM Southern Great Plains, OK
+                       (39.742, -105.180),  # SRRL-NREL
+                       ))
+
+    def __init__(self, target, source):
+        super().__init__(target, source)
+
+    @classmethod
+    def save_meta(cls, target,
+                  source='/projects/PXS/nsrdb/v3.0.1/nsrdb_2017.h5'):
+        """Save the meta data for the validation ground-measurement sites."""
+        ex = cls(target, source)
+        subset_meta = ex.extract_closest_meta(cls.COORDS)
+        subset_meta.to_csv(target)
+
+
+class ExtractTestData(ExtractNSRDB):
+    """Extraction utilities for miscellaneous NSRDB test data sets."""
+
+    def __init__(self, target, source):
+        super().__init__(target, source)
 
     @classmethod
     def oregon_50(cls, dir_out, year=2015):
