@@ -265,7 +265,7 @@ class Temporal:
         """
 
         init_logger(__name__, log_file=None, log_level='INFO')
-        legend = (os.path.basename(f1), os.path.basename(f2))
+        legend = (os.path.basename(f2), os.path.basename(f1))
         with cls(f1, f2, gids1=gids1, gids2=gids2) as t:
             for i in sites:
                 site1 = i
@@ -302,7 +302,7 @@ class Temporal:
                         for day in days:
                             title = (dset +
                                      '_{}_{}_{}'.format(site1, month, day))
-                            t.plot_timeseries(df1, df2, title, dset, legend,
+                            t.plot_timeseries(df2, df1, title, dset, legend,
                                               out_dir, month=month, day=day)
 
 
