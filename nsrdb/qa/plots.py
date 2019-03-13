@@ -275,8 +275,8 @@ class Temporal:
                     logger.info('Plotting dataset "{}"'.format(dset))
 
                     # make time-series dataframes with one site of data
-                    scale1 = t.attrs1(dset).get('psm_scale_factor', 1)
-                    scale2 = t.attrs2(dset).get('psm_scale_factor', 1)
+                    scale1 = t.attrs1(dset)['psm_scale_factor']
+                    scale2 = t.attrs2(dset)['psm_scale_factor']
                     df1 = pd.DataFrame({dset: t.h1[dset][:, site1] / scale1},
                                        index=t.t1)
                     df2 = pd.DataFrame({dset: t.h2[dset][:, site2] / scale2},
@@ -368,8 +368,7 @@ class Spatial:
 
                 for i in timesteps:
                     logger.info('Plotting timestep {}'.format(i))
-                    df[dset] = (f[dset][i, :] /
-                                attrs.get('psm_Scale_factor', 1))
+                    df[dset] = f[dset][i, :] / attrs['psm_scale_factor']
                     self.plot_geo_df(df, fname + '_' + dset + '_{}'.format(i),
                                      out_dir)
 
