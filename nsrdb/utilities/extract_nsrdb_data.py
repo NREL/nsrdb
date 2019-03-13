@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Wed Mar 13 10:39:12 2019
+
+@author: gbuster
+"""
+
+# -*- coding: utf-8 -*-
 """Test data extraction.
 
 Created on Tue Dec  10 08:22:26 2018
@@ -303,6 +310,13 @@ class ExtractValidationData(ExtractNSRDB):
         ex = cls(target, source)
         subset_meta = ex.extract_closest_meta(cls.COORDS)
         subset_meta.to_csv(target)
+
+    def extract_sites(self):
+        """Extract validation data to target h5."""
+        subset_meta = self.extract_closest_meta(self.COORDS)
+        subset_meta = subset_meta.sort_index()
+        sites = list(subset_meta.index.values)
+        super().extract_sites(sites=sites)
 
 
 class ExtractTestData(ExtractNSRDB):
