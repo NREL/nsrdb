@@ -33,10 +33,12 @@ import numpy as np
 import collections
 from warnings import warn
 import logging
+import concurrent.futures as cf
+import gc
 
 import nsrdb.all_sky.utilities as ut
 from nsrdb.all_sky import SOLAR_CONSTANT
-
+from nsrdb.all_sky import SZA_LIM
 
 logger = logging.getLogger(__name__)
 
@@ -385,46 +387,31 @@ def layer_props(transr, tauas, tranas, tabs, f, radius, cosz, albedo,
     return edni, edif, edift, rsky
 
 
-def rest_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
-                  sza_lim=89):
+def rest2_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
+                   sza_lim=SZA_LIM, n_workers=16):
     """REST2 Clear Sky parallel execution method."""
-    import time
-    import psutil
-    from dask.distributed import Client
 
-    client = Client()
-    n = len(client.cluster.workers)
     futures = []
-    x_p = np.array_split(p, n)
-    x_albedo = np.array_split(albedo, n)
-    x_ssa = np.array_split(ssa, n)
-    x_g = np.array_split(g, n)
-    x_z = np.array_split(z, n)
-    x_radius = np.array_split(radius, n)
-    x_alpha = np.array_split(alpha, n)
-    x_beta = np.array_split(beta, n)
-    x_ozone = np.array_split(ozone, n)
-    x_w = np.array_split(w, n)
+    x_p = np.array_split(p, n_workers)
+    x_albedo = np.array_split(albedo, n_workers)
+    x_ssa = np.array_split(ssa, n_workers)
+    x_g = np.array_split(g, n_workers)
+    x_z = np.array_split(z, n_workers)
+    x_radius = np.array_split(radius, n_workers)
+    x_alpha = np.array_split(alpha, n_workers)
+    x_beta = np.array_split(beta, n_workers)
+    x_ozone = np.array_split(ozone, n_workers)
+    x_w = np.array_split(w, n_workers)
 
-    for i in range(n):
-        futures.append(client.submit(rest2, x_p[i], x_albedo[i], x_ssa[i],
-                                     x_g[i], x_z[i], x_radius[i], x_alpha[i],
-                                     x_beta[i], x_ozone[i], x_w[i],
-                                     sza_lim=sza_lim))
+    with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = [executor.submit(rest2, x_p[i], x_albedo[i], x_ssa[i],
+                                   x_g[i], x_z[i], x_radius[i], x_alpha[i],
+                                   x_beta[i], x_ozone[i], x_w[i],
+                                   sza_lim=sza_lim)
+                   for i in range(n_workers)]
 
-    max_mem = 0
-    while futures[-1].status != 'finished':
-        # log memory during futures to get max memory usage during process
-        mem = psutil.virtual_memory()
-        max_mem = np.max((mem.used / 1e9, max_mem))
-        time.sleep(1)
+        futures = [future.result() for future in futures]
 
-    logger.info('Last future in parallel rest is "{0}", '
-                'maximum memory usage was {1:.3f} GB.'
-                .format(futures[-1].status, max_mem))
-
-    futures = client.gather(futures)
-    client.close()
     var_list = ('ghi', 'dni', 'dhi', 'Tddclr', 'Tduclr', 'Ruuclr')
     rest_data = collections.namedtuple('rest_data', var_list)
 
@@ -436,7 +423,8 @@ def rest_parallel(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     return rest_data
 
 
-def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=89):
+def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
+          sza_lim=SZA_LIM):
     """REST2 Clear Sky Model.
 
     Literature
@@ -631,7 +619,8 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w, sza_lim=89):
     return rest_data
 
 
-def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=89):
+def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
+                 sza_lim=SZA_LIM):
     """REST2 Clear Sky Model for only calculating Tddclr for FARMS input.
 
     Literature
@@ -765,7 +754,6 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=89):
     del p, am, cosz, z, w
 
     # New aerosol functions in v9
-
     ambeta = masa * beta
 
     # get the two band wavelengths
@@ -805,3 +793,87 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w, sza_lim=89):
     ut.check_range(Tddclr, 'Tddclr')
 
     return Tddclr
+
+
+def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
+                 diffuse_angles=(84.2608, 78.4630, 72.5424, 66.4218, 60.0000,
+                                 53.1301, 45.5730, 36.8699, 25.8419, 0.00000)):
+    """Calculate Tuuclr based on average values from several REST2 runs.
+
+    Equation 5 from the following reference:
+    [1] Yu Xie, Manajit Sengupta, Jimy Dudhia, "A Fast All-sky Radiation Model
+        for Solar applications (FARMS): Algorithm and performance evaluation",
+        Solar Energy, Volume 135, 2016, Pages 435-445, ISSN 0038-092X,
+        https://doi.org/10.1016/j.solener.2016.06.003.
+        (http://www.sciencedirect.com/science/article/pii/S0038092X16301827)
+
+    Parameters
+    ----------
+    p : np.ndarray
+        See rest2 doc string for description.
+    albedo : np.ndarray
+        See rest2 doc string for description.
+    ssa : np.ndarray
+        See rest2 doc string for description.
+    radius : np.ndarray
+        See rest2 doc string for description.
+    alpha : np.ndarray
+        See rest2 doc string for description.
+    ozone : np.ndarray
+        See rest2 doc string for description.
+    w : np.ndarray
+        See rest2 doc string for description.
+    parallel : bool
+        Flag to each diffuse angle on a seperate core using concurrent futures.
+    diffuse_angles : list | tuple
+        Set of solar zenith angles from 0 to near 90 used to calculate Tuuclr.
+
+    Returns
+    -------
+    Tuuclr : np.ndarray
+        Transmittance of the clear-sky atmosphere for diffuse incident and
+        diffuse outgoing fluxes (uu).
+    """
+
+    logger.debug('Calculating Tuuclr...')
+    Tddclr_list = []
+
+    # ensure radius is of the correct shape
+    if radius.shape != p.shape:
+        radius = np.tile(radius, p.shape[1])
+
+    if not parallel:
+        # serial execution
+        for angle in diffuse_angles:
+            logger.debug('\tGetting Tddclr for angle {}'.format(angle))
+            Tddclr_list.append(
+                rest2_tddclr(p=p, albedo=albedo, ssa=ssa, z=angle,
+                             radius=radius, alpha=alpha, beta=0,
+                             ozone=ozone, w=w))
+            gc.collect()
+    else:
+        # parallel execution
+        n_workers = len(diffuse_angles)
+        with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
+            logger.info('Using concurrent futures to calculate Tuuclr.')
+            # submit futures for each angle
+            futures = [executor.submit(rest2_tddclr, p, albedo, ssa, angle,
+                                       radius, alpha, 0, ozone, w)
+                       for angle in diffuse_angles]
+
+            Tddclr_list = [future.result() for future in futures]
+            logger.info('Futures gathered and concurrent futures closed.')
+        gc.collect()
+
+    scalar = 1 / (len(diffuse_angles))
+    for i, angle in enumerate(diffuse_angles):
+        Tddclr_list[i] = (Tddclr_list[i] * np.cos(np.radians(angle)) *
+                          scalar)
+
+    # Get the average for various angles
+    Tuuclr = np.sum(np.array(Tddclr_list), axis=0) * 2.0
+
+    del Tddclr_list
+    gc.collect()
+
+    return Tuuclr

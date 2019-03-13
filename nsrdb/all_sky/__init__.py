@@ -21,3 +21,6 @@ CLOUD_TYPES = WATER_TYPES + ICE_TYPES
 # Solar constant global variable. Flux density value measuring mean solar
 # electromagnetic radiation per unit area, default is 1361.2 (W/m2).
 SOLAR_CONSTANT = 1361.2
+
+# Truncate irrad data when sza > this SZA limit
+SZA_LIM = 89.0

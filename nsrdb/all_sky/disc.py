@@ -46,6 +46,10 @@ def disc(ghi, sza, doy, pressure=101325, sza_lim=87):
         Estimated direct normal irradiance in W/m2.
     """
 
+    # convert pressure from mbar if necessary
+    if np.max(pressure) < 10000:
+        pressure *= 100
+
     A = np.zeros_like(ghi)
     B = np.zeros_like(ghi)
     C = np.zeros_like(ghi)
