@@ -4,7 +4,7 @@ Created on Tue Mar 12 16:50:16 2019
 
 @author: gbuster
 """
-
+import calendar
 import os
 import pandas as pd
 import numpy as np
@@ -80,13 +80,15 @@ def filter_measurement_df(df, var_list=('dhi', 'dni', 'ghi', 'sza')):
     return df
 
 
-def get_dat_table(d):
+def get_dat_table(d, flist):
     """Get one year of data from the directory for .dat files.
 
     Parameters
     ----------
     d : str
         Directory containing surfrad data files.
+    flist : list
+        List of dat filenames to extract.
 
     Returns
     -------
@@ -96,9 +98,6 @@ def get_dat_table(d):
     """
 
     cols = ()
-
-    # get list of data files
-    flist = os.listdir(d)
 
     # iterate through data files
     for i, fname in enumerate(flist):
@@ -140,13 +139,15 @@ def get_dat_table(d):
     return df
 
 
-def get_lw1_table(d):
+def get_lw1_table(d, flist):
     """Get one year of data from the directory for .lw1 files.
 
     Parameters
     ----------
     d : str
         Directory containing surfrad data files.
+    flist : list
+        List of lw1 filenames to extract.
 
     Returns
     -------
@@ -154,9 +155,6 @@ def get_lw1_table(d):
         List of data rows from all files in d. First entry is the list of
         column headers.
     """
-
-    # get list of data files
-    flist = os.listdir(d)
 
     # iterate through data files
     for i, fname in enumerate(flist):
@@ -220,11 +218,18 @@ def surfrad_to_h5(df, fout, dir_out):
 
     with h5py.File(os.path.join(dir_out, fout), 'w') as f:
 
+        # write time index
         time_index = np.array(df.index.astype(str), dtype='S20')
         ds = f.create_dataset('time_index', shape=time_index.shape,
                               dtype=time_index.dtype, chunks=None)
         ds[...] = time_index
 
+        # write solar zenith angle
+        ds = f.create_dataset('solar_zenith_angle', shape=df['sza'].shape,
+                              dtype=np.float16, chunks=None)
+        ds[...] = df['sza'].values
+
+        # write irraidance variables
         for dset in ['dhi', 'dni', 'ghi']:
             df[dset] = np.round(df[dset].astype(float))\
                 .astype(np.int16)
@@ -252,6 +257,8 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
         Sites codes that makeup directory names.
     """
 
+    bad_dirs = []
+
     if not os.path.exists(dir_out):
         os.makedirs(dir_out)
 
@@ -265,23 +272,36 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
             fout = '{}_{}.h5'.format(site, year)
 
             if not os.path.exists(d):
-                print('Skipping: "{}" for {}'.format(site, year))
-
+                print('Skipping: "{}" for {}. Path does not exist: {}'
+                      .format(site, year, d))
+                bad_dirs.append(d)
             else:
-                print('Processing "{}" for {}'.format(site, year))
-                if 'dat' in file_flag:
-                    df = get_dat_table(d)
-                elif 'lw1' in file_flag:
-                    df = get_lw1_table(d)
+                # get number of valid files in dir
+                flist = [f for f in os.listdir(d) if file_flag in f]
+                n_f = len(flist)
+
+                if not ((calendar.isleap(year) and n_f == 366) or
+                        (not calendar.isleap(year) and n_f == 365)):
+                    print('Skipping: "{}" for {}. Directory contains {} files.'
+                          .format(site, year, len(os.listdir(d))))
+                    bad_dirs.append(d)
+
                 else:
-                    raise('Did not recongize user-specified file flag: "{}"'
-                          .format(file_flag))
+                    print('Processing "{}" for {}'.format(site, year))
+                    if 'dat' in file_flag:
+                        df = get_dat_table(d, flist)
+                    elif 'lw1' in file_flag:
+                        df = get_lw1_table(d, flist)
+                    else:
+                        raise('Did not recongize user-specified file flag: '
+                              '"{}"'.format(file_flag))
 
-                df = filter_measurement_df(df)
+                    df = filter_measurement_df(df)
 
-                surfrad_to_h5(df, fout, dir_out)
-                break
-        break
+                    surfrad_to_h5(df, fout, dir_out)
+
+    print('The following directories did not have valid datasets:\n{}'
+          .format(bad_dirs))
     return df
 
 
