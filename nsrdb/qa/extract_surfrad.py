@@ -9,10 +9,139 @@ import os
 import pandas as pd
 import numpy as np
 import h5py
+from nsrdb.all_sky import SZA_LIM
 
 
-def get_table(d):
-    """Get one year of data from the directory.
+DAT_COLS = ('year',
+            'jday',
+            'month',
+            'day',
+            'hour',
+            'min',
+            'dt',
+            'zen',
+            'dw_solar',
+            'qc_dwsolar',
+            'uw_solar',
+            'qc_uw_solar',
+            'direct_n',
+            'qc_direct_n',
+            'diffuse',
+            'qc_diffuse',
+            )
+
+DAT_MAPPING = {'dw_solar': 'ghi',
+               'direct_n': 'dni',
+               'diffuse': 'dhi',
+               'zen': 'sza'}
+
+LW1_MAPPING = {'swdn': 'ghi',
+               'dirsw': 'dni',
+               'difsw': 'dhi',
+               'sza': 'sza'}
+
+MISSING = -999
+
+
+def filter_measurement_df(df, var_list=('dhi', 'dni', 'ghi', 'sza')):
+    """Filter the measurement dataframe.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Ground measurement dataframe containing variables in var_list.
+    var_list : list | tuple
+        Variables to preserve (typically irradiance and sza).
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Filtered data with zero or negative irradiance replaced with missing
+        flag.
+    """
+
+    df = df[list(var_list)]
+    df = df.sort_index()
+
+    for var in var_list:
+        # convert all data to float
+        df[var] = df[var].astype(float)
+
+    for var in var_list:
+        # No data can be negative
+        mask = (df[var] < 0)
+        df.loc[mask, var] = MISSING
+
+        if var in ('dhi', 'ghi'):
+            # dhi and ghi cannot be negative or zero during the day
+            mask = (df[var] <= 0) & (df['sza'] < SZA_LIM)
+            df.loc[mask, var] = MISSING
+
+    return df
+
+
+def get_dat_table(d):
+    """Get one year of data from the directory for .dat files.
+
+    Parameters
+    ----------
+    d : str
+        Directory containing surfrad data files.
+
+    Returns
+    -------
+    annual_table : list
+        List of data rows from all files in d. First entry is the list of
+        column headers.
+    """
+
+    cols = ()
+
+    # get list of data files
+    flist = os.listdir(d)
+
+    # iterate through data files
+    for i, fname in enumerate(flist):
+        table = []
+
+        # get readlines iterator
+        with open(os.path.join(d, fname), 'r') as f:
+            lines = f.readlines()
+
+        # iterate through lines
+        for line in lines:
+
+            # reduce multiple spaces to a single space, split columns
+            while '  ' in line:
+                line = line.replace('  ', ' ')
+            cols = line.strip(' ').split(' ')
+
+            # Set table header or append data to table
+            if len(cols) > len(DAT_COLS):
+                table.append(cols[0:len(DAT_COLS)])
+
+        # upon finishing table concatenation, initialize annual table
+        # or append to annual table
+        if i == 0:
+            annual_table = table
+        else:
+            annual_table += table
+
+    df = pd.DataFrame(annual_table, columns=DAT_COLS)
+    df = df.rename(DAT_MAPPING, axis='columns')
+    df['time_string'] = (df['year'] +
+                         df['month'].str.zfill(2) +
+                         df['day'].str.zfill(2) +
+                         df['hour'].str.zfill(2) +
+                         df['min'].str.zfill(2))
+
+    ti = pd.to_datetime(df['time_string'], format='%Y%m%d%H%M')
+    df.index = ti
+    return df
+
+
+def get_lw1_table(d):
+    """Get one year of data from the directory for .lw1 files.
 
     Parameters
     ----------
@@ -63,10 +192,49 @@ def get_table(d):
                        'headers: {}'
                        .format(os.path.join(d, fname), annual_table[0]))
                 raise ValueError(msg)
-    return annual_table
+
+    headers = [h.lower() for h in annual_table[0]]
+    df = pd.DataFrame(annual_table[1:], columns=headers)
+    df = df[['zdate', 'ztim', 'cosz', 'swdn', 'dirsw', 'difsw']]
+    df['sza'] = np.arccos(df['cosz'])
+    df = df.rename(LW1_MAPPING, axis='columns')
+    df['time_string'] = df['zdate'] + ' ' + df['ztim'].str.zfill(4)
+    ti = pd.to_datetime(df['time_string'], format='%Y%m%d %H%M')
+    df.index = ti
+    return df
 
 
-def extract_all(root_dir, dir_out, years=range(1998, 2018),
+def surfrad_to_h5(df, fout, dir_out):
+    """Save annual surfrad dataframe to output .h5 file.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Timeseries dataframe for ground measurement irradiance. DF index must
+        be pandas datetime index. Must have columns for dhi, dni, ghi.
+    fout : str
+        Output file name.
+    dir_out : str
+        Location to save output file.
+    """
+
+    with h5py.File(os.path.join(dir_out, fout), 'w') as f:
+
+        time_index = np.array(df.index.astype(str), dtype='S20')
+        ds = f.create_dataset('time_index', shape=time_index.shape,
+                              dtype=time_index.dtype, chunks=None)
+        ds[...] = time_index
+
+        for dset in ['dhi', 'dni', 'ghi']:
+            df[dset] = np.round(df[dset].astype(float))\
+                .astype(np.int16)
+            ds = f.create_dataset(dset, shape=df[dset].shape,
+                                  dtype=df[dset].dtype,
+                                  chunks=None)
+            ds[...] = df[dset].values
+
+
+def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
                 site_codes=('bon', 'dra', 'fpk', 'gwn', 'psu', 'sxf', 'tbl')):
     """Extract all surfrad measurement data into h5 files.
 
@@ -100,36 +268,24 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018),
                 print('Skipping: "{}" for {}'.format(site, year))
 
             else:
-                annual_table = get_table(d)
+                print('Processing "{}" for {}'.format(site, year))
+                if 'dat' in file_flag:
+                    df = get_dat_table(d)
+                elif 'lw1' in file_flag:
+                    df = get_lw1_table(d)
+                else:
+                    raise('Did not recongize user-specified file flag: "{}"'
+                          .format(file_flag))
 
-                headers = [h.lower() for h in annual_table[0]]
-                df = pd.DataFrame(annual_table[1:], columns=headers)
-                mapping = {'swdn': 'ghi',
-                           'dirsw': 'dni',
-                           'difsw': 'dhi'}
-                df = df[['zdate', 'ztim', 'swdn', 'dirsw', 'difsw']]
-                df = df.rename(mapping, axis='columns')
-                df['time_string'] = df['zdate'] + ' ' + df['ztim'].str.zfill(4)
-                ti = pd.to_datetime(df['time_string'], format='%Y%m%d %H%M')
-                df.index = ti
+                df = filter_measurement_df(df)
 
-                with h5py.File(os.path.join(dir_out, fout), 'w') as f:
-
-                    time_index = np.array(df.index.astype(str), dtype='S20')
-                    ds = f.create_dataset('time_index', shape=time_index.shape,
-                                          dtype=time_index.dtype, chunks=None)
-                    ds[...] = time_index
-
-                    for dset in ['dhi', 'dni', 'ghi']:
-                        df[dset] = np.round(df[dset].astype(float))\
-                            .astype(np.int16)
-                        ds = f.create_dataset(dset, shape=df[dset].shape,
-                                              dtype=df[dset].dtype,
-                                              chunks=None)
-                        ds[...] = df[dset].values
+                surfrad_to_h5(df, fout, dir_out)
+                break
+        break
+    return df
 
 
 if __name__ == '__main__':
-    root_dir = '/projects/PXS/surfrad_radflux'
+    root_dir = '/projects/PXS/surfrad_raw'
     dir_out = '/home/gbuster/surfrad_data'
     extract_all(root_dir, dir_out)

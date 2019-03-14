@@ -1,11 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Mar 13 10:39:12 2019
-
-@author: gbuster
-"""
-
-# -*- coding: utf-8 -*-
 """Test data extraction.
 
 Created on Tue Dec  10 08:22:26 2018
