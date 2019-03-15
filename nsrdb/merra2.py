@@ -36,7 +36,7 @@ from datetime import date
 from dask.distributed import LocalCluster, Client
 
 from nsrdb.utilities.loggers import NSRDB_LOGGERS
-from nsrdb.utilities.execution import PBS
+from nsrdb.utilities.execution import PBS, SLURM
 
 logger = logging.getLogger(__name__)
 
@@ -972,6 +972,71 @@ def peregrine_merra(config_file, var, year_range, regions=('east', 'west'),
             if pbs.id:
                 msg = ('Kicked off job "{}" (PBS jobid #{}) on '
                        'Peregrine.'.format(name, pbs.id))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(name))
+            print(msg)
+
+
+def eagle_merra(config_file, var, year_range, regions=('east', 'west'),
+                cores=18, alloc='pxs', log_level='DEBUG',
+                stdout_path='/lustre/eaglefs/scratch/gbuster/merra2/stdout/'):
+    """Run merra on a single variable e+w for a range of years on EAGLE.
+
+    Parameters
+    ----------
+    config_file : str
+        Ancillary variable processing config file with path.
+    var : str
+        Target variable to process. This must be the MERRA2 variable name,
+        not the NSRDB name.
+    year_range : iterable
+        Year range to be blended. Each year will be a seperate job on
+        Eagle. Note that if this is a python range() object, the starting
+        index is inclusive and the finishing index is exclusive.
+    regions : list | tuple
+        Regions to process (east, west).
+    cores : int
+        Cores to utilize on the Eagle node (this is not part of the node
+        request).
+    alloc : str
+        Eagle project allocation (pxs).
+    log_level : str
+        Logging level for this module (DEBUG or INFO).
+    stdout_path : str
+        Path to dump stdout/stderr files.
+    """
+
+    for year in year_range:
+        for region in regions:
+            name = '{year}{region}_{var}'.format(year=str(year)[-2:],
+                                                 region=str(region)[0],
+                                                 var=var)
+
+            date_range = '[{}0101, {}0101]'.format(year, year + 1)
+
+            cmd = ('python -c '
+                   '\'from nsrdb.merra2 import run_single; '
+                   'from nsrdb.utilities.loggers import init_logger; '
+                   'init_logger("{log_name}", log_level="{log_level}", '
+                   'log_file=None); '
+                   'run_single("{config_file}", {date_range}, '
+                   '"{region}", "{var}", cores={cores})\''
+                   )
+
+            cmd = cmd.format(log_name=__name__, log_level=log_level,
+                             config_file=config_file, date_range=date_range,
+                             region=region, var=var, cores=cores)
+
+            slurm = SLURM(cmd, alloc, memory=96, walltime=10, name=name,
+                          stdout_path=stdout_path)
+
+            print('\ncmd:\n{}\n'.format(cmd))
+
+            if slurm.id:
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                       'Eagle.'.format(name, slurm.id))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
