@@ -2,6 +2,11 @@
 """Interpolates ancillary data from various sources into 4x4km daily and 1/2
 hourly data
 
+Non-standard module dependencies (all pip-installable):
+    - pyproj
+    - configobj
+    - netCDF4
+
 The following variables can be processed using this module:
     - PS (surface_pressure, Pa)
     - T2M (air_temperature, C)
