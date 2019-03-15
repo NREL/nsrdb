@@ -13,10 +13,12 @@ import pytest
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import pprint
 
-from nsrdb.qa.statistics import mae, mae_perc, mbe, mbe_perc, rmse, rmse_perc
+from nsrdb import TESTDATADIR
+from nsrdb.qa.statistics import mbe_perc, rmse_perc
 from nsrdb.all_sky.all_sky import all_sky
+from nsrdb.all_sky import CLEAR_TYPES, CLOUD_TYPES
+from nsrdb.utilities.solar_position import SolarPosition
 
 
 RTOL = 1e-03
@@ -32,7 +34,7 @@ SITE_CODES = {0: 'dra',  # desert rock nevada
               8: 'psu'}  # Penn. State
 
 
-def get_at_interval(df, dt='5min', window=61):
+def get_at_interval(df, dt, window=61):
     """Get a rolling avg dataset sampled at a given timestep interval."""
     year = df.index.year[0]
     for var in df:
@@ -55,18 +57,22 @@ def get_measurement_data(surfrad_file):
         ghi_msr = f['ghi'][...].astype(float)
         ti_msr = pd.to_datetime(f['time_index'][...].astype(str))
 
-    dhi_msr[dhi_msr == -9999] = np.nan
-    dni_msr[dni_msr == -9999] = np.nan
-    ghi_msr[ghi_msr == -9999] = np.nan
+    dhi_msr[dhi_msr < 0] = np.nan
+    dni_msr[dni_msr < 0] = np.nan
+    ghi_msr[ghi_msr < 0] = np.nan
 
     measurement_df = pd.DataFrame({'dhi': dhi_msr, 'dni': dni_msr,
                                    'ghi': ghi_msr}, index=ti_msr)
 
-    measurement_df = measurement_df.interpolate(method='linear', axis=0)
-
     measurement_df = measurement_df.sort_index()
 
-    measurement_df = get_at_interval(measurement_df, dt='30min', window=61)
+    # calculate the window size to take a moving average over
+    avg_min = 60  # take the average over this many minutes
+    dt = ti_msr.to_series().diff()
+    dt = dt[1].seconds / 60
+    window = int(np.round(avg_min / dt)) + 1
+
+    measurement_df = get_at_interval(measurement_df, dt='1h', window=window)
 
     return measurement_df
 
@@ -75,7 +81,7 @@ def get_source_data(test_file, sites=list(range(9))):
     """Retrieve the variables required to run all-sky for a given set of sites.
     """
     out = {}
-    var_list = ('solar_zenith_angle', 'surface_pressure', 'surface_albedo',
+    var_list = ('surface_pressure', 'surface_albedo',
                 'ssa', 'aod', 'alpha', 'ozone', 'total_precipitable_water',
                 'asymmetry')
 
@@ -87,7 +93,8 @@ def get_source_data(test_file, sites=list(range(9))):
         # get meta
         meta = pd.DataFrame(f['meta'][...])
         meta = meta.iloc[sites, :]
-        print(meta[['state', 'county']])
+        print('Getting source data from "{}".'
+              .format(str(meta['state'].values[0])))
 
         for var in var_list:
             out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
@@ -102,6 +109,9 @@ def get_source_data(test_file, sites=list(range(9))):
             f['cld_opd_dcomp'][:, sites].astype(float) *
             f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
             f['cld_opd_dcomp'].attrs['psm_add_offset'])
+
+    out['solar_zenith_angle'] = SolarPosition(
+        out['time_index'], meta[['latitude', 'longitude']].values).zenith
 
     return out
 
@@ -175,20 +185,128 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
     site_code = SITE_CODES[site]
-    res = res.format(y=year)
-    surfrad = surfrad.format(s=site_code, y=year)
+    res_file = res.format(y=year)
+    surfrad_file = surfrad.format(s=site_code, y=year)
 
-    as_out, source_vars = run_all_sky(res, sites=[site], debug=False)
+    if os.path.exists(surfrad_file):
+        print('Running against {}'.format(surfrad_file))
 
-    nsrdb = pd.DataFrame({'dhi': as_out[0].flatten(),
-                          'dni': as_out[1].flatten(),
-                          'ghi': as_out[2].flatten(),
-                          'cloud_type': source_vars['cloud_type'].flatten()},
-                         index=source_vars['time_index'])
+        as_out, source_vars = run_all_sky(res_file, sites=[site], debug=False)
 
-    measurement = get_measurement_data(surfrad)
+        nsrdb = pd.DataFrame(
+            {'dhi': as_out[0].flatten(),
+             'dni': as_out[1].flatten(),
+             'ghi': as_out[2].flatten(),
+             'cloud_type': source_vars['cloud_type'].flatten(),
+             'sza': source_vars['solar_zenith_angle'].flatten()},
+            index=source_vars['time_index'])
 
-    return nsrdb, measurement
+        # 1 hour filter for stats (take data at the top of the hour)
+        nsrdb = nsrdb[(nsrdb.index.minute == 0)]
+
+        measurement = get_measurement_data(surfrad_file)
+
+        return nsrdb, measurement
+    else:
+        print('Skipping, does not exist: {}'.format(surfrad_file))
+        return None
+
+
+def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
+               flag='all', var_methods={'mbe_perc': mbe_perc,
+                                        'rmse_perc': rmse_perc}):
+    """Calculate the statistics for the NSRDB vs. Measurement irradiance."""
+
+    if stats is None:
+        stats = {}
+        for k in var_methods.keys():
+            stats[k] = {}
+            for var in var_list:
+                stats[k][var] = 0
+
+    for var in var_list:
+        for k, method in var_methods.items():
+
+            if flag == 'all':
+                # only take SZA < 80 degrees and positive irradiance
+                mask = (nsrdb['sza'] < 80) & (nsrdb[var] > 0)
+
+            elif flag == 'cloudy':
+                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0) &
+                        (nsrdb['cloud_type'].isin(CLOUD_TYPES)))
+
+            elif flag == 'clear':
+                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0) &
+                        (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
+
+            nsrdb_vals = nsrdb[var][mask].values
+            measu_vals = measurement[var][mask].values
+            stats[k][var] += method(nsrdb_vals, measu_vals)
+
+    return stats
+
+
+def normalize_stats(stats, N):
+    """Normalize (average) the stats over N samples. """
+    for k1, v in stats.items():
+        for k2 in v.keys():
+            stats[k1][k2] = np.round(stats[k1][k2] / N, decimals=2)
+    return stats
+
+
+def stats_bar_chart(stats, var='dni', metric='mbe_perc', y_range=None,
+                    figsize=(10, 5)):
+    """Make a bar chart of NSRDB statistics."""
+
+    COLORS = {"red": (0.7176, 0.1098, 0.1098),
+              "green": (0.65 * 0.298, 0.65 * 0.6863, 0.65 * 0.3137),
+              "blue": (0.9 * 0.0824, 0.9 * 0.3961, 0.9 * 0.7529),
+              "orange": (0.85 * 1.0, 0.85 * 0.5961, 0.0),
+              "purple": (0.49412, 0.3412, 0.7608),
+              "grey": (0.45, 0.45, 0.45),
+              "cyan": (0.0, 0.7373, 0.8314),
+              "teal": (0.0, 0.5882, 0.5333),
+              "lime": (0.8039, 0.8627, 0.2235),
+              "brown": (0.4745, 0.3333, 0.2824),
+              "black": (0.0, 0.0, 0.0)
+              }
+    f, ax = plt.subplots(figsize=figsize)
+    n_bars = len(list(stats.keys()))
+
+    barWidth = 1
+    spacing = 1
+
+    n_set = []
+    in_set = []
+    for i in range(n_bars):
+        n_set.append(int(np.floor(i / 3)))
+        in_set.append(i % 3)
+
+    # The x position of bars
+    r1 = np.arange(n_bars) * spacing + np.array(n_set)
+    r2 = [x + barWidth for i, x in enumerate(r1)]
+
+    color_list = list(COLORS.keys())
+
+    for i, (k, v) in enumerate(stats.items()):
+        plt.bar(r2[i], v.loc[var, metric], width=barWidth,
+                color=COLORS[color_list[in_set[i]]],
+                edgecolor='black', capsize=7, label=k)
+
+    plt.legend(['All-Sky', 'Cloudy', 'Clear'])
+    plt.xticks(np.array(r2), stats.keys(), rotation=90)
+    plt.title('{} - {}'.format(var, metric))
+    plt.ylabel(metric)
+    plt.grid(axis='y')
+
+    if y_range is not None:
+        plt.ylim(y_range)
+
+    fname = 'surfrad_validation_{}_{}.png'.format(var, metric)
+    fout = os.path.join(TESTDATADIR, 'test_plots/', fname)
+    plt.savefig(fout, bbox_inches='tight')
+    print('Saved figure: "{}"'.format(fout))
+    plt.close()
 
 
 def execute_pytest(capture='all', flags='-rapP'):
@@ -208,34 +326,45 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 
 if __name__ == '__main__':
-    nsrdb, measurement = test_all_sky(site=7, year=2008)
 
-    for var in ('dhi', 'dni', 'ghi'):
-        plt.plot(nsrdb.index, nsrdb[var])
-        plt.plot(measurement.index, measurement[var])
-        plt.xlim([nsrdb.index[17000], nsrdb.index[17150]])
-        plt.xlim([nsrdb.index[13000], nsrdb.index[13150]])
-        plt.xlim([nsrdb.index[0], nsrdb.index[150]])
-        plt.title(var)
-        plt.legend(['NSRDB', 'Measurement'])
-        plt.xticks(rotation=90)
-        plt.show()
-        plt.close()
+    out = {}
+    for site in SITE_CODES.keys():
+        print('Running for "{}"'.format(SITE_CODES[site]))
+        stats = None
+        cloudy_stats = None
+        clear_stats = None
+        N = 0
+        for year in range(1998, 2018):
+            result = test_all_sky(site=site, year=year)
+            if result is not None:
+                stats = calc_stats(result[0], result[1],
+                                   stats=stats, flag='all')
+                cloudy_stats = calc_stats(result[0], result[1],
+                                          stats=cloudy_stats, flag='cloudy')
+                clear_stats = calc_stats(result[0], result[1],
+                                         stats=clear_stats, flag='clear')
+                N += 1
+        stats = normalize_stats(stats, N)
+        cloudy_stats = normalize_stats(cloudy_stats, N)
+        clear_stats = normalize_stats(clear_stats, N)
 
-    var_methods = {'mae': mae,
-                   'mae_perc': mae_perc,
-                   'mbe': mbe,
-                   'mbe_perc': mbe_perc,
-                   'rmse': rmse,
-                   'rmse_perc': rmse_perc,
-                   }
+        df = pd.DataFrame(stats)
+        cloudy_df = pd.DataFrame(cloudy_stats)
+        clear_df = pd.DataFrame(clear_stats)
 
-    stats = {}
-    for k in var_methods.keys():
-        stats[k] = {}
+        out[SITE_CODES[site]] = df
+        out[SITE_CODES[site] + '_cloudy'] = cloudy_df
+        out[SITE_CODES[site] + '_clear'] = clear_df
 
-    for var in ('dhi', 'dni', 'ghi'):
-        for k, method in var_methods.items():
-            stats[k][var] = method(nsrdb[var].values, measurement[var].values)
+    print('\n')
+    for k, v in out.items():
+        print(' ')
+        print(k)
+        print(v)
 
-    pprint.pprint(stats)
+    # Save figures
+    stats_bar_chart(out, var='dni', metric='mbe_perc', y_range=(-20, 20))
+    stats_bar_chart(out, var='ghi', metric='mbe_perc', y_range=(-15, 15))
+
+    stats_bar_chart(out, var='dni', metric='rmse_perc', y_range=(0, 100))
+    stats_bar_chart(out, var='ghi', metric='rmse_perc', y_range=(0, 100))

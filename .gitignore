@@ -1,3 +1,6 @@
+# test plots from pytest
+test_plots/
+
 # Dask stuff:
 dask-worker-space/
 
