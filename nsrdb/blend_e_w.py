@@ -18,9 +18,9 @@ import gc
 import calendar
 from warnings import warn
 
-from nsrdb.utilities import __version__
+from nsrdb import __version__
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.utilities.execution import PBS
+from nsrdb.utilities.execution import PBS, SLURM
 from nsrdb.utilities.qa_qc import plot_geo_df
 
 
@@ -44,7 +44,8 @@ class Blender:
 
     def __init__(self, source_dir, out_dir, fout, year,
                  chunk_shape=[None, 100], var=None, plot_verify=False,
-                 f_loc='/projects/PXS/reference_grids/location_info.h5'):
+                 f_loc=('/lustre/eaglefs/projects/pxs/reference_grids/'
+                        'location_info.h5')):
         """Initialize a blender utility object.
 
         Parameters
@@ -159,7 +160,7 @@ class Blender:
 
             # get the relevant meta data from the file
             lat, lon, elev = self.get_lat_lon_elev(
-                os.path.join(self.source_dir + row.files))
+                os.path.join(self.source_dir, row.files))
 
             if row.region == 'west' and np.any(lon > -105):
                 indices = np.where(lon <= -105)[0]
@@ -213,10 +214,11 @@ class Blender:
         # create summary stats group/datasets
         self.hfile.create_group('stats')
 
-        with h5py.File(self.source_dir + self.files.files[0], 'r') as hdf:
+        fname0 = os.path.join(self.source_dir, self.files.files[0])
 
-            datasets, dtypes = self.get_dsets(
-                self.source_dir + self.files.files[0])
+        datasets, dtypes = self.get_dsets(fname0)
+
+        with h5py.File(fname0, 'r') as hdf:
 
             logger.debug('Found the following datasets: {}'.format(datasets))
 
@@ -489,11 +491,12 @@ class Blender:
             the data to.
         """
 
-        with h5py.File(self.source_dir + source_h5, 'r') as hdf:
+        with h5py.File(os.path.join(self.source_dir, source_h5), 'r') as hdf:
             logger.debug('Blending file: {}'.format(source_h5))
             log_mem()
 
-            datasets, _ = self.get_dsets(self.source_dir + source_h5)
+            datasets, _ = self.get_dsets(
+                os.path.join(self.source_dir, source_h5))
 
             for dataset in datasets:
 
@@ -576,12 +579,13 @@ class Blender:
     def plot_verify_source(self):
         """Plot source data to verify mapping."""
         for _, row in self.files.iterrows():
-            datasets, _ = self.get_dsets(self.source_dir + row.files)
+            fname = os.path.join(self.source_dir, row.files)
+            datasets, _ = self.get_dsets(fname)
             for dset in datasets:
-                with h5py.File(self.source_dir + row.files, 'r') as hdf:
-                    data = hdf[dset][0, :]
-                    lat, lon, _ = self.get_lat_lon_elev(
-                        self.source_dir + row.files)
+                with h5py.File(fname, 'r') as hdf:
+                    data = (hdf[dset][0, :] /
+                            hdf[dset].attrs['psm_scale_factor'])
+                    lat, lon, _ = self.get_lat_lon_elev(fname)
                     df = pd.DataFrame({'latitude': lat, 'longitude': lon,
                                        dset: data})
                     plot_name = '{}_{}'.format(row.files.replace('.h5', ''),
@@ -640,6 +644,8 @@ class Blender:
 
     @classmethod
     def blend_var(cls, var, year, out_dir, fout, source_dir,
+                  f_loc=('/lustre/eaglefs/projects/pxs/reference_grids/'
+                         'location_info.h5'),
                   chunk_shape=[None, 100], plot_verify=True):
         """Blend a single variable.
 
@@ -670,7 +676,8 @@ class Blender:
         init_logger(__name__, log_level='DEBUG', log_file=None)
 
         blend = Blender(source_dir, out_dir, fout, year, var=var,
-                        chunk_shape=chunk_shape, plot_verify=plot_verify)
+                        chunk_shape=chunk_shape, plot_verify=plot_verify,
+                        f_loc=f_loc)
         blend.process_all()
         blend.summarize(out_dir, fout, var, save_meta=True, plot=plot_verify)
 
@@ -686,9 +693,7 @@ class Blender:
             the MERRA variable.
         year_range : iterable
             Year range to be blended. Each year will be a seperate job on
-            peregrine in the BIGMEM queue. Note that if this is a python
-            range() object, the starting index is inclusive and the finishing
-            index is exclusive.
+            peregrine in the BIGMEM queue.
         out_dir : str
             Target output directory to save blended data.
         source_dir : str
@@ -702,7 +707,8 @@ class Blender:
             cmd = ('python -c '
                    '\'from nsrdb.blend_e_w import Blender; '
                    'Blender.blend_var("{var}", {year}, fout="{fout}", '
-                   'out_dir="{out_dir}", source_dir="{source_dir}")\''
+                   'out_dir="{out_dir}", source_dir="{source_dir}", '
+                   'f_loc="/projects/PXS/reference_grids/location_info.h5")\''
                    )
 
             cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
@@ -717,6 +723,55 @@ class Blender:
             if pbs.id:
                 msg = ('Kicked off job "{}" (PBS jobid #{}) on '
                        'Peregrine.'.format(fout.replace('.h5', ''), pbs.id))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(fout.replace('.h5', '')))
+            print(msg)
+
+    @classmethod
+    def eagle_blend(cls, var, year_range, out_dir, source_dir):
+        """Blend a single variable over a range of years on EAGLE.
+
+        Parameters
+        ----------
+        var : str
+            Target variable to blend. This string will be searched for in the
+            file names in the source_dir. This is the NSRDB variable name, not
+            the MERRA variable.
+        year_range : iterable
+            Year range to be blended. Each year will be a seperate job on
+            Eagle.
+        out_dir : str
+            Target output directory to save blended data.
+        source_dir : str
+            Directory containing east/west source h5 files to be blended.
+        """
+
+        for year in year_range:
+            node_name = '{}_{}'.format(str(year)[-2:], var)
+            fout = '{}_{}.h5'.format(str(year), var)
+
+            cmd = ('python -c '
+                   '\'from nsrdb.blend_e_w import Blender; '
+                   'Blender.blend_var("{var}", {year}, fout="{fout}", '
+                   'out_dir="{out_dir}", source_dir="{source_dir}", '
+                   'f_loc="/lustre/eaglefs/projects/pxs/reference_grids/'
+                   'location_info.h5")\''
+                   )
+
+            cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
+                             source_dir=source_dir)
+
+            slurm = SLURM(cmd, alloc='pxs', memory=192, walltime=3,
+                          name=node_name,
+                          stdout_path=os.path.join(out_dir, 'stdout/'))
+
+            print('\ncmd:\n{}\n'.format(cmd))
+
+            if slurm.id:
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                       'Peregrine.'.format(fout.replace('.h5', ''), slurm.id))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
