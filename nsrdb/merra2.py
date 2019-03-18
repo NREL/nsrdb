@@ -572,7 +572,10 @@ class Ancillary(object):
                     # convert units to PSM units
                     out_array = self._unit_convert(out_array)
                     # apply scaling factor and dtype conversion
-                    out_array = out_array * self.psm_scale_factor
+                    out_array *= self.psm_scale_factor
+                    # round after scaling if int dtype (instead of truncating)
+                    if np.issubdtype(self.psm_dtype, np.integer):
+                        out_array = np.round(out_array)
                     # convert to PSM dtype
                     out_array = out_array.astype(self.psm_dtype)
                     # stuff results HDF file

@@ -280,7 +280,7 @@ class Blender:
                                 np.ravel(htz['meta']['latitude'][...])))[0]
 
             # get the nearest neighbor indices
-            index = self.get_nn_ind(ref_ll, target_ll, cache=False)
+            index = self.get_nn_ind(ref_ll, target_ll)
 
             # iterate each dataset
             for key in htz.keys():
@@ -326,7 +326,7 @@ class Blender:
                               distance_upper_bound=0.05)
         return index
 
-    def get_nn_ind(self, ref_ll, target_ll, cache=False):
+    def get_nn_ind(self, ref_ll, target_ll, cache=True):
         """Get nearest neighbor indices.
 
         Parameters
@@ -473,7 +473,8 @@ class Blender:
             dtypes = [hdf[i].dtype for i in hdf if i not in ignore]
         return datasets, dtypes
 
-    def blend_file(self, source_h5, indices, out_i_start, out_i_end):
+    def blend_file(self, source_h5, indices, out_i_start, out_i_end,
+                   stats=False):
         """Blend a single source h5 file to the final output blended h5.
 
         Parameters
@@ -489,6 +490,9 @@ class Blender:
         out_i_end : int
             EXCLUSIVE final site (column) index in the output h5file to write
             the data to.
+        stats : bool
+            Flag to run stats on datasets. Off by default because this can
+            sometimes crash a node on memory errors.
         """
 
         with h5py.File(os.path.join(self.source_dir, source_h5), 'r') as hdf:
@@ -508,11 +512,13 @@ class Blender:
                 logger.debug('Blended dset: {}'.format(dataset))
                 log_mem()
 
-                try:
-                    self.write_stats(data, dataset, out_i_start, out_i_end)
-                except Exception as e:
-                    warn('Could not write stats for {}. '
-                         'Received the following error: {}'.format(dataset, e))
+                if stats:
+                    try:
+                        self.write_stats(data, dataset, out_i_start, out_i_end)
+                    except Exception as e:
+                        logger.exception('Could not write stats for {}. '
+                                         'Received the following error: {}'
+                                         .format(dataset, e))
 
         logger.debug('Finished blending file: {}'.format(source_h5))
 
@@ -533,29 +539,43 @@ class Blender:
             the data to.
         """
         logger.debug('Writing stats for dset "{}"...'.format(dataset))
+        log_mem()
 
+        # extract scalar but only use it to scale final stat values
         if 'psm_scale_factor' in self.hfile[dataset].attrs:
-            data = data / self.hfile[dataset].attrs['psm_scale_factor']
+            scalar = self.hfile[dataset].attrs['psm_scale_factor']
+        else:
+            scalar = 1
 
         # create and save stats
         if dataset in self.irradiance_dsets:
-            davg = np.sum(data, axis=0) / self.daysinyear / 1000. / 2.
+            davg = np.sum(data, axis=0)
+            davg /= (self.daysinyear * 1000. * 2.)
         else:
             davg = np.mean(data, axis=0)
+
+        logger.debug('Stats: calculated mean for dset "{}".'.format(dataset))
+        log_mem()
 
         dmin = np.min(data, axis=0)
         dmax = np.max(data, axis=0)
         dstd = np.std(data, axis=0)
+
+        logger.debug('Stats: calculated min/max/std for "{}".'.format(dataset))
+        log_mem()
 
         k1 = 'stats/{d}_{s}'.format(d=dataset, s='avg')
         k2 = 'stats/{d}_{s}'.format(d=dataset, s='min')
         k3 = 'stats/{d}_{s}'.format(d=dataset, s='max')
         k4 = 'stats/{d}_{s}'.format(d=dataset, s='std')
 
-        self.hfile[k1][out_i_start:out_i_end] = davg
-        self.hfile[k2][out_i_start:out_i_end] = dmin
-        self.hfile[k3][out_i_start:out_i_end] = dmax
-        self.hfile[k4][out_i_start:out_i_end] = dstd
+        logger.debug('Stats: writing stats for "{}".'.format(dataset))
+        log_mem()
+
+        self.hfile[k1][out_i_start:out_i_end] = davg / scalar
+        self.hfile[k2][out_i_start:out_i_end] = dmin / scalar
+        self.hfile[k3][out_i_start:out_i_end] = dmax / scalar
+        self.hfile[k4][out_i_start:out_i_end] = dstd / scalar
 
     def process_all(self):
         """Process and blend all files in the file list."""
@@ -639,8 +659,9 @@ class Blender:
                                        dset: f[dset][0, :]})
                     plot_geo_df(df, 'blended_{}'.format(base_name), out_dir)
         except Exception as e:
-            warn('Could not summarize {}. Received the following exception: '
-                 '\n{}'.format(os.path.join(out_dir, fout), e))
+            logger.exception('Could not summarize {}. Received the following '
+                             'exception: \n{}'
+                             .format(os.path.join(out_dir, fout), e))
 
     @classmethod
     def blend_var(cls, var, year, out_dir, fout, source_dir,
@@ -763,7 +784,7 @@ class Blender:
             cmd = cmd.format(var=var, year=year, fout=fout, out_dir=out_dir,
                              source_dir=source_dir)
 
-            slurm = SLURM(cmd, alloc='pxs', memory=192, walltime=3,
+            slurm = SLURM(cmd, alloc='pxs', memory=768, walltime=5,
                           name=node_name,
                           stdout_path=os.path.join(out_dir, 'stdout/'))
 
@@ -771,7 +792,7 @@ class Blender:
 
             if slurm.id:
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'Peregrine.'.format(fout.replace('.h5', ''), slurm.id))
+                       'Eagle.'.format(fout.replace('.h5', ''), slurm.id))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
