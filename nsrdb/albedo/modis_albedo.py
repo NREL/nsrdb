@@ -18,6 +18,7 @@ from scipy.spatial import cKDTree
 from configobj import ConfigObj
 import copy
 import logging
+import calendar
 from memory_profiler import memory_usage
 
 from nsrdb.utilities.loggers import init_logger
@@ -118,7 +119,7 @@ class RetrieveMODIS:
         return failed
 
 
-class Aggregate(object):
+class AggregateMODIS(object):
     """Class to aggregate MODIS variables to NSRDB grid"""
     def __init__(self, config, years):
         """
@@ -207,7 +208,9 @@ class Aggregate(object):
                 self.config['dir']['in_dir'],
                 self.config['fileNames']['inName'].format(
                     var=self.config['variables']['variable_names'][0],
-                    day='001', year=self.years))
+                    day='001', year=self.
+
+                    ))
             hf = SD(fname, SDC.READ)
             lon4 = hf.select('Longitude')[:]
             lon4[lon4 > 0] = lon4[lon4 > 0] - 360
@@ -402,3 +405,81 @@ class Aggregate(object):
         modis = cls(config, years)
         agg = modis.main()
         return agg
+
+class Eightday_to_dailyMODIS(object):
+    """Class to move MODIS variables to daily from 8 day time steps."""
+    def __init__(self, config, years):
+        """
+        Parameters
+        ----------
+        config : ini
+            config file for aggregating MODIS albedo to NSRDB grid.
+        years : int
+            Year to process.
+        """
+        self.config = ConfigObj(config, unrepr=True)
+        self.years = years
+
+    def main(self):
+        t0 = time.time()
+        try:
+            years = self.years
+            hdfRows = [(
+                366 if calendar.isleap(
+                    int(year)) else 365) for year in rep_years + years]
+            rowInds = np.cumsum([0] + hdfRows)
+            modisDays = [d for d in range(0, 361, 8)] + [365]
+
+            with h5py.File(
+                os.path.join(
+                    CONFIG['dir']['out_dir'],
+                    CONFIG['fileNames']['dailyFileName']), 'w') as hfile:
+                hfile.create_dataset('meta', data=meta)
+                hfile.create_dataset(
+                    'albedo', shape=(
+                        (sum(hdfRows), meta.shape[0])) ,dtype=np.float32)
+            logger.info('hdf created')
+            #replicate 8-day to daily
+            for year in years:
+                days = (366 if calendar.isleap(int(year)) else 365)
+                modisDays[-1] = days
+                rname = os.path.join(
+                    CONFIG['dir']['out_dir'],
+                    CONFIG['fileNames']['outName'].format(year=year))
+
+                with h5py.File(rname, 'r') as hfile:
+                    data = hfile['means'][...]
+                replicated = np.empty((days, meta.shape[0]))
+                for j, day in enumerate(modisDays[:-1]):
+                    replicated[day:modisDays[j+1], :] = data[j, :]
+                with h5py.File(
+                    os.path.join(
+                        CONFIG['dir']['out_dir'],
+                        CONFIG['fileNames']['dailyFileName']), 'r+') as hfile:
+                    hfile['albedo'][rowInds[i]:rowInds[i+1], :] = replicated
+                logger.info('year: %s complete', year)
+        except Exception as e:
+            # logger.info(PrintException())
+            logger.exception(e)
+
+        logger.info('main done, time: %s', (time.time() - t0) / 60.0)
+
+    @classmethod
+    def run(cls, config, years):
+        """Class to move MODIS variables to daily from 8 day time steps.
+        Parameters
+        ----------
+        year : int | str
+            Year to download modis data (last year is currently 2015).
+        target_path : str
+            Directory to save the downloaded files.
+        Returns
+        -------
+        failed : list
+            List of files that failed to download.
+        """
+        init_logger(__name__, log_file=None, log_level='DEBUG')
+
+        modis = cls(config, years)
+        eightday = modis.main()
+        return eightday
