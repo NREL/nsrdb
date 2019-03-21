@@ -12,18 +12,11 @@ import h5py
 from pyhdf.SD import SD, SDC
 import numpy as np
 import pandas as pd
-# import sys
 import time
-# import warnings
-# from collections import OrderedDict
 import psutil
 from scipy.spatial import cKDTree
 from configobj import ConfigObj
-# from scoop import futures
-# from dask.distributed import Client
-# import linecache
 import copy
-# from scoop import shared
 import logging
 from memory_profiler import memory_usage
 
@@ -290,7 +283,7 @@ class Aggregate(object):
                 self.config['dir']['out_dir'],
                 self.config['fileNames']['outName'].format(
                     var=var, year=year)), 'w') as hfile:
-            for key, values in results.iteritems():
+            for key, values in results.items():
                 hfile.create_dataset(key, data=values, dtype=np.float32)
             hfile.create_dataset('meta', data=self.meta)
 
@@ -385,7 +378,6 @@ class Aggregate(object):
             logger.info('process complete, time: %s',
                         (time.time() - t0) / 60.0)
 
-            logger.info('Futures gathered and client is closed.')
             logger.info(mem_str())
         except Exception as e:
             # logger.info(PrintException())
