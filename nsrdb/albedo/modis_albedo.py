@@ -22,7 +22,6 @@ import calendar
 from memory_profiler import memory_usage
 
 from nsrdb.utilities.loggers import init_logger
-# from nsrdb.utilities.execution import PBS
 from nsrdb.utilities.file_utils import url_download
 
 
@@ -208,9 +207,7 @@ class AggregateMODIS(object):
                 self.config['dir']['in_dir'],
                 self.config['fileNames']['inName'].format(
                     var=self.config['variables']['variable_names'][0],
-                    day='001', year=self.
-
-                    ))
+                    day='001', year=self.years))
             hf = SD(fname, SDC.READ)
             lon4 = hf.select('Longitude')[:]
             lon4[lon4 > 0] = lon4[lon4 > 0] - 360
@@ -406,6 +403,7 @@ class AggregateMODIS(object):
         agg = modis.main()
         return agg
 
+
 class Eightday_to_dailyMODIS(object):
     """Class to move MODIS variables to daily from 8 day time steps."""
     def __init__(self, config, years):
@@ -421,42 +419,54 @@ class Eightday_to_dailyMODIS(object):
         self.years = years
 
     def main(self):
+        """Convert MODIS variables to daily from 8 day time steps."""
         t0 = time.time()
         try:
             years = self.years
-            hdfRows = [(
-                366 if calendar.isleap(
-                    int(year)) else 365) for year in rep_years + years]
+            rep_years = [str(y) for y in range(
+                self.config['variables']['replicate_years'][0],
+                self.config['variables']['replicate_years'][1])]
+
+            hdfRows = [(366 if calendar.isleap(
+                int(year)) else 365) for year in rep_years + years]
             rowInds = np.cumsum([0] + hdfRows)
             modisDays = [d for d in range(0, 361, 8)] + [365]
 
             with h5py.File(
                 os.path.join(
-                    CONFIG['dir']['out_dir'],
-                    CONFIG['fileNames']['dailyFileName']), 'w') as hfile:
+                    self.config['dir']['out_dir'],
+                    self.config['fileNames']['outName'].format(
+                        year=2015)), 'r') as hfile:
+                meta = hfile['meta'][...]
+
+            with h5py.File(
+                os.path.join(
+                    self.config['dir']['out_dir'],
+                    self.config['fileNames']['dailyFileName']), 'w') as hfile:
                 hfile.create_dataset('meta', data=meta)
                 hfile.create_dataset(
                     'albedo', shape=(
-                        (sum(hdfRows), meta.shape[0])) ,dtype=np.float32)
+                        (sum(hdfRows), meta.shape[0])), dtype=np.float32)
             logger.info('hdf created')
-            #replicate 8-day to daily
-            for year in years:
+            # replicate 8-day to daily
+            for i, year in enumerate(rep_years + years):
                 days = (366 if calendar.isleap(int(year)) else 365)
                 modisDays[-1] = days
                 rname = os.path.join(
-                    CONFIG['dir']['out_dir'],
-                    CONFIG['fileNames']['outName'].format(year=year))
+                    self.config['dir']['out_dir'],
+                    self.config['fileNames']['outName'].format(year=year))
 
                 with h5py.File(rname, 'r') as hfile:
                     data = hfile['means'][...]
                 replicated = np.empty((days, meta.shape[0]))
-                for j, day in enumerate(modisDays[:-1]):
-                    replicated[day:modisDays[j+1], :] = data[j, :]
+                for j, day in enumerate(modisDays[: - 1]):
+                    replicated[day:modisDays[j + 1], :] = data[j, :]
                 with h5py.File(
                     os.path.join(
-                        CONFIG['dir']['out_dir'],
-                        CONFIG['fileNames']['dailyFileName']), 'r+') as hfile:
-                    hfile['albedo'][rowInds[i]:rowInds[i+1], :] = replicated
+                        self.config['dir']['out_dir'],
+                        self.config['fileNames']['dailyFileName']),
+                        'r+') as hfile:
+                    hfile['albedo'][rowInds[i]:rowInds[i + 1], :] = replicated
                 logger.info('year: %s complete', year)
         except Exception as e:
             # logger.info(PrintException())
