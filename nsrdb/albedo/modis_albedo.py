@@ -418,59 +418,89 @@ class Eightday_to_dailyMODIS(object):
         self.config = ConfigObj(config, unrepr=True)
         self.years = years
 
-    def main(self):
+
+    def main(self, log_level='DEBUG'):
         """Convert MODIS variables to daily from 8 day time steps."""
+        init_logger(__name__, log_file='modis.log', log_level=log_level)
+        init_logger('nsrdb.utilities.file_utils', log_file=None,
+                    log_level=log_level)
+
         t0 = time.time()
         try:
             years = self.years
-            rep_years = [str(y) for y in range(
-                self.config['variables']['replicate_years'][0],
-                self.config['variables']['replicate_years'][1])]
+            var=self.config['variables']['variable_names'][0],
+            # rep_years = [str(y) for y in range(
+            #     self.config['variables']['replicate_years'][0],
+            #     self.config['variables']['replicate_years'][1])]
 
-            hdfRows = [(366 if calendar.isleap(
-                int(year)) else 365) for year in rep_years + years]
+            # hdfRows = [(366 if calendar.isleap(
+            #     int(year)) else 365) for year in rep_years + years]
+            hdfRows = [(366 if calendar.isleap(years) else 365)]
             rowInds = np.cumsum([0] + hdfRows)
             modisDays = [d for d in range(0, 361, 8)] + [365]
 
-            with h5py.File(
-                os.path.join(
-                    self.config['dir']['out_dir'],
-                    self.config['fileNames']['outName'].format(
-                        year=2015)), 'r') as hfile:
+            fname = os.path.join(
+                self.config['dir']['out_dir'],
+                self.config['fileNames']['outName'].format(
+                    var=var[0], year=self.years))
+            print(fname)
+            logger.debug('reading{}'.format(fname))
+
+            with h5py.File(fname, 'r') as hfile:
                 meta = hfile['meta'][...]
 
-            with h5py.File(
-                os.path.join(
+            fname2 = os.path.join(
                     self.config['dir']['out_dir'],
-                    self.config['fileNames']['dailyFileName']), 'w') as hfile:
+                    self.config['fileNames']['dailyFileName'])
+            logger.debug('reading{}'.format(fname2))
+
+            with h5py.File(fname2, 'w') as hfile:
                 hfile.create_dataset('meta', data=meta)
-                hfile.create_dataset(
-                    'albedo', shape=(
+                hfile.create_dataset('albedo', shape=(
                         (sum(hdfRows), meta.shape[0])), dtype=np.float32)
             logger.info('hdf created')
             # replicate 8-day to daily
-            for i, year in enumerate(rep_years + years):
-                days = (366 if calendar.isleap(int(year)) else 365)
-                modisDays[-1] = days
-                rname = os.path.join(
-                    self.config['dir']['out_dir'],
-                    self.config['fileNames']['outName'].format(year=year))
+            # for i, year in enumerate(rep_years + years):
+            #     days = (366 if calendar.isleap(int(year)) else 365)
+            #     modisDays[-1] = days
+            #     rname = os.path.join(
+            #         self.config['dir']['out_dir'],
+            #         self.config['fileNames']['outName'].format(year=year))
 
-                with h5py.File(rname, 'r') as hfile:
-                    data = hfile['means'][...]
-                replicated = np.empty((days, meta.shape[0]))
-                for j, day in enumerate(modisDays[: - 1]):
-                    replicated[day:modisDays[j + 1], :] = data[j, :]
-                with h5py.File(
-                    os.path.join(
-                        self.config['dir']['out_dir'],
-                        self.config['fileNames']['dailyFileName']),
-                        'r+') as hfile:
-                    hfile['albedo'][rowInds[i]:rowInds[i + 1], :] = replicated
-                logger.info('year: %s complete', year)
+            #     with h5py.File(rname, 'r') as hfile:
+            #         data = hfile['means'][...]
+            #     replicated = np.empty((days, meta.shape[0]))
+            #     for j, day in enumerate(modisDays[: - 1]):
+            #         replicated[day:modisDays[j + 1], :] = data[j, :]
+            #     with h5py.File(
+            #         os.path.join(
+            #             self.config['dir']['out_dir'],
+            #             self.config['fileNames']['dailyFileName']),
+            #             'r+') as hfile:
+            #         hfile['albedo'][rowInds[i]:rowInds[i + 1], :] = replicated
+            days = (366 if calendar.isleap(int(years)) else 365)
+            modisDays[-1] = days
+            rname = os.path.join(
+                self.config['dir']['out_dir'],
+                self.config['fileNames']['outName'].format(
+                    var=var[0],year=self.years))
+
+            with h5py.File(rname, 'r') as hfile:
+                data = hfile['means'][...]
+            replicated = np.empty((days, meta.shape[0]))
+            for j, day in enumerate(modisDays[: - 1]):
+                replicated[day:modisDays[j + 1], :] = data[j, :]
+            with h5py.File(
+                os.path.join(
+                    self.config['dir']['out_dir'],
+                    self.config['fileNames']['dailyFileName']),
+                    'r+') as hfile:
+                hfile['albedo'][rowInds:rowInds, :] = replicated
+            logger.info('year: %s complete', self.years)
         except Exception as e:
             # logger.info(PrintException())
             logger.exception(e)
+            # logger.info(fname)
 
         logger.info('main done, time: %s', (time.time() - t0) / 60.0)
 
