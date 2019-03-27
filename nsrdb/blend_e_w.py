@@ -21,6 +21,7 @@ from warnings import warn
 from nsrdb.utilities import __version__
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.execution import PBS
+from nsrdb.utilities.qa_qc import plot_geo_df
 
 
 logger = logging.getLogger(__name__)
@@ -585,64 +586,7 @@ class Blender:
                                        dset: data})
                     plot_name = '{}_{}'.format(row.files.replace('.h5', ''),
                                                dset)
-                    self.plot_geo_df(df, plot_name, self.out_dir)
-
-    @staticmethod
-    def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    xlim=(-190, -20), ylim=(-30, 70)):
-        """Plot a dataframe to verify the blending operation.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            DataFrame with latitude/longitude in 1st/2nd columns, data in the
-            3rd column.
-        title : str
-            Figure and file title.
-        out_dir : str
-            Where to save the plot.
-        labels : list | tuple
-            latitude/longitude column labels.
-        xlim : list | tuple
-            Plot x limits (left limit, right limit).
-        ylim : list | tuple
-            Plot y limits (lower limit, upper limit).
-        """
-
-        try:
-            # HPC matplot lib import
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            cmap = plt.get_cmap('Blues')
-
-            cbar_range = [df.iloc[:, 2].min(), df.iloc[:, 2].max()]
-
-            var = df.columns.values[2]
-
-            c = ax.scatter(df.loc[:, labels[1]],
-                           df.loc[:, labels[0]],
-                           s=5,
-                           c=df.iloc[:, 2],
-                           cmap=cmap,
-                           vmin=cbar_range[0],
-                           vmax=cbar_range[1])
-            ax.set_xlabel('Longitude')
-            ax.set_ylabel('Latitude')
-            ax.set_ylim(ylim)
-            ax.set_xlim(xlim)
-            fig.colorbar(c, ax=ax, label=var)
-            ax.set_title(title)
-            out = os.path.join(out_dir, title + '.png')
-            fig.savefig(out, dpi=600)
-            logger.info('Saved figure: {}.png'.format(title))
-            plt.close()
-        except Exception as e:
-            logger.warning('Could not plot "{}". Received the following '
-                           'exception: {}'.format(title, e))
+                    plot_geo_df(df, plot_name, self.out_dir)
 
     @staticmethod
     def summarize(out_dir, fout, dset, save_meta=False, plot=True):
@@ -689,8 +633,7 @@ class Blender:
                     df = pd.DataFrame({'latitude': meta['latitude'],
                                        'longitude': meta['longitude'],
                                        dset: f[dset][0, :]})
-                    Blender.plot_geo_df(df, 'blended_{}'.format(base_name),
-                                        out_dir)
+                    plot_geo_df(df, 'blended_{}'.format(base_name), out_dir)
         except Exception as e:
             warn('Could not summarize {}. Received the following exception: '
                  '\n{}'.format(os.path.join(out_dir, fout), e))

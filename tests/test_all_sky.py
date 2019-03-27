@@ -16,11 +16,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from nsrdb.all_sky.all_sky import all_sky
+from nsrdb.qa.statistics import mae_perc
 
 
-TEST_FILE = './data/test_nsrdb_2017.h5'
+TEST_FILE = './data/validation_nsrdb/nsrdb_surfrad_2000.h5'
 RTOL = 1e-03
-ATOL = 0.001
+ATOL = 0.01
 
 
 def get_benchmark_data(test_file=TEST_FILE, sites=list(range(10))):
@@ -30,12 +31,12 @@ def get_benchmark_data(test_file=TEST_FILE, sites=list(range(10))):
     with h5py.File(test_file, 'r') as f:
 
         # get the original baseline irradiance variables
-        ghi_orig = f['ghi'][:, sites]
-        dni_orig = f['dni'][:, sites]
         dhi_orig = f['dhi'][:, sites]
+        dni_orig = f['dni'][:, sites]
+        ghi_orig = f['ghi'][:, sites]
         fill_orig = f['fill_flag'][:, sites]
 
-    return ghi_orig, dni_orig, dhi_orig, fill_orig
+    return dhi_orig, dni_orig, ghi_orig, fill_orig
 
 
 def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
@@ -50,6 +51,9 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
 
         # get unscaled source variables
         out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
+
+        meta = pd.DataFrame(f['meta'][sites])
+        print(meta[['latitude', 'longitude', 'state', 'county']].head())
 
         for var in var_list:
             out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
@@ -68,10 +72,10 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     return out
 
 
-def run_all_sky(sites=list(range(10)), debug=False):
+def run_all_sky(test_file=TEST_FILE, sites=list(range(10)), debug=False):
     """Run the all-sky processing code over the specified site list."""
 
-    source_vars = get_source_data(sites=sites)
+    source_vars = get_source_data(test_file=test_file, sites=sites)
 
     # run all_sky processing
     all_sky_out = all_sky(**source_vars, debug=debug)
@@ -86,7 +90,7 @@ def make_df(site):
     dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag, csr = run_all_sky(
         sites=site, debug=True)
 
-    ghi_orig, dni_orig, dhi_orig, fill_orig = get_benchmark_data(sites=site)
+    dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=site)
 
     df_dhi = pd.DataFrame({'ti': d['ti'],
                            'sza': d['sza'].flatten(),
@@ -128,7 +132,7 @@ def plot_benchmark(sites, y_range=None):
     """
     dhi, dni, ghi = run_all_sky(sites=sites, debug=False)
 
-    ghi_orig, dni_orig, dhi_orig, fill_orig = get_benchmark_data(sites=sites)
+    dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=sites)
 
     # calculate maximum GHI differences and index locations
     ghi_diff = np.abs(ghi - ghi_orig)
@@ -175,29 +179,77 @@ def plot_benchmark(sites, y_range=None):
         plt.close()
 
 
-def test_all_sky(sites=list(range(10)), bad_threshold=0.005):
+@pytest.mark.parametrize('test_file',
+                         ('./data/validation_nsrdb/nsrdb_surfrad_1998.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_1999.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2000.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2001.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2002.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2003.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2004.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2005.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2006.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2007.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2008.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2009.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2010.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2011.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2012.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2013.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2014.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2015.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2016.h5',
+                          './data/validation_nsrdb/nsrdb_surfrad_2017.h5',
+                          ))
+def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
+                 mae_perc_threshold=5):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
-    dhi, dni, ghi = run_all_sky(sites=sites, debug=False)
 
-    ghi_orig, dni_orig, dhi_orig, fill_orig = get_benchmark_data(sites=sites)
+    new = {}
+    baseline = {}
+
+    new['dhi'], new['dni'], new['ghi'] = run_all_sky(test_file=test_file,
+                                                     sites=sites, debug=False)
+
+    baseline_results = get_benchmark_data(test_file=test_file, sites=sites)
+    baseline['dhi'] = baseline_results[0]
+    baseline['dni'] = baseline_results[1]
+    baseline['ghi'] = baseline_results[2]
 
     max_perc_bad = 0
 
+    mae_p = {'dhi': 0, 'dni': 0, 'ghi': 0}
+
     for i, site in enumerate(sites):
-        hist, bin_edges = np.histogram(np.abs(ghi[:, i] - ghi_orig[:, i]),
-                                       bins=100, range=(0.0, 1000.0))
+        for var in ('dhi', 'dni', 'ghi'):
+            hist, bin_edges = np.histogram(np.abs(new[var][:, i] -
+                                                  baseline[var][:, i]),
+                                           bins=100, range=(0.0, 1000.0))
 
-        n_bad = np.sum(hist[2:])
-        frac_bad = n_bad / ghi.shape[0]
-        max_perc_bad = np.max((max_perc_bad, 100 * frac_bad))
+            n_bad = np.sum(hist[2:])
+            frac_bad = n_bad / new['ghi'].shape[0]
+            max_perc_bad = np.max((max_perc_bad, 100 * frac_bad))
 
-        msg = ('{0:.4f}% of the values do not match the baseline '
-               'irradiance (threshold is {1:.4f}%) for site {2}.'
-               .format(100 * frac_bad, 100 * bad_threshold, site))
-        assert frac_bad < bad_threshold, msg
+            msg = ('{0:.4f}% of the values do not match the baseline '
+                   'irradiance (threshold is {1:.4f}%) for site {2}.'
+                   .format(100 * frac_bad, 100 * timestep_frac_threshold,
+                           site))
+            assert frac_bad < timestep_frac_threshold, msg
 
+            mae_p[var] += mae_perc(new[var][:, i], baseline[var][:, i])
+
+    mae_p['dhi'] = np.round(mae_p['dhi'] / len(sites), decimals=2)
+    mae_p['dni'] = np.round(mae_p['dni'] / len(sites), decimals=2)
+    mae_p['ghi'] = np.round(mae_p['ghi'] / len(sites), decimals=2)
+
+    for var in ('dhi', 'dni', 'ghi'):
+        msg = ('Mean absolute error for "{}" in "{}" is {}%'
+               .format(var, test_file, mae_p[var]))
+        assert mae_p[var] < mae_perc_threshold, msg
+
+    print(mae_p)
     print('Maximum of {0:.4f}% bad timesteps. Threshold was {1:.4f}%.'
-          .format(max_perc_bad, 100 * bad_threshold))
+          .format(max_perc_bad, 100 * timestep_frac_threshold))
 
 
 def iter_speed_compare(sites=list(range(10))):
@@ -235,3 +287,4 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 if __name__ == '__main__':
     execute_pytest()
+#    plot_benchmark([6], y_range=None)

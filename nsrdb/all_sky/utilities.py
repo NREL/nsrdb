@@ -3,6 +3,7 @@
 
 import pandas as pd
 import numpy as np
+import os
 from warnings import warn
 from nsrdb.all_sky import RADIUS, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
 
@@ -20,7 +21,7 @@ def check_range(data, name, rang=(0, 1)):
                                  mn=np.nanmin(data)))
 
 
-def ti_to_radius(time_index, n_cols=1):
+def ti_to_radius_csv(time_index, n_cols=1):
     """Convert a time index to radius.
 
     Parameters
@@ -41,6 +42,57 @@ def ti_to_radius(time_index, n_cols=1):
     doy = pd.DataFrame(index=time_index.dayofyear)
     radius = doy.join(RADIUS)
     radius = np.tile(radius.values, n_cols)
+    return radius
+
+
+def ti_to_radius(time_index, n_cols=1):
+    """Calculates Earth-Sun Radius Vector.
+
+    Reference:
+    http://www.nrel.gov/docs/fy08osti/34302.pdf
+
+    Parameters
+    ----------
+    time_index : pandas.core.indexes.datetimes.DatetimeIndex
+        NSRDB time series. Can extract from h5 as follows:
+        time_index = pd.to_datetime(h5['time_index'][...].astype(str))
+    n_cols : int
+        Number of columns to output. The radius vertical 1D array will be
+        copied this number of times horizontally (np.tile).
+
+    Returns
+    -------
+    radius : np.array
+        Array of radius values matching the time index.
+        Shape is (len(time_index), n_cols).
+    """
+
+    # load earth periodic table
+    path = os.path.dirname(os.path.realpath(__file__))
+    df = pd.read_csv(os.path.join(path, 'earth_periodic_terms.csv'))
+    df['key'] = 1
+    # 3.1.1 (4). Julian Date.
+    j = time_index.to_julian_date().values
+    # 3.1.2 (5). Julian Ephermeris Date
+    j = j + 64.797 / 86400
+    # 3.1.3 (7). Julian Century Ephemeris
+    j = (j - 2451545) / 36525
+    # 3.1.4 (8). Julian Ephemeris Millennium
+    j = j / 10
+    df_jme = pd.DataFrame({'uid': range(len(j)), 'jme': j, 'key': 1})
+    # Merge JME with Periodic Table
+    df_merge = pd.merge(df_jme, df, on='key')
+    # 3.2.1 (9). Heliocentric radius vector.
+    df_merge['r'] = df_merge['a'] * np.cos(df_merge['b'] + df_merge['c'] *
+                                           df_merge['jme'])
+    # 3.2.2 (10).
+    dfs = df_merge.groupby(by=['uid', 'term'])['r'].sum().unstack()
+    # 3.2.4 (11). Earth Heliocentric radius vector
+    radius = ((dfs['R0'] + dfs['R1'] * j + dfs['R2'] * np.power(j, 2) +
+               dfs['R3'] * np.power(j, 3) + dfs['R4'] * np.power(j, 4) +
+               dfs['R5'] * np.power(j, 5)) / np.power(10, 8)).values
+    radius = radius.reshape((len(time_index), 1))
+    radius = np.tile(radius, n_cols)
     return radius
 
 

@@ -1,0 +1,10 @@
+,latitude,longitude,elevation,timezone,country,state,county,urban,population,landcover
+109824,36.61,-116.02,990.96,-8,b'United States',b'Nevada',b'Nye',b'None',7,130
+145809,39.73,-105.18,1819.6,-7,b'United States',b'Colorado',b'Jefferson',b'Denver',13486,140
+150658,40.13,-105.22,1615.5,-7,b'United States',b'Colorado',b'Boulder',b'None',363,140
+249991,48.29,-105.1,624,-7,b'United States',b'Montana',b'Roosevelt',b'None',0,30
+684607,36.61,-97.5,307.95,-6,b'United States',b'Oklahoma',b'Grant',b'None',0,14
+706377,43.73,-96.62,479,-6,b'United States',b'South Dakota',b'Minnehaha',b'None',1283,30
+852772,34.25,-89.86,95.28,-6,b'United States',b'Mississippi',b'Panola',b'None',231,50
+887015,40.05,-88.38,213.12,-6,b'United States',b'Illinois',b'Champaign',b'None',75,30
+1116869,40.73,-77.94,377.75,-5,b'United States',b'Pennsylvania',b'Centre',b'None',604,50
