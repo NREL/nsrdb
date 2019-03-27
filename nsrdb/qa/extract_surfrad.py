@@ -308,4 +308,5 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
 if __name__ == '__main__':
     root_dir = '/projects/PXS/surfrad_raw'
     dir_out = '/home/gbuster/surfrad_data'
-    extract_all(root_dir, dir_out)
+    site_codes = ('sxf', 'tbl')
+    extract_all(root_dir, dir_out, site_codes=site_codes)

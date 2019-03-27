@@ -374,7 +374,7 @@ class Spatial:
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    xlim=(-190, -20), ylim=(-30, 70)):
+                    xlim=(-190, -20), ylim=(-30, 70), cbar_range=None):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -404,7 +404,8 @@ class Spatial:
             ax = fig.add_subplot(111)
             cmap = plt.get_cmap('Blues')
 
-            cbar_range = [df.iloc[:, 2].min(), df.iloc[:, 2].max()]
+            if cbar_range is None:
+                cbar_range = [df.iloc[:, 2].min(), df.iloc[:, 2].max()]
 
             var = df.columns.values[2]
 
