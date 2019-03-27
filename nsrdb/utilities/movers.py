@@ -15,7 +15,7 @@ from subprocess import Popen
 from warnings import warn
 
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.utilities.execution import PBS
+from nsrdb.utilities.execution import PBS, SLURM
 
 
 logger = logging.getLogger(__name__)
@@ -451,6 +451,54 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
         if pbs.id:
             msg = ('Kicked off job "{}" (PBS jobid #{}) on '
                    'Peregrine.'.format(node_name, pbs.id))
+        else:
+            msg = ('Was unable to kick off job "{}". '
+                   'Please see the stdout error messages'
+                   .format(node_name))
+        print(msg)
+
+
+def eagle(fun_str, arg_str, alloc='pxs', memory=96,
+          walltime=10, node_name='mover',
+          stdout_path='/lustre/eaglefs/scratch/gbuster/data_movers/'):
+        """Kick off an eagle job to execute a mover function.
+
+        Parameters
+        ----------
+        fun_str : str
+            Name of the function in movers.py to execute in the SLURM job.
+        arg_str : str
+            Arguments passed to the target function in the command line call.
+            Care must be taken to use proper quotations for string args.
+            Example:
+                arg_str = ('source_f="source.h5", target_f="target.h5", '
+                           'dsets=["dset1"]')
+        alloc : str
+            SLURM project allocation.
+        memory : int
+            Node memory request in GB.
+        walltime : int
+            Node walltime request in hours.
+        node_name : str
+            Name for the SLURM job.
+        stdout_path : str
+            Path to dump the stdout/stderr files.
+        """
+
+        cmd = ('python -c '
+               '\'from nsrdb.utilities.movers import {fun}; '
+               '{fun}({args})\'')
+
+        cmd = cmd.format(fun=fun_str, args=arg_str)
+
+        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
+                      name=node_name, stdout_path=stdout_path)
+
+        print('\ncmd:\n{}\n'.format(cmd))
+
+        if slurm.id:
+            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                   'Eagle.'.format(node_name, slurm.id))
         else:
             msg = ('Was unable to kick off job "{}". '
                    'Please see the stdout error messages'
