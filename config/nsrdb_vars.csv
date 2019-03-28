@@ -1,0 +1,14 @@
+﻿var,merra_name,units,expected_range,final_dtype,scale_factor,spatial_interp,elevation_correct,temporal_interp,merra_dset,data_source
+asymmetry,,unitless,,int16,1000,IDW,FALSE,linear,,climatology
+surface_albedo,,unitless,,int16,1000,IDW,FALSE,linear,,MODIS-IMS
+surface_pressure,PS,mbar,,int16,0.1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2
+air_temperature,T2M,celsius,,int8,1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2
+ozone,TO3,atm-cm,,int16,1000,IDW,FALSE,linear,tavg1_2d_slv_Nx,MERRA2
+total_precipitable_water,TQV,cm,,int16,1000,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2
+wind_speed,wind_speed,m/s,,int16,10,NN,FALSE,linear,tavg1_2d_slv_Nx,MERRA2
+specific_humidity,QV2M,kg kg-1,,int32,100000000,IDW,FALSE,nearest,tavg1_2d_slv_Nx,MERRA2
+relative_humidity,relative_humidity,%,,int16,100,,FALSE,,tavg1_2d_slv_Nx,MERRA2
+dew_point,dew_point,celsius,,int8,1,,FALSE,,tavg1_2d_slv_Nx,MERRA2
+alpha,TOTANGSTR,unitless,,int16,1000,IDW,FALSE,nearest,tavg1_2d_aer_Nx,MERRA2
+aod,TOTEXTTAU,unitless,,int16,10000,IDW,TRUE,nearest,tavg1_2d_aer_Nx,MERRA2
+ssa,TOTSCATAU,unitless,,int16,10000,IDW,FALSE,linear,tavg1_2d_aer_Nx,MERRA2
