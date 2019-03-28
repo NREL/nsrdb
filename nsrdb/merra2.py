@@ -105,6 +105,29 @@ def projectLL(ref_grid, inverse=False):
     return np.dstack((x, y))[0]
 
 
+def safe_astype(data, dtype):
+    """Perform a safe dtype conversion after scaling.
+
+    Includes rounding if integer and clipping at the min/max range instead
+    of bit overflow.
+    """
+
+    # round after scaling if int dtype (instead of truncating)
+    if np.issubdtype(dtype, np.integer):
+        data = np.round(data)
+
+    # Truncate values below the dtype byte range
+    d_min = np.iinfo(dtype).min
+    data[data < d_min] = d_min
+
+    # Truncate values below the dtype byte range
+    d_max = np.iinfo(dtype).max
+    data[data > d_max] = d_max
+
+    # Convert ndarray dtype
+    return data.astype(dtype)
+
+
 def createOutFile(config, dset, var, region, year, ref_grid,
                   chunks=(48, 1000)):
     """Create a new .h5 file for ancillary variable output.
@@ -571,13 +594,13 @@ class Ancillary(object):
                             out_array[i, :] = sub_data
                     # convert units to PSM units
                     out_array = self._unit_convert(out_array)
+
                     # apply scaling factor and dtype conversion
                     out_array *= self.psm_scale_factor
-                    # round after scaling if int dtype (instead of truncating)
-                    if np.issubdtype(self.psm_dtype, np.integer):
-                        out_array = np.round(out_array)
-                    # convert to PSM dtype
-                    out_array = out_array.astype(self.psm_dtype)
+
+                    # convert to PSM dtype SAFELY
+                    out_array = safe_astype(out_array, self.psm_dtype)
+
                     # stuff results HDF file
                     chunks = (np.min((24, out_array.shape[0])),
                               np.min((9997, out_array.shape[1])))
@@ -712,7 +735,7 @@ class Ancillary(object):
                         (17.625 - np.log(rh / 100.) -
                          ((17.625 * t) / (243.04 + t))))
             all_data.append(
-                (data * self.psm_scale_factor).astype(self.psm_dtype))
+                safe_astype(data * self.psm_scale_factor, self.psm_dtype))
         return np.hstack(all_data)
 
 
@@ -891,7 +914,7 @@ def run_single(config_file, date_range, region, var, cores=1,
                     # write results to HDF
                     f[ancil.psm_name][ancil.output_range,
                                       idx.min():idx.max() + 1] = \
-                        data.astype(ancil.psm_dtype)
+                        safe_astype(data, ancil.psm_dtype)
 
                 logger.info('Temporal interpolation for chunk #{} took {} min'
                             .format(n_chunk, (time.time() - e1) / 60.0))
