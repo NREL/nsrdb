@@ -21,7 +21,7 @@ from warnings import warn
 from nsrdb import __version__
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.execution import PBS, SLURM
-from nsrdb.utilities.qa_qc import plot_geo_df
+from nsrdb.qa.plots import Spatial
 
 
 logger = logging.getLogger(__name__)
@@ -610,7 +610,7 @@ class Blender:
                                        dset: data})
                     plot_name = '{}_{}'.format(row.files.replace('.h5', ''),
                                                dset)
-                    plot_geo_df(df, plot_name, self.out_dir)
+                    Spatial.plot_geo_df(df, plot_name, self.out_dir)
 
     @staticmethod
     def summarize(out_dir, fout, dset, save_meta=False, plot=True):
@@ -657,7 +657,8 @@ class Blender:
                     df = pd.DataFrame({'latitude': meta['latitude'],
                                        'longitude': meta['longitude'],
                                        dset: f[dset][0, :]})
-                    plot_geo_df(df, 'blended_{}'.format(base_name), out_dir)
+                    Spatial.plot_geo_df(df, 'blended_{}'.format(base_name),
+                                        out_dir)
         except Exception as e:
             logger.exception('Could not summarize {}. Received the following '
                              'exception: \n{}'
