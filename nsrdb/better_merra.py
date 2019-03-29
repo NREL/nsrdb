@@ -27,8 +27,9 @@ import os
 from netCDF4 import Dataset as NetCDF
 import logging
 import datetime
+import psutil
 
-from nsrdb import CONFIGDIR, TESTDATADIR, NSRDBDIR, DATADIR
+from nsrdb import CONFIGDIR, NSRDBDIR, DATADIR
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
@@ -162,7 +163,8 @@ class MerraVar:
             spatial.
         """
         flat_data = np.zeros(shape=(data.shape[0],
-                                    data.shape[1] * data.shape[2]))
+                                    data.shape[1] * data.shape[2]),
+                             dtype=np.float32)
         for i in range(data.shape[0]):
             flat_data[i, :] = data[i, :, :].ravel()
         return flat_data
@@ -254,6 +256,9 @@ class MerraDay:
         self.nsrdb_grid = nsrdb_grid
         self._nsrdb_freq = nsrdb_freq
 
+        logger.debug('Final NSRDB output shape is: {}'
+                     .format(self.nsrdb_data_shape))
+
     def __getitem__(self, var):
         return self.nsrdb_data[var]
 
@@ -342,6 +347,7 @@ class MerraDay:
                 ind = np.genfromtxt(cache_i, dtype=int, delimiter=',')
 
             else:
+                logger.debug('Running geographic nearest neighbor...')
                 dist, ind = geo_nn(df1, df2, labels=labels, k=k)
                 logger.debug('Saving nearest neighbor indices to: {}'
                              .format(cache_i))
@@ -349,6 +355,7 @@ class MerraDay:
                 np.savetxt(cache_i, ind, delimiter=',')
 
         else:
+            logger.debug('Running geographic nearest neighbor...')
             dist, ind = geo_nn(df1, df2, labels=labels, k=k)
 
         return dist, ind
@@ -496,8 +503,6 @@ class MerraDay:
         """
         if not hasattr(self, '_nsrdb_data_shape'):
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
-            logger.debug('Final NSRDB output shape is: {}'
-                         .format(self._nsrdb_data_shape))
         return self._nsrdb_data_shape
 
     def time_index(self, freq='1h'):
@@ -556,13 +561,16 @@ class MerraDay:
         """
         if inp.endswith('.csv'):
             self._var_meta = pd.read_csv(inp)
-            logger.debug('Imported NSRDB variable config file.')
+            logger.debug('Imported NSRDB variable meta file.')
         else:
-            raise TypeError('Expected csv config file but received: {}'
+            raise TypeError('Expected csv var meta file but received: {}'
                             .format(inp))
 
     def _get_weights(self, var):
         """Get the irradiance model weights for AOD/Alhpa.
+
+        ASSUMPTION: All weights files have the same coordinate sets
+            (confirmed for current weights by gcb on 3/28/2019)
 
         Parameters
         ----------
@@ -606,78 +614,6 @@ class MerraDay:
             weights = None
 
         return weights
-
-    def process_var(self, var):
-        """Process a single variable and return the data.
-
-        Parameters
-        ----------
-        var : str
-            NSRDB var name.
-
-        Returns
-        -------
-        data : np.ndarray
-            NSRDB-resolution data for the given var and the current day.
-        """
-
-        logger.info('Processing MERRA data for "{}".'.format(var))
-
-        # initialize MERRA variable instance
-        self.var_dict[var] = MerraVar(self.var_meta, var, self._merra_dir,
-                                      self.date_stamp)
-
-        if var == 'relative_humidity':
-            data = self.relative_humidity(self.nsrdb_data['air_temperature'],
-                                          self.nsrdb_data['specific_humidity'],
-                                          self.nsrdb_data['surface_pressure'])
-
-        elif var == 'dew_point':
-            data = self.dew_point(self.nsrdb_data['air_temperature'],
-                                  self.nsrdb_data['specific_humidity'],
-                                  self.nsrdb_data['surface_pressure'])
-
-        else:
-            # get MERRA source data
-            data = self.var_dict[var].source_data
-            # get mapping from MERRA to NSRDB
-            cache = 'merra_{}.csv'.format(self.var_dict[var].spatial_method)
-            dist, ind = self.get_ind(self.merra_grid, self.nsrdb_grid,
-                                     self.var_dict[var].spatial_method,
-                                     cache=cache)
-
-            # perform weighting if applicable
-            if var in self.WEIGHTS:
-                weights = self._get_weights(var)
-                if weights is not None:
-                    logger.debug('Applying weights to "{}".'.format(var))
-                    data *= weights
-
-            # run spatial interpolation
-            logger.debug('Performing spatial interpolation on "{}"'
-                         .format(var))
-            data = spatial_interp(var, data, self.merra_grid, self.nsrdb_grid,
-                                  self.var_dict[var].spatial_method,
-                                  dist, ind,
-                                  self.var_dict[var].elevation_correct)
-
-            # run temporal interpolation
-            if self.var_dict[var].temporal_method == 'linear':
-                logger.debug('Performing linear temporal interpolation on '
-                             '"{}"'.format(var))
-                data = temporal_lin(data, self.merra_ti, self.nsrdb_ti)
-            elif self.var_dict[var].temporal_method == 'nearest':
-                logger.debug('Performing stepwise temporal interpolation on '
-                             '"{}"'.format(var))
-                data = temporal_step(data, self.merra_ti, self.nsrdb_ti)
-
-        # convert units from MERRA to NSRDB
-        data = self.convert_units(var, data)
-
-        # send to NSRDB data namespace
-        self.nsrdb_data = [var, data]
-
-        return data
 
     @staticmethod
     def convert_units(var, data):
@@ -802,8 +738,97 @@ class MerraDay:
 
         return dp
 
+    @staticmethod
+    def log_mem():
+        mem = psutil.virtual_memory()
+        logger.debug('{0:.3f} GB used of {1:.3f} GB total ({2:.1f}% used) '
+                     '({3:.3f} GB free) ({4:.3f} GB available).'
+                     ''.format(mem.used / 1e9,
+                               mem.total / 1e9,
+                               100 * mem.used / mem.total,
+                               mem.free / 1e9,
+                               mem.available / 1e9))
+
+    def process_var(self, var):
+        """Process a single variable and return the data.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+
+        Returns
+        -------
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        """
+
+        logger.info('Processing MERRA data for "{}".'.format(var))
+        self.log_mem()
+
+        # initialize MERRA variable instance
+        self.var_dict[var] = MerraVar(self.var_meta, var, self._merra_dir,
+                                      self.date_stamp)
+
+        if var == 'relative_humidity':
+            data = self.relative_humidity(self.nsrdb_data['air_temperature'],
+                                          self.nsrdb_data['specific_humidity'],
+                                          self.nsrdb_data['surface_pressure'])
+
+        elif var == 'dew_point':
+            data = self.dew_point(self.nsrdb_data['air_temperature'],
+                                  self.nsrdb_data['specific_humidity'],
+                                  self.nsrdb_data['surface_pressure'])
+
+        else:
+            # get MERRA source data
+            data = self.var_dict[var].source_data
+            # get mapping from MERRA to NSRDB
+            cache = 'merra_{}.csv'.format(self.var_dict[var].spatial_method)
+            dist, ind = self.get_ind(self.merra_grid, self.nsrdb_grid,
+                                     self.var_dict[var].spatial_method,
+                                     cache=cache)
+
+            # perform weighting if applicable
+            if var in self.WEIGHTS:
+                weights = self._get_weights(var)
+                if weights is not None:
+                    logger.debug('Applying weights to "{}".'.format(var))
+                    data *= weights
+
+            # run spatial interpolation
+            logger.debug('Performing spatial interpolation on "{}" '
+                         'with shape {}'
+                         .format(var, data.shape))
+            data = spatial_interp(var, data, self.merra_grid, self.nsrdb_grid,
+                                  self.var_dict[var].spatial_method,
+                                  dist, ind,
+                                  self.var_dict[var].elevation_correct)
+            self.log_mem()
+
+            # run temporal interpolation
+            if self.var_dict[var].temporal_method == 'linear':
+                logger.debug('Performing linear temporal interpolation on '
+                             '"{}" with shape {}'.format(var, data.shape))
+                data = temporal_lin(data, self.merra_ti, self.nsrdb_ti)
+
+            elif self.var_dict[var].temporal_method == 'nearest':
+                logger.debug('Performing stepwise temporal interpolation on '
+                             '"{}" with shape {}'.format(var, data.shape))
+                data = temporal_step(data, self.merra_ti, self.nsrdb_ti)
+
+        # convert units from MERRA to NSRDB
+        data = self.convert_units(var, data)
+
+        # send to NSRDB data namespace
+        self.nsrdb_data = [var, data]
+        self.log_mem()
+
+        return data
+
     @classmethod
-    def run(cls, var_meta, date, merra_dir, nsrdb_grid):
+    def run(cls, var_meta, date, merra_dir, nsrdb_grid, nsrdb_freq='5min',
+            var_list=None):
         """Run MERRA2 processing for all variables for a single day.
 
         Parameters
@@ -816,15 +841,62 @@ class MerraDay:
             Directory path containing MERRA source files.
         nsrdb_grid : str
             CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+        var_list : list | None
+            List of variables to process
         """
 
-        merra = cls(var_meta, date, merra_dir, nsrdb_grid)
-        for var in cls.ALL_VARS:
+        merra = cls(var_meta, date, merra_dir, nsrdb_grid,
+                    nsrdb_freq=nsrdb_freq)
+        if var_list is None:
+            var_list = cls.ALL_VARS
+        for var in var_list:
             merra.process_var(var)
         return merra
 
 
-if __name__ == '__main__':
+def test_all():
+    log_file = os.path.join(NSRDBDIR, 'merra.log')
+    init_logger(__name__, log_file=log_file, log_level='DEBUG')
+
+    merra_dir = '/projects/PXS/ancillary/source'
+    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    date = datetime.date(year=2017, month=1, day=1)
+    grid = '/projects/PXS/reference_grids/west_psm_extent.csv'
+
+    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min')
+
+    import h5py
+    for k, v in merra._nsrdb_data.items():
+        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
+        with h5py.File(fname, 'w') as f:
+            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+
+
+def test():
+    log_file = os.path.join(NSRDBDIR, 'merra.log')
+    init_logger(__name__, log_file=log_file, log_level='DEBUG')
+
+    merra_dir = '/projects/PXS/ancillary/source'
+    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    date = datetime.date(year=2017, month=1, day=1)
+    grid = '/projects/PXS/reference_grids/west_psm_extent.csv'
+
+    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min',
+                         var_list=['alpha'])
+
+    import h5py
+    for k, v in merra._nsrdb_data.items():
+        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
+        with h5py.File(fname, 'w') as f:
+            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+
+
+def test_local():
+    import h5py
+    from NSRDB import TESTDATADIR
+
     init_logger(__name__, log_file=None, log_level='DEBUG')
 
     merra_dir = os.path.join(TESTDATADIR, 'source_files/')
@@ -835,5 +907,20 @@ if __name__ == '__main__':
     merra = MerraDay.run(var_meta, date, merra_dir, grid)
 
     for k, v in merra._nsrdb_data.items():
-        np.savetxt(os.path.join(NSRDBDIR, '{}.csv'.format(k)), v,
-                   delimiter=',')
+        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
+        with h5py.File(fname, 'w') as f:
+            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+    return merra
+
+
+def peregrine_test():
+    from nsrdb.utilities.execution import PBS
+
+    cmd = 'python -c \'from nsrdb.better_merra import test_all; test_all()\''
+
+    PBS(cmd, alloc='pxs', queue='short', name='merra_daily',
+        stdout_path=NSRDBDIR, feature='feature=haswell')
+
+
+if __name__ == '__main__':
+    merra = test_local()

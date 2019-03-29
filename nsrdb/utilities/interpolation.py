@@ -32,10 +32,10 @@ def temporal_lin(array, ti_native, ti_new):
         Data at new temporal resolution
     """
 
-    df_new = pd.DataFrame(index=ti_new)
-    df_new = df_new.join(pd.DataFrame(array, index=ti_native))\
-        .interpolate(method='linear', axis=0)
-    return df_new.values
+    array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
+        .interpolate(method='linear', axis=0).values
+
+    return array
 
 
 def temporal_step(array, ti_native, ti_new):
@@ -56,11 +56,11 @@ def temporal_step(array, ti_native, ti_new):
         Data at new temporal resolution
     """
 
-    df_new = pd.DataFrame(index=ti_new)
-    df_new = df_new.join(pd.DataFrame(array, index=ti_native))\
+    array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
         .interpolate(method='nearest', axis=0)\
-        .fillna(method='ffill').fillna(method='bfill')
-    return df_new.values
+        .fillna(method='ffill').fillna(method='bfill').values
+
+    return array
 
 
 def to_rads(locs):
@@ -310,7 +310,7 @@ def spatial_interp(var, data, native_grid, new_grid, method, dist, ind,
     """
 
     # initialize output array
-    out_array = np.zeros(shape=(len(data), len(new_grid)))
+    out_array = np.zeros(shape=(len(data), len(new_grid)), dtype=np.float32)
 
     # iterate through timesteps interpolating all sites for a single timestep
     for i in range(data.shape[0]):
