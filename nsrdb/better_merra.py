@@ -28,9 +28,11 @@ from netCDF4 import Dataset as NetCDF
 import logging
 import datetime
 import psutil
+from dask.distributed import LocalCluster, Client
+import time
 
 from nsrdb import CONFIGDIR, NSRDBDIR, DATADIR
-from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
 
@@ -39,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 class MerraVar:
     """Helper for MERRA variable properties and source data extraction."""
+
+    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
     def __init__(self, var_meta, var, merra_dir, date_stamp):
         """
@@ -204,6 +208,49 @@ class MerraVar:
 
         return data
 
+    @property
+    def merra_grid(self):
+        """Return the MERRA source coordinates with elevation.
+
+        It seems that all MERRA files DO NOT have the same grid.
+
+        Returns
+        -------
+        self._merra_grid : pd.DataFrame
+            MERRA source coordinates with elevation
+        """
+
+        if not hasattr(self, '_merra_grid'):
+
+            with NetCDF(self.file, 'r') as nc:
+                lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
+
+            self._merra_grid = pd.DataFrame({'longitude': lon2d.ravel(),
+                                             'latitude': lat2d.ravel()})
+
+            # merra grid has some bad values around 0 lat/lon
+            # quick fix is to set to zero
+            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1) &
+                                 (self._merra_grid['latitude'] < 0.1),
+                                 'latitude'] = 0
+            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1) &
+                                 (self._merra_grid['longitude'] < 0.1),
+                                 'longitude'] = 0
+
+            # add elevation to coordinate set
+            merra_elev = pd.read_pickle(self.MERRA_ELEV)
+            self._merra_grid = self._merra_grid.merge(merra_elev,
+                                                      on=['latitude',
+                                                          'longitude'],
+                                                      how='left')
+
+            # change column name from merra default
+            if 'mean_elevation' in self._merra_grid.columns.values:
+                self._merra_grid = self._merra_grid.rename(
+                    {'mean_elevation': 'elevation'}, axis='columns')
+
+        return self._merra_grid
+
 
 class MerraDay:
     """Framework for single-day MERRA data interpolation to NSRDB."""
@@ -216,20 +263,22 @@ class MerraDay:
         'alpha': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_Alpha.txt')}
 
-    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
+    MERRA_VARS = ('surface_pressure',
+                  'air_temperature',
+                  'ozone',
+                  'total_precipitable_water',
+                  'wind_speed',
+                  'specific_humidity',
+                  'alpha',
+                  'aod',
+                  'ssa',
+                  )
 
-    ALL_VARS = ('surface_pressure',
-                'air_temperature',
-                'ozone',
-                'total_precipitable_water',
-                'wind_speed',
-                'specific_humidity',
-                'alpha',
-                'aod',
-                'ssa',
-                'relative_humidity',
-                'dew_point',
-                )
+    CALC_VARS = ('relative_humidity',
+                 'dew_point',
+                 )
+
+    ALL_VARS = MERRA_VARS + CALC_VARS
 
     def __init__(self, var_meta, date, merra_dir, nsrdb_grid,
                  nsrdb_freq='5min'):
@@ -297,8 +346,8 @@ class MerraDay:
 
         return file
 
-    def get_ind(self, df1, df2, method, labels=('latitude', 'longitude'),
-                cache=False):
+    def get_nn_ind(self, df1, df2, method, labels=('latitude', 'longitude'),
+                   cache=False):
         """Get the geographic nearest neighbor distances and indices.
 
         Parameters
@@ -359,49 +408,6 @@ class MerraDay:
             dist, ind = geo_nn(df1, df2, labels=labels, k=k)
 
         return dist, ind
-
-    @property
-    def merra_grid(self):
-        """Return the MERRA source coordinates with elevation.
-
-        ASSUMPTION: all MERRA files have the same grid
-
-        Returns
-        -------
-        self._merra_grid : pd.DataFrame
-            MERRA source coordinates with elevation
-        """
-
-        if not hasattr(self, '_merra_grid'):
-
-            with NetCDF(self.file, 'r') as nc:
-                lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
-
-            self._merra_grid = pd.DataFrame({'longitude': lon2d.ravel(),
-                                             'latitude': lat2d.ravel()})
-
-            # merra grid has some bad values around 0 lat/lon
-            # quick fix is to set to zero
-            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1) &
-                                 (self._merra_grid['latitude'] < 0.1),
-                                 'latitude'] = 0
-            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1) &
-                                 (self._merra_grid['longitude'] < 0.1),
-                                 'longitude'] = 0
-
-            # add elevation to coordinate set
-            merra_elev = pd.read_pickle(self.MERRA_ELEV)
-            self._merra_grid = self._merra_grid.merge(merra_elev,
-                                                      on=['latitude',
-                                                          'longitude'],
-                                                      how='left')
-
-            # change column name from merra default
-            if 'mean_elevation' in self._merra_grid.columns.values:
-                self._merra_grid = self._merra_grid.rename(
-                    {'mean_elevation': 'elevation'}, axis='columns')
-
-        return self._merra_grid
 
     @property
     def merra_ti(self):
@@ -567,10 +573,7 @@ class MerraDay:
                             .format(inp))
 
     def _get_weights(self, var):
-        """Get the irradiance model weights for AOD/Alhpa.
-
-        ASSUMPTION: All weights files have the same coordinate sets
-            (confirmed for current weights by gcb on 3/28/2019)
+        """Get the irradiance model weights for AOD/Alpha.
 
         Parameters
         ----------
@@ -596,8 +599,8 @@ class MerraDay:
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_ind(weights, self.merra_grid, 'NN',
-                                   cache='merra_weights.csv')
+            _, i_nn = self.get_nn_ind(weights, self.var_dict[var].merra_grid,
+                                      'NN')
             i_nn = i_nn.flatten()
 
             df_w = weights.iloc[i_nn.flatten()]
@@ -740,6 +743,7 @@ class MerraDay:
 
     @staticmethod
     def log_mem():
+        """Log the memory usage to debug."""
         mem = psutil.virtual_memory()
         logger.debug('{0:.3f} GB used of {1:.3f} GB total ({2:.1f}% used) '
                      '({3:.3f} GB free) ({4:.3f} GB available).'
@@ -764,7 +768,6 @@ class MerraDay:
         """
 
         logger.info('Processing MERRA data for "{}".'.format(var))
-        self.log_mem()
 
         # initialize MERRA variable instance
         self.var_dict[var] = MerraVar(self.var_meta, var, self._merra_dir,
@@ -784,10 +787,9 @@ class MerraDay:
             # get MERRA source data
             data = self.var_dict[var].source_data
             # get mapping from MERRA to NSRDB
-            cache = 'merra_{}.csv'.format(self.var_dict[var].spatial_method)
-            dist, ind = self.get_ind(self.merra_grid, self.nsrdb_grid,
-                                     self.var_dict[var].spatial_method,
-                                     cache=cache)
+            dist, ind = self.get_nn_ind(self.var_dict[var].merra_grid,
+                                        self.nsrdb_grid,
+                                        self.var_dict[var].spatial_method)
 
             # perform weighting if applicable
             if var in self.WEIGHTS:
@@ -800,11 +802,11 @@ class MerraDay:
             logger.debug('Performing spatial interpolation on "{}" '
                          'with shape {}'
                          .format(var, data.shape))
-            data = spatial_interp(var, data, self.merra_grid, self.nsrdb_grid,
+            data = spatial_interp(var, data, self.var_dict[var].merra_grid,
+                                  self.nsrdb_grid,
                                   self.var_dict[var].spatial_method,
                                   dist, ind,
                                   self.var_dict[var].elevation_correct)
-            self.log_mem()
 
             # run temporal interpolation
             if self.var_dict[var].temporal_method == 'linear':
@@ -820,15 +822,13 @@ class MerraDay:
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
 
-        # send to NSRDB data namespace
-        self.nsrdb_data = [var, data]
-        self.log_mem()
+        logger.info('Finished "{}".'.format(var))
 
         return data
 
     @classmethod
     def run(cls, var_meta, date, merra_dir, nsrdb_grid, nsrdb_freq='5min',
-            var_list=None):
+            var_list=None, parallel=False):
         """Run MERRA2 processing for all variables for a single day.
 
         Parameters
@@ -849,14 +849,73 @@ class MerraDay:
 
         merra = cls(var_meta, date, merra_dir, nsrdb_grid,
                     nsrdb_freq=nsrdb_freq)
-        if var_list is None:
-            var_list = cls.ALL_VARS
-        for var in var_list:
-            merra.process_var(var)
+
+        if var_list is not None:
+            for var in var_list:
+                data = merra.process_var(var)
+                merra.nsrdb_data = [var, data]
+
+        elif var_list is None and parallel is False:
+            for var in cls.ALL_VARS:
+                data = merra.process_var(var)
+                merra.nsrdb_data = [var, data]
+
+        elif var_list is None and parallel is True:
+            logger.info('Processing all MERRA variables in parallel.')
+            # start a local cluster
+            n_workers = int(np.min((len(cls.MERRA_VARS), os.cpu_count())))
+            cluster = LocalCluster(n_workers=n_workers,
+                                   threads_per_worker=1,
+                                   memory_limit=0)
+            futures = {}
+            with Client(cluster) as client:
+
+                # initialize loggers on workers
+                loggers = (__name__,)
+                for logger_name in loggers:
+                    client.run(NSRDB_LOGGERS.init_logger, logger_name)
+
+                # submit a future for each merra variable (non-calculated)
+                for var in cls.MERRA_VARS:
+                    futures[var] = client.submit(merra.process_var, var)
+
+                # watch memory during futures to get max memory usage
+                logger.debug('Waiting on parallel futures...')
+                max_mem = 0
+                status = 0
+                while status == 0:
+                    mem = psutil.virtual_memory()
+                    max_mem = np.max((mem.used / 1e9, max_mem))
+                    time.sleep(5)
+                    for var, future in futures.items():
+                        if future.status != 'pending':
+                            status = 1
+                            break
+
+                logger.info('Futures finishing up, maximum memory usage was '
+                            '{0:.3f} GB out of {1:.3f} GB total.'
+                            .format(max_mem, mem.total / 1e9))
+
+                # gather results
+                futures = client.gather(futures)
+
+                # send to merra object
+                for var, data in futures.items():
+                    # data returned from futures as read only for some reason
+                    data.setflags(write=True)
+                    merra.nsrdb_data = [var, data]
+
+            # process calculated variables in serial
+            for var in cls.CALC_VARS:
+                data = merra.process_var(var)
+                merra.nsrdb_data = [var, data]
+
         return merra
 
 
 def test_all():
+    """Test merra2 processing on all variables on HPC."""
+    import h5py
     log_file = os.path.join(NSRDBDIR, 'merra.log')
     init_logger(__name__, log_file=log_file, log_level='DEBUG')
 
@@ -865,16 +924,20 @@ def test_all():
     date = datetime.date(year=2017, month=1, day=1)
     grid = '/projects/PXS/reference_grids/west_psm_extent.csv'
 
-    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min')
+    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min',
+                         parallel=True)
 
-    import h5py
     for k, v in merra._nsrdb_data.items():
         fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
         with h5py.File(fname, 'w') as f:
             f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+            f.create_dataset('meta', data=merra.nsrdb_grid.values,
+                             dtype=merra.nsrdb_grid.values.dtype)
 
 
-def test():
+def test_single():
+    """Test merra2 processing on a few variables on HPC."""
+    import h5py
     log_file = os.path.join(NSRDBDIR, 'merra.log')
     init_logger(__name__, log_file=log_file, log_level='DEBUG')
 
@@ -886,16 +949,18 @@ def test():
     merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min',
                          var_list=['alpha'])
 
-    import h5py
     for k, v in merra._nsrdb_data.items():
         fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
         with h5py.File(fname, 'w') as f:
             f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+            f.create_dataset('meta', data=merra.nsrdb_grid.values,
+                             dtype=merra.nsrdb_grid.values.dtype)
 
 
 def test_local():
+    """Test merra2 processing on a local machine."""
     import h5py
-    from NSRDB import TESTDATADIR
+    from nsrdb import TESTDATADIR
 
     init_logger(__name__, log_file=None, log_level='DEBUG')
 
@@ -904,16 +969,20 @@ def test_local():
     date = datetime.date(year=2017, month=1, day=1)
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
-    merra = MerraDay.run(var_meta, date, merra_dir, grid)
+    merra = MerraDay.run(var_meta, date, merra_dir, grid,
+                         var_list=['air_temperature'])
 
     for k, v in merra._nsrdb_data.items():
         fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
         with h5py.File(fname, 'w') as f:
             f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
+            f.create_dataset('meta', data=merra.nsrdb_grid.values,
+                             dtype=merra.nsrdb_grid.values.dtype)
     return merra
 
 
 def peregrine_test():
+    """Submit a peregrine job for testing."""
     from nsrdb.utilities.execution import PBS
 
     cmd = 'python -c \'from nsrdb.better_merra import test_all; test_all()\''
