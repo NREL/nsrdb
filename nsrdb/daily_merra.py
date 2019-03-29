@@ -26,13 +26,12 @@ import pandas as pd
 import os
 from netCDF4 import Dataset as NetCDF
 import logging
-import datetime
 import psutil
 from dask.distributed import LocalCluster, Client
 import time
 
-from nsrdb import CONFIGDIR, NSRDBDIR, DATADIR
-from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
+from nsrdb import NSRDBDIR, DATADIR
+from nsrdb.utilities.loggers import NSRDB_LOGGERS
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
 
@@ -845,6 +844,13 @@ class MerraDay:
             Final desired NSRDB temporal frequency.
         var_list : list | None
             List of variables to process
+
+        Returns
+        -------
+        merra : MerraDay
+            Single day merra object. Processed MERRA data can be found in the
+            nsrdb_data attribute (dict) and MerraVar objects can be found in
+            the var_dict attribute (dict).
         """
 
         merra = cls(var_meta, date, merra_dir, nsrdb_grid,
@@ -910,86 +916,5 @@ class MerraDay:
                 data = merra.process_var(var)
                 merra.nsrdb_data = [var, data]
 
+        logger.info('MERRA data processing complete.')
         return merra
-
-
-def test_all():
-    """Test merra2 processing on all variables on HPC."""
-    import h5py
-    log_file = os.path.join(NSRDBDIR, 'merra.log')
-    init_logger(__name__, log_file=log_file, log_level='DEBUG')
-
-    merra_dir = '/projects/PXS/ancillary/source'
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
-    date = datetime.date(year=2017, month=1, day=1)
-    grid = '/projects/PXS/reference_grids/west_psm_extent.csv'
-
-    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min',
-                         parallel=True)
-
-    for k, v in merra._nsrdb_data.items():
-        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
-        with h5py.File(fname, 'w') as f:
-            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
-            f.create_dataset('meta', data=merra.nsrdb_grid.values,
-                             dtype=merra.nsrdb_grid.values.dtype)
-
-
-def test_single():
-    """Test merra2 processing on a few variables on HPC."""
-    import h5py
-    log_file = os.path.join(NSRDBDIR, 'merra.log')
-    init_logger(__name__, log_file=log_file, log_level='DEBUG')
-
-    merra_dir = '/projects/PXS/ancillary/source'
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
-    date = datetime.date(year=2017, month=1, day=1)
-    grid = '/projects/PXS/reference_grids/west_psm_extent.csv'
-
-    merra = MerraDay.run(var_meta, date, merra_dir, grid, nsrdb_freq='30min',
-                         var_list=['alpha'])
-
-    for k, v in merra._nsrdb_data.items():
-        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
-        with h5py.File(fname, 'w') as f:
-            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
-            f.create_dataset('meta', data=merra.nsrdb_grid.values,
-                             dtype=merra.nsrdb_grid.values.dtype)
-
-
-def test_local():
-    """Test merra2 processing on a local machine."""
-    import h5py
-    from nsrdb import TESTDATADIR
-
-    init_logger(__name__, log_file=None, log_level='DEBUG')
-
-    merra_dir = os.path.join(TESTDATADIR, 'source_files/')
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
-    date = datetime.date(year=2017, month=1, day=1)
-    grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
-
-    merra = MerraDay.run(var_meta, date, merra_dir, grid,
-                         var_list=['air_temperature'])
-
-    for k, v in merra._nsrdb_data.items():
-        fname = os.path.join(NSRDBDIR, '{}.h5'.format(k))
-        with h5py.File(fname, 'w') as f:
-            f.create_dataset(k, data=v, dtype=v.dtype, chunks=(len(v), 100))
-            f.create_dataset('meta', data=merra.nsrdb_grid.values,
-                             dtype=merra.nsrdb_grid.values.dtype)
-    return merra
-
-
-def peregrine_test():
-    """Submit a peregrine job for testing."""
-    from nsrdb.utilities.execution import PBS
-
-    cmd = 'python -c \'from nsrdb.better_merra import test_all; test_all()\''
-
-    PBS(cmd, alloc='pxs', queue='short', name='merra_daily',
-        stdout_path=NSRDBDIR, feature='feature=haswell')
-
-
-if __name__ == '__main__':
-    merra = test_local()
