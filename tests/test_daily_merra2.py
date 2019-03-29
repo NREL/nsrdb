@@ -37,7 +37,7 @@ def test_daily_merra2(var):
     """Test MERRA processed variables against baseline data."""
     init_logger(__name__, log_file=None, log_level='DEBUG')
 
-    out_dir = os.path.join(TESTDATADIR, 'merra2/')
+    out_dir = os.path.join(TESTDATADIR, 'merra2_daily/')
     merra_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
     var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2017, month=1, day=1)
