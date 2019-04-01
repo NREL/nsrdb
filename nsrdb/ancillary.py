@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Performs spatial and temporal interpolation of ancillary data from MERRA2.
+"""Performs spatial and temporal interpolation of ancillary data.
 
 Non-standard module dependencies (pip-installable):
     - netCDF4
 
-The following variables can be processed using this module:
-    - PS (surface_pressure, Pa)
-    - T2M (air_temperature, C)
-    - TO3 (ozone, atm-cm)
-    - TQV (total_precipitable_water, cm)
-    - wind_speed (m/s)
-    - wind_direction (degrees)
-    - QV2M (specific_humidity, kg_water/kg_air)
-    - relative_humidity (%)
-    - dew_point (C)
-    - TOTANGSTR (alpha, angstrom wavelength exponent, unitless)
-    - TOTEXTTAU (aod, aerosol optical depth, unitless)
-    - TOTSCATAU (ssa, aerosol single scatter albedo, unitless)
-    - asymmetry (Aerosol asymmetry parameter, unitless)
-    - surface_albedo (unitless)
+The following variables can be processed using this module. For details see the
+class variables in Ancillary() below.
+    ('alpha',
+     'asymmetry',
+     'aod',
+     'surface_pressure',
+     'relative_humidity',
+     'ssa',
+     'ozone',
+     'total_precipitable_water',
+     'solar_zenith_angle',
+     'air_temperature',
+     'specific_humidity',
+     'wind_speed',
+     'dew_point')
 """
 
 import numpy as np
