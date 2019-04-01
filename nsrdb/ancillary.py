@@ -38,12 +38,10 @@ from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
 logger = logging.getLogger(__name__)
 
 
-class MerraVar:
-    """Helper for MERRA variable properties and source data extraction."""
+class AncillaryVar:
+    """Base class for ancillary variable processing."""
 
-    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
-
-    def __init__(self, var_meta, name, merra_dir, date):
+    def __init__(self, var_meta, name, source_dir, date):
         """
         Parameters
         ----------
@@ -51,49 +49,15 @@ class MerraVar:
             CSV file containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
-        merra_dir : str
-            Directory path containing MERRA source files.
+        source_dir : str
+            Directory path containing source files.
         date : datetime.date
-            Single day to extract MERRA2 data for.
+            Single day to extract data for.
         """
         self._var_meta = var_meta
         self._name = name
-        self._merra_dir = merra_dir
+        self._source_dir = source_dir
         self._date = date
-
-    @property
-    def date_stamp(self):
-        """Get the MERRA datestamp corresponding to the specified datetime date
-
-        Returns
-        -------
-        date : str
-            Date stamp that should be in the MERRA file, format is YYYYMMDD
-        """
-
-        y = str(self._date.year)
-        m = str(self._date.month).zfill(2)
-        d = str(self._date.day).zfill(2)
-        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
-        return date
-
-    @property
-    def file(self):
-        """Get the MERRA file path for the target NSRDB variable name.
-
-        Returns
-        -------
-        fmerra : str
-            MERRA file path containing the target NSRDB variable.
-        """
-
-        path = os.path.join(self._merra_dir, self.dset)
-        flist = os.listdir(path)
-        for f in flist:
-            if self.date_stamp in f:
-                fmerra = os.path.join(path, f)
-                break
-        return fmerra
 
     @property
     def mask(self):
@@ -163,6 +127,46 @@ class MerraVar:
         """
         return str(self._var_meta.loc[self.mask, 'merra_dset'].values[0])
 
+
+class MerraVar(AncillaryVar):
+    """Helper for MERRA variable properties and source data extraction."""
+
+    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
+
+    @property
+    def date_stamp(self):
+        """Get the MERRA datestamp corresponding to the specified datetime date
+
+        Returns
+        -------
+        date : str
+            Date stamp that should be in the MERRA file, format is YYYYMMDD
+        """
+
+        y = str(self._date.year)
+        m = str(self._date.month).zfill(2)
+        d = str(self._date.day).zfill(2)
+        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
+        return date
+
+    @property
+    def file(self):
+        """Get the MERRA file path for the target NSRDB variable name.
+
+        Returns
+        -------
+        fmerra : str
+            MERRA file path containing the target NSRDB variable.
+        """
+
+        path = os.path.join(self._source_dir, self.dset)
+        flist = os.listdir(path)
+        for f in flist:
+            if self.date_stamp in f:
+                fmerra = os.path.join(path, f)
+                break
+        return fmerra
+
     @property
     def time_index(self):
         """Get the MERRA native time index.
@@ -173,7 +177,7 @@ class MerraVar:
             Pandas datetime index for the current day at the MERRA2 resolution
             (1-hour).
         """
-        return MerraDay.get_time_index(self._date, freq='1h')
+        return AncillaryDataProcessing.get_time_index(self._date, freq='1h')
 
     @staticmethod
     def format_2d(data):
@@ -279,13 +283,13 @@ class MerraVar:
         return self._merra_grid
 
 
-class MerraDay:
-    """Framework for single-day MERRA data interpolation to NSRDB."""
+class AncillaryDataProcessing:
+    """Framework for single-day ancillary data interpolation to NSRDB."""
 
     # directory to cache intermediate data (nearest neighbor results)
     CACHE_DIR = NSRDBDIR
 
-    # source files for weight factor s
+    # source files for weight factors
     WEIGHTS = {
         'aod': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'),
@@ -322,7 +326,7 @@ class MerraDay:
     # all variables processed by this module
     ALL_VARS = MERRA_VARS + CALC_VARS
 
-    def __init__(self, var_meta, date, merra_dir, nsrdb_grid,
+    def __init__(self, var_meta, date, source_dir, nsrdb_grid,
                  nsrdb_freq='5min'):
         """
         Parameters
@@ -331,7 +335,7 @@ class MerraDay:
             CSV file containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract MERRA2 data for.
-        merra_dir : str
+        source_dir : str
             Directory path containing MERRA source files.
         nsrdb_grid : str
             CSV file containing the NSRDB reference grid to interpolate to.
@@ -343,7 +347,7 @@ class MerraDay:
 
         self.var_meta = var_meta
         self._date = date
-        self._merra_dir = merra_dir
+        self._source_dir = source_dir
         self.nsrdb_grid = nsrdb_grid
         self._nsrdb_freq = nsrdb_freq
 
@@ -532,12 +536,13 @@ class MerraDay:
 
     @property
     def var_dict(self):
-        """Get the internal namespace of MERRA variable objects.
+        """Get the internal namespace of processed variable objects.
 
         Returns
         -------
         _var_dict : dict
-            Namespace of MerraVar objects keyed with the NSRDB variable names.
+            Namespace of ancillary variable objects keyed with the NSRDB
+            variable names.
         """
         if not hasattr(self, '_var_dict'):
             self._var_dict = {}
@@ -730,7 +735,7 @@ class MerraDay:
             convert_t = True
             t -= 273.15
 
-        rh = MerraDay.relative_humidity(t, h, p)
+        rh = AncillaryDataProcessing.relative_humidity(t, h, p)
         dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
               (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
 
@@ -769,7 +774,7 @@ class MerraDay:
         logger.info('Processing MERRA data for "{}".'.format(var))
 
         # initialize MERRA variable instance
-        var_obj = MerraVar(self.var_meta, var, self._merra_dir, self._date)
+        var_obj = MerraVar(self.var_meta, var, self._source_dir, self._date)
 
         if var == 'relative_humidity':
             data = self.relative_humidity(self.nsrdb_data['air_temperature'],

@@ -14,7 +14,7 @@ import h5py
 import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR
-from nsrdb.daily_merra import MerraDay
+from nsrdb.ancillary import AncillaryDataProcessing
 from nsrdb.utilities.loggers import init_logger
 
 
@@ -43,8 +43,8 @@ def test_daily_merra2(var):
     date = datetime.date(year=2017, month=1, day=1)
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
-    merra = MerraDay.run(var_meta, date, merra_dir, grid,
-                         var_list=[var])
+    merra = AncillaryDataProcessing.run(var_meta, date, merra_dir, grid,
+                                        var_list=[var])
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
