@@ -23,14 +23,17 @@ The following variables can be processed using this module:
 
 import numpy as np
 import pandas as pd
+import h5py
 import os
 from netCDF4 import Dataset as NetCDF
 import logging
 import psutil
 from dask.distributed import LocalCluster, Client
 import time
+import datetime
 
 from nsrdb import NSRDBDIR, DATADIR
+from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.loggers import NSRDB_LOGGERS
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
@@ -60,23 +63,17 @@ class AncillaryVar:
         self._date = date
 
     @property
+    def name(self):
+        """Get the NSRDB variable name."""
+        return self._name
+
+    @property
     def mask(self):
         """Get a boolean mask to locate the current variable in the meta data.
         """
         if not hasattr(self, '_mask'):
             self._mask = self._var_meta['var'] == self._name
         return self._mask
-
-    @property
-    def name(self):
-        """Get the MERRA variable name from the NSRDB variable name.
-
-        Returns
-        -------
-        name : str
-            MERRA var name.
-        """
-        return str(self._var_meta.loc[self.mask, 'merra_name'].values[0])
 
     @property
     def elevation_correct(self):
@@ -128,10 +125,116 @@ class AncillaryVar:
         return str(self._var_meta.loc[self.mask, 'merra_dset'].values[0])
 
 
+class AsymVar(AncillaryVar):
+    """Helper for Asymmetry variable properties and source data extraction."""
+
+    # Default asymmetry path
+    ASYM_DIR = DATADIR
+
+    def __init__(self, var_meta, name='asymmetry', source_dir=None,
+                 date=datetime.date(year=2017, month=1, day=1),
+                 fname='asymmetry_clim.h5'):
+        """
+        Parameters
+        ----------
+        var_meta : str
+            CSV file containing meta data for all NSRDB variables.
+        name : str
+            NSRDB var name.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
+        date : datetime.date
+            Single day to extract data for.
+        fname : str
+            Asymmetry source data filename.
+        """
+
+        if source_dir is None:
+            source_dir = self.ASYM_DIR
+        self._fpath = os.path.join(source_dir, fname)
+        super().__init__(var_meta, name, source_dir, date)
+
+    @property
+    def time_index(self):
+        """Get the MERRA native time index.
+
+        Returns
+        -------
+        asym_ti : pd.DatetimeIndex
+            Pandas datetime index for the current day at the asymmetry
+            resolution (1-month).
+        """
+        return Ancillary.get_time_index(self._date, freq='1D')
+
+    @property
+    def source_data(self):
+        """Get the asymmetry source data.
+
+        Returns
+        -------
+        data : np.ndarray
+            Single month of asymmetry data with shape (1 x n_sites).
+        """
+
+        with h5py.File(self._fpath, 'r') as f:
+            # take the data at all sites for the zero-indexed month
+            i = self._date.month - 1
+            data = f[self.name][i, :]
+
+        # reshape to (1 x n_sites)
+        data = data.reshape((1, len(data)))
+
+        return data
+
+    @property
+    def grid(self):
+        """Get the asymmetry grid.
+
+        Returns
+        -------
+        _asym_grid : pd.DataFrame
+            Asymmetry grid data with columns 'latitude' and 'longitude'.
+        """
+
+        if not hasattr(self, '_asym_grid'):
+            with h5py.File(self._fpath, 'r') as f:
+                self._asym_grid = pd.DataFrame(f['meta'][...])
+
+            if ('latitude' not in self._asym_grid or
+                    'longitude' not in self._asym_grid):
+                raise ValueError('Asymmetry file did not have '
+                                 'latitude/longitude meta data. '
+                                 'Please check: {}'.format(self._fpath))
+
+        return self._asym_grid
+
+
 class MerraVar(AncillaryVar):
     """Helper for MERRA variable properties and source data extraction."""
 
+    # default MERRA paths.
+    MERRA_DIR = '/lustre/eaglefs/projects/pxs/ancillary/source'
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
+
+    def __init__(self, var_meta, name, source_dir, date):
+        """
+        Parameters
+        ----------
+        var_meta : str
+            CSV file containing meta data for all NSRDB variables.
+        name : str
+            NSRDB var name.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
+        date : datetime.date
+            Single day to extract data for.
+        """
+
+        if source_dir is None:
+            source_dir = self.MERRA_DIR
+        super().__init__(var_meta, name, source_dir, date)
 
     @property
     def date_stamp(self):
@@ -168,19 +271,30 @@ class MerraVar(AncillaryVar):
         return fmerra
 
     @property
+    def merra_name(self):
+        """Get the MERRA variable name from the NSRDB variable name.
+
+        Returns
+        -------
+        merra_name : str
+            MERRA var name.
+        """
+        return str(self._var_meta.loc[self.mask, 'merra_name'].values[0])
+
+    @property
     def time_index(self):
         """Get the MERRA native time index.
 
         Returns
         -------
-        nsrdb_ti : pd.DatetimeIndex
+        MERRA_time_index: pd.DatetimeIndex
             Pandas datetime index for the current day at the MERRA2 resolution
             (1-hour).
         """
-        return AncillaryDataProcessing.get_time_index(self._date, freq='1h')
+        return Ancillary.get_time_index(self._date, freq='1h')
 
     @staticmethod
-    def format_2d(data):
+    def _format_2d(data):
         """Format MERRA data as a flat 2D array: (time X sites).
 
         MERRA data is sourced as a 3D array: (time X sitex X sitey).
@@ -218,24 +332,24 @@ class MerraVar(AncillaryVar):
         with NetCDF(self.file, 'r') as f:
 
             # depending on variable, might need extra logic
-            if self.name in ['wind_speed', 'wind_direction']:
+            if self.merra_name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
                 v_vector = f['V2M'][:]
-                if self.name == 'wind_speed':
+                if self.merra_name == 'wind_speed':
                     data = np.sqrt(u_vector**2 + v_vector**2)
                 else:
                     data = np.degrees(
                         np.arctan2(u_vector, v_vector)) + 180
 
-            elif self.name == 'TOTSCATAU':
+            elif self.merra_name == 'TOTSCATAU':
                 # Single scatter albedo is total scatter / aod
-                data = f[self.name][:] / f['TOTEXTTAU'][:]
+                data = f[self.merra_name][:] / f['TOTEXTTAU'][:]
 
             else:
-                data = f[self.name][:]
+                data = f[self.merra_name][:]
 
         # make the data a flat 2d array
-        data = self.format_2d(data)
+        data = self._format_2d(data)
 
         return data
 
@@ -283,8 +397,54 @@ class MerraVar(AncillaryVar):
         return self._merra_grid
 
 
-class AncillaryDataProcessing:
-    """Framework for single-day ancillary data interpolation to NSRDB."""
+class VarFactory:
+    """Factory pattern to retrieve ancillary variable helper objects."""
+
+    # mapping of NSRDB variable names to helper objects
+    MAPPING = {'asymmetry': AsymVar,
+               'air_temperature': MerraVar,
+               'alpha': MerraVar,
+               'aod': MerraVar,
+               'surface_pressure': MerraVar,
+               'ozone': MerraVar,
+               'total_precipitable_water': MerraVar,
+               'specific_humidity': MerraVar,
+               'ssa': MerraVar,
+               'wind_speed': MerraVar,
+               }
+
+    def get(self, var_name, *args, **kwargs):
+        """Get a processing variable instance for the given var name.
+
+        Parameters
+        ----------
+        var_name : str
+            NSRDB variable name.
+        *args : list
+            List of positional args for instantiation of ancillary var.
+        **kwargs : dict
+            List of keyword args for instantiation of ancillary var.
+
+        Returns
+        -------
+        instance : ancillary object
+            Instantiated ancillary variable helper object (AsymVar, MerraVar).
+        """
+
+        if var_name in self.MAPPING:
+            if self.MAPPING[var_name] == AsymVar:
+                # always use default source dir for Asym
+                kwargs['source_dir'] = None
+            return self.MAPPING[var_name](*args, **kwargs)
+
+        else:
+            raise KeyError('Did not recognize "{}" as an available ancillary '
+                           'variable. The following variables are available: '
+                           '{}'.format(var_name, list(self.MAPPING.keys())))
+
+
+class Ancillary:
+    """Framework for single-day ancillary data processing to NSRDB."""
 
     # directory to cache intermediate data (nearest neighbor results)
     CACHE_DIR = NSRDBDIR
@@ -304,6 +464,7 @@ class AncillaryDataProcessing:
                     'ssa',
                     'surface_pressure',
                     'total_precipitable_water',
+                    'solar_zenith_angle',
                     )
 
     # variables from MERRA processed in this module
@@ -318,13 +479,17 @@ class AncillaryDataProcessing:
                   'ssa',
                   )
 
+    # calculated variables (no dependencies)
+    CALCULATED_VARS = ('solar_zenith_angle',)
+
     # derived variables (no interp, requires: temp, spec. humidity, pressure)
-    CALC_VARS = ('relative_humidity',
-                 'dew_point',
-                 )
+    DERIVED_VARS = ('relative_humidity',
+                    'dew_point',
+                    )
 
     # all variables processed by this module
-    ALL_VARS = MERRA_VARS + CALC_VARS
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CALCULATED_VARS +
+                         DERIVED_VARS))
 
     def __init__(self, var_meta, date, source_dir, nsrdb_grid,
                  nsrdb_freq='5min'):
@@ -335,8 +500,9 @@ class AncillaryDataProcessing:
             CSV file containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract MERRA2 data for.
-        source_dir : str
-            Directory path containing MERRA source files.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
         nsrdb_grid : str
             CSV file containing the NSRDB reference grid to interpolate to.
         nsrdb_freq : str
@@ -345,17 +511,128 @@ class AncillaryDataProcessing:
 
         logger.info('Processing MERRA data for {}'.format(date))
 
-        self.var_meta = var_meta
+        self._parse_var_meta(var_meta)
+        self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._source_dir = source_dir
-        self.nsrdb_grid = nsrdb_grid
         self._nsrdb_freq = nsrdb_freq
+        self._var_factory = VarFactory()
+        self._processed = {}
 
         logger.debug('Final NSRDB output shape is: {}'
                      .format(self.nsrdb_data_shape))
 
-    def __getitem__(self, var):
-        return self.nsrdb_data[var]
+    def __getitem__(self, key):
+        return self._processed[key]
+
+    def __setitem__(self, key, value):
+        self._processed[key] = value
+
+    def _parse_nsrdb_grid(self, inp):
+        """Set the NSRDB reference grid from a csv file.
+
+        Parameters
+        ----------
+        inp : str
+            CSV file containing the NSRDB reference grid to interpolate to.
+        """
+
+        if inp.endswith('.csv'):
+            self._nsrdb_grid = pd.read_csv(inp)
+            logger.debug('Imported NSRDB reference grid file.')
+        else:
+            raise TypeError('Expected csv grid file but received: {}'
+                            .format(inp))
+
+    def _parse_var_meta(self, inp):
+        """Set the meta data for NSRDB variables.
+
+        Parameters
+        ----------
+        inp : str
+            CSV file containing meta data for all NSRDB variables.
+        """
+        if inp.endswith('.csv'):
+            self._var_meta = pd.read_csv(inp)
+            logger.debug('Imported NSRDB variable meta file.')
+        else:
+            raise TypeError('Expected csv var meta file but received: {}'
+                            .format(inp))
+
+    @property
+    def date(self):
+        """Get the single-day datetime.date for this instance."""
+        return self._date
+
+    @property
+    def nsrdb_grid(self):
+        """Return the grid.
+
+        Returns
+        -------
+        _nsrdb_grid : pd.DataFrame
+            Reference grid data.
+        """
+        return self._nsrdb_grid
+
+    @property
+    def nsrdb_ti(self):
+        """Get the NSRDB target time index.
+
+        Returns
+        -------
+        nsrdb_ti : pd.DatetimeIndex
+            Pandas datetime index for the current day at the NSRDB resolution.
+        """
+        return self.get_time_index(self.date, freq=self._nsrdb_freq)
+
+    @property
+    def nsrdb_data_shape(self):
+        """Get the final NSRDB data shape for a single var.
+
+        Returns
+        -------
+        _nsrdb_data_shape : tuple
+            Two-entry shape tuple.
+        """
+        if not hasattr(self, '_nsrdb_data_shape'):
+            self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
+        return self._nsrdb_data_shape
+
+    @property
+    def var_meta(self):
+        """Return the meta data for NSRDB variables.
+
+        Returns
+        -------
+        _var_meta : pd.DataFrame
+            Meta data for NSRDB variables.
+        """
+        return self._var_meta
+
+    @staticmethod
+    def get_time_index(date, freq='1h'):
+        """Get a pandas date time object for the given analysis date.
+
+        Parameters
+        ----------
+        date : datetime.date
+            Single day to get time index for.
+        freq : str
+            Pandas datetime frequency, e.g. '1h', '5min', etc...
+
+        Returns
+        -------
+        ti : pd.DatetimeIndex
+            Pandas datetime index for the current day.
+        """
+
+        ti = pd.date_range('1-1-{y}'.format(y=date.year),
+                           '1-1-{y}'.format(y=date.year + 1),
+                           freq=freq)[:-1]
+        mask = (ti.month == date.month) & (ti.day == date.day)
+        ti = ti[mask]
+        return ti
 
     def get_nn_ind(self, df1, df2, method, labels=('latitude', 'longitude'),
                    cache=False):
@@ -420,162 +697,7 @@ class AncillaryDataProcessing:
 
         return dist, ind
 
-    @property
-    def nsrdb_grid(self):
-        """Return the grid.
-
-        Returns
-        -------
-        _nsrdb_grid : pd.DataFrame
-            Reference grid data.
-        """
-        return self._nsrdb_grid
-
-    @nsrdb_grid.setter
-    def nsrdb_grid(self, inp):
-        """Set the NSRDB reference grid from a csv file.
-
-        Parameters
-        ----------
-        inp : str
-            CSV file containing the NSRDB reference grid to interpolate to.
-        """
-
-        if inp.endswith('.csv'):
-            self._nsrdb_grid = pd.read_csv(inp)
-            logger.debug('Imported NSRDB reference grid file.')
-        else:
-            raise TypeError('Expected csv grid file but received: {}'
-                            .format(inp))
-
-    @property
-    def nsrdb_ti(self):
-        """Get the NSRDB target time index.
-
-        Returns
-        -------
-        nsrdb_ti : pd.DatetimeIndex
-            Pandas datetime index for the current day at the NSRDB resolution.
-        """
-        return self.get_time_index(self._date, freq=self._nsrdb_freq)
-
-    @property
-    def nsrdb_data(self):
-        """Get the internal namespace of final NSRDB resolution data.
-
-        Returns
-        -------
-        _nsrdb_data : dict
-            Namespace of NSRDB data arrays keyed with the NSRDB variable names.
-        """
-        if not hasattr(self, '_nsrdb_data'):
-            self._nsrdb_data = {}
-        return self._nsrdb_data
-
-    @nsrdb_data.setter
-    def nsrdb_data(self, inp):
-        """Set a final NSRDB resolution data array to namespace.
-
-        Parameters
-        -------
-        inp : list | tuple
-            Two-entry list/tuple with (var_name, data_array).
-        """
-
-        if not hasattr(self, '_nsrdb_data'):
-            self._nsrdb_data = {}
-
-        if not isinstance(inp[1], np.ndarray):
-            raise TypeError('Expected numpy array but received {} for "{}"'
-                            .format(type(inp[1]), inp[0]))
-
-        if inp[1].shape != self.nsrdb_data_shape:
-            raise ValueError('Expected NSRDB data shape of {}, but received '
-                             'shape {} for "{}"'
-                             .format(self.nsrdb_data_shape,
-                                     inp[1].shape, inp[0]))
-
-        self._nsrdb_data[inp[0]] = inp[1]
-
-    @property
-    def nsrdb_data_shape(self):
-        """Get the final NSRDB data shape for a single var.
-
-        Returns
-        -------
-        _nsrdb_data_shape : tuple
-            Two-entry shape tuple.
-        """
-        if not hasattr(self, '_nsrdb_data_shape'):
-            self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
-        return self._nsrdb_data_shape
-
-    @staticmethod
-    def get_time_index(date, freq='1h'):
-        """Get a pandas date time object for the given analysis date.
-
-        Parameters
-        ----------
-        date : datetime.date
-            Single day to get time index for.
-        freq : str
-            Pandas datetime frequency, e.g. '1h', '5min', etc...
-
-        Returns
-        -------
-        ti : pd.DatetimeIndex
-            Pandas datetime index for the current day.
-        """
-
-        ti = pd.date_range('1-1-{y}'.format(y=date.year),
-                           '1-1-{y}'.format(y=date.year + 1),
-                           freq=freq)[:-1]
-        mask = (ti.month == date.month) & (ti.day == date.day)
-        ti = ti[mask]
-        return ti
-
-    @property
-    def var_dict(self):
-        """Get the internal namespace of processed variable objects.
-
-        Returns
-        -------
-        _var_dict : dict
-            Namespace of ancillary variable objects keyed with the NSRDB
-            variable names.
-        """
-        if not hasattr(self, '_var_dict'):
-            self._var_dict = {}
-        return self._var_dict
-
-    @property
-    def var_meta(self):
-        """Return the meta data for NSRDB variables.
-
-        Returns
-        -------
-        _var_meta : pd.DataFrame
-            Meta data for NSRDB variables.
-        """
-        return self._var_meta
-
-    @var_meta.setter
-    def var_meta(self, inp):
-        """Set the meta data for NSRDB variables.
-
-        Parameters
-        ----------
-        inp : str
-            CSV file containing meta data for all NSRDB variables.
-        """
-        if inp.endswith('.csv'):
-            self._var_meta = pd.read_csv(inp)
-            logger.debug('Imported NSRDB variable meta file.')
-        else:
-            raise TypeError('Expected csv var meta file but received: {}'
-                            .format(inp))
-
-    def _get_weights(self, var_obj):
+    def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
 
         Parameters
@@ -593,12 +715,10 @@ class AncillaryDataProcessing:
         if not hasattr(self, '_weights'):
             self._weights = {}
 
-        name = var_obj._name
-
-        if name in self.WEIGHTS and name not in self._weights:
-            logger.debug('Extracting weights for "{}"'.format(name))
-            weights = pd.read_csv(self.WEIGHTS[name], sep=' ', skiprows=4,
-                                  skipinitialspace=1)
+        if var_obj.name in self.WEIGHTS and var_obj.name not in self._weights:
+            logger.debug('Extracting weights for "{}"'.format(var_obj.name))
+            weights = pd.read_csv(self.WEIGHTS[var_obj.name], sep=' ',
+                                  skiprows=4, skipinitialspace=1)
             weights = weights.rename(
                 {'Lat.': 'latitude', 'Long.': 'longitude'}, axis='columns')
 
@@ -609,14 +729,15 @@ class AncillaryDataProcessing:
 
             df_w = weights.iloc[i_nn.flatten()]
             df_w = df_w[df_w.columns[2:-1]].T.set_index(
-                pd.date_range(str(self._date.year), freq='M', periods=12))
+                pd.date_range(str(self.date.year), freq='M', periods=12))
             df_w[df_w < 0] = 1
 
-            self._weights[name] = df_w
+            self._weights[var_obj.name] = df_w
 
-        if name in self._weights:
-            mask = (self._weights[name].index.month == self._date.month)
-            weights = self._weights[name][mask].values[0]
+        if var_obj.name in self._weights:
+            mask = (self._weights[var_obj.name].index.month ==
+                    self.date.month)
+            weights = self._weights[var_obj.name][mask].values[0]
         else:
             weights = None
 
@@ -735,7 +856,7 @@ class AncillaryDataProcessing:
             convert_t = True
             t -= 273.15
 
-        rh = AncillaryDataProcessing.relative_humidity(t, h, p)
+        rh = Ancillary.relative_humidity(t, h, p)
         dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
               (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
 
@@ -745,20 +866,8 @@ class AncillaryDataProcessing:
 
         return dp
 
-    @staticmethod
-    def log_mem():
-        """Log the memory usage to debug."""
-        mem = psutil.virtual_memory()
-        logger.debug('{0:.3f} GB used of {1:.3f} GB total ({2:.1f}% used) '
-                     '({3:.3f} GB free) ({4:.3f} GB available).'
-                     ''.format(mem.used / 1e9,
-                               mem.total / 1e9,
-                               100 * mem.used / mem.total,
-                               mem.free / 1e9,
-                               mem.available / 1e9))
-
-    def process_var(self, var):
-        """Process a single variable and return the data.
+    def _calculate(self, var):
+        """Method for calculating variables (without dependencies).
 
         Parameters
         ----------
@@ -771,156 +880,315 @@ class AncillaryDataProcessing:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        logger.info('Processing MERRA data for "{}".'.format(var))
-
-        # initialize MERRA variable instance
-        var_obj = MerraVar(self.var_meta, var, self._source_dir, self._date)
-
-        if var == 'relative_humidity':
-            data = self.relative_humidity(self.nsrdb_data['air_temperature'],
-                                          self.nsrdb_data['specific_humidity'],
-                                          self.nsrdb_data['surface_pressure'])
-
-        elif var == 'dew_point':
-            data = self.dew_point(self.nsrdb_data['air_temperature'],
-                                  self.nsrdb_data['specific_humidity'],
-                                  self.nsrdb_data['surface_pressure'])
+        if var == 'solar_zenith_angle':
+            lat_lon = self.nsrdb_grid[['latitude', 'longitude']].values
+            lat_lon = lat_lon.astype(np.float32)
+            data = SolarPosition(self.nsrdb_ti, lat_lon).zenith
 
         else:
-            # get MERRA source data
-            data = var_obj.source_data
-            # get mapping from MERRA to NSRDB
-            dist, ind = self.get_nn_ind(var_obj.grid, self.nsrdb_grid,
-                                        var_obj.spatial_method)
-
-            # perform weighting if applicable
-            if var in self.WEIGHTS:
-                weights = self._get_weights(var_obj)
-                if weights is not None:
-                    logger.debug('Applying weights to "{}".'.format(var))
-                    data *= weights
-
-            # run spatial interpolation
-            logger.debug('Performing spatial interpolation on "{}" '
-                         'with shape {}'
-                         .format(var, data.shape))
-            data = spatial_interp(var, data, var_obj.grid, self.nsrdb_grid,
-                                  var_obj.spatial_method, dist, ind,
-                                  var_obj.elevation_correct)
-
-            # run temporal interpolation
-            if var_obj.temporal_method == 'linear':
-                logger.debug('Performing linear temporal interpolation on '
-                             '"{}" with shape {}'.format(var, data.shape))
-                data = temporal_lin(data, var_obj.time_index,
-                                    self.nsrdb_ti)
-
-            elif var_obj.temporal_method == 'nearest':
-                logger.debug('Performing stepwise temporal interpolation on '
-                             '"{}" with shape {}'.format(var, data.shape))
-                data = temporal_step(data, var_obj.time_index,
-                                     self.nsrdb_ti)
+            raise KeyError('Did not recognize request to derive variable '
+                           '"{}".'.format(var))
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
 
-        # send var processing object to internal namespace
-        self.var_dict[var] = var_obj
+        return data
+
+    def _derive(self, var):
+        """Method for deriving variables (with dependencies).
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+
+        Returns
+        -------
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        """
+
+        if var in ('relative_humidity', 'dew_point'):
+            dependencies = ('air_temperature', 'specific_humidity',
+                            'surface_pressure')
+            # ensure that all dependencies have been processed
+            for dep in dependencies:
+                if dep not in self._processed:
+                    logger.info('Processing dependency "{}" in order to '
+                                'derive "{}".'.format(dep, var))
+                    self[dep] = self._process(dep)
+
+            # calculate merra-derived vars
+            if var == 'relative_humidity':
+                data = self.relative_humidity(self['air_temperature'],
+                                              self['specific_humidity'],
+                                              self['surface_pressure'])
+
+            elif var == 'dew_point':
+                data = self.dew_point(self['air_temperature'],
+                                      self['specific_humidity'],
+                                      self['surface_pressure'])
+
+        else:
+            raise KeyError('Did not recognize request to derive variable '
+                           '"{}".'.format(var))
+
+        # convert units from MERRA to NSRDB
+        data = self.convert_units(var, data)
+
+        return data
+
+    def _process(self, var):
+        """Method for processing interpolated variables.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+
+        Returns
+        -------
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        """
+
+        kwargs = {'var_meta': self.var_meta, 'name': var,
+                  'source_dir': self._source_dir, 'date': self.date}
+        var_obj = self._var_factory.get(var, **kwargs)
+
+        # get MERRA source data
+        data = var_obj.source_data
+
+        # get mapping from MERRA to NSRDB
+        dist, ind = self.get_nn_ind(var_obj.grid, self.nsrdb_grid,
+                                    var_obj.spatial_method)
+
+        # perform weighting if applicable
+        if var in self.WEIGHTS:
+            weights = self.get_weights(var_obj)
+            if weights is not None:
+                logger.debug('Applying weights to "{}".'.format(var))
+                data *= weights
+
+        # run spatial interpolation
+        logger.debug('Performing spatial interpolation on "{}" '
+                     'with shape {}'
+                     .format(var, data.shape))
+        data = spatial_interp(var, data, var_obj.grid, self.nsrdb_grid,
+                              var_obj.spatial_method, dist, ind,
+                              var_obj.elevation_correct)
+
+        # run temporal interpolation
+        if var_obj.temporal_method == 'linear':
+            logger.debug('Performing linear temporal interpolation on '
+                         '"{}" with shape {}'.format(var, data.shape))
+            data = temporal_lin(data, var_obj.time_index,
+                                self.nsrdb_ti)
+
+        elif var_obj.temporal_method == 'nearest':
+            logger.debug('Performing stepwise temporal interpolation on '
+                         '"{}" with shape {}'.format(var, data.shape))
+            data = temporal_step(data, var_obj.time_index,
+                                 self.nsrdb_ti)
+
+        # convert units from MERRA to NSRDB
+        data = self.convert_units(var, data)
+
+        return data
+
+    @staticmethod
+    def _parallel(var_list, var_meta, date, source_dir, nsrdb_grid,
+                  nsrdb_freq='5min'):
+        """Process ancillary variables in parallel.
+
+        Parameters
+        ----------
+        var_list : list | tuple
+            List of variables to process in parallel
+        var_meta : str
+            CSV file containing meta data for all NSRDB variables.
+        date : datetime.date
+            Single day to extract MERRA2 data for.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
+        nsrdb_grid : str
+            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+
+        Returns
+        -------
+        futures : dict
+            Gathered futures, namespace of nsrdb data numpy arrays keyed by
+            nsrdb variable name.
+        """
+
+        logger.info('Processing all MERRA variables in parallel.')
+        # start a local cluster
+        n_workers = int(np.min((len(var_list), os.cpu_count())))
+        cluster = LocalCluster(n_workers=n_workers,
+                               threads_per_worker=1,
+                               memory_limit=0)
+        futures = {}
+        with Client(cluster) as client:
+
+            # initialize loggers on workers
+            loggers = (__name__,)
+            for logger_name in loggers:
+                client.run(NSRDB_LOGGERS.init_logger, logger_name)
+
+            # submit a future for each merra variable (non-calculated)
+            for var in var_list:
+                futures[var] = client.submit(
+                    Ancillary.process_single, var, var_meta, date, source_dir,
+                    nsrdb_grid, nsrdb_freq=nsrdb_freq)
+
+            # watch memory during futures to get max memory usage
+            logger.debug('Waiting on parallel futures...')
+            max_mem = 0
+            status = 0
+            while status == 0:
+                mem = psutil.virtual_memory()
+                max_mem = np.max((mem.used / 1e9, max_mem))
+                time.sleep(5)
+                for var, future in futures.items():
+                    if future.status != 'pending':
+                        status = 1
+                        break
+
+            logger.info('Futures finishing up, maximum memory usage was '
+                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        .format(max_mem, mem.total / 1e9))
+
+            # gather results
+            futures = client.gather(futures)
+
+            # send to merra object
+            for var in futures.keys():
+                # data returned from futures as read only for some reason
+                futures[var].setflags(write=True)
+
+        return futures
+
+    @classmethod
+    def process_single(cls, var, var_meta, date, source_dir, nsrdb_grid,
+                       nsrdb_freq='5min'):
+        """Process ancillary data for one variable for a single day.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+        var_meta : str
+            CSV file containing meta data for all NSRDB variables.
+        date : datetime.date
+            Single day to extract ancillary data for.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
+        nsrdb_grid : str
+            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+
+        Returns
+        -------
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        """
+
+        logger.info('Processing data for "{}".'.format(var))
+
+        adp = cls(var_meta, date, source_dir, nsrdb_grid,
+                  nsrdb_freq=nsrdb_freq)
+
+        if var in adp.DERIVED_VARS:
+            data = adp._derive(var)
+        elif var in adp.CALCULATED_VARS:
+            data = adp._calculate(var)
+        else:
+            data = adp._process(var)
+
+        if data.shape != adp.nsrdb_data_shape:
+            raise ValueError('Expected NSRDB data shape of {}, but received '
+                             'shape {} for "{}"'
+                             .format(adp.nsrdb_data_shape,
+                                     data.shape, var))
 
         logger.info('Finished "{}".'.format(var))
 
         return data
 
     @classmethod
-    def run(cls, var_meta, date, merra_dir, nsrdb_grid, nsrdb_freq='5min',
-            var_list=None, parallel=False):
-        """Run MERRA2 processing for all variables for a single day.
+    def process_multiple(cls, var_list, var_meta, date, source_dir, nsrdb_grid,
+                         nsrdb_freq='5min', parallel=False):
+        """Process ancillary data for multiple variables for a single day.
 
         Parameters
         ----------
+        var_list : list | None
+            List of variables to process
         var_meta : str
             CSV file containing meta data for all NSRDB variables.
         date : datetime.date
-            Single day to extract MERRA2 data for.
-        merra_dir : str
-            Directory path containing MERRA source files.
+            Single day to extract ancillary data for.
+        source_dir : str | NoneType
+            Directory path containing ancillary source files. None will use
+            default ancillary variables source directories.
         nsrdb_grid : str
             CSV file containing the NSRDB reference grid to interpolate to.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
-        var_list : list | None
-            List of variables to process
+        parallel : bool
+            Flag to perform parallel processing with each variable on a
+            seperate process.
 
         Returns
         -------
-        merra : MerraDay
-            Single day merra object. Processed MERRA data can be found in the
-            nsrdb_data attribute (dict) and MerraVar objects can be found in
-            the var_dict attribute (dict).
+        data : dict
+            Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
 
-        merra = cls(var_meta, date, merra_dir, nsrdb_grid,
-                    nsrdb_freq=nsrdb_freq)
+        # Create an AncillaryDataProcessing object instance for storing data.
+        adp = cls(var_meta, date, source_dir, nsrdb_grid,
+                  nsrdb_freq=nsrdb_freq)
 
-        if var_list is not None:
+        # default multiple compute
+        if var_list is None:
+            var_list = cls.ALL_SKY_VARS
+
+        # remove derived (dependent) variables from var_list to be processed
+        # last (most efficient)
+        derived = []
+        remove = []
+        for var in cls.DERIVED_VARS:
+            if var in var_list:
+                derived.append(var)
+                remove.append(var_list.index(var))
+        derived = tuple(derived)
+        var_list = tuple([v for i, v in enumerate(var_list)
+                          if i not in remove])
+
+        # run in serial
+        if parallel is False:
+            data = {}
             for var in var_list:
-                data = merra.process_var(var)
-                merra.nsrdb_data = [var, data]
+                adp[var] = cls.process_single(
+                    var, var_meta, date, source_dir, nsrdb_grid,
+                    nsrdb_freq=nsrdb_freq)
+        # run in parallel
+        else:
+            data = cls._parallel(
+                var_list, var_meta, date, source_dir, nsrdb_grid,
+                nsrdb_freq=nsrdb_freq)
+            for k, v in data.items():
+                adp[k] = v
 
-        elif var_list is None and parallel is False:
-            for var in cls.ALL_VARS:
-                data = merra.process_var(var)
-                merra.nsrdb_data = [var, data]
+        # process derived (dependent) variables last using the built
+        # AncillaryDataProcessing object instance.
+        for var in derived:
+            adp[var] = adp._derive(var)
 
-        elif var_list is None and parallel is True:
-            logger.info('Processing all MERRA variables in parallel.')
-            # start a local cluster
-            n_workers = int(np.min((len(cls.MERRA_VARS), os.cpu_count())))
-            cluster = LocalCluster(n_workers=n_workers,
-                                   threads_per_worker=1,
-                                   memory_limit=0)
-            futures = {}
-            with Client(cluster) as client:
-
-                # initialize loggers on workers
-                loggers = (__name__,)
-                for logger_name in loggers:
-                    client.run(NSRDB_LOGGERS.init_logger, logger_name)
-
-                # submit a future for each merra variable (non-calculated)
-                for var in cls.MERRA_VARS:
-                    futures[var] = client.submit(merra.process_var, var)
-
-                # watch memory during futures to get max memory usage
-                logger.debug('Waiting on parallel futures...')
-                max_mem = 0
-                status = 0
-                while status == 0:
-                    mem = psutil.virtual_memory()
-                    max_mem = np.max((mem.used / 1e9, max_mem))
-                    time.sleep(5)
-                    for var, future in futures.items():
-                        if future.status != 'pending':
-                            status = 1
-                            break
-
-                logger.info('Futures finishing up, maximum memory usage was '
-                            '{0:.3f} GB out of {1:.3f} GB total.'
-                            .format(max_mem, mem.total / 1e9))
-
-                # gather results
-                futures = client.gather(futures)
-
-                # send to merra object
-                for var, data in futures.items():
-                    # data returned from futures as read only for some reason
-                    data.setflags(write=True)
-                    merra.nsrdb_data = [var, data]
-
-            # process calculated variables in serial
-            for var in cls.CALC_VARS:
-                data = merra.process_var(var)
-                merra.nsrdb_data = [var, data]
-
-        logger.info('MERRA data processing complete.')
-        return merra
+        logger.info('Ancillary data processing complete.')
+        return adp._processed

@@ -56,9 +56,14 @@ def temporal_step(array, ti_native, ti_new):
         Data at new temporal resolution
     """
 
-    array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
-        .interpolate(method='nearest', axis=0)\
-        .fillna(method='ffill').fillna(method='bfill').values
+    if array.shape[0] > 1:
+        array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
+            .interpolate(method='nearest', axis=0)\
+            .fillna(method='ffill').fillna(method='bfill').values
+    else:
+        # single entry arrays cannot be interpolated but must be filled
+        array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
+            .fillna(method='ffill').fillna(method='bfill').values
 
     return array
 

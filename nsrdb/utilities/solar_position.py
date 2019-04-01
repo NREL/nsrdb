@@ -89,6 +89,8 @@ class SolarPosition:
         """
         n = (time_index.to_julian_date() - 2451545).values
         zulu = (time_index.hour + time_index.minute / 60).values
+        n = n.astype(np.float32)
+        zulu = zulu.astype(np.float32)
 
         return n, zulu
 
@@ -388,6 +390,8 @@ class SolarPosition:
 
         if arr.shape[0] != len(self._time_index):
             arr = arr.T
+
+        arr = arr.astype(np.float32)
 
         return arr
 
