@@ -43,23 +43,39 @@ class MerraVar:
 
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
-    def __init__(self, var_meta, var, merra_dir, date_stamp):
+    def __init__(self, var_meta, name, merra_dir, date):
         """
         Parameters
         ----------
         var_meta : str
             CSV file containing meta data for all NSRDB variables.
-        var : str
+        name : str
             NSRDB var name.
         merra_dir : str
             Directory path containing MERRA source files.
-        date_stamp : str
-            Date stamp that should be in the MERRA file, format is YYYYMMDD
+        date : datetime.date
+            Single day to extract MERRA2 data for.
         """
         self._var_meta = var_meta
-        self._var = var
+        self._name = name
         self._merra_dir = merra_dir
-        self._date_stamp = date_stamp
+        self._date = date
+
+    @property
+    def date_stamp(self):
+        """Get the MERRA datestamp corresponding to the specified datetime date
+
+        Returns
+        -------
+        date : str
+            Date stamp that should be in the MERRA file, format is YYYYMMDD
+        """
+
+        y = str(self._date.year)
+        m = str(self._date.month).zfill(2)
+        d = str(self._date.day).zfill(2)
+        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
+        return date
 
     @property
     def file(self):
@@ -74,7 +90,7 @@ class MerraVar:
         path = os.path.join(self._merra_dir, self.dset)
         flist = os.listdir(path)
         for f in flist:
-            if self._date_stamp in f:
+            if self.date_stamp in f:
                 fmerra = os.path.join(path, f)
                 break
         return fmerra
@@ -84,7 +100,7 @@ class MerraVar:
         """Get a boolean mask to locate the current variable in the meta data.
         """
         if not hasattr(self, '_mask'):
-            self._mask = self._var_meta['var'] == self._var
+            self._mask = self._var_meta['var'] == self._name
         return self._mask
 
     @property
@@ -147,6 +163,18 @@ class MerraVar:
         """
         return str(self._var_meta.loc[self.mask, 'merra_dset'].values[0])
 
+    @property
+    def time_index(self):
+        """Get the MERRA native time index.
+
+        Returns
+        -------
+        nsrdb_ti : pd.DatetimeIndex
+            Pandas datetime index for the current day at the MERRA2 resolution
+            (1-hour).
+        """
+        return MerraDay.get_time_index(self._date, freq='1h')
+
     @staticmethod
     def format_2d(data):
         """Format MERRA data as a flat 2D array: (time X sites).
@@ -208,7 +236,7 @@ class MerraVar:
         return data
 
     @property
-    def merra_grid(self):
+    def grid(self):
         """Return the MERRA source coordinates with elevation.
 
         It seems that all MERRA files DO NOT have the same grid.
@@ -254,14 +282,27 @@ class MerraVar:
 class MerraDay:
     """Framework for single-day MERRA data interpolation to NSRDB."""
 
+    # directory to cache intermediate data (nearest neighbor results)
     CACHE_DIR = NSRDBDIR
 
+    # source files for weight factor s
     WEIGHTS = {
         'aod': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'),
         'alpha': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_Alpha.txt')}
 
+    # variables used for all-sky that are processed in this module
+    ALL_SKY_VARS = ('alpha',
+                    'aod',
+                    'asymmetry',
+                    'ozone',
+                    'ssa',
+                    'surface_pressure',
+                    'total_precipitable_water',
+                    )
+
+    # variables from MERRA processed in this module
     MERRA_VARS = ('surface_pressure',
                   'air_temperature',
                   'ozone',
@@ -273,10 +314,12 @@ class MerraDay:
                   'ssa',
                   )
 
+    # derived variables (no interp, requires: temp, spec. humidity, pressure)
     CALC_VARS = ('relative_humidity',
                  'dew_point',
                  )
 
+    # all variables processed by this module
     ALL_VARS = MERRA_VARS + CALC_VARS
 
     def __init__(self, var_meta, date, merra_dir, nsrdb_grid,
@@ -309,41 +352,6 @@ class MerraDay:
 
     def __getitem__(self, var):
         return self.nsrdb_data[var]
-
-    @property
-    def date_stamp(self):
-        """Get the MERRA datestamp corresponding to the specified datetime date
-
-        Returns
-        -------
-        date : str
-            Date stamp that should be in the MERRA file, format is YYYYMMDD
-        """
-
-        y = str(self._date.year)
-        m = str(self._date.month).zfill(2)
-        d = str(self._date.day).zfill(2)
-        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
-        return date
-
-    @property
-    def file(self):
-        """Get an arbitrary merra file path.
-
-        Returns
-        -------
-        file : str
-            MERRA file path.
-        """
-
-        if not self.var_dict:
-            file = MerraVar(self.var_meta, 'aod', self._merra_dir,
-                            self.date_stamp).file
-        else:
-            # take the first file from the variable dictionary
-            file = self.var_dict[list(self.var_dict.keys())[0]].file
-
-        return file
 
     def get_nn_ind(self, df1, df2, method, labels=('latitude', 'longitude'),
                    cache=False):
@@ -409,18 +417,6 @@ class MerraDay:
         return dist, ind
 
     @property
-    def merra_ti(self):
-        """Get the MERRA native time index.
-
-        Returns
-        -------
-        nsrdb_ti : pd.DatetimeIndex
-            Pandas datetime index for the current day at the MERRA2 resolution
-            (1-hour).
-        """
-        return self.time_index(freq='1h')
-
-    @property
     def nsrdb_grid(self):
         """Return the grid.
 
@@ -457,7 +453,7 @@ class MerraDay:
         nsrdb_ti : pd.DatetimeIndex
             Pandas datetime index for the current day at the NSRDB resolution.
         """
-        return self.time_index(freq=self._nsrdb_freq)
+        return self.get_time_index(self._date, freq=self._nsrdb_freq)
 
     @property
     def nsrdb_data(self):
@@ -510,11 +506,14 @@ class MerraDay:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
         return self._nsrdb_data_shape
 
-    def time_index(self, freq='1h'):
-        """Get a pandas date time object for the current analysis day.
+    @staticmethod
+    def get_time_index(date, freq='1h'):
+        """Get a pandas date time object for the given analysis date.
 
         Parameters
         ----------
+        date : datetime.date
+            Single day to get time index for.
         freq : str
             Pandas datetime frequency, e.g. '1h', '5min', etc...
 
@@ -524,10 +523,10 @@ class MerraDay:
             Pandas datetime index for the current day.
         """
 
-        ti = pd.date_range('1-1-{y}'.format(y=self._date.year),
-                           '1-1-{y}'.format(y=self._date.year + 1),
+        ti = pd.date_range('1-1-{y}'.format(y=date.year),
+                           '1-1-{y}'.format(y=date.year + 1),
                            freq=freq)[:-1]
-        mask = (ti.month == self._date.month) & (ti.day == self._date.day)
+        mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
         return ti
 
@@ -571,13 +570,13 @@ class MerraDay:
             raise TypeError('Expected csv var meta file but received: {}'
                             .format(inp))
 
-    def _get_weights(self, var):
+    def _get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
 
         Parameters
         ----------
-        var : str
-            NSRDB variable name
+        var_obj : MerraVar
+            Merra processing variable object.
 
         Returns
         -------
@@ -589,17 +588,18 @@ class MerraDay:
         if not hasattr(self, '_weights'):
             self._weights = {}
 
-        if var in self.WEIGHTS and var not in self._weights:
-            logger.debug('Extracting weights for "{}"'.format(var))
-            weights = pd.read_csv(self.WEIGHTS[var], sep=' ', skiprows=4,
+        name = var_obj._name
+
+        if name in self.WEIGHTS and name not in self._weights:
+            logger.debug('Extracting weights for "{}"'.format(name))
+            weights = pd.read_csv(self.WEIGHTS[name], sep=' ', skiprows=4,
                                   skipinitialspace=1)
             weights = weights.rename(
                 {'Lat.': 'latitude', 'Long.': 'longitude'}, axis='columns')
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_nn_ind(weights, self.var_dict[var].merra_grid,
-                                      'NN')
+            _, i_nn = self.get_nn_ind(weights, var_obj.grid, 'NN')
             i_nn = i_nn.flatten()
 
             df_w = weights.iloc[i_nn.flatten()]
@@ -607,11 +607,11 @@ class MerraDay:
                 pd.date_range(str(self._date.year), freq='M', periods=12))
             df_w[df_w < 0] = 1
 
-            self._weights[var] = df_w
+            self._weights[name] = df_w
 
-        if var in self._weights:
-            mask = (self._weights[var].index.month == self._date.month)
-            weights = self._weights[var][mask].values[0]
+        if name in self._weights:
+            mask = (self._weights[name].index.month == self._date.month)
+            weights = self._weights[name][mask].values[0]
         else:
             weights = None
 
@@ -769,8 +769,7 @@ class MerraDay:
         logger.info('Processing MERRA data for "{}".'.format(var))
 
         # initialize MERRA variable instance
-        self.var_dict[var] = MerraVar(self.var_meta, var, self._merra_dir,
-                                      self.date_stamp)
+        var_obj = MerraVar(self.var_meta, var, self._merra_dir, self._date)
 
         if var == 'relative_humidity':
             data = self.relative_humidity(self.nsrdb_data['air_temperature'],
@@ -784,15 +783,14 @@ class MerraDay:
 
         else:
             # get MERRA source data
-            data = self.var_dict[var].source_data
+            data = var_obj.source_data
             # get mapping from MERRA to NSRDB
-            dist, ind = self.get_nn_ind(self.var_dict[var].merra_grid,
-                                        self.nsrdb_grid,
-                                        self.var_dict[var].spatial_method)
+            dist, ind = self.get_nn_ind(var_obj.grid, self.nsrdb_grid,
+                                        var_obj.spatial_method)
 
             # perform weighting if applicable
             if var in self.WEIGHTS:
-                weights = self._get_weights(var)
+                weights = self._get_weights(var_obj)
                 if weights is not None:
                     logger.debug('Applying weights to "{}".'.format(var))
                     data *= weights
@@ -801,25 +799,28 @@ class MerraDay:
             logger.debug('Performing spatial interpolation on "{}" '
                          'with shape {}'
                          .format(var, data.shape))
-            data = spatial_interp(var, data, self.var_dict[var].merra_grid,
-                                  self.nsrdb_grid,
-                                  self.var_dict[var].spatial_method,
-                                  dist, ind,
-                                  self.var_dict[var].elevation_correct)
+            data = spatial_interp(var, data, var_obj.grid, self.nsrdb_grid,
+                                  var_obj.spatial_method, dist, ind,
+                                  var_obj.elevation_correct)
 
             # run temporal interpolation
-            if self.var_dict[var].temporal_method == 'linear':
+            if var_obj.temporal_method == 'linear':
                 logger.debug('Performing linear temporal interpolation on '
                              '"{}" with shape {}'.format(var, data.shape))
-                data = temporal_lin(data, self.merra_ti, self.nsrdb_ti)
+                data = temporal_lin(data, var_obj.time_index,
+                                    self.nsrdb_ti)
 
-            elif self.var_dict[var].temporal_method == 'nearest':
+            elif var_obj.temporal_method == 'nearest':
                 logger.debug('Performing stepwise temporal interpolation on '
                              '"{}" with shape {}'.format(var, data.shape))
-                data = temporal_step(data, self.merra_ti, self.nsrdb_ti)
+                data = temporal_step(data, var_obj.time_index,
+                                     self.nsrdb_ti)
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
+
+        # send var processing object to internal namespace
+        self.var_dict[var] = var_obj
 
         logger.info('Finished "{}".'.format(var))
 
