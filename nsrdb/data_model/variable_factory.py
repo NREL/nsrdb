@@ -257,7 +257,7 @@ class AsymVar(AncillaryVar):
 class CloudVarSingle:
     """Framework for single-file/single-timestep cloud data extraction."""
 
-    def __init__(self, fpath, pre_proc_flag=True,
+    def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
@@ -267,6 +267,8 @@ class CloudVarSingle:
             Full filepath for the cloud data at a single timestep.
         pre_proc_flag : bool
             Flag to pre-process and sparsify data.
+        index : np.ndarray
+            Nearest neighbor results array to extract a subset of the data.
         dsets : tuple | list
             Source datasets to extract.
         """
@@ -274,6 +276,7 @@ class CloudVarSingle:
         self._fpath = fpath
         self._dsets = dsets
         self.pre_proc_flag = pre_proc_flag
+        self._index = index
         self._grid = self._parse_grid(self._fpath)
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
@@ -313,7 +316,7 @@ class CloudVarSingle:
         return self._grid
 
     @staticmethod
-    def pre_process(dset, data, attrs, sparse_mask=None):
+    def pre_process(dset, data, attrs, sparse_mask=None, index=None):
         """Pre-process cloud data by filling missing values and unscaling.
 
         Pre-processing steps:
@@ -323,6 +326,7 @@ class CloudVarSingle:
             4. apply scale factor (multiply)
             5. apply add offset (addition)
             6. sparsify
+            7. extract only data at index
 
         Parameters
         ----------
@@ -334,6 +338,8 @@ class CloudVarSingle:
             Dataset attributes from the dataset in the cloud data source file.
         sparse_mask : NoneType | pd.Series
             Optional boolean mask to apply to the data to sparsify.
+        index : np.ndarray
+            Nearest neighbor results array to extract a subset of the data.
 
         Returns
         -------
@@ -357,6 +363,9 @@ class CloudVarSingle:
 
         if sparse_mask is not None:
             data = data[sparse_mask]
+
+        if index is not None:
+            data = data[index]
 
         return data
 
@@ -405,7 +414,7 @@ class CloudVarSingle:
                     if self.pre_proc_flag:
                         data[dset] = self.pre_process(
                             dset, f[dset][...], dict(f[dset].attrs),
-                            sparse_mask=self._sparse_mask)
+                            sparse_mask=self._sparse_mask, index=self._index)
                     else:
                         data[dset] = f[dset][...].ravel()
 
@@ -422,8 +431,9 @@ class CloudVar(AncillaryVar):
                    288: '5min'}
 
     def __init__(self, var_meta, name, date, nsrdb_grid, extent='east',
-                 path=None, dsets=('cloud_type', 'cld_opd_dcomp',
-                                   'cld_reff_dcomp', 'cld_press_acha')):
+                 path=None, parallel=False,
+                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+                        'cld_press_acha')):
         """
         Parameters
         ----------
@@ -437,6 +447,8 @@ class CloudVar(AncillaryVar):
             Reference NSRDB grid data.
         extent : str
             Regional (satellite) extent to process, used to form file paths.
+        parallel : bool
+            Flag to perform regrid in parallel.
         path : str | NoneType
             Optional path string to force a cloud data directory. If this is
             None, the file path will be infered from the extent, year, and day
@@ -453,17 +465,22 @@ class CloudVar(AncillaryVar):
         self._day_path = None
         self._nsrdb_grid = nsrdb_grid
         self._path = path
+        self._parallel = parallel
         self._flist = None
         self._dsets = dsets
 
         super().__init__(var_meta, name, date)
 
         if len(self) not in self.LEN_TO_FREQ:
-            raise KeyError('Number of cloud data files is inconsistent with '
-                           'expectations. Counted {} files in {} but expected '
-                           'one of the following: {}'
+            raise KeyError('Bad number of cloud data files. Counted {} files '
+                           'in {} but expected one of the following: {}'
                            .format(len(self), self.path,
                                    list(self.LEN_TO_FREQ.keys())))
+
+        if len(self) != 1 and len(self) != len(self.time_index):
+            raise KeyError('Bad number of cloud data files. Counted {} files '
+                           'in {} but a time index with length {}.'
+                           .format(len(self), self.path, len(self.time_index)))
 
     def __len__(self):
         """Length of this object is the number of source files."""
@@ -491,6 +508,11 @@ class CloudVar(AncillaryVar):
         return self._flist
 
     @property
+    def shape(self):
+        """Desired shape of final single-dataset output array."""
+        return (len(self.time_index), len(self._nsrdb_grid))
+
+    @property
     def time_index(self):
         """Get the GOES cloud data time index.
 
@@ -502,6 +524,19 @@ class CloudVar(AncillaryVar):
         """
         freq = self.LEN_TO_FREQ[len(self)]
         return self._get_time_index(self._date, freq=freq)
+
+    @staticmethod
+    def _regrid_nn(fpath, dsets, nsrdb_grid, labels=['latitude', 'longitude']):
+        """Nearest neighbors computation for regrid."""
+        # initialize a single timestep helper object
+        obj = CloudVarSingle(fpath, dsets=dsets)
+
+        # Build NN tree based on the unique cloud timestep grid
+        tree = cKDTree(obj.grid[labels])
+        # Get the distance and index of NN
+        _, index = tree.query(nsrdb_grid[labels], k=1,
+                              distance_upper_bound=0.5)
+        return index
 
     def _regrid(self):
         """Perform ReGridding - mapping cloud data to the NSRDB grid.
@@ -516,32 +551,30 @@ class CloudVar(AncillaryVar):
 
         logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
                      .format(len(self)))
-        labels = ['latitude', 'longitude']
         data = {}
 
         # iterate through all timesteps (one file per timestep)
         for i, fpath in enumerate(self.flist):
 
-            # initialize a single timestep helper object
-            obj = CloudVarSingle(fpath, dsets=self._dsets)
+            index = self._regrid_nn(fpath, self._dsets, self._nsrdb_grid)
 
-            # Build NN tree based on the unique cloud timestep grid
-            tree = cKDTree(obj.grid[labels])
-            # Get the distance and index of NN
-            _, index = tree.query(self._nsrdb_grid[labels], k=1,
-                                  distance_upper_bound=0.5)
+            # initialize a single timestep helper object
+            obj = CloudVarSingle(fpath, index=index, dsets=self._dsets)
 
             # save all datasets
-            single_timestep_data = obj.source_data
-            for dset in self._dsets:
+            single_time_data = obj.source_data
+            for dset, array in single_time_data.items():
                 if dset not in data:
                     # initialize array based on time index and NN index result
-                    shape = (len(self.time_index), len(index))
-                    data[dset] = np.full(
-                        shape, np.nan, dtype=single_timestep_data[dset].dtype)
+                    if np.issubdtype(array.dtype, np.float):
+                        data[dset] = np.full(self.shape, np.nan,
+                                             dtype=array.dtype)
+                    else:
+                        data[dset] = np.full(self.shape, -15,
+                                             dtype=array.dtype)
 
                 # write single timestep with NSRDB sites to appropriate row
-                data[dset][i, :] = single_timestep_data[dset][index]
+                data[dset][i, :] = array
 
         return data
 

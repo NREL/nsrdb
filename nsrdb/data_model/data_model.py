@@ -381,7 +381,7 @@ class DataModel:
 
         return data
 
-    def _clouds(self, cloud_vars, extent='east', path=None):
+    def _clouds(self, cloud_vars, extent='east', path=None, parallel=False):
         """Process multiple cloud variables together
 
         (most efficient to process all cloud variables together to minimize
@@ -399,6 +399,8 @@ class DataModel:
             Optional path string to force a cloud data directory. If this is
             None, the file path will be infered from the extent, year, and day
             of year.
+        parallel : bool
+            Flag to perform regrid in parallel.
 
         Returns
         -------
@@ -415,13 +417,12 @@ class DataModel:
 
         kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
                   'date': self.date, 'nsrdb_grid': self.nsrdb_grid,
-                  'extent': extent, 'path': path, 'dsets': cloud_vars}
+                  'extent': extent, 'path': path, 'dsets': cloud_vars,
+                  'parallel': parallel}
 
         var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
 
-        data = var_obj.source_data
-
-        return data
+        return var_obj.source_data
 
     def _derive(self, var):
         """Method for deriving variables (with dependencies).
@@ -642,7 +643,8 @@ class DataModel:
 
     @classmethod
     def process_clouds(cls, cloud_vars, var_meta, date, nsrdb_grid,
-                       nsrdb_freq='5min', extent='east', path=None):
+                       nsrdb_freq='5min', extent='east', path=None,
+                       parallel=False):
         """Process multiple cloud variables together
 
         (most efficient to process all cloud variables together to minimize
@@ -666,6 +668,8 @@ class DataModel:
             Optional path string to force a cloud data directory. If this is
             None, the file path will be infered from the extent, year, and day
             of year.
+        parallel : bool
+            Flag to perform regrid in parallel.
 
         Returns
         -------
@@ -678,7 +682,8 @@ class DataModel:
 
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        data = adp._clouds(cloud_vars, extent=extent, path=path)
+        data = adp._clouds(cloud_vars, extent=extent, path=path,
+                           parallel=parallel)
 
         for k, v in data.items():
             if v.shape != adp.nsrdb_data_shape:
@@ -767,8 +772,8 @@ class DataModel:
         # process cloud variables together
         if cloud_vars:
             adp['clouds'] = cls.process_clouds(
-                cloud_vars, var_meta, date, nsrdb_grid,
-                nsrdb_freq=nsrdb_freq, **kwargs)
+                cloud_vars, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+                parallel=parallel, **kwargs)
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
