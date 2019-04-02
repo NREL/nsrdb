@@ -10,11 +10,12 @@ Created on Thu Nov 29 09:54:51 2018
 import os
 import pytest
 import numpy as np
+import pandas as pd
 import h5py
 import datetime
 
-from nsrdb import TESTDATADIR, CONFIGDIR
-from nsrdb.ancillary import Ancillary
+from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
+from nsrdb.data_model.data_model import DataModel
 from nsrdb.utilities.loggers import init_logger
 
 
@@ -22,9 +23,35 @@ RTOL = 0.001
 ATOL = 0.001
 
 
+def test_asym(var='asymmetry'):
+    """Test Asymmetry processed variables against baseline data."""
+    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
+
+    out_dir = os.path.join(TESTDATADIR, 'processed_ancillary/')
+    date = datetime.date(year=2017, month=1, day=1)
+    grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
+
+    # set test directory
+    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta['source_directory'] = DATADIR
+
+    data = DataModel.process_single(var, var_meta, date, grid)
+
+    baseline_path = os.path.join(out_dir, var + '.h5')
+    if not os.path.exists(baseline_path):
+        with h5py.File(baseline_path, 'w') as f:
+            f.create_dataset(var, data=data)
+        msg = 'Output file for "{}" did not exist, created'.format(var)
+        assert False, msg
+    else:
+        with h5py.File(baseline_path, 'r') as f:
+            data_baseline = f[var][...]
+        assert np.allclose(data_baseline, data,
+                           atol=ATOL, rtol=RTOL)
+
+
 @pytest.mark.parametrize('var',
                          ('surface_pressure',
-                          'asymmetry',
                           'air_temperature',
                           'ozone',
                           'total_precipitable_water',
@@ -38,15 +65,18 @@ ATOL = 0.001
                           ))
 def test_ancillary_single(var):
     """Test MERRA processed variables against baseline data."""
-    init_logger('nsrdb.ancillary', log_file=None, log_level='DEBUG')
+    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
 
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary/')
-    merra_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2017, month=1, day=1)
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
-    data = Ancillary.process_single(var, var_meta, date, merra_dir, grid)
+    # set test directory
+    source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
+    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta['source_directory'] = source_dir
+
+    data = DataModel.process_single(var, var_meta, date, grid)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -65,15 +95,18 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                             'specific_humidity', 'relative_humidity')):
     """Test the ancillary variable parallel processing with derived variable
     dependency."""
-    init_logger('nsrdb.ancillary', log_file=None, log_level='DEBUG')
+    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
 
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary/')
-    merra_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2017, month=1, day=1)
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
-    data = Ancillary.process_multiple(var_list, var_meta, date, merra_dir,
+    # set test directory
+    source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
+    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta['source_directory'] = source_dir
+
+    data = DataModel.process_multiple(var_list, var_meta, date,
                                       grid, parallel=True)
 
     for key, value in data.items():
