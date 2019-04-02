@@ -133,7 +133,13 @@ class DataModel:
         return self._processed[key]
 
     def __setitem__(self, key, value):
-        self._processed[key] = value
+        if isinstance(value, np.ndarray) and isinstance(key, str):
+            self._processed[key] = value
+        elif isinstance(value, dict):
+            self._processed.update(value)
+        else:
+            raise TypeError('Did not recognize dtype sent to DataModel '
+                            'processed dictionary: {}'.format(type(value)))
 
     def _parse_nsrdb_grid(self, inp):
         """Set the NSRDB reference grid from a csv file.
@@ -501,6 +507,43 @@ class DataModel:
 
         return data
 
+    def _process_clouds(self, cloud_vars, extent='east', path=None):
+        """Process multiple cloud variables together
+
+        (most efficient to process all cloud variables together to minimize
+        number of kdtrees during regrid)
+
+        Parameters
+        ----------
+        cloud_vars : tuple | list
+            Source datasets to extract. It is more efficient to extract all
+            required datasets at once from each cloud file, so that only one
+            kdtree is built for each unique coordinate set in each cloud file.
+        extent : str
+            Regional (satellite) extent to process, used to form file paths.
+        path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
+
+        Returns
+        -------
+        data : dict
+            Data dictionary of cloud datasets mapped to the NSRDB grid. Keys
+            are the cloud variables names, values are 2D numpy arrays.
+            Array shape is (n_time, n_sites).
+        """
+
+        kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
+                  'date': self.date, 'nsrdb_grid': self.nsrdb_grid,
+                  'extent': extent, 'path': path, 'dsets': cloud_vars}
+
+        var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
+
+        data = var_obj.source_data
+
+        return data
+
     def _process(self, var):
         """Method for processing interpolated variables.
 
@@ -518,7 +561,7 @@ class DataModel:
         kwargs = {'var_meta': self._var_meta, 'name': var, 'date': self.date}
         var_obj = self._var_factory.get(var, **kwargs)
 
-        # get MERRA source data
+        # get ancillary data source data array
         data = var_obj.source_data
 
         # get mapping from source data grid to NSRDB
@@ -657,10 +700,12 @@ class DataModel:
 
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        if var in adp.DERIVED_VARS:
-            data = adp._derive(var)
-        elif var in adp.CALCULATED_VARS:
+        if var in cls.CALCULATED_VARS:
             data = adp._calculate(var)
+        elif var in cls.CLOUD_VARS:
+            data = adp._process_clouds(var)
+        elif var in cls.DERIVED_VARS:
+            data = adp._derive(var)
         else:
             data = adp._process(var)
 
@@ -675,8 +720,65 @@ class DataModel:
         return data
 
     @classmethod
+    def process_clouds(cls, cloud_vars, var_meta, date, nsrdb_grid,
+                       nsrdb_freq='5min', extent='east', path=None):
+        """Process multiple cloud variables together
+
+        (most efficient to process all cloud variables together to minimize
+        number of kdtrees during regrid)
+
+        Parameters
+        ----------
+        cloud_vars : list | tuple
+            NSRDB cloud variables names.
+        var_meta : str | pd.DataFrame
+            CSV file or dataframe containing meta data for all NSRDB variables.
+        date : datetime.date
+            Single day to extract ancillary data for.
+        nsrdb_grid : str
+            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+        extent : str
+            Regional (satellite) extent to process, used to form file paths.
+        path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
+
+        Returns
+        -------
+        data : dict
+            Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
+        """
+
+        for var in cloud_vars:
+            if var not in cls.CLOUD_VARS:
+                raise KeyError('Cloud var processing requested for "{}", '
+                               'which was not found as a cloud variable. The '
+                               'following cloud variables are available: {}'
+                               .format(var, cls.CLOUD_VARS))
+
+        logger.info('Processing data for multiple cloud variables: {}'
+                    .format(cloud_vars))
+
+        adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+
+        data = adp._process_clouds(cloud_vars, extent=extent, path=path)
+
+        for k, v in data.items():
+            if v.shape != adp.nsrdb_data_shape:
+                raise ValueError('Expected NSRDB data shape of {}, but '
+                                 'received shape {} for "{}"'
+                                 .format(adp.nsrdb_data_shape, v.shape, k))
+
+        logger.info('Finished "{}".'.format(cloud_vars))
+
+        return data
+
+    @classmethod
     def process_multiple(cls, var_list, var_meta, date, nsrdb_grid,
-                         nsrdb_freq='5min', parallel=False):
+                         nsrdb_freq='5min', parallel=False, **kwargs):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -694,6 +796,8 @@ class DataModel:
         parallel : bool
             Flag to perform parallel processing with each variable on a
             seperate process.
+        kwargs : dict
+            Additional keyword arguments for cloud processing.
 
         Returns
         -------
@@ -708,8 +812,21 @@ class DataModel:
         if var_list is None:
             var_list = cls.ALL_SKY_VARS
 
+        # remove cloud variables from var_list to be processed together
+        # (most efficient to process all cloud variables together to minimize
+        # number of kdtrees during regrid)
+        cloud_vars = []
+        remove = []
+        for var in cls.CLOUD_VARS:
+            if var in var_list:
+                cloud_vars.append(var)
+                remove.append(var_list.index(var))
+        cloud_vars = tuple(cloud_vars)
+        var_list = tuple([v for i, v in enumerate(var_list)
+                          if i not in remove])
+
         # remove derived (dependent) variables from var_list to be processed
-        # last (most efficient)
+        # last (most efficient to process depdencies first, dependents last)
         derived = []
         remove = []
         for var in cls.DERIVED_VARS:
@@ -732,6 +849,12 @@ class DataModel:
                 var_list, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
             for k, v in data.items():
                 adp[k] = v
+
+        # process cloud variables together
+        if cloud_vars:
+            adp['clouds'] = cls.process_clouds(
+                cloud_vars, var_meta, date, nsrdb_grid,
+                nsrdb_freq=nsrdb_freq, **kwargs)
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.

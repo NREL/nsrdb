@@ -8,6 +8,7 @@ import os
 from netCDF4 import Dataset as NetCDF
 import logging
 import datetime
+from scipy.spatial import cKDTree
 from warnings import warn
 
 from nsrdb import DATADIR
@@ -390,7 +391,8 @@ class CloudVarSingle:
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-
+        logger.debug('Retrieving single timestep cloud source data from {}'
+                     .format(os.path.basename(self._fpath)))
         data = {}
         if self._fpath.endswith('.h5'):
             with h5py.File(self._fpath, 'r') as f:
@@ -414,11 +416,14 @@ class CloudVar(AncillaryVar):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
     # the number of files for a given day dictates the temporal frequency
-    LEN_TO_FREQ = {48: '30min',
+    LEN_TO_FREQ = {1: '1d',
+                   48: '30min',
                    96: '15min',
                    288: '5min'}
 
-    def __init__(self, var_meta, name, date, extent='east', path=None):
+    def __init__(self, var_meta, name, date, nsrdb_grid, extent='east',
+                 path=None, dsets=('cloud_type', 'cld_opd_dcomp',
+                                   'cld_reff_dcomp', 'cld_press_acha')):
         """
         Parameters
         ----------
@@ -428,20 +433,29 @@ class CloudVar(AncillaryVar):
             NSRDB var name.
         date : datetime.date
             Single day to extract data for.
+        nsrdb_grid : pd.DataFrame
+            Reference NSRDB grid data.
         extent : str
             Regional (satellite) extent to process, used to form file paths.
-        fpath : str | NoneType
-            Optional file path string to force a file path. If this is None,
-            the file path will be infered from the extent, year, and day of
-            year.
+        path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
+        dsets : tuple | list
+            Source datasets to extract. It is more efficient to extract all
+            required datasets at once from each cloud file, so that only one
+            kdtree is built for each unique coordinate set in each cloud file.
         """
 
         self._extent = extent
         self._extent_path = None
         self._year_path = None
         self._day_path = None
+        self._nsrdb_grid = nsrdb_grid
         self._path = path
         self._flist = None
+        self._dsets = dsets
+
         super().__init__(var_meta, name, date)
 
         if len(self) not in self.LEN_TO_FREQ:
@@ -472,7 +486,8 @@ class CloudVar(AncillaryVar):
         """List of cloud data files for one day. Each file is a timestep."""
         if self._flist is None:
             fl = os.listdir(self.path)
-            self._flist = [f for f in fl if f.endswith('.h5')]
+            self._flist = [os.path.join(self.path, f) for f in fl
+                           if f.endswith('.h5')]
         return self._flist
 
     @property
@@ -487,6 +502,61 @@ class CloudVar(AncillaryVar):
         """
         freq = self.LEN_TO_FREQ[len(self)]
         return self._get_time_index(self._date, freq=freq)
+
+    def _regrid(self):
+        """Perform ReGridding - mapping cloud data to the NSRDB grid.
+
+        Returns
+        -------
+        data : dict
+            Data dictionary of cloud datasets mapped to the NSRDB grid. Keys
+            are the cloud variables names, values are 2D numpy arrays.
+            Array shape is (n_time, n_sites).
+        """
+
+        logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
+                     .format(len(self)))
+        labels = ['latitude', 'longitude']
+        data = {}
+
+        # iterate through all timesteps (one file per timestep)
+        for i, fpath in enumerate(self.flist):
+
+            # initialize a single timestep helper object
+            obj = CloudVarSingle(fpath, dsets=self._dsets)
+
+            # Build NN tree based on the unique cloud timestep grid
+            tree = cKDTree(obj.grid[labels])
+            # Get the distance and index of NN
+            _, index = tree.query(self._nsrdb_grid[labels], k=1,
+                                  distance_upper_bound=0.5)
+
+            # save all datasets
+            single_timestep_data = obj.source_data
+            for dset in self._dsets:
+                if dset not in data:
+                    # initialize array based on time index and NN index result
+                    shape = (len(self.time_index), len(index))
+                    data[dset] = np.full(
+                        shape, np.nan, dtype=single_timestep_data[dset].dtype)
+
+                # write single timestep with NSRDB sites to appropriate row
+                data[dset][i, :] = single_timestep_data[dset][index]
+
+        return data
+
+    @property
+    def source_data(self):
+        """Get the cloud data mapped to the NSRDB grid for a given day.
+
+        Returns
+        -------
+        data : dict
+            Data dictionary of cloud datasets mapped to the NSRDB grid. Keys
+            are the cloud variables names, values are 2D numpy arrays.
+            Array shape is (n_time, n_sites).
+        """
+        return self._regrid()
 
 
 class MerraVar(AncillaryVar):
@@ -675,6 +745,10 @@ class VarFactory:
 
     # mapping of NSRDB variable names to helper objects
     MAPPING = {'asymmetry': AsymVar,
+               'cloud_type': CloudVar,
+               'cld_opd_dcomp': CloudVar,
+               'cld_reff_dcomp': CloudVar,
+               'cld_press_acha': CloudVar,
                'air_temperature': MerraVar,
                'alpha': MerraVar,
                'aod': MerraVar,
@@ -708,6 +782,6 @@ class VarFactory:
             return self.MAPPING[var_name](*args, **kwargs)
 
         else:
-            raise KeyError('Did not recognize "{}" as an available ancillary '
+            raise KeyError('Did not recognize "{}" as an available NSRDB '
                            'variable. The following variables are available: '
                            '{}'.format(var_name, list(self.MAPPING.keys())))
