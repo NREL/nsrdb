@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Frameworks for handling NSRDB data sources."""
+"""A collection of frameworks for handling NSRDB data sources."""
 
 import numpy as np
 import pandas as pd
@@ -739,24 +739,112 @@ class MerraVar(AncillaryVar):
 
         return self._merra_grid
 
+    @staticmethod
+    def relative_humidity(t, h, p):
+        """Calculate relative humidity.
+
+        Parameters
+        ----------
+        t : np.ndarray
+            Temperature in Celsius
+        h : np.ndarray
+            Specific humidity in kg/kg
+        p : np.ndarray
+            Pressure in Pa
+
+        Returns
+        -------
+        rh : np.ndarray
+            Relative humidity in %.
+        """
+
+        # ensure that Pressure is in Pa (scale from mbar if not)
+        convert_p = False
+        if np.max(p) < 10000:
+            convert_p = True
+            p *= 100
+        # ensure that Temperature is in C (scale from Kelvin if not)
+        convert_t = False
+        if np.max(t) > 100:
+            convert_t = True
+            t -= 273.15
+
+        # determine ps
+        ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
+        # determine w
+        w = h / (1 - h)
+        # determine ws
+        ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
+        # determine RH
+        rh = w / ws * 100.
+        # check values
+        rh[rh > 100] = 100
+        rh[rh < 2] = 2
+
+        # ensure that pressure is reconverted to mbar
+        if convert_p:
+            p /= 100
+        # ensure that temeprature is reconverted to Kelvin
+        if convert_t:
+            t += 273.15
+
+        return rh
+
+    @staticmethod
+    def dew_point(t, h, p):
+        """Calculate the dew point.
+
+        Parameters
+        ----------
+        t : np.ndarray
+            Temperature in Celsius
+        h : np.ndarray
+            Specific humidity in kg/kg
+        p : np.ndarray
+            Pressure in Pa
+
+        Returns
+        -------
+        dp : np.ndarray
+            Dew point in Celsius.
+        """
+
+        # ensure that Temperature is in C (scale from Kelvin if not)
+        convert_t = False
+        if np.max(t) > 100:
+            convert_t = True
+            t -= 273.15
+
+        rh = MerraVar.relative_humidity(t, h, p)
+        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
+              (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
+
+        # ensure that temeprature is reconverted to Kelvin
+        if convert_t:
+            t += 273.15
+
+        return dp
+
 
 class VarFactory:
     """Factory pattern to retrieve ancillary variable helper objects."""
 
     # mapping of NSRDB variable names to helper objects
     MAPPING = {'asymmetry': AsymVar,
+               'air_temperature': MerraVar,
+               'alpha': MerraVar,
+               'aod': MerraVar,
                'cloud_type': CloudVar,
                'cld_opd_dcomp': CloudVar,
                'cld_reff_dcomp': CloudVar,
                'cld_press_acha': CloudVar,
-               'air_temperature': MerraVar,
-               'alpha': MerraVar,
-               'aod': MerraVar,
-               'surface_pressure': MerraVar,
+               'dew_point': MerraVar.dew_point,
                'ozone': MerraVar,
-               'total_precipitable_water': MerraVar,
+               'relative_humidity': MerraVar.relative_humidity,
                'specific_humidity': MerraVar,
                'ssa': MerraVar,
+               'surface_pressure': MerraVar,
+               'total_precipitable_water': MerraVar,
                'wind_speed': MerraVar,
                }
 
@@ -779,7 +867,10 @@ class VarFactory:
         """
 
         if var_name in self.MAPPING:
-            return self.MAPPING[var_name](*args, **kwargs)
+            if var_name in ('dew_point', 'relative_humidity'):
+                return self.MAPPING[var_name]
+            else:
+                return self.MAPPING[var_name](*args, **kwargs)
 
         else:
             raise KeyError('Did not recognize "{}" as an available NSRDB '

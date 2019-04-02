@@ -16,6 +16,10 @@ class variables in Ancillary() below.
     ('alpha',
      'asymmetry',
      'aod',
+     'cloud_type',
+     'cld_opd_dcomp',
+     'cld_reff_dcomp',
+     'cld_press_acha',
      'surface_pressure',
      'relative_humidity',
      'ssa',
@@ -349,92 +353,6 @@ class DataModel:
 
         return data
 
-    @staticmethod
-    def relative_humidity(t, h, p):
-        """Calculate relative humidity.
-
-        Parameters
-        ----------
-        t : np.ndarray
-            Temperature in Celsius
-        h : np.ndarray
-            Specific humidity in kg/kg
-        p : np.ndarray
-            Pressure in Pa
-
-        Returns
-        -------
-        rh : np.ndarray
-            Relative humidity in %.
-        """
-
-        # ensure that Pressure is in Pa (scale from mbar if not)
-        convert_p = False
-        if np.max(p) < 10000:
-            convert_p = True
-            p *= 100
-        # ensure that Temperature is in C (scale from Kelvin if not)
-        convert_t = False
-        if np.max(t) > 100:
-            convert_t = True
-            t -= 273.15
-
-        # determine ps
-        ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
-        # determine w
-        w = h / (1 - h)
-        # determine ws
-        ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
-        # determine RH
-        rh = w / ws * 100.
-        # check values
-        rh[rh > 100] = 100
-        rh[rh < 2] = 2
-
-        # ensure that pressure is reconverted to mbar
-        if convert_p:
-            p /= 100
-        # ensure that temeprature is reconverted to Kelvin
-        if convert_t:
-            t += 273.15
-
-        return rh
-
-    @staticmethod
-    def dew_point(t, h, p):
-        """Calculate the dew point.
-
-        Parameters
-        ----------
-        t : np.ndarray
-            Temperature in Celsius
-        h : np.ndarray
-            Specific humidity in kg/kg
-        p : np.ndarray
-            Pressure in Pa
-
-        Returns
-        -------
-        dp : np.ndarray
-            Dew point in Celsius.
-        """
-
-        # ensure that Temperature is in C (scale from Kelvin if not)
-        convert_t = False
-        if np.max(t) > 100:
-            convert_t = True
-            t -= 273.15
-
-        rh = DataModel.relative_humidity(t, h, p)
-        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
-              (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
-
-        # ensure that temeprature is reconverted to Kelvin
-        if convert_t:
-            t += 273.15
-
-        return dp
-
     def _calculate(self, var):
         """Method for calculating variables (without dependencies).
 
@@ -455,7 +373,7 @@ class DataModel:
             data = SolarPosition(self.nsrdb_ti, lat_lon).zenith
 
         else:
-            raise KeyError('Did not recognize request to derive variable '
+            raise KeyError('Did not recognize request to calculate variable '
                            '"{}".'.format(var))
 
         # convert units from MERRA to NSRDB
@@ -463,51 +381,7 @@ class DataModel:
 
         return data
 
-    def _derive(self, var):
-        """Method for deriving variables (with dependencies).
-
-        Parameters
-        ----------
-        var : str
-            NSRDB var name.
-
-        Returns
-        -------
-        data : np.ndarray
-            NSRDB-resolution data for the given var and the current day.
-        """
-
-        if var in ('relative_humidity', 'dew_point'):
-            dependencies = ('air_temperature', 'specific_humidity',
-                            'surface_pressure')
-            # ensure that all dependencies have been processed
-            for dep in dependencies:
-                if dep not in self._processed:
-                    logger.info('Processing dependency "{}" in order to '
-                                'derive "{}".'.format(dep, var))
-                    self[dep] = self._process(dep)
-
-            # calculate merra-derived vars
-            if var == 'relative_humidity':
-                data = self.relative_humidity(self['air_temperature'],
-                                              self['specific_humidity'],
-                                              self['surface_pressure'])
-
-            elif var == 'dew_point':
-                data = self.dew_point(self['air_temperature'],
-                                      self['specific_humidity'],
-                                      self['surface_pressure'])
-
-        else:
-            raise KeyError('Did not recognize request to derive variable '
-                           '"{}".'.format(var))
-
-        # convert units from MERRA to NSRDB
-        data = self.convert_units(var, data)
-
-        return data
-
-    def _process_clouds(self, cloud_vars, extent='east', path=None):
+    def _clouds(self, cloud_vars, extent='east', path=None):
         """Process multiple cloud variables together
 
         (most efficient to process all cloud variables together to minimize
@@ -534,6 +408,11 @@ class DataModel:
             Array shape is (n_time, n_sites).
         """
 
+        for var in cloud_vars:
+            if var not in self.CLOUD_VARS:
+                raise KeyError('Did not recognize request to process cloud '
+                               'variable "{}".'.format(var))
+
         kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
                   'date': self.date, 'nsrdb_grid': self.nsrdb_grid,
                   'extent': extent, 'path': path, 'dsets': cloud_vars}
@@ -544,7 +423,49 @@ class DataModel:
 
         return data
 
-    def _process(self, var):
+    def _derive(self, var):
+        """Method for deriving variables (with dependencies).
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+
+        Returns
+        -------
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        """
+
+        if var in ('relative_humidity', 'dew_point'):
+            dependencies = ('air_temperature', 'specific_humidity',
+                            'surface_pressure')
+            # ensure that all dependencies have been processed
+            for dep in dependencies:
+                if dep not in self._processed:
+                    logger.info('Processing dependency "{}" in order to '
+                                'derive "{}".'.format(dep, var))
+                    # process and save data to processed attribute
+                    self[dep] = self._interpolate(dep)
+
+            # get the calculation method from the var factory
+            method = self._var_factory.get(var)
+
+            # calculate merra-derived vars
+            data = method(self['air_temperature'],
+                          self['specific_humidity'],
+                          self['surface_pressure'])
+
+        else:
+            raise KeyError('Did not recognize request to derive variable '
+                           '"{}".'.format(var))
+
+        # convert units from MERRA to NSRDB
+        data = self.convert_units(var, data)
+
+        return data
+
+    def _interpolate(self, var):
         """Method for processing interpolated variables.
 
         Parameters
@@ -703,11 +624,11 @@ class DataModel:
         if var in cls.CALCULATED_VARS:
             data = adp._calculate(var)
         elif var in cls.CLOUD_VARS:
-            data = adp._process_clouds(var)
+            data = adp._clouds(var)
         elif var in cls.DERIVED_VARS:
             data = adp._derive(var)
         else:
-            data = adp._process(var)
+            data = adp._interpolate(var)
 
         if data.shape != adp.nsrdb_data_shape:
             raise ValueError('Expected NSRDB data shape of {}, but received '
@@ -752,19 +673,12 @@ class DataModel:
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
 
-        for var in cloud_vars:
-            if var not in cls.CLOUD_VARS:
-                raise KeyError('Cloud var processing requested for "{}", '
-                               'which was not found as a cloud variable. The '
-                               'following cloud variables are available: {}'
-                               .format(var, cls.CLOUD_VARS))
-
         logger.info('Processing data for multiple cloud variables: {}'
                     .format(cloud_vars))
 
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        data = adp._process_clouds(cloud_vars, extent=extent, path=path)
+        data = adp._clouds(cloud_vars, extent=extent, path=path)
 
         for k, v in data.items():
             if v.shape != adp.nsrdb_data_shape:

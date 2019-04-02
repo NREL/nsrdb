@@ -2,3 +2,4 @@
 """NSRDB ancillary data processing methods.
 @author: gbuster
 """
+from .data_model import DataModel

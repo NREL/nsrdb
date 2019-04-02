@@ -15,7 +15,7 @@ import h5py
 import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
-from nsrdb.data_model.data_model import DataModel
+from nsrdb.data_model import DataModel
 from nsrdb.utilities.loggers import init_logger
 
 
