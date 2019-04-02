@@ -253,10 +253,172 @@ class AsymVar(AncillaryVar):
         return self._asym_grid
 
 
+class CloudVarSingle:
+    """Framework for single-file/single-timestep cloud data extraction."""
+
+    def __init__(self, fpath, pre_proc_flag=True,
+                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+                        'cld_press_acha')):
+        """
+        Parameters
+        ----------
+        fpath : str
+            Full filepath for the cloud data at a single timestep.
+        pre_proc_flag : bool
+            Flag to pre-process and sparsify data.
+        dsets : tuple | list
+            Source datasets to extract.
+        """
+
+        self._fpath = fpath
+        self._dsets = dsets
+        self.pre_proc_flag = pre_proc_flag
+        self._grid = self._parse_grid(self._fpath)
+        if self.pre_proc_flag:
+            self._grid, self._sparse_mask = self.make_sparse(self._grid)
+
+    @staticmethod
+    def _parse_grid(fpath):
+        """Extract the cloud data grid for the current timestep.
+
+        Returns
+        -------
+        self._grid : pd.DataFrame
+            GOES source coordinates (labels: ['latitude', 'longitude']).
+        """
+
+        if fpath.endswith('.h5'):
+            labels = ['latitude', 'longitude']
+            grid = pd.DataFrame()
+            with h5py.File(fpath, 'r') as f:
+                for dset in labels:
+                    if dset not in list(f):
+                        raise KeyError('Could not find "{}" in the cloud '
+                                       'file: {}'
+                                       .format(dset, fpath))
+                    grid[dset] = CloudVarSingle.pre_process(
+                        dset, f[dset][...], dict(f[dset].attrs))
+        return grid
+
+    @property
+    def grid(self):
+        """Return the cloud data grid for the current timestep.
+
+        Returns
+        -------
+        self._grid : pd.DataFrame
+            GOES source coordinates (labels: ['latitude', 'longitude']).
+        """
+        return self._grid
+
+    @staticmethod
+    def pre_process(dset, data, attrs, sparse_mask=None):
+        """Pre-process cloud data by filling missing values and unscaling.
+
+        Pre-processing steps:
+            1. flatten (ravel)
+            2. convert to float32 (unless dset == cloud_type)
+            3. convert filled values to NaN (unless dset == cloud_type)
+            4. apply scale factor (multiply)
+            5. apply add offset (addition)
+            6. sparsify
+
+        Parameters
+        ----------
+        dset : str
+            Dataset name.
+        data : np.ndarray
+            Raw data extracted from the dataset in the cloud data source file.
+        attrs : dict
+            Dataset attributes from the dataset in the cloud data source file.
+        sparse_mask : NoneType | pd.Series
+            Optional boolean mask to apply to the data to sparsify.
+
+        Returns
+        -------
+        data : np.ndarray
+            Pre-processed data.
+        """
+
+        data = data.ravel()
+        if dset != 'cloud_type':
+            data = data.astype(np.float32)
+
+        if '_FillValue' in attrs and data.dtype == np.float32:
+            mask = np.where(data == attrs['_FillValue'])[0]
+            data[mask] = np.nan
+
+        if 'scale_factor' in attrs:
+            data *= attrs['scale_factor']
+
+        if 'add_offset' in attrs:
+            data += attrs['add_offset']
+
+        if sparse_mask is not None:
+            data = data[sparse_mask]
+
+        return data
+
+    @staticmethod
+    def make_sparse(grid):
+        """Make the cloud grid sparse by removing NaN coordinates.
+
+        Parameters
+        ----------
+        grid : pd.DataFrame
+            GOES source coordinates (labels: ['latitude', 'longitude']).
+
+        Returns
+        -------
+        grid : pd.DataFrame
+            Sparse GOES source coordinates with all NaN rows removed.
+        mask : pd.Series
+            Boolean series; the mask to extract sparse data.
+        """
+
+        mask = ~(pd.isna(grid['latitude']) | pd.isna(grid['longitude']))
+        grid = grid[mask]
+        return grid, mask
+
+    @property
+    def source_data(self):
+        """Get multiple-variable data dictionary from the cloud data file.
+
+        Returns
+        -------
+        data : dict
+            Dictionary of multiple cloud datasets. Keys are the cloud dataset
+            names. Values are 1D (flattened/raveled) arrays of data.
+        """
+
+        data = {}
+        if self._fpath.endswith('.h5'):
+            with h5py.File(self._fpath, 'r') as f:
+                for dset in self._dsets:
+                    if dset not in list(f):
+                        raise KeyError('Could not find "{}" in the cloud '
+                                       'file: {}'
+                                       .format(dset, self._fpath))
+
+                    if self.pre_proc_flag:
+                        data[dset] = self.pre_process(
+                            dset, f[dset][...], dict(f[dset].attrs),
+                            sparse_mask=self._sparse_mask)
+                    else:
+                        data[dset] = f[dset][...].ravel()
+
+        return data
+
+
 class CloudVar(AncillaryVar):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, var_meta, name, date, extent='east'):
+    # the number of files for a given day dictates the temporal frequency
+    LEN_TO_FREQ = {48: '30min',
+                   96: '15min',
+                   288: '5min'}
+
+    def __init__(self, var_meta, name, date, extent='east', path=None):
         """
         Parameters
         ----------
@@ -266,55 +428,50 @@ class CloudVar(AncillaryVar):
             NSRDB var name.
         date : datetime.date
             Single day to extract data for.
+        extent : str
+            Regional (satellite) extent to process, used to form file paths.
+        fpath : str | NoneType
+            Optional file path string to force a file path. If this is None,
+            the file path will be infered from the extent, year, and day of
+            year.
         """
 
         self._extent = extent
         self._extent_path = None
         self._year_path = None
         self._day_path = None
-        self._fpath = None
+        self._path = path
         self._flist = None
         super().__init__(var_meta, name, date)
+
+        if len(self) not in self.LEN_TO_FREQ:
+            raise KeyError('Number of cloud data files is inconsistent with '
+                           'expectations. Counted {} files in {} but expected '
+                           'one of the following: {}'
+                           .format(len(self), self.path,
+                                   list(self.LEN_TO_FREQ.keys())))
 
     def __len__(self):
         """Length of this object is the number of source files."""
         return len(self.flist)
 
     @property
-    def extent_path(self):
-        """Path for cloud files in a given extent."""
-        if self._extent_path is None:
-            self._extent_path = os.path.join(self.source_dir, self._extent)
-        return self._extent_path
-
-    @property
-    def year_path(self):
-        """Path for cloud files in a single year."""
-        if self._year_path is None:
-            self._year_path = os.path.join(self.extent_path,
-                                           str(self._date.year))
-        return self._year_path
-
-    @property
-    def day_path(self):
-        """Path for cloud files in a single day."""
-        if self._day_path is None:
-            doy = str(self._date.timetuple().tm_yday).zfill(3)
-            self._day_path = os.path.join(self.year_path, doy)
-        return self._day_path
-
-    @property
-    def fpath(self):
+    def path(self):
         """Final path containing cloud data files."""
-        if self._fpath is None:
-            self._fpath = os.path.join(self.day_path, 'level2')
-        return self._fpath
+        if self._path is None:
+            doy = str(self._date.timetuple().tm_yday).zfill(3)
+            self._path = os.path.join(self.source_dir, self._extent,
+                                      str(self._date.year), doy, 'level2')
+            if not os.path.exists(self._path):
+                raise IOError('Looking for cloud data but could not find the '
+                              'target path: {}'.format(self._path))
+        return self._path
 
     @property
     def flist(self):
         """List of cloud data files for one day. Each file is a timestep."""
         if self._flist is None:
-            fl = os.listdir(self.fpath)
+            fl = os.listdir(self.path)
             self._flist = [f for f in fl if f.endswith('.h5')]
         return self._flist
 
@@ -328,18 +485,7 @@ class CloudVar(AncillaryVar):
             Pandas datetime index for the current day at the cloud temporal
             resolution (should match the NSRDB resolution).
         """
-        # the number of files for a given day dictates the temporal frequency
-        len_to_freq = {48: '30min',
-                       96: '15min',
-                       288: '5min'}
-        if len(self) in len_to_freq:
-            freq = len_to_freq[len(self)]
-        else:
-            raise KeyError('Number of cloud data files is inconsistent with '
-                           'expectations. Counted {} files in {} but expected '
-                           'one of the following: {}'
-                           .format(len(self), self.fpath,
-                                   list(len_to_freq.keys())))
+        freq = self.LEN_TO_FREQ[len(self)]
         return self._get_time_index(self._date, freq=freq)
 
 

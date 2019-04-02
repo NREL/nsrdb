@@ -521,7 +521,7 @@ class DataModel:
         # get MERRA source data
         data = var_obj.source_data
 
-        # get mapping from MERRA to NSRDB
+        # get mapping from source data grid to NSRDB
         dist, ind = self.get_nn_ind(var_obj.grid, self.nsrdb_grid,
                                     var_obj.spatial_method)
 
