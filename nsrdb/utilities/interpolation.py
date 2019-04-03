@@ -109,6 +109,8 @@ def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
     tree = BallTree(coords1, metric='haversine')
     dist, ind = tree.query(coords2, return_distance=True, k=k)
     dist = rad_to_dist(dist)
+    dist = dist.astype(np.float32)
+    ind = ind.astype(np.uint32)
     return dist, ind
 
 

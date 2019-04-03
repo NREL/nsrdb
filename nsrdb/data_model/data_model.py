@@ -39,13 +39,14 @@ import logging
 import psutil
 from dask.distributed import LocalCluster, Client
 import time
+from scipy.spatial import cKDTree
 
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.loggers import NSRDB_LOGGERS
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
-from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.data_model.variable_factory import VarFactory, CloudVarSingle
 
 logger = logging.getLogger(__name__)
 
@@ -207,9 +208,9 @@ class DataModel:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
         return self._nsrdb_data_shape
 
-    def get_nn_ind(self, df1, df2, method, labels=('latitude', 'longitude'),
+    def get_geo_nn(self, df1, df2, method, labels=('latitude', 'longitude'),
                    cache=False):
-        """Get the geographic nearest neighbor distances and indices.
+        """Get the geographic nearest neighbor distances (km) and indices.
 
         Parameters
         ----------
@@ -270,6 +271,36 @@ class DataModel:
 
         return dist, ind
 
+    @staticmethod
+    def get_cloud_nn(fpath, nsrdb_grid, labels=('latitude', 'longitude')):
+        """Nearest neighbors computation for cloud data regrid.
+
+        Parameters
+        ----------
+        fpath : str
+            Full filepath to a single UW cloud data file.
+        nsrdb_grid : pd.DataFrame
+            Reference grid data for NSRDB.
+        labels : list | tuple
+            lat/lon column lables for the NSRDB grid and the cloud grid
+
+        Returns
+        -------
+        index : np.ndarray
+            KDTree query results mapping cloud data to the NSRDB grid. e.g.
+            nsrdb_data = cloud_data[index]
+        """
+
+        if isinstance(labels, tuple):
+            labels = list(labels)
+        # Build NN tree based on the unique cloud grid at single timestep
+        tree = cKDTree(CloudVarSingle(fpath, dsets=None).grid[labels])
+        # Get the index of NN to NSRDB grid
+        _, index = tree.query(nsrdb_grid[labels], k=1,
+                              distance_upper_bound=0.5)
+        index = index.astype(np.uint32)
+        return index
+
     def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
 
@@ -297,7 +328,7 @@ class DataModel:
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_nn_ind(weights, var_obj.grid, 'NN')
+            _, i_nn = self.get_geo_nn(weights, var_obj.grid, 'NN')
             i_nn = i_nn.flatten()
 
             df_w = weights.iloc[i_nn.flatten()]
@@ -381,8 +412,9 @@ class DataModel:
 
         return data
 
-    def _clouds(self, cloud_vars, extent='east', path=None, parallel=False):
-        """Process multiple cloud variables together
+    def _cloud_regrid(self, cloud_vars, extent='east', path=None,
+                      parallel=False):
+        """ReGrid data for multiple cloud variables to the NSRDB grid.
 
         (most efficient to process all cloud variables together to minimize
         number of kdtrees during regrid)
@@ -416,13 +448,94 @@ class DataModel:
                                'variable "{}".'.format(var))
 
         kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
-                  'date': self.date, 'nsrdb_grid': self.nsrdb_grid,
-                  'extent': extent, 'path': path, 'dsets': cloud_vars,
-                  'parallel': parallel}
+                  'date': self.date, 'extent': extent, 'path': path,
+                  'dsets': cloud_vars, 'parallel': parallel}
 
         var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
 
-        return var_obj.source_data
+        logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
+                     .format(len(var_obj)))
+
+        if parallel:
+            regrid_ind = self._cloud_regrid_parallel(var_obj)
+        else:
+            regrid_ind = {}
+            # make the nearest neighbors regrid index mapping for all timesteps
+            for i, fpath in enumerate(var_obj.flist):
+                regrid_ind[i] = self.get_cloud_nn(fpath, self._nsrdb_grid)
+
+        logger.debug('Finished processing ReGrid nearest neighbors. Starting '
+                     'to extract and map cloud data to the NSRDB grid.')
+
+        data = {}
+        # extract the regrided data for all timesteps
+        for i, single_obj in enumerate(var_obj):
+            # save all datasets
+            for dset, array in single_obj.source_data.items():
+                if dset not in data:
+                    # initialize array based on time index and NN index result
+                    if np.issubdtype(array.dtype, np.float):
+                        data[dset] = np.full(self.nsrdb_data_shape, np.nan,
+                                             dtype=array.dtype)
+                    else:
+                        data[dset] = np.full(self.nsrdb_data_shape, -15,
+                                             dtype=array.dtype)
+
+                # write single timestep with NSRDB sites to appropriate row
+                # map the regridded data using the regrid NN indices
+                data[dset][i, :] = array[regrid_ind[i]]
+
+        return data
+
+    def _cloud_regrid_parallel(self, flist):
+        """Perform the ReGrid nearest neighbor calculations in parallel.
+
+        Parameters
+        ----------
+        flist : list
+            List of full file paths to cloud data files. Grid data from each
+            file is mapped to the NSRDB grid in parallel.
+
+        Returns
+        -------
+        regrid_ind : dict
+            Dictionary of NN index results keyed by the enumerated file list.
+        """
+
+        # start a local cluster
+        n_workers = int(np.min((len(flist), os.cpu_count())))
+        cluster = LocalCluster(n_workers=n_workers,
+                               threads_per_worker=1,
+                               memory_limit=0)
+        with Client(cluster) as client:
+            regrid_ind = {}
+            # make the nearest neighbors regrid index mapping for all timesteps
+            for i, fpath in enumerate(flist):
+                regrid_ind[i] = client.submit(self.get_cloud_nn, fpath,
+                                              self._nsrdb_grid)
+
+            # watch memory during futures to get max memory usage
+            logger.debug('Waiting on parallel futures...')
+            max_mem = 0
+            status = 0
+            while status == 0:
+                mem = psutil.virtual_memory()
+                max_mem = np.max((mem.used / 1e9, max_mem))
+                time.sleep(5)
+                status = 1
+                for future in regrid_ind.values():
+                    if future.status == 'pending':
+                        status = 0
+                        break
+
+            logger.info('Futures finished, maximum memory usage was '
+                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        .format(max_mem, mem.total / 1e9))
+
+            # gather results
+            regrid_ind = client.gather(regrid_ind)
+
+        return regrid_ind
 
     def _derive(self, var):
         """Method for deriving variables (with dependencies).
@@ -487,7 +600,7 @@ class DataModel:
         data = var_obj.source_data
 
         # get mapping from source data grid to NSRDB
-        dist, ind = self.get_nn_ind(var_obj.grid, self.nsrdb_grid,
+        dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
                                     var_obj.spatial_method)
 
         # perform weighting if applicable
@@ -524,7 +637,8 @@ class DataModel:
         return data
 
     @staticmethod
-    def _parallel(var_list, var_meta, date, nsrdb_grid, nsrdb_freq='5min'):
+    def _process_parallel(var_list, var_meta, date, nsrdb_grid,
+                          nsrdb_freq='5min'):
         """Process ancillary variables in parallel.
 
         Parameters
@@ -575,12 +689,13 @@ class DataModel:
                 mem = psutil.virtual_memory()
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
-                for var, future in futures.items():
-                    if future.status != 'pending':
-                        status = 1
+                status = 1
+                for future in futures.values():
+                    if future.status == 'pending':
+                        status = 0
                         break
 
-            logger.info('Futures finishing up, maximum memory usage was '
+            logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
@@ -625,7 +740,7 @@ class DataModel:
         if var in cls.CALCULATED_VARS:
             data = adp._calculate(var)
         elif var in cls.CLOUD_VARS:
-            data = adp._clouds(var)
+            data = adp._cloud_regrid(var)
         elif var in cls.DERIVED_VARS:
             data = adp._derive(var)
         else:
@@ -682,8 +797,8 @@ class DataModel:
 
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        data = adp._clouds(cloud_vars, extent=extent, path=path,
-                           parallel=parallel)
+        data = adp._cloud_regrid(cloud_vars, extent=extent, path=path,
+                                 parallel=parallel)
 
         for k, v in data.items():
             if v.shape != adp.nsrdb_data_shape:
@@ -697,7 +812,8 @@ class DataModel:
 
     @classmethod
     def process_multiple(cls, var_list, var_meta, date, nsrdb_grid,
-                         nsrdb_freq='5min', parallel=False, **kwargs):
+                         nsrdb_freq='5min', parallel=False,
+                         cloud_extent='east', cloud_path=None):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -715,8 +831,13 @@ class DataModel:
         parallel : bool
             Flag to perform parallel processing with each variable on a
             seperate process.
-        kwargs : dict
-            Additional keyword arguments for cloud processing.
+        cloud_extent : str
+            Regional (satellite) extent to process for cloud data processing,
+            used to form file paths to cloud data files.
+        cloud_path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
 
         Returns
         -------
@@ -764,7 +885,7 @@ class DataModel:
                     var, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
         # run in parallel
         else:
-            data = cls._parallel(
+            data = cls._process_parallel(
                 var_list, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
             for k, v in data.items():
                 adp[k] = v
@@ -773,7 +894,7 @@ class DataModel:
         if cloud_vars:
             adp['clouds'] = cls.process_clouds(
                 cloud_vars, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                parallel=parallel, **kwargs)
+                parallel=parallel, extent=cloud_extent, path=cloud_path)
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.

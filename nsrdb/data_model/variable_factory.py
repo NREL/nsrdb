@@ -8,7 +8,6 @@ import os
 from netCDF4 import Dataset as NetCDF
 import logging
 import datetime
-from scipy.spatial import cKDTree
 from warnings import warn
 
 from nsrdb import DATADIR
@@ -430,10 +429,9 @@ class CloudVar(AncillaryVar):
                    96: '15min',
                    288: '5min'}
 
-    def __init__(self, var_meta, name, date, nsrdb_grid, extent='east',
-                 path=None, parallel=False,
-                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+    def __init__(self, var_meta, name, date, extent='east', path=None,
+                 parallel=False, dsets=('cloud_type', 'cld_opd_dcomp',
+                                        'cld_reff_dcomp', 'cld_press_acha')):
         """
         Parameters
         ----------
@@ -443,8 +441,6 @@ class CloudVar(AncillaryVar):
             NSRDB var name.
         date : datetime.date
             Single day to extract data for.
-        nsrdb_grid : pd.DataFrame
-            Reference NSRDB grid data.
         extent : str
             Regional (satellite) extent to process, used to form file paths.
         parallel : bool
@@ -460,10 +456,6 @@ class CloudVar(AncillaryVar):
         """
 
         self._extent = extent
-        self._extent_path = None
-        self._year_path = None
-        self._day_path = None
-        self._nsrdb_grid = nsrdb_grid
         self._path = path
         self._parallel = parallel
         self._flist = None
@@ -486,6 +478,29 @@ class CloudVar(AncillaryVar):
         """Length of this object is the number of source files."""
         return len(self.flist)
 
+    def __iter__(self):
+        """Initialize this instance as an iter object."""
+        self._i = 0
+        return self
+
+    def __next__(self):
+        """Iterate through CloudVarSingle objects for each cloud data file.
+
+        Returns
+        -------
+        obj : CloudVarSingle
+            Single cloud data retrieval object.
+        """
+
+        # iterate through all timesteps (one file per timestep)
+        if self._i < len(self.flist):
+            # initialize a single timestep helper object
+            obj = CloudVarSingle(self.flist[self._i], dsets=self._dsets)
+            self._i += 1
+            return obj
+        else:
+            raise StopIteration
+
     @property
     def path(self):
         """Final path containing cloud data files."""
@@ -504,13 +519,11 @@ class CloudVar(AncillaryVar):
         if self._flist is None:
             fl = os.listdir(self.path)
             self._flist = [os.path.join(self.path, f) for f in fl
-                           if f.endswith('.h5')]
+                           if f.endswith('.h5') and str(self._date.year) in f]
+            logger.debug('Cloud data initialized with the following file '
+                         'list of length {}:\n{}'
+                         .format(len(self._flist), self._flist))
         return self._flist
-
-    @property
-    def shape(self):
-        """Desired shape of final single-dataset output array."""
-        return (len(self.time_index), len(self._nsrdb_grid))
 
     @property
     def time_index(self):
@@ -524,72 +537,6 @@ class CloudVar(AncillaryVar):
         """
         freq = self.LEN_TO_FREQ[len(self)]
         return self._get_time_index(self._date, freq=freq)
-
-    @staticmethod
-    def _regrid_nn(fpath, dsets, nsrdb_grid, labels=['latitude', 'longitude']):
-        """Nearest neighbors computation for regrid."""
-        # initialize a single timestep helper object
-        obj = CloudVarSingle(fpath, dsets=dsets)
-
-        # Build NN tree based on the unique cloud timestep grid
-        tree = cKDTree(obj.grid[labels])
-        # Get the distance and index of NN
-        _, index = tree.query(nsrdb_grid[labels], k=1,
-                              distance_upper_bound=0.5)
-        return index
-
-    def _regrid(self):
-        """Perform ReGridding - mapping cloud data to the NSRDB grid.
-
-        Returns
-        -------
-        data : dict
-            Data dictionary of cloud datasets mapped to the NSRDB grid. Keys
-            are the cloud variables names, values are 2D numpy arrays.
-            Array shape is (n_time, n_sites).
-        """
-
-        logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
-                     .format(len(self)))
-        data = {}
-
-        # iterate through all timesteps (one file per timestep)
-        for i, fpath in enumerate(self.flist):
-
-            index = self._regrid_nn(fpath, self._dsets, self._nsrdb_grid)
-
-            # initialize a single timestep helper object
-            obj = CloudVarSingle(fpath, index=index, dsets=self._dsets)
-
-            # save all datasets
-            single_time_data = obj.source_data
-            for dset, array in single_time_data.items():
-                if dset not in data:
-                    # initialize array based on time index and NN index result
-                    if np.issubdtype(array.dtype, np.float):
-                        data[dset] = np.full(self.shape, np.nan,
-                                             dtype=array.dtype)
-                    else:
-                        data[dset] = np.full(self.shape, -15,
-                                             dtype=array.dtype)
-
-                # write single timestep with NSRDB sites to appropriate row
-                data[dset][i, :] = array
-
-        return data
-
-    @property
-    def source_data(self):
-        """Get the cloud data mapped to the NSRDB grid for a given day.
-
-        Returns
-        -------
-        data : dict
-            Data dictionary of cloud datasets mapped to the NSRDB grid. Keys
-            are the cloud variables names, values are 2D numpy arrays.
-            Array shape is (n_time, n_sites).
-        """
-        return self._regrid()
 
 
 class MerraVar(AncillaryVar):
