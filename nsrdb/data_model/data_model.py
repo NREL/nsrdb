@@ -6,7 +6,7 @@ A primary function of this model is to perform spatial and temporal
 interpolation of ancillary data. MERRA2 and Asymmetry data are both spatially
 and temporally interpolated to the NSRDB reference grid. Cloud properties
 originating from the GOES satellites and processed by the University of
-Wisconsin are mapped to the NSRDB grid via nearest neighbors.
+Wisconsin are mapped to the NSRDB grid via nearest neighbors (ReGrid).
 
 Non-standard module dependencies (pip-installable):
     - netCDF4
@@ -45,7 +45,7 @@ from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
-from nsrdb.data_model.variable_factory import VarFactory, CloudVarSingle
+from nsrdb.data_model.variable_factory import VarFactory
 
 
 logger = logging.getLogger(__name__)
@@ -301,7 +301,7 @@ class DataModel:
         if isinstance(labels, tuple):
             labels = list(labels)
         # Build NN tree based on the unique cloud grid at single timestep
-        tree = cKDTree(CloudVarSingle(fpath, dsets=None).grid[labels])
+        tree = cKDTree(VarFactory.get_cloud_handler(fpath).grid[labels])
         # Get the index of NN to NSRDB grid
         _, index = tree.query(nsrdb_grid[labels], k=1)
         index = index.astype(np.uint32)

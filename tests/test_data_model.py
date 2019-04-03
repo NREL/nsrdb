@@ -110,18 +110,18 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                                       grid, parallel=True)
 
     for key, value in data.items():
-
-        baseline_path = os.path.join(out_dir, key + '.h5')
-        if not os.path.exists(baseline_path):
-            with h5py.File(baseline_path, 'w') as f:
-                f.create_dataset(key, data=value)
-            msg = 'Output file for "{}" did not exist, created'.format(key)
-            assert False, msg
-        else:
-            with h5py.File(baseline_path, 'r') as f:
-                data_baseline = f[key][...]
-            assert np.allclose(data_baseline, value,
-                               atol=ATOL, rtol=RTOL)
+        if key != 'time_index':
+            baseline_path = os.path.join(out_dir, key + '.h5')
+            if not os.path.exists(baseline_path):
+                with h5py.File(baseline_path, 'w') as f:
+                    f.create_dataset(key, data=value)
+                msg = 'Output file for "{}" did not exist, created'.format(key)
+                assert False, msg
+            else:
+                with h5py.File(baseline_path, 'r') as f:
+                    data_baseline = f[key][...]
+                assert np.allclose(data_baseline, value,
+                                   atol=ATOL, rtol=RTOL)
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):

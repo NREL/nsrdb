@@ -15,7 +15,7 @@ import h5py
 
 from nsrdb import CONFIGDIR, TESTDATADIR
 from nsrdb.data_model import DataModel
-from nsrdb.data_model.variable_factory import CloudVarSingle
+from nsrdb.data_model.clouds import CloudVarSingleH5
 from nsrdb.utilities.loggers import init_logger
 
 RTOL = 0.001
@@ -38,7 +38,7 @@ def cloud_data():
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data',
                          'goes12_2007_016_1915.level2.h5')
-    c = CloudVarSingle(fpath)
+    c = CloudVarSingleH5(fpath)
     grid = c.grid
     data = c.source_data
     cloud_data = {'grid': grid, 'data': data}
