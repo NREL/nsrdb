@@ -280,6 +280,11 @@ class CloudVarSingle:
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
+    @property
+    def fpath(self):
+        """Get the full file path for this cloud data timestep."""
+        return self._fpath
+
     @staticmethod
     def _parse_grid(fpath):
         """Extract the cloud data grid for the current timestep.
@@ -430,8 +435,8 @@ class CloudVar(AncillaryVar):
                    288: '5min'}
 
     def __init__(self, var_meta, name, date, extent='east', path=None,
-                 parallel=False, dsets=('cloud_type', 'cld_opd_dcomp',
-                                        'cld_reff_dcomp', 'cld_press_acha')):
+                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+                        'cld_press_acha')):
         """
         Parameters
         ----------
@@ -443,8 +448,6 @@ class CloudVar(AncillaryVar):
             Single day to extract data for.
         extent : str
             Regional (satellite) extent to process, used to form file paths.
-        parallel : bool
-            Flag to perform regrid in parallel.
         path : str | NoneType
             Optional path string to force a cloud data directory. If this is
             None, the file path will be infered from the extent, year, and day
@@ -457,7 +460,6 @@ class CloudVar(AncillaryVar):
 
         self._extent = extent
         self._path = path
-        self._parallel = parallel
         self._flist = None
         self._dsets = dsets
 
@@ -520,8 +522,12 @@ class CloudVar(AncillaryVar):
             fl = os.listdir(self.path)
             self._flist = [os.path.join(self.path, f) for f in fl
                            if f.endswith('.h5') and str(self._date.year) in f]
-            logger.debug('Cloud data initialized with the following file '
-                         'list of length {}:\n{}'
+            # sort by timestep located at the last underscore before .level2.h5
+            self._flist = sorted(self._flist,
+                                 key=lambda x: os.path.basename(x)
+                                 .split('.')[0].split('_')[-1])
+            logger.debug('Cloud data handler initialized with the following '
+                         'file list of length {}:\n{}'
                          .format(len(self._flist), self._flist))
         return self._flist
 

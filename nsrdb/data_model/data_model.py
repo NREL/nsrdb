@@ -37,16 +37,16 @@ import pandas as pd
 import os
 import logging
 import psutil
-from dask.distributed import LocalCluster, Client
+from concurrent.futures import ProcessPoolExecutor
 import time
 from scipy.spatial import cKDTree
 
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
-from nsrdb.utilities.loggers import NSRDB_LOGGERS
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step)
 from nsrdb.data_model.variable_factory import VarFactory, CloudVarSingle
+
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class DataModel:
 
         if inp.endswith('.csv'):
             self._nsrdb_grid = pd.read_csv(inp)
-            logger.debug('Imported NSRDB reference grid file.')
+            logger.debug('Imported NSRDB reference grid file: {}'.format(inp))
         else:
             raise TypeError('Expected csv grid file but received: {}'
                             .format(inp))
@@ -296,8 +296,7 @@ class DataModel:
         # Build NN tree based on the unique cloud grid at single timestep
         tree = cKDTree(CloudVarSingle(fpath, dsets=None).grid[labels])
         # Get the index of NN to NSRDB grid
-        _, index = tree.query(nsrdb_grid[labels], k=1,
-                              distance_upper_bound=0.5)
+        _, index = tree.query(nsrdb_grid[labels], k=1)
         index = index.astype(np.uint32)
         return index
 
@@ -449,7 +448,7 @@ class DataModel:
 
         kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
                   'date': self.date, 'extent': extent, 'path': path,
-                  'dsets': cloud_vars, 'parallel': parallel}
+                  'dsets': cloud_vars}
 
         var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
 
@@ -457,11 +456,13 @@ class DataModel:
                      .format(len(var_obj)))
 
         if parallel:
-            regrid_ind = self._cloud_regrid_parallel(var_obj)
+            regrid_ind = self._cloud_regrid_parallel(var_obj.flist)
         else:
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
             for i, fpath in enumerate(var_obj.flist):
+                logger.debug('Calculating ReGrid nearest neighbors for: {}'
+                             .format(fpath))
                 regrid_ind[i] = self.get_cloud_nn(fpath, self._nsrdb_grid)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
@@ -469,9 +470,9 @@ class DataModel:
 
         data = {}
         # extract the regrided data for all timesteps
-        for i, single_obj in enumerate(var_obj):
+        for i, obj in enumerate(var_obj):
             # save all datasets
-            for dset, array in single_obj.source_data.items():
+            for dset, array in obj.source_data.items():
                 if dset not in data:
                     # initialize array based on time index and NN index result
                     if np.issubdtype(array.dtype, np.float):
@@ -502,38 +503,40 @@ class DataModel:
             Dictionary of NN index results keyed by the enumerated file list.
         """
 
+        logger.debug('Starting cloud ReGrid parallel.')
+
         # start a local cluster
-        n_workers = int(np.min((len(flist), os.cpu_count())))
-        cluster = LocalCluster(n_workers=n_workers,
-                               threads_per_worker=1,
-                               memory_limit=0)
-        with Client(cluster) as client:
-            regrid_ind = {}
+        max_workers = int(np.min((len(flist), os.cpu_count())))
+        logger.debug('Starting local cluster with {} workers.'
+                     .format(max_workers))
+        regrid_ind = {}
+        with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
             for i, fpath in enumerate(flist):
-                regrid_ind[i] = client.submit(self.get_cloud_nn, fpath,
-                                              self._nsrdb_grid)
+                regrid_ind[i] = exe.submit(self.get_cloud_nn, fpath,
+                                           self._nsrdb_grid)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
             max_mem = 0
-            status = 0
-            while status == 0:
+            running = len(regrid_ind)
+            while running > 0:
                 mem = psutil.virtual_memory()
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
-                status = 1
+                running = 0
                 for future in regrid_ind.values():
-                    if future.status == 'pending':
-                        status = 0
-                        break
+                    if future.running():
+                        running += 1
+                logger.debug('{} futures are running.'.format(running))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
             # gather results
-            regrid_ind = client.gather(regrid_ind)
+            for k, v in regrid_ind.items():
+                regrid_ind[k] = v.result()
 
         return regrid_ind
 
@@ -663,49 +666,38 @@ class DataModel:
 
         logger.info('Processing all MERRA variables in parallel.')
         # start a local cluster
-        n_workers = int(np.min((len(var_list), os.cpu_count())))
-        cluster = LocalCluster(n_workers=n_workers,
-                               threads_per_worker=1,
-                               memory_limit=0)
+        max_workers = int(np.min((len(var_list), os.cpu_count())))
         futures = {}
-        with Client(cluster) as client:
 
-            # initialize loggers on workers
-            loggers = (__name__,)
-            for logger_name in loggers:
-                client.run(NSRDB_LOGGERS.init_logger, logger_name)
-
+        with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
-                futures[var] = client.submit(
+                futures[var] = exe.submit(
                     DataModel.process_single, var, var_meta, date, nsrdb_grid,
                     nsrdb_freq=nsrdb_freq)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
             max_mem = 0
-            status = 0
-            while status == 0:
+            running = len(futures)
+            while running > 0:
                 mem = psutil.virtual_memory()
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
-                status = 1
+                running = 0
                 for future in futures.values():
-                    if future.status == 'pending':
-                        status = 0
-                        break
+                    if future.running():
+                        running += 1
+                logger.debug('{} futures are running.'.format(running))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
             # gather results
-            futures = client.gather(futures)
-
-            # send to merra object
-            for var in futures.keys():
+            for k, v in futures.items():
                 # data returned from futures as read only for some reason
-                futures[var].setflags(write=True)
+                futures[k] = v.result()
 
         return futures
 
@@ -845,6 +837,8 @@ class DataModel:
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
 
+        logger.debug('Processing data for variable list: {}'.format(var_list))
+
         # Create an AncillaryDataProcessing object instance for storing data.
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
@@ -876,19 +870,21 @@ class DataModel:
         derived = tuple(derived)
         var_list = tuple([v for i, v in enumerate(var_list)
                           if i not in remove])
-
-        # run in serial
-        if parallel is False:
-            data = {}
-            for var in var_list:
-                adp[var] = cls.process_single(
-                    var, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
-        # run in parallel
-        else:
-            data = cls._process_parallel(
-                var_list, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
-            for k, v in data.items():
-                adp[k] = v
+        if var_list:
+            # run in serial
+            if parallel is False:
+                data = {}
+                for var in var_list:
+                    adp[var] = cls.process_single(
+                        var, var_meta, date, nsrdb_grid,
+                        nsrdb_freq=nsrdb_freq)
+            # run in parallel
+            else:
+                data = cls._process_parallel(
+                    var_list, var_meta, date, nsrdb_grid,
+                    nsrdb_freq=nsrdb_freq)
+                for k, v in data.items():
+                    adp[k] = v
 
         # process cloud variables together
         if cloud_vars:
@@ -898,8 +894,9 @@ class DataModel:
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
-        for var in derived:
-            adp[var] = adp._derive(var)
+        if derived:
+            for var in derived:
+                adp[var] = adp._derive(var)
 
         logger.info('Ancillary data processing complete.')
         return adp._processed
