@@ -50,7 +50,6 @@ class AncillaryVar:
         if isinstance(inp, str):
             if inp.endswith('.csv'):
                 var_meta = pd.read_csv(inp)
-                logger.debug('Imported NSRDB variable meta file.')
         elif isinstance(inp, pd.DataFrame):
             var_meta = inp
 

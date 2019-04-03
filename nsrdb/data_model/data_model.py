@@ -122,23 +122,19 @@ class DataModel:
             Final desired NSRDB temporal frequency.
         """
 
-        logger.info('Processing MERRA data for {}'.format(date))
-
         self._var_meta = var_meta
         self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_factory = VarFactory()
         self._processed = {}
-
-        logger.debug('Final NSRDB output shape is: {}'
-                     .format(self.nsrdb_data_shape))
+        self._ti = None
 
     def __getitem__(self, key):
         return self._processed[key]
 
     def __setitem__(self, key, value):
-        if isinstance(value, np.ndarray) and isinstance(key, str):
+        if isinstance(value, (np.ndarray, pd.DatetimeIndex)):
             self._processed[key] = value
         elif isinstance(value, dict):
             self._processed.update(value)
@@ -157,7 +153,6 @@ class DataModel:
 
         if inp.endswith('.csv'):
             self._nsrdb_grid = pd.read_csv(inp)
-            logger.debug('Imported NSRDB reference grid file: {}'.format(inp))
         else:
             raise TypeError('Expected csv grid file but received: {}'
                             .format(inp))
@@ -187,13 +182,15 @@ class DataModel:
         nsrdb_ti : pd.DatetimeIndex
             Pandas datetime index for the current day at the NSRDB resolution.
         """
-
-        ti = pd.date_range('1-1-{y}'.format(y=self.date.year),
-                           '1-1-{y}'.format(y=self.date.year + 1),
-                           freq=self._nsrdb_freq)[:-1]
-        mask = (ti.month == self.date.month) & (ti.day == self.date.day)
-        ti = ti[mask]
-        return ti
+        if self._ti is None:
+            self._ti = pd.date_range('1-1-{y}'.format(y=self.date.year),
+                                     '1-1-{y}'.format(y=self.date.year + 1),
+                                     freq=self._nsrdb_freq)[:-1]
+            mask = ((self._ti.month == self.date.month) &
+                    (self._ti.day == self.date.day))
+            self._ti = self._ti[mask]
+            self['time_index'] = self._ti
+        return self._ti
 
     @property
     def nsrdb_data_shape(self):
@@ -207,6 +204,18 @@ class DataModel:
         if not hasattr(self, '_nsrdb_data_shape'):
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
         return self._nsrdb_data_shape
+
+    @property
+    def processed_data(self):
+        """Get the processed data dictionary.
+
+        Returns
+        -------
+        _processed : dict
+            Namespace of processed data set with __setitem__. Keys should be
+            NSRDB variable names.
+        """
+        return self._processed
 
     def get_geo_nn(self, df1, df2, method, labels=('latitude', 'longitude'),
                    cache=False):
@@ -258,7 +267,6 @@ class DataModel:
                 ind = np.genfromtxt(cache_i, dtype=int, delimiter=',')
 
             else:
-                logger.debug('Running geographic nearest neighbor...')
                 dist, ind = geo_nn(df1, df2, labels=labels, k=k)
                 logger.debug('Saving nearest neighbor indices to: {}'
                              .format(cache_i))
@@ -266,7 +274,6 @@ class DataModel:
                 np.savetxt(cache_i, ind, delimiter=',')
 
         else:
-            logger.debug('Running geographic nearest neighbor...')
             dist, ind = geo_nn(df1, df2, labels=labels, k=k)
 
         return dist, ind
@@ -528,7 +535,7 @@ class DataModel:
                 for future in regrid_ind.values():
                     if future.running():
                         running += 1
-                logger.debug('{} futures are running.'.format(running))
+                logger.debug('{} ReGrid futures are running.'.format(running))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -664,7 +671,7 @@ class DataModel:
             nsrdb variable name.
         """
 
-        logger.info('Processing all MERRA variables in parallel.')
+        logger.info('Processing variables in parallel: {}'.format(var_list))
         # start a local cluster
         max_workers = int(np.min((len(var_list), os.cpu_count())))
         futures = {}
@@ -688,7 +695,8 @@ class DataModel:
                 for future in futures.values():
                     if future.running():
                         running += 1
-                logger.debug('{} futures are running.'.format(running))
+                logger.debug('{} DataModel processing futures are running.'
+                             .format(running))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -837,10 +845,15 @@ class DataModel:
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
 
-        logger.debug('Processing data for variable list: {}'.format(var_list))
+        logger.info('Building NSRDB data model for {} at a {} temporal '
+                    'resolution.'.format(date, nsrdb_freq))
+        logger.info('Using the NSRDB reference grid file: {}'
+                    .format(nsrdb_grid))
 
         # Create an AncillaryDataProcessing object instance for storing data.
         adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+        logger.info('Final NSRDB output shape is: {}'
+                    .format(adp.nsrdb_data_shape))
 
         # default multiple compute
         if var_list is None:
@@ -861,15 +874,23 @@ class DataModel:
 
         # remove derived (dependent) variables from var_list to be processed
         # last (most efficient to process depdencies first, dependents last)
-        derived = []
+        derived_vars = []
         remove = []
         for var in cls.DERIVED_VARS:
             if var in var_list:
-                derived.append(var)
+                derived_vars.append(var)
                 remove.append(var_list.index(var))
-        derived = tuple(derived)
+        derived_vars = tuple(derived_vars)
         var_list = tuple([v for i, v in enumerate(var_list)
                           if i not in remove])
+
+        logger.info('First processing data for variable list: {}'
+                    .format(var_list))
+        logger.info('Then processing cloud data for variable list: {}'
+                    .format(cloud_vars))
+        logger.info('Finally, processing derived data for variable list: {}'
+                    .format(derived_vars))
+
         if var_list:
             # run in serial
             if parallel is False:
@@ -894,9 +915,9 @@ class DataModel:
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
-        if derived:
-            for var in derived:
+        if derived_vars:
+            for var in derived_vars:
                 adp[var] = adp._derive(var)
 
-        logger.info('Ancillary data processing complete.')
-        return adp._processed
+        logger.info('DataModel processing complete for: {}'.format(date))
+        return adp.processed_data
