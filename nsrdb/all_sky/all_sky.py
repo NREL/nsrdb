@@ -17,8 +17,7 @@ from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
-            time_index, total_precipitable_water, ghi_variability=None,
-            debug=False):
+            time_index, total_precipitable_water, ghi_variability=None):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -64,17 +63,19 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi_variability : NoneType | float
         Variability fraction to apply to GHI. Provides synthetic variability
         for cloudy irradiance when downscaling data.
-    debug : bool
-        Flag to return extra variables.
 
     Returns
     -------
-    dhi : np.ndarray
-        Diffuse horizontal irradiance.
-    dni
-        Direct normal irradiance.
-    ghi
-        Global horizontal irradiance.
+    output : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
     """
 
     if isinstance(time_index, np.ndarray):
@@ -141,7 +142,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                                missing_cld_props)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
-    ghi, csr = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=True)
+    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
     dni = gap_fill_irrad(dni, rest_data.dni, fill_flag)
 
     # calculate the DHI, patching DNI for negative DHI values
@@ -161,10 +162,12 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             warn('Negative values are present in "{}" after all-sky '
                  'irradiance calculation.'.format(name))
 
-    if debug:
-        # return extra debugging variables.
-        return (dhi, dni, ghi, rest_data.dhi, rest_data.dni, rest_data.ghi,
-                fill_flag, csr)
-    else:
-        # return all-sky irradiance (no debugging variables)
-        return dhi, dni, ghi
+    output = {'clearsky_dhi': rest_data.dhi,
+              'clearsky_dni': rest_data.dni,
+              'clearsky_ghi': rest_data.ghi,
+              'dhi': dhi,
+              'dni': dni,
+              'ghi': ghi,
+              'fill_flag': fill_flag}
+
+    return output
