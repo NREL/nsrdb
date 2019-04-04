@@ -7,7 +7,7 @@ Adapted from Nick Gilroy's initial script:
 @author: gbuster
 """
 
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 import time
 import os
 import re
@@ -443,7 +443,10 @@ class ProcessIMS:
             if self.hpc:
                 if 'client' not in locals():
                     logger.info('Starting Dask Client...')
-                    client = Client()
+                    cluster = LocalCluster(
+                        n_workers=10, threads_per_worker=1,
+                        memory_limit=0)
+                    client = Client(cluster)
                     client.run(NSRDB_LOGGERS.init_logger, __name__)
                 logger.debug('Kicking off future #{}'.format(i))
                 futures.append(client.submit(self.run_future, fpath, self.res,
@@ -584,7 +587,7 @@ class ProcessIMS:
         init_logger(__name__, log_file='ims.log', log_level=log_level)
         output_hdf = ('/scratch/ngilroy/nsrdb/albedo/outputs/ims_{}_daily_snow_cover.h5'
                       .format(year))
-        nsrdb_meta = '/scratch/ngilroy/nsrdb/albedo/east_psm_extent_2k.csv'
+        nsrdb_meta = '/projects/PXS/reference_grids/east_psm_extent_2k.csv'
         lon4 = '/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/IMS1kmLons.24576x24576x1.double'
         lat4 = '/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/IMS1kmLats.24576x24576x1.double'
         ims_data_dir = '/scratch/ngilroy/nsrdb/albedo/ims_1k'
