@@ -334,7 +334,7 @@ class Resource:
             else:
                 out = out.astype('float32')
 
-            if 'cld_' in ds_name and '_dcomp' in ds_name:
+            if add_factor != 0:
                 # cloud properties have both scale and offset
                 out *= scale_factor
                 out += add_factor

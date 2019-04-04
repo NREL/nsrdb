@@ -258,7 +258,7 @@ class Outputs(Resource):
         return np.core.records.fromarrays(meta_arrays, dtype=dtypes)
 
     @staticmethod
-    def _check_data_dtype(data, dtype, scale_factor):
+    def _check_data_dtype(data, dtype, scale_factor, dset=None):
         """
         Check data dtype and scale if needed
 
@@ -270,6 +270,8 @@ class Outputs(Resource):
             dtype of data on disc
         scale_factor : int
             Scale factor to scale data to integer (if needed)
+        dset : str
+            Optional name of data to be used for logging/warning purposes.
 
         Returns
         -------
@@ -279,9 +281,25 @@ class Outputs(Resource):
         """
         if not np.issubdtype(data.dtype, np.dtype(dtype)):
             # apply scale factor and dtype
-            data = np.multiply(data, scale_factor)
+            data *= scale_factor
             if np.issubdtype(dtype, np.integer):
                 data = np.round(data)
+
+                # Truncate values below the dtype byte range
+                d_min = np.iinfo(dtype).min
+                if np.nanmin(data) < d_min:
+                    warn('Dataset "{}" with requested dtype {} has a min '
+                         'value of {} below dtype min of {}. Truncating.'
+                         .format(dset, dtype, np.nanmin(data), d_min))
+                    data[data < d_min] = d_min
+
+                # Truncate values below the dtype byte range
+                d_max = np.iinfo(dtype).max
+                if np.nanmax(data) < d_max:
+                    warn('Dataset "{}" with requested dtype {} has a max '
+                         'value of {} above dtype max of {}. Truncating.'
+                         .format(dset, dtype, np.nanmax(data), d_max))
+                    data[data > d_max] = d_max
 
             data = data.astype(dtype)
 
@@ -308,7 +326,8 @@ class Outputs(Resource):
         scale_factor = self.get_scale(ds_name)
 
         self._h5[ds_name][ds_slice] = self._check_data_dtype(arr, dtype,
-                                                             scale_factor)
+                                                             scale_factor,
+                                                             dset=ds_name)
 
     def _check_chunks(self, chunks, data=None):
         """
@@ -430,7 +449,8 @@ class Outputs(Resource):
 
         if 'scale_factor' in attrs:
             scale_factor = attrs['scale_factor']
-            data = self._check_data_dtype(data, dtype, scale_factor)
+            data = self._check_data_dtype(data, dtype, scale_factor,
+                                          dset=dset_name)
         else:
             raise RuntimeError("A scale_factor is needed to"
                                "scale data to {}.".format(dtype))
