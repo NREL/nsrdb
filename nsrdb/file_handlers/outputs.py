@@ -281,7 +281,7 @@ class Outputs(Resource):
         """
         if not np.issubdtype(data.dtype, np.dtype(dtype)):
             # apply scale factor and dtype
-            data *= scale_factor
+            data = np.multiply(data, scale_factor)
             if np.issubdtype(dtype, np.integer):
                 data = np.round(data)
 
@@ -295,7 +295,7 @@ class Outputs(Resource):
 
                 # Truncate values below the dtype byte range
                 d_max = np.iinfo(dtype).max
-                if np.nanmax(data) < d_max:
+                if np.nanmax(data) > d_max:
                     warn('Dataset "{}" with requested dtype {} has a max '
                          'value of {} above dtype max of {}. Truncating.'
                          .format(dset, dtype, np.nanmax(data), d_max))

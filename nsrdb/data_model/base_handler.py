@@ -141,6 +141,40 @@ class AncillaryVarHandler:
         """
         return str(self.var_meta.loc[self.mask, 'merra_dset'].values[0])
 
+    @property
+    def units(self):
+        """Get the variable units.
+
+        Returns
+        -------
+        units : str
+            Units for the current variable.
+        """
+        return str(self.var_meta.loc[self.mask, 'units'].values[0])
+
+    @property
+    def final_dtype(self):
+        """Get the variable's intended storage datatype.
+
+        Returns
+        -------
+        dtype : str
+            Data type for the current variable.
+        """
+        return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
+
+    @property
+    def scale_factor(self):
+        """Get the variable's intended storage scale factor.
+
+        Returns
+        -------
+        scale_factor : float
+            Scale factor for the current variable. Data is multiplied by this
+            scale factor before being stored.
+        """
+        return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
+
     @staticmethod
     def _get_time_index(date, freq='1h'):
         """Get a pandas date time object for the given analysis date.
