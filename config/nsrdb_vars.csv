@@ -5,7 +5,7 @@ cld_opd_dcomp,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 cld_reff_dcomp,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 cld_press_acha,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 surface_albedo,,unitless,,uint16,1000,IDW,FALSE,linear,,MODIS-IMS,
-surface_pressure,PS,mbar,,uint16,0.1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+surface_pressure,PS,mbar,,uint16,1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 air_temperature,T2M,celsius,,int8,1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 ozone,TO3,atm-cm,,int16,1000,IDW,FALSE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 total_precipitable_water,TQV,cm,,uint16,1000,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source

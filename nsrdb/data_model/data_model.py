@@ -735,21 +735,21 @@ class DataModel:
 
         logger.info('Processing data for "{}".'.format(var))
 
-        adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+        data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
         if var in cls.CALCULATED_VARS:
-            data = adp._calculate(var)
+            data = data_model._calculate(var)
         elif var in cls.CLOUD_VARS:
-            data = adp._cloud_regrid(var)
+            data = data_model._cloud_regrid(var)
         elif var in cls.DERIVED_VARS:
-            data = adp._derive(var)
+            data = data_model._derive(var)
         else:
-            data = adp._interpolate(var)
+            data = data_model._interpolate(var)
 
-        if data.shape != adp.nsrdb_data_shape:
+        if data.shape != data_model.nsrdb_data_shape:
             raise ValueError('Expected NSRDB data shape of {}, but received '
                              'shape {} for "{}"'
-                             .format(adp.nsrdb_data_shape,
+                             .format(data_model.nsrdb_data_shape,
                                      data.shape, var))
 
         logger.info('Finished "{}".'.format(var))
@@ -795,16 +795,17 @@ class DataModel:
         logger.info('Processing data for multiple cloud variables: {}'
                     .format(cloud_vars))
 
-        adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+        data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        data = adp._cloud_regrid(cloud_vars, extent=extent, path=path,
-                                 parallel=parallel)
+        data = data_model._cloud_regrid(cloud_vars, extent=extent, path=path,
+                                        parallel=parallel)
 
         for k, v in data.items():
-            if v.shape != adp.nsrdb_data_shape:
+            if v.shape != data_model.nsrdb_data_shape:
                 raise ValueError('Expected NSRDB data shape of {}, but '
                                  'received shape {} for "{}"'
-                                 .format(adp.nsrdb_data_shape, v.shape, k))
+                                 .format(data_model.nsrdb_data_shape,
+                                         v.shape, k))
 
         logger.info('Finished "{}".'.format(cloud_vars))
 
@@ -813,7 +814,8 @@ class DataModel:
     @classmethod
     def process_multiple(cls, var_list, var_meta, date, nsrdb_grid,
                          nsrdb_freq='5min', parallel=False,
-                         cloud_extent='east', cloud_path=None):
+                         cloud_extent='east', cloud_path=None,
+                         return_obj=False):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -838,11 +840,16 @@ class DataModel:
             Optional path string to force a cloud data directory. If this is
             None, the file path will be infered from the extent, year, and day
             of year.
+        return_obj : bool
+            Flag to return full DataModel object instead of just the processed
+            data dictionary.
 
         Returns
         -------
-        data : dict
-            Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
+        out : dict | DataModel
+            Either the dictionary of data or the full DataModel object with
+            the data in the .processed property. Controlled by the return_obj
+            flag.
         """
 
         logger.info('Building NSRDB data model for {} at a {} temporal '
@@ -851,9 +858,9 @@ class DataModel:
                     .format(nsrdb_grid))
 
         # Create an AncillaryDataProcessing object instance for storing data.
-        adp = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+        data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
         logger.info('Final NSRDB output shape is: {}'
-                    .format(adp.nsrdb_data_shape))
+                    .format(data_model.nsrdb_data_shape))
 
         # default multiple compute
         if var_list is None:
@@ -896,7 +903,7 @@ class DataModel:
             if parallel is False:
                 data = {}
                 for var in var_list:
-                    adp[var] = cls.process_single(
+                    data_model[var] = cls.process_single(
                         var, var_meta, date, nsrdb_grid,
                         nsrdb_freq=nsrdb_freq)
             # run in parallel
@@ -905,11 +912,11 @@ class DataModel:
                     var_list, var_meta, date, nsrdb_grid,
                     nsrdb_freq=nsrdb_freq)
                 for k, v in data.items():
-                    adp[k] = v
+                    data_model[k] = v
 
         # process cloud variables together
         if cloud_vars:
-            adp['clouds'] = cls.process_clouds(
+            data_model['clouds'] = cls.process_clouds(
                 cloud_vars, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                 parallel=parallel, extent=cloud_extent, path=cloud_path)
 
@@ -917,7 +924,11 @@ class DataModel:
         # AncillaryDataProcessing object instance.
         if derived_vars:
             for var in derived_vars:
-                adp[var] = adp._derive(var)
+                data_model[var] = data_model._derive(var)
 
         logger.info('DataModel processing complete for: {}'.format(date))
-        return adp.processed_data
+
+        if return_obj:
+            return data_model
+        else:
+            return data_model.processed_data

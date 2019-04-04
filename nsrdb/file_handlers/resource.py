@@ -37,9 +37,9 @@ class Resource:
     Base class to handle NSRDB .h5 files
     """
 
-    SCALE_ATTR = 'psm_scale_factor'
-    UNIT_ATTR = 'psm_units'
-    ADD_ATTR = 'psm_add_offset'
+    SCALE_ATTR = 'scale_factor'
+    UNIT_ATTR = 'units'
+    ADD_ATTR = 'add_offset'
 
     def __init__(self, h5_file, unscale=True, hsds=False):
         """

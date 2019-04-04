@@ -3,3 +3,4 @@
 @author: gbuster
 """
 from .data_model import DataModel
+from .variable_factory import VarFactory
