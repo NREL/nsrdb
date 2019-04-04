@@ -72,13 +72,13 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     return out
 
 
-def run_all_sky(test_file=TEST_FILE, sites=list(range(10)), debug=False):
+def run_all_sky(test_file=TEST_FILE, sites=list(range(10))):
     """Run the all-sky processing code over the specified site list."""
 
     source_vars = get_source_data(test_file=test_file, sites=sites)
 
     # run all_sky processing
-    all_sky_out = all_sky(**source_vars, debug=debug)
+    all_sky_out = all_sky(**source_vars)
     return all_sky_out
 
 
@@ -87,40 +87,39 @@ def make_df(site):
 
     d = get_source_data(sites=site)
 
-    dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag, csr = run_all_sky(
-        sites=site, debug=True)
+    aso = run_all_sky(sites=site)
 
     dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=site)
 
     df_dhi = pd.DataFrame({'ti': d['ti'],
                            'sza': d['sza'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': fill_flag.flatten(),
+                           'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
                            'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'dhi': dhi.flatten(),
+                           'dhi': aso['dhi'].flatten(),
                            'dhi_orig': dhi_orig.flatten(),
-                           'cs_dhi': cs_dhi.flatten(),
+                           'cs_dhi': aso['clearsky_dhi'].flatten(),
                            })
     df_dni = pd.DataFrame({'ti': d['ti'],
                            'sza': d['sza'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': fill_flag.flatten(),
+                           'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
                            'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'dni': dni.flatten(),
+                           'dni': aso['dni'].flatten(),
                            'dni_orig': dni_orig.flatten(),
-                           'cs_dni': cs_dni.flatten(),
+                           'cs_dni': aso['clearsky_dni'].flatten(),
                            })
     df_ghi = pd.DataFrame({'ti': d['ti'],
                            'sza': d['sza'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': fill_flag.flatten(),
+                           'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
                            'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'ghi': ghi.flatten(),
+                           'ghi': aso['ghi'].flatten(),
                            'ghi_orig': ghi_orig.flatten(),
-                           'cs_ghi': cs_ghi.flatten(),
+                           'cs_ghi': aso['clearsky_ghi'].flatten(),
                            })
 
     return df_dhi, df_dni, df_ghi
@@ -130,16 +129,16 @@ def plot_benchmark(sites, y_range=None):
     """Make plots benchmarking allsky irradiance against a baseline set of
     irradiances.
     """
-    dhi, dni, ghi = run_all_sky(sites=sites, debug=False)
+    aso = run_all_sky(sites=sites)
 
     dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=sites)
 
     # calculate maximum GHI differences and index locations
-    ghi_diff = np.abs(ghi - ghi_orig)
+    ghi_diff = np.abs(aso['ghi'] - ghi_orig)
     max_diff = np.max(ghi_diff, axis=0)
     loc_max_diff = np.argmax(ghi_diff, axis=0)
 
-    for site in range(dhi.shape[1]):
+    for site in range(aso['dhi'].shape[1]):
         print('\nSite index {}'.format(site))
 
         if not y_range:
@@ -161,19 +160,19 @@ def plot_benchmark(sites, y_range=None):
         plt.close()
 
         plt.plot(range(t0, t1), ghi_orig[t0:t1, site])
-        plt.plot(range(t0, t1), ghi[t0:t1, site])
+        plt.plot(range(t0, t1), aso['ghi'][t0:t1, site])
         plt.legend(['ghi baseline', 'ghi new'])
         plt.show()
         plt.close()
 
         plt.plot(range(t0, t1), dni_orig[t0:t1, site])
-        plt.plot(range(t0, t1), dni[t0:t1, site])
+        plt.plot(range(t0, t1), aso['dni'][t0:t1, site])
         plt.legend(['dni baseline', 'dni new'])
         plt.show()
         plt.close()
 
         plt.plot(range(t0, t1), dhi_orig[t0:t1, site])
-        plt.plot(range(t0, t1), dhi[t0:t1, site])
+        plt.plot(range(t0, t1), aso['dhi'][t0:t1, site])
         plt.legend(['dhi baseline', 'dhi new'])
         plt.show()
         plt.close()
@@ -205,11 +204,9 @@ def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
                  mae_perc_threshold=5):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
-    new = {}
     baseline = {}
 
-    new['dhi'], new['dni'], new['ghi'] = run_all_sky(test_file=test_file,
-                                                     sites=sites, debug=False)
+    new = run_all_sky(test_file=test_file, sites=sites)
 
     baseline_results = get_benchmark_data(test_file=test_file, sites=sites)
     baseline['dhi'] = baseline_results[0]
@@ -256,12 +253,12 @@ def iter_speed_compare(sites=list(range(10))):
     """Run a speed test comparing broadcasted all-sky to iterated all-sky."""
 
     t0 = time.time()
-    run_all_sky(sites=sites, debug=False)
+    run_all_sky(sites=sites)
     t_broad = time.time() - t0
 
     t0 = time.time()
     for site in sites:
-        run_all_sky(sites=[site], debug=False)
+        run_all_sky(sites=[site])
     t_iter = time.time() - t0
 
     print('Running {0} sites through all sky took {1:.2f} seconds '
@@ -287,4 +284,3 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 if __name__ == '__main__':
     execute_pytest()
-#    plot_benchmark([6], y_range=None)
