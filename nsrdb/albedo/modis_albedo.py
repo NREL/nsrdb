@@ -21,6 +21,7 @@ import logging
 import calendar
 from memory_profiler import memory_usage
 
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.file_utils import url_download
 
@@ -120,12 +121,15 @@ class RetrieveMODIS:
 
 class AggregateMODIS(object):
     """Class to aggregate MODIS variables to NSRDB grid"""
-    def __init__(self, config, years):
+    def __init__(self, config, nsrdb_meta, years):
         """
         Parameters
         ----------
         config : ini
             config file for aggregating MODIS albedo to NSRDB grid.
+        nsrdb_meta : str
+            CSV filename with path that contains the current NSRDB meta data
+            that the IMS data will be mapped to.
         years : int
             Year to process.
         days : str
@@ -133,64 +137,131 @@ class AggregateMODIS(object):
         """
         self.config = ConfigObj(config, unrepr=True)
         logger.debug(self.config)
-
+        self.nsrdb_meta = nsrdb_meta
         self.years = years
         self.days = [str(d).zfill(3) for d in range(1, 362, 8)]
 
     def sparseToSpatial(self):
         """Sparse to Spatial: Taking meta from HDF5 nsrdb 1998
 
-        !!!Eventually: Take the meta from the extent files!!!
+        !!!Eventually: Take the meta from the extent files!!
 
         """
-        fname = os.path.join(
-            self.config['dir']['nsrdb_dir'], self.config['fileNames']['nsrdb'])
-        logger.debug('reading{}'.format(fname))
+        if self.nsrdb_meta.endswith('.csv'):
+            logger.info('Getting NSRDB meta data: {}'.format(self.nsrdb_meta))
+            self.meta = pd.read_csv(
+                self.nsrdb_meta, encoding = "ISO-8859-1", low_memory=False)
 
-        with h5py.File(fname, 'r') as hfile:
-            self.meta = hfile['meta'][...]
-        coords = pd.DataFrame(
-            {'lon': np.round(self.meta['longitude'] * 100, 0).astype(np.int16),
-             'lat': np.round(self.meta['latitude'] * 100, 0).astype(np.int16)})
-        coords.loc[(
-            coords['lon'] > 0), 'lon'] = coords.loc[(
-                coords['lon'] > 0), 'lon'] - 36000
-        coords['h5_order'] = np.array(coords.index)
-        cs5x = np.abs(
-            np.unique(coords['lon'])[0] - np.unique(coords['lon'])[1])
-        cs5y = np.abs(
-            np.unique(coords['lat'])[0] - np.unique(coords['lat'])[1])
-        self.h5gtform = (
-            coords['lon'].min() / 100.0,
-            coords['lon'].max() / 100.0,
-            cs5x / 100.0, coords['lat'].min() / 100.0,
-            coords['lat'].max() / 100.0, cs5y / 100.0)
-        lon5, lat5 = [x.astype(np.int16) for x in np.meshgrid(
-            np.arange(
-                coords['lon'].min(),
-                coords['lon'].max() + cs5x,
-                cs5x, dtype=np.int16),
-            np.arange(
-                coords['lat'].min(),
-                coords['lat'].max() + cs5y,
-                cs5y, dtype=np.int16))]
-        lon_ind, lat_ind = [x.astype(np.int32) for x in np.meshgrid(
-            np.arange(
-                np.unique(lon5).size, dtype=np.int32),
-            np.arange(
-                np.unique(lat5).size, dtype=np.int32))]
-        self.grid_shape = lon5.shape
-        self.grid = pd.DataFrame(
-            {'lon': lon5.flatten(),
-             'lat': lat5.flatten(),
-             'lon_ind': lon_ind.flatten(),
-             'lat_ind': lat_ind.flatten()})
-        self.grid = pd.merge(self.grid, coords, how='left', on=['lon', 'lat'])
-        self.grid['lon'] = (self.grid.loc[:, 'lon'].astype(np.float32)) / 100
-        self.grid['lat'] = (self.grid.loc[:, 'lat'].astype(np.float32)) / 100
-        self.grid['h5_order'] = self.grid.loc[:, 'h5_order'].astype(np.float32)
-        self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'] = -99
-        self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'] = -99
+            logger.debug(self.meta.shape)
+
+            coords = pd.DataFrame(
+                {'lon': np.round(self.meta['lons'] * 100, 0).astype(np.int16),
+                 'lat': np.round(self.meta['lats'] * 100, 0).astype(np.int16)})
+
+            coords.loc[(
+                coords['lon'] > 0), 'lon'] = coords.loc[(
+                    coords['lon'] > 0), 'lon'] - 36000
+            coords['h5_order'] = np.array(coords.index)
+            cs5x = np.abs(
+                np.unique(coords['lon'])[0] - np.unique(coords['lon'])[1])
+            cs5y = np.abs(
+                np.unique(coords['lat'])[0] - np.unique(coords['lat'])[1])
+            self.h5gtform = (
+                coords['lon'].min() / 100.0,
+                coords['lon'].max() / 100.0,
+                cs5x / 100.0, coords['lat'].min() / 100.0,
+                coords['lat'].max() / 100.0, cs5y / 100.0)
+            lon5, lat5 = [x.astype(np.int16) for x in np.meshgrid(
+                np.arange(
+                    coords['lon'].min(),
+                    coords['lon'].max() + cs5x,
+                    cs5x, dtype=np.int16),
+                np.arange(
+                    coords['lat'].min(),
+                    coords['lat'].max() + cs5y,
+                    cs5y, dtype=np.int16))]
+            lon_ind, lat_ind = [x.astype(np.int32) for x in np.meshgrid(
+                np.arange(
+                    np.unique(lon5).size, dtype=np.int32),
+                np.arange(
+                    np.unique(lat5).size, dtype=np.int32))]
+            self.grid_shape = lon5.shape
+
+            logger.debug('lon5{}'.format(lon5.shape))
+            logger.debug('lat5{}'.format(lat5.shape))
+            logger.debug('lon_ind{}'.format(lon_ind.shape))
+            logger.debug('lat_ind{}'.format(lat_ind.shape))
+
+            self.grid = pd.DataFrame(
+                {'lon': lon5.flatten(),
+                 'lat': lat5.flatten(),
+                 'lon_ind': lon_ind.flatten(),
+                 'lat_ind': lat_ind.flatten()})
+            self.grid = pd.merge(self.grid, coords, how='left', on=['lon', 'lat'])
+            self.grid['lon'] = (self.grid.loc[:, 'lon'].astype(np.float32)) / 100
+            self.grid['lat'] = (self.grid.loc[:, 'lat'].astype(np.float32)) / 100
+            self.grid['h5_order'] = self.grid.loc[:, 'h5_order'].astype(np.float32)
+            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'] = -99
+            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'] = -99
+
+        elif self.nsrdb_meta.endswith('.h5'):
+            fname = os.path.join(
+                self.config['dir']['nsrdb_dir'], self.config['fileNames']['nsrdb'])
+            logger.debug('reading{}'.format(fname))
+
+            with h5py.File(fname, 'r') as hfile:
+                self.meta = hfile['meta'][...]
+            coords = pd.DataFrame(
+                {'lon': np.round(self.meta['longitude'] * 100, 0).astype(np.int16),
+                 'lat': np.round(self.meta['latitude'] * 100, 0).astype(np.int16)})
+            coords.loc[(
+                coords['lon'] > 0), 'lon'] = coords.loc[(
+                    coords['lon'] > 0), 'lon'] - 36000
+            coords['h5_order'] = np.array(coords.index)
+            cs5x = np.abs(
+                np.unique(coords['lon'])[0] - np.unique(coords['lon'])[1])
+            cs5y = np.abs(
+                np.unique(coords['lat'])[0] - np.unique(coords['lat'])[1])
+            self.h5gtform = (
+                coords['lon'].min() / 100.0,
+                coords['lon'].max() / 100.0,
+                cs5x / 100.0, coords['lat'].min() / 100.0,
+                coords['lat'].max() / 100.0, cs5y / 100.0)
+            lon5, lat5 = [x.astype(np.int16) for x in np.meshgrid(
+                np.arange(
+                    coords['lon'].min(),
+                    coords['lon'].max() + cs5x,
+                    cs5x, dtype=np.int16),
+                np.arange(
+                    coords['lat'].min(),
+                    coords['lat'].max() + cs5y,
+                    cs5y, dtype=np.int16))]
+            lon_ind, lat_ind = [x.astype(np.int32) for x in np.meshgrid(
+                np.arange(
+                    np.unique(lon5).size, dtype=np.int32),
+                np.arange(
+                    np.unique(lat5).size, dtype=np.int32))]
+            self.grid_shape = lon5.shape
+
+            logger.debug('lon5{}'.format(lon5.shape))
+            logger.debug('lat5{}'.format(lat5.shape))
+            logger.debug('lon_ind{}'.format(lon_ind.shape))
+            logger.debug('lat_ind{}'.format(lat_ind.shape))
+
+            self.grid = pd.DataFrame(
+                {'lon': lon5.flatten(),
+                 'lat': lat5.flatten(),
+                 'lon_ind': lon_ind.flatten(),
+                 'lat_ind': lat_ind.flatten()})
+            self.grid = pd.merge(self.grid, coords, how='left', on=['lon', 'lat'])
+            self.grid['lon'] = (self.grid.loc[:, 'lon'].astype(np.float32)) / 100
+            self.grid['lat'] = (self.grid.loc[:, 'lat'].astype(np.float32)) / 100
+            self.grid['h5_order'] = self.grid.loc[:, 'h5_order'].astype(np.float32)
+            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'] = -99
+            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'] = -99
+
+        else:
+            raise TypeError('NSRDB meta data file should be input as a csv.')
 
     def getHDF4meta(self):
         """
@@ -278,6 +349,9 @@ class AggregateMODIS(object):
 
     def write_results(self, year, var, results):
         """Write results to HDF."""
+
+        meta_rec_array = Outputs.to_records_array(self.meta)
+
         with h5py.File(
             os.path.join(
                 self.config['dir']['out_dir'],
@@ -285,7 +359,7 @@ class AggregateMODIS(object):
                     var=var, year=year)), 'w') as hfile:
             for key, values in results.items():
                 hfile.create_dataset(key, data=values, dtype=np.float32)
-            hfile.create_dataset('meta', data=self.meta)
+            hfile.create_dataset('meta', data=meta_rec_array)
 
     def processYear(self, fname):
         """Process a year."""
@@ -384,7 +458,7 @@ class AggregateMODIS(object):
             logger.exception(e)
 
     @classmethod
-    def run(cls, config, years):
+    def run(cls, config, nsrdb_meta, years):
         """Retrieve MODIS albedo source data for a single year.
         Parameters
         ----------
@@ -399,7 +473,7 @@ class AggregateMODIS(object):
         """
         init_logger(__name__, log_file=None, log_level='DEBUG')
 
-        modis = cls(config, years)
+        modis = cls(config, nsrdb_meta, years)
         agg = modis.main()
         return agg
 
@@ -429,12 +503,7 @@ class Eightday_to_dailyMODIS(object):
         try:
             years = self.years
             var=self.config['variables']['variable_names'][0],
-            # rep_years = [str(y) for y in range(
-            #     self.config['variables']['replicate_years'][0],
-            #     self.config['variables']['replicate_years'][1])]
 
-            # hdfRows = [(366 if calendar.isleap(
-            #     int(year)) else 365) for year in rep_years + years]
             hdfRows = [(366 if calendar.isleap(years) else 365)]
             rowInds = np.cumsum([0] + hdfRows)
             modisDays = [d for d in range(0, 361, 8)] + [365]
@@ -459,25 +528,7 @@ class Eightday_to_dailyMODIS(object):
                 hfile.create_dataset('albedo', shape=(
                         (sum(hdfRows), meta.shape[0])), dtype=np.float32)
             logger.info('hdf created')
-            # replicate 8-day to daily
-            # for i, year in enumerate(rep_years + years):
-            #     days = (366 if calendar.isleap(int(year)) else 365)
-            #     modisDays[-1] = days
-            #     rname = os.path.join(
-            #         self.config['dir']['out_dir'],
-            #         self.config['fileNames']['outName'].format(year=year))
 
-            #     with h5py.File(rname, 'r') as hfile:
-            #         data = hfile['means'][...]
-            #     replicated = np.empty((days, meta.shape[0]))
-            #     for j, day in enumerate(modisDays[: - 1]):
-            #         replicated[day:modisDays[j + 1], :] = data[j, :]
-            #     with h5py.File(
-            #         os.path.join(
-            #             self.config['dir']['out_dir'],
-            #             self.config['fileNames']['dailyFileName']),
-            #             'r+') as hfile:
-            #         hfile['albedo'][rowInds[i]:rowInds[i + 1], :] = replicated
             days = (366 if calendar.isleap(int(years)) else 365)
             modisDays[-1] = days
             rname = os.path.join(
@@ -490,12 +541,19 @@ class Eightday_to_dailyMODIS(object):
             replicated = np.empty((days, meta.shape[0]))
             for j, day in enumerate(modisDays[: - 1]):
                 replicated[day:modisDays[j + 1], :] = data[j, :]
+
+            logger.debug('replicated shape{}'.format(replicated.shape))
+
             with h5py.File(
                 os.path.join(
                     self.config['dir']['out_dir'],
                     self.config['fileNames']['dailyFileName']),
                     'r+') as hfile:
-                hfile['albedo'][rowInds:rowInds, :] = replicated
+                # load the data
+                hfile['albedo']
+                # assign new values to data
+                hfile['albedo'][...] = replicated
+                # hfile['albedo'][rowInds:rowInds + 1, :] = replicated
             logger.info('year: %s complete', self.years)
         except Exception as e:
             # logger.info(PrintException())
