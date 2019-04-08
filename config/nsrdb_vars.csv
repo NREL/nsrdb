@@ -1,19 +1,27 @@
-﻿var,merra_name,units,expected_range,final_dtype,scale_factor,spatial_interp,elevation_correct,temporal_interp,merra_dset,data_source,source_directory
-asymmetry,,unitless,,int16,1000,NN,FALSE,nearest,,climatology,/lustre/eaglefs/projects/pxs/ancillary/source/asymmetry
-cloud_type,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
-cld_opd_dcomp,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
-cld_reff_dcomp,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
-cld_press_acha,,,,,,NN,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
-surface_albedo,,unitless,,uint16,1000,IDW,FALSE,linear,,MODIS-IMS,
-surface_pressure,PS,mbar,,uint16,1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-air_temperature,T2M,celsius,,int8,1,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-ozone,TO3,atm-cm,,int16,1000,IDW,FALSE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-total_precipitable_water,TQV,cm,,uint16,1000,IDW,TRUE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-wind_speed,wind_speed,m/s,,uint16,10,NN,FALSE,linear,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-specific_humidity,QV2M,kg kg-1,,uint32,100000000,IDW,FALSE,nearest,tavg1_2d_slv_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-relative_humidity,,%,,uint16,100,,,,,derived,
-dew_point,,celsius,,int8,1,,,,,derived,
-solar_zenith_angle,,degrees,,uint16,100,,,,,calculated,
-alpha,TOTANGSTR,unitless,,int16,1000,IDW,FALSE,nearest,tavg1_2d_aer_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-aod,TOTEXTTAU,unitless,,uint16,10000,IDW,TRUE,nearest,tavg1_2d_aer_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-ssa,TOTSCATAU,unitless,,int16,10000,IDW,FALSE,linear,tavg1_2d_aer_Nx,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+﻿var,units,final_dtype,scale_factor,min,max,spatial_interp,elevation_correct,temporal_interp,merra_dset,merra_name,data_source,source_directory
+air_temperature,Celsius,int16,10,-100,70,IDW2,TRUE,linear,tavg1_2d_slv_Nx,T2M,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+alpha,unitless,uint8,100,0,2.5,IDW2,FALSE,nearest,tavg1_2d_aer_Nx,TOTANGSTR,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+aod,unitless,uint16,10000,0.01,1.5,IDW2,TRUE,nearest,tavg1_2d_aer_Nx,TOTEXTTAU,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+asymmetry,unitless,int8,100,-1,1,NN,FALSE,nearest,,,climatology,/lustre/eaglefs/projects/pxs/ancillary/source/asymmetry
+cld_opd_dcomp,,uint16,100,0,80,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
+cld_press_acha,hPa,uint16,1,50,1100,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
+cld_reff_dcomp,micron,uint16,100,0,80,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
+clearsky_dhi,W/m2,uint16,1,0,800,,,,,,output,
+clearsky_dni,W/m2,uint16,1,0,1350,,,,,,output,
+clearsky_ghi,W/m2,uint16,1,0,1350,,,,,,output,
+cloud_type,"'N/A': -15, 'Clear': 0, 'Probably Clear': 1, 'Fog': 2, 'Water': 3, 'Super-Cooled Water': 4, 'Mixed': 5, 'Opaque Ice': 6, 'Cirrus': 7, 'Overlapping': 8, 'Overshooting': 9, 'Unknown': 10, 'Dust': 11, 'Smoke': 12",uint8,1,0,12,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
+dew_point,Celsius,int16,10,-100,70,,,,,,derived,
+dhi,W/m2,uint16,1,0,800,,,,,,output,
+dni,W/m2,uint16,1,0,1350,,,,,,output,
+fill_flag,,uint8,1,0,100,,,,,,output,
+ghi,W/m2,uint16,1,0,1350,,,,,,output,
+ozone,atm-cm,uint16,1000,0.2,0.5,IDW2,FALSE,linear,tavg1_2d_slv_Nx,TO3,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+relative_humidity,%,uint16,100,0,100,,,,,,derived,
+solar_zenith_angle,degrees,uint16,100,0,180,,,,,,calculated,
+specific_humidity,kg kg-1,uint32,100000000,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+surface_albedo,unitless,uint8,100,0,1,AVG,FALSE,linear,,,MODIS-IMS,
+surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+total_precipitable_water,cm,uint8,10,0,15,IDW2,TRUE,linear,tavg1_2d_slv_Nx,TQV,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+wind_direction,degrees,uint16,1,0,360,NN,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
+wind_speed,m/s,uint16,10,0,40,IDW4,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
