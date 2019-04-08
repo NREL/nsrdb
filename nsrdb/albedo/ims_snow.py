@@ -19,6 +19,7 @@ import psutil
 from scipy.spatial import cKDTree
 import logging
 
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
 from nsrdb.utilities.execution import PBS
 from nsrdb.utilities.file_utils import url_download, unzip_gz
@@ -329,12 +330,12 @@ class ProcessIMS:
             already been put through the valid_data mask.
         """
 
-        nsrdb_pnts = np.vstack([self.meta['lon'],
-                                self.meta['lat']]).T
+        nsrdb_pnts = np.vstack([self.meta['lons'],
+                                self.meta['lats']]).T
 
         # create extents for a mask to match the extent of the NSRDB dataset.
-        neg_lon = self.meta['lon'][self.meta['lon'] < 0].max()
-        pos_lon = self.meta['lon'][self.meta['lon'] > 0].min()
+        neg_lon = self.meta['lons'][self.meta['lons'] < 0].max()
+        pos_lon = self.meta['lons'][self.meta['lons'] > 0].min()
 
         if self.res == '4km':
             # 4km workflow ONLY
@@ -373,8 +374,6 @@ class ProcessIMS:
 
             # correct positive only longitude
             x = np.where(x > 180, x - 360, x)
-
-
 
             # Create 4km mask
             x_mask = (x < (neg_lon + 0.35)) | (x > pos_lon - 0.35)
@@ -533,12 +532,16 @@ class ProcessIMS:
         logger.info("Flushing processed IMS data to: {}"
                     .format(self.output_hdf))
 
+        meta_rec_array = Outputs.to_records_array(self.meta)
+
         with h5py.File(self.output_hdf, 'w') as hfile:
 
             # write meta lat/lon pairs as floats
             logger.info('Writing meta data to output...')
-            hfile['meta'] = self.meta.loc[:, ['latitude', 'longitude']]\
-                .astype(np.float64)
+            # hfile['meta'] = self.meta.loc[:, ['lats', 'lons']]\
+            #     .astype(np.float64)
+
+            hfile.create_dataset('meta', data=meta_rec_array)
 
             logger.info('Writing time index to output...')
             # create a time index indicating the year_month_day across the year
@@ -681,12 +684,15 @@ def gap_fill_ims(ims_dir, f_in, f_out, log_level='DEBUG'):
         days = hf['time_index'][...]
         fill = hf['fill_flag'][...]
         ims = hf['snow_cover'][...]
-        meta = pd.DataFrame(hf['meta'][...], columns=['latitude', 'longitude'])
+        meta = pd.DataFrame(hf['meta'][...], columns=['lats', 'lons'])
 
     logger.info('IMS data successfully loaded.')
-    logger.debug('IMS meta head:\n{}'.format(meta.head()))
+    logger.info('IMS meta head:\n{}'.format(meta.head()))
     logger.debug('IMS snow_cover shape:\n{}'.format(ims.shape))
     logger.debug('IMS snow_cover head:\n{}'.format(ims[0:10, 0:10]))
+
+    meta_rec_array = Outputs.to_records_array(meta)
+
     # create an empty parameter to be later written to new hdf file as
     # gap_fill_flag.
     dataset_fill = np.zeros(ims.shape)
@@ -718,8 +724,9 @@ def gap_fill_ims(ims_dir, f_in, f_out, log_level='DEBUG'):
 
     # write outputs to a new hdf file.
     with h5py.File(os.path.join(ims_dir, f_out), 'w') as hf2:
-        hf2['meta'] = meta.loc[:, ['latitude', 'longitude']]\
-            .astype(np.float64)
+        # hf2['meta'] = meta.loc[:, ['latitude', 'longitude']]\
+        #     .astype(np.float64)
+        hf2.create_dataset('meta', data=meta_rec_array)
         hf2.create_dataset('snow_cover', data=ims, dtype=np.int8)
         hf2.create_dataset('time_index', data=days)
         hf2.create_dataset('fill_flag', data=fill)
@@ -800,11 +807,11 @@ def append_new_year(source_my, new_year, new_my, log_level='INFO',
 
 
 def update_albedo_where_snow(
-        albedo_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_wsa_albedo_daily.h5.h5',
-        snow_h5='/scratch/ngilroy/nsrdb/albedo/outputs/ims_2018_daily_snow_cover_filled.h5',
+        albedo_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_wsa_albedo_daily.h5',
+        snow_h5='/scratch/ngilroy/nsrdb/albedo/outputs/ims_2018_daily_gap_filled_snow_cover.h5',
         output_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_albedo_2018.h5',
-        leap_year=True, snow_albedo=0.8669, log_level='DEBUG',
-        log_file='/scratch/gbuster/ims_out/update_albedo.log'):
+        leap_year=False, snow_albedo=0.8669, log_level='DEBUG',
+        log_file='/scratch/ngilroy/nsrdb/albedo/update_albedo.log'):
     """Update an Albedo dataset with a fixed snow albedo based on IMS snow data
 
     Parameters
@@ -839,7 +846,7 @@ def update_albedo_where_snow(
             albedo_year_index = -366
         albedo = hf['albedo'][albedo_year_index:, :]
         meta = hf['meta'][...]
-        albedo_latlon = pd.DataFrame(meta).loc[:, ['latitude', 'longitude']]
+        albedo_latlon = pd.DataFrame(meta).loc[:, ['lats', 'lons']]
 
         # Diagnostics
         logger.debug('Source albedo dataset shape: {}'
@@ -854,7 +861,7 @@ def update_albedo_where_snow(
         ims = hf2['snow_cover'][...]
         time_index = hf2['time_index'][...]
         snow_latlon = pd.DataFrame(hf2['meta'][...],
-                                   columns=['latitude', 'longitude'])
+                                   columns=['lats', 'lons'])
         logger.debug('IMS snow dataset has shape: {}'.format(ims.shape))
 
     logger.debug('Running NN on albedo and snow meta data')
