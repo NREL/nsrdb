@@ -269,7 +269,8 @@ class ProcessIMS:
         # find nearest neighbor for NSRDB centroids from IMS centroids.
         if nsrdb_meta.endswith('.csv'):
             logger.info('Getting NSRDB meta data: {}'.format(nsrdb_meta))
-            self.meta = pd.read_csv(nsrdb_meta, encoding = "ISO-8859-1", low_memory=False)
+            self.meta = pd.read_csv(nsrdb_meta, encoding="ISO-8859-1",
+                                    low_memory=False)
         else:
             raise TypeError('NSRDB meta data file should be input as a csv.')
 
@@ -356,15 +357,15 @@ class ProcessIMS:
             y_pnts = y[valid_data]
 
         elif self.res == '1km':
-        # 1km workflow ONLY
+            # 1km workflow ONLY
             # open latitude file for 1km resolution.
             with open(self.ims_lat, 'rb') as f:
-                y = np.fromfile(f, dtype='<d', count=24576*24576)
+                y = np.fromfile(f, dtype='<d', count=24576 * 24576)
                 # y = np.reshape(data, [24576, 24576], order='F')
 
             # open longitude file for 1km resolution.
             with open(self.ims_lon, 'rb') as f:
-                x = np.fromfile(f, dtype='<d', count=24576*24576)
+                x = np.fromfile(f, dtype='<d', count=24576 * 24576)
                 # x = np.reshape(data, [24576, 24576], order='F')
 
             sample_ims_f = os.path.join(self.ims_data_dir,
@@ -588,11 +589,14 @@ class ProcessIMS:
         """
 
         init_logger(__name__, log_file='ims.log', log_level=log_level)
-        output_hdf = ('/scratch/ngilroy/nsrdb/albedo/outputs/ims_{}_daily_snow_cover.h5'
+        output_hdf = ('/scratch/ngilroy/nsrdb/albedo/outputs/'
+                      'ims_{}_daily_snow_cover.h5'
                       .format(year))
         nsrdb_meta = '/projects/PXS/reference_grids/east_psm_extent_2k.csv'
-        lon4 = '/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/IMS1kmLons.24576x24576x1.double'
-        lat4 = '/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/IMS1kmLats.24576x24576x1.double'
+        lon4 = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                'IMS1kmLons.24576x24576x1.double')
+        lat4 = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                'IMS1kmLats.24576x24576x1.double')
         ims_data_dir = '/scratch/ngilroy/nsrdb/albedo/ims_1k'
 
         ims = cls(year, nsrdb_meta, lon4, lat4, ims_data_dir,
@@ -807,8 +811,10 @@ def append_new_year(source_my, new_year, new_my, log_level='INFO',
 
 
 def update_albedo_where_snow(
-        albedo_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_wsa_albedo_daily.h5',
-        snow_h5='/scratch/ngilroy/nsrdb/albedo/outputs/ims_2018_daily_gap_filled_snow_cover.h5',
+        albedo_h5=('/scratch/ngilroy/nsrdb/albedo/outputs/'
+                   'nsrdb_wsa_albedo_daily.h5'),
+        snow_h5=('/scratch/ngilroy/nsrdb/albedo/outputs/'
+                 'ims_2018_daily_gap_filled_snow_cover.h5'),
         output_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_albedo_2018.h5',
         leap_year=False, snow_albedo=0.8669, log_level='DEBUG',
         log_file='/scratch/ngilroy/nsrdb/albedo/update_albedo.log'):
