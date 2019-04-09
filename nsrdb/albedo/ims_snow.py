@@ -18,6 +18,7 @@ import pandas as pd
 import psutil
 from scipy.spatial import cKDTree
 import logging
+from warnings import warn
 
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
@@ -227,7 +228,19 @@ class ProcessIMS:
     script is a HDF snow dataset with the same extent as the NSRDB. In
     addition a time array and fill flag dataset has beeen created to cross
     reference days with missing data.
-    snow_cover = 0, 1, or 2.
+
+    INPUT FILE FORMAT
+    ------------------
+    snow_cover = 0 - 4
+        0 = outside the coverage area
+        1 = sea
+        2 = land
+        3 = sea ice
+        4 = snow covered land
+
+    OUTPUT FILE FORMAT
+    ------------------
+    snow_cover = 0 - 2.
         0 = no snow
         1 = snow
         2 = no data
@@ -310,6 +323,26 @@ class ProcessIMS:
         else:
             raise ValueError('Should not be using the 24km IMS grid data.')
         return arr
+
+    @staticmethod
+    def get_1k_meta(ims_lat_file, ims_lon_file):
+        """Get IMS meta data (lat/lon df) from 1k meta files."""
+        # 1km workflow ONLY
+        # open latitude file for 1km resolution.
+        with open(ims_lat_file, 'rb') as f:
+            lat = np.fromfile(f, dtype='<d', count=24576 * 24576)\
+                .astype(np.float32)
+
+        # open longitude file for 1km resolution.
+        with open(ims_lon_file, 'rb') as f:
+            lon = np.fromfile(f, dtype='<d', count=24576 * 24576)\
+                .astype(np.float32)
+
+        # correct positive only longitude
+        lon = np.where(lon > 180, lon - 360, lon)
+
+        meta = pd.DataFrame({'latitude': lat, 'longitude': lon})
+        return meta
 
     def get_indices(self):
         """Get the IMS to NSRDB mapping index.
@@ -568,17 +601,6 @@ class ProcessIMS:
                     .format((time.time() - t1) / 60.0))
 
     @classmethod
-    def straight_to_h5(cls, year, ims_dir):
-        """Extract year of IMS asc files to single h5"""
-        flist_raw = os.listdir(ims_dir)
-        flist = [f for f in flist_raw if str(year) in f and f.endswith('.asc')]
-        if not flist:
-            raise IOError('No valid .asc IMS files for {} found in {}'
-                          .format(year, ims_dir))
-        arr0 = cls.extract_values(flist[0])
-        print(arr0.shape)
-
-    @classmethod
     def process(cls, year, hpc=False, log_level='DEBUG'):
         """Run processing with test filepaths.
 
@@ -647,6 +669,125 @@ class ProcessIMS:
                    'Please see the stdout error messages'
                    .format(name))
         print(msg)
+
+
+def year_1k_to_h5(year, ims_dir, fout,
+                  f_lat=('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                         'IMS1kmLats.24576x24576x1.double'),
+                  f_lon=('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                         'IMS1kmLons.24576x24576x1.double')):
+    """Extract year of IMS 1km asc files to single h5.
+
+    INPUT IMS SNOW FORMAT
+    ------------------
+    snow_cover = 0 - 4
+        0 = outside the coverage area
+        1 = sea
+        2 = land
+        3 = sea ice
+        4 = snow covered land
+
+    OUTPUT SNOW FORMAT
+    ------------------
+    snow_cover = 0 - 2.
+        0 = no snow
+        1 = snow
+        -1 = no data
+
+    Parameters
+    ----------
+    year : int | str
+        Year to process IMS data for. This number should be found in the IMS
+        file names.
+    ims_dir : str
+        Directory containing 365 or 366 IMS .asc files for the given year.
+    fout : str
+        Full file path to target output .h5 file.
+    f_lat : str
+        IMS latitude meta data file (.double).
+    f_lon : str
+        IMS longitude meta data file (.double).
+    """
+
+    logger.info('Extracting {} 1km IMS data from {} to {}'
+                .format(year, ims_dir, fout))
+
+    # mapping of IMS snow values to final snow values
+    snow_mapping = {0: 0,
+                    1: 0,
+                    2: 0,
+                    3: 1,
+                    4: 1}
+    # any other IMS data will be -1
+    missing = -1
+
+    # get the sorted file list in the target ims directory
+    flist_raw = os.listdir(ims_dir)
+    flist = [os.path.join(ims_dir, f) for f in flist_raw if
+             str(year) in f and f.endswith('.asc')]
+    if flist:
+        if len(flist) != 365 and len(flist) != 366:
+            raise IOError('Bad number of IMS files: {}. Expected 365 or 366.'
+                          .format(len(flist)))
+        flist = sorted(flist, key=lambda x: os.path.basename(x)
+                       .split('_')[0].strip('ims'))
+    else:
+        raise IOError('No valid .asc IMS files for {} found in {}'
+                      .format(year, ims_dir))
+
+    # get the IMS meta data
+    logger.info('Extracting IMS 1km meta data.')
+    meta = ProcessIMS.get_1k_meta(f_lat, f_lon)
+    if np.sum(meta.isnull().values) > 0:
+        warn('IMS meta data has null values!')
+    meta_rec_arr = Outputs.to_records_array(meta)
+
+    # make a daily time index
+    ti = pd.date_range('1-1-{y}'.format(y=year),
+                       '1-1-{y}'.format(y=int(year) + 1),
+                       freq='1D')[:-1]
+    ti = np.array(ti.astype(str), dtype='S20')
+
+    # write file
+    logger.info('Initializing output file: {}'.format(fout))
+    with h5py.File(fout, 'w-') as f:
+        # initialize datasets
+        f.create_dataset('meta', shape=meta_rec_arr.shape,
+                         dtype=meta_rec_arr.dtype, data=meta_rec_arr)
+        f.create_dataset('time_index', shape=ti.shape, dtype=ti.dtype,
+                         data=ti)
+        # int8 means 2e6 indices will be 2MB (optimal chunk size)
+        f.create_dataset('snow_cover', shape=(len(ti), len(meta)),
+                         dtype=np.int8, chunks=(1, int(2e6)))
+        f.create_dataset('fill_flag', shape=(len(ti),),
+                         dtype=np.int8)
+
+        # iterate through IMS file list
+        for i, f_ims in enumerate(flist):
+            logger.info('Processing IMS file #{}: {}'.format(i, f_ims))
+            arr = ProcessIMS.extract_values(f_ims)
+            if len(arr) != len(meta):
+                warn('Data from {} has length {} but meta has length {}'
+                     .format(f_ims, len(arr), len(meta)))
+
+            # map IMS snow values (keys) to boolean (values)
+            for k, v in snow_mapping.items():
+                arr = np.where(arr == k, v, arr)
+
+            # flag bad data where snow != boolean no (0) or yes (1)
+            bad_data = ((arr != 0) & (arr != 1))
+            arr = np.where(bad_data, missing, arr)
+
+            # write to h5 dataset
+            f['snow_cover'][i, :] = arr
+
+            # current timestep has missing values, flag for filling
+            fill_flag = 0
+            if np.sum(arr == missing) > 0:
+                fill_flag = 1
+                logger.info('Missing data at index {} from file {}'
+                            .format(i, f_ims))
+            f['fill_flag'][i] = fill_flag
 
 
 def gap_fill_ims(ims_dir, f_in, f_out, log_level='DEBUG'):
