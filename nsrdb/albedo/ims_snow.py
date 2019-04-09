@@ -275,7 +275,7 @@ class ProcessIMS:
             raise TypeError('NSRDB meta data file should be input as a csv.')
 
     @staticmethod
-    def extract_values(fname, res):
+    def extract_values(fname, res='1km'):
         """Extract IMS data from a file.
 
         Parameters
@@ -292,25 +292,18 @@ class ProcessIMS:
             dtype int8. Data contains values [0, 1, 2, 3, 4]
         """
         dat = open(fname, 'r')
+        lines = dat.readlines()
+        out = []
+        for line in lines:
+            # put a check in place to search for non numeric characters
+            # and break the script.
+            if re.search('[a-z]', line.strip()) is None:
+                out.extend([int(l) for l in list(line.strip())])
         if res == '4km':
-            lines = dat.readlines()
-            out = []
-            for line in lines:
-                # put a check in place to search for non numeric characters
-                # and break the script.
-                if re.search('[a-z]', line.strip()) is None:
-                    out.extend([int(l) for l in list(line.strip())])
             arr = np.flipud(np.array(out).reshape((6144, 6144))).flatten()\
                 .astype(np.int8)
 
         elif res == '1km':
-            lines = dat.readlines()
-            out = []
-            for line in lines:
-                # put a check in place to search for non numeric characters
-                # and break the script.
-                if re.search('[a-z]', line.strip()) is None:
-                    out.extend([int(l) for l in list(line.strip())])
             arr = np.flipud(np.array(out).reshape((24576, 24576))).flatten()\
                 .astype(np.int8)
 
@@ -573,6 +566,17 @@ class ProcessIMS:
         # time it took to run function
         logger.info("Completed in {} minutes"
                     .format((time.time() - t1) / 60.0))
+
+    @classmethod
+    def straight_to_h5(cls, year, ims_dir):
+        """Extract year of IMS asc files to single h5"""
+        flist_raw = os.listdir(ims_dir)
+        flist = [f for f in flist_raw if str(year) in f and f.endswith('.asc')]
+        if not flist:
+            raise IOError('No valid .asc IMS files for {} found in {}'
+                          .format(year, ims_dir))
+        arr0 = cls.extract_values(flist[0])
+        print(arr0.shape)
 
     @classmethod
     def process(cls, year, hpc=False, log_level='DEBUG'):
