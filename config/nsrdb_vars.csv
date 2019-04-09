@@ -3,7 +3,7 @@ air_temperature,Celsius,int16,10,-100,70,IDW2,TRUE,linear,tavg1_2d_slv_Nx,T2M,ME
 alpha,unitless,uint8,100,0,2.5,IDW2,FALSE,nearest,tavg1_2d_aer_Nx,TOTANGSTR,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 aod,unitless,uint16,10000,0.01,1.5,IDW2,TRUE,nearest,tavg1_2d_aer_Nx,TOTEXTTAU,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 asymmetry,unitless,int8,100,-1,1,NN,FALSE,nearest,,,climatology,/lustre/eaglefs/projects/pxs/ancillary/source/asymmetry
-cld_opd_dcomp,,uint16,100,0,80,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
+cld_opd_dcomp,unitless,uint16,100,0,80,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 cld_press_acha,hPa,uint16,1,50,1100,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 cld_reff_dcomp,micron,uint16,100,0,80,,,,,,UW-GOES,/lustre/eaglefs/projects/pxs/HDF
 clearsky_dhi,W/m2,uint16,1,0,800,,,,,,output,
