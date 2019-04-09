@@ -256,7 +256,7 @@ def dark_night(irrad_data, sza, lim=SZA_LIM):
 
 
 def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
-                      option='tri'):
+                      option='tri', random_seed=123):
     """Add syntehtic variability to irradiance when it's cloudy.
 
     Parameters
@@ -271,6 +271,10 @@ def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
         Maximum variability fraction.
     option : str
         Variability function option ('tri' or 'linear').
+    random_seed : int | NoneType
+        Number to seed the numpy random number generator. Used to generate
+        reproducable psuedo-random cloud variability. Numpy random will be
+        seeded with the system time if this is None.
 
     Returns
     -------
@@ -283,6 +287,9 @@ def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
     np.seterr(divide='ignore', invalid='ignore')
 
     if var_frac:
+        # set a seed for psuedo-random but repeatable results
+        np.random.seed(seed=random_seed)
+
         # update the clearsky ratio (1 is clear, 0 is cloudy or dark)
         csr = irrad / cs_irrad
         # Set the cloud/clear ratio to zero when it's nighttime
