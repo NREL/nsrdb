@@ -790,96 +790,92 @@ def year_1k_to_h5(year, ims_dir, fout,
             f['fill_flag'][i] = fill_flag
 
 
-def gap_fill_ims(ims_dir, f_in, f_out, log_level='DEBUG'):
-    """Fill any gaps in the IMS daily snow dataset.
+def gap_fill_ims(f_ims, log_level='DEBUG'):
+    """Fill gaps in-place in the IMS daily snow for a full year of data.
 
-    This script is designed to gap fill the daily ims snow dataset. It does so
-    by splitting the way the data is gap filled into two parts. The first
-    method is to take all days with consecutive missing days and fill it with
-    merra snow depth data. The merra data measure snow in meters, this script
-    uses an arbitrary threshold of 3cm to be considered a day with snow. The
-    second method of gap filling is to take days where only one day by itself
-    is missing, if there is both snow on either side, or no snow on either
-    side it will be considered a day with snow or no snow respectively. Both
-    methods are combined to create a final dataset where there are no gaps
-    within the data. Finally the script also outputs a check called
-    'dataset_fill'. This check will identify how the data was gap filled:
-        - 0 signifies that no gap fill was applied to that day.
-        - 1 signifies that a temporal gap fill was applied to that day.
-        - 2 signifies that the merra gap fill was applied to that day.
+    This script is designed to gap fill the daily ims snow dataset.
+    This code expects a full year of IMS snow data in .h5 format processed by
+    ProcessIMS or year_1k_to_h5. The dataset of interest is "snow_cover",
+    which should be int8 of shape (days, sites). Snow is boolean (0 or 1),
+    with any other data being missing. The "fill_flag" dataset is int8 of
+    shape (days,) and is also boolean, with 0 being good data (no fill), and
+    anything else signifying there is bad data in that year.
+
+
+    This branch excludes using merra as a gap fill method after 2014,
+    since the nsrdb stopped incorporating merra albedo/snow in 2014.
 
     Parameters
     ----------
-    ims_dir : str
-        Path of extracted IMS dataset and location to dump filled data file.
-    f_in : str
-        Input h5 file, the extracted IMS dataset to be filled.
-    f_out : str
-        Output h5 file, the file to dump filled IMS snow data.
-    log_level : str
-        Level to log messages at. Log file will be created in the ims_dir.
+    f_ims : str
+        Full year IMS dataset to be filled.
     """
 
     # initialize a logger output file for this method in the ims directory.
-    init_logger(__name__, log_file=os.path.join(ims_dir, 'gap_fill_ims.log'),
-                log_level=log_level)
+    log_file = f_ims.replace('.h5', '_gap_fill.log')
+    init_logger(__name__, log_file=log_file, log_level=log_level)
 
     # start timer.
     t1 = time.time()
 
     # open IMS & pull necessary data.
-    logger.info('Opening IMS source file: {}.'.format(f_in))
-    with h5py.File(os.path.join(ims_dir, f_in), 'r') as hf:
-        days = hf['time_index'][...]
+    logger.info('Opening IMS source file: {}.'.format(f_ims))
+    with h5py.File(f_ims, 'r') as hf:
         fill = hf['fill_flag'][...]
-        ims = hf['snow_cover'][...]
         meta = pd.DataFrame(hf['meta'][...], columns=['lats', 'lons'])
+        data_shape = hf['snow_cover'].shape
+        n_days = data_shape[0]
 
-    logger.info('IMS data successfully loaded.')
+    logger.info('IMS snow cover data shape: {}'.format(data_shape))
     logger.info('IMS meta head:\n{}'.format(meta.head()))
-    logger.debug('IMS snow_cover shape:\n{}'.format(ims.shape))
-    logger.debug('IMS snow_cover head:\n{}'.format(ims[0:10, 0:10]))
-
-    meta_rec_array = Outputs.to_records_array(meta)
-
-    # create an empty parameter to be later written to new hdf file as
-    # gap_fill_flag.
-    dataset_fill = np.zeros(ims.shape)
 
     # loop through fill - branch based on temporal fill or merra fill.
-    for day, _ in enumerate(fill):
-        # if the day was missing
-        if fill[day] == 2:
-            snow = ((ims[day - 1:day + 2, :] == 1).sum(axis=0)) == 2
-            no_snow = ((ims[day - 1:day + 2, :] == 0).sum(axis=0)) == 2
+    # note that "day" is the day INDEX not day of year (zero-indexed)
+    for day in range(n_days):
+        # if the day has missing data
+        if fill[day] == 0:
+            logger.info('IMS day index {} has good data.'.format(day))
+        else:
+            logger.info('IMS day index {} has missing data. '
+                        'Performing gap fill.'.format(day))
+
+            # get snow data before and after the missing day
+            # only load the data we need for current timestep (min memory req)
+            with h5py.File(f_ims, 'r') as hf:
+                i0 = int(np.min((0, day - 1)))
+                i1 = int(np.max((n_days, day + 2)))
+                ims_day = hf['snow_cover'][day, :].astype(np.int8)
+                ims_before_after = hf['snow_cover'][i0:i1, :].astype(np.int8)
+
+            # get array with boolean for each site whether there is
+            # snow or nosnow before and after
+            snow = ((ims_before_after == 1).sum(axis=0)) == 2
+            no_snow = ((ims_before_after == 0).sum(axis=0)) == 2
 
             # change it: if sandwiched by snow we put 1, no snow we put a 0,
-            # else we put a 2.
-            ims[day, :] = np.where(snow is True, 1,
-                                   np.where(no_snow is True, 0, 2))
+            ims_day = np.where(snow is True, 1, ims_day)
+            ims_day = np.where(no_snow is True, 0, ims_day)
 
-            # fill with a 1 to signify data are filled from temporal.
-            dataset_fill[day, :][ims[day, :] < 2] = 1
-            dataset_fill[day, :][ims[day, :] == 2] = 2
+            # if bad data persists, fill with day before.
+            still_bad = np.where((ims_day != 0) & (ims_day != 1))[0]
+            if still_bad.size > 0:
+                ims_day[still_bad] = ims_before_after[0, still_bad]
 
-            # this branch excludes using merra as a gap fill method after 2014,
-            # since the nsrdb stopped incorporating nsrdb in 2014.
-            # if int(year) > 2014:
-            # arbitrarily use the day before as a gap fill.
-            ims[day, :] = ims[day - 1, :]
+                # if bad data persists, fill with day after
+                if len(ims_before_after) > 2:
+                    still_bad = np.where((ims_day != 0) & (ims_day != 1))[0]
+                    if still_bad.size > 0:
+                        ims_day[still_bad] = ims_before_after[2, still_bad]
 
-    logger.info('IMS data successfully gap filled.')
-    logger.info('Writing filled IMS data to: {}'.format(f_out))
+            if np.sum((ims_day != 0) & (ims_day != 1)) != 0:
+                logger.warning('IMS day index {} still has bad data '
+                               '(snow !=0 and !=1)'.format(day))
 
-    # write outputs to a new hdf file.
-    with h5py.File(os.path.join(ims_dir, f_out), 'w') as hf2:
-        # hf2['meta'] = meta.loc[:, ['latitude', 'longitude']]\
-        #     .astype(np.float64)
-        hf2.create_dataset('meta', data=meta_rec_array)
-        hf2.create_dataset('snow_cover', data=ims, dtype=np.int8)
-        hf2.create_dataset('time_index', data=days)
-        hf2.create_dataset('fill_flag', data=fill)
-        hf2.create_dataset('gap_fill_flag', data=dataset_fill)
+            # write gap-filled data to h5 file.
+            with h5py.File(f_ims, 'a') as hf:
+                hf['snow_cover'][day, :] = ims_day
+
+    logger.info('IMS data gap filled in file: {}'.format(f_ims))
 
     logger.info("Completed in {0:.2f} minutes"
                 .format((time.time() - t1) / 60.0))
