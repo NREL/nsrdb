@@ -180,7 +180,7 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
 
     # get NSRDB meta data for albedo
     albedo_meta = AncillaryVarHandler(
-        os.path.join(CONFIGDIR, 'nsrdb_vars.csv'), 'albedo', None)
+        os.path.join(CONFIGDIR, 'nsrdb_vars.csv'), 'surface_albedo', None)
     albedo_attrs = {'units': albedo_meta.units,
                     'scale_factor': albedo_meta.scale_factor}
 
@@ -239,8 +239,10 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
         logger.info('Writing NSRDB albedo data to {}'.format(f_out))
         logger.debug(mem_str())
         with h5py.File(f_out, 'w') as f:
-            f.create_dataset('albedo', shape=albedo.shape, dtype=albedo.dtype,
-                             data=albedo)
+            f.create_dataset('surface_albedo', shape=albedo.shape,
+                             dtype=albedo.dtype, data=albedo)
+            for k, v in albedo_attrs.items():
+                f['surface_albedo'].attrs[k] = v
 
 
 if __name__ == '__main__':
