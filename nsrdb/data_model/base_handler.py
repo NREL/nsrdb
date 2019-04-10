@@ -101,6 +101,39 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'spatial_interp'].values[0])
 
     @property
+    def scale_factor(self):
+        """Get the scale factor attribute.
+
+        Returns
+        -------
+        scale_factor : float
+            Factor to apply (multiply) before writing to disk.
+        """
+        return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
+
+    @property
+    def dtype(self):
+        """Get the data type attribute.
+
+        Returns
+        -------
+        dtype : str
+            Intended NSRDB disk data type.
+        """
+        return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
+
+    @property
+    def units(self):
+        """Get the units attribute.
+
+        Returns
+        -------
+        units : str
+            NSRDB variable units.
+        """
+        return str(self.var_meta.loc[self.mask, 'units'].values[0])
+
+    @property
     def source_dir(self):
         """Get the source directory containing the variable data files.
 

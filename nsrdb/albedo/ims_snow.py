@@ -789,6 +789,9 @@ def year_1k_to_h5(year, ims_dir, fout,
                             .format(i, f_ims))
             f['fill_flag'][i] = fill_flag
 
+    logger.info('Finished extracting {} 1km IMS data from {} to {}'
+                .format(year, ims_dir, fout))
+
 
 def gap_fill_ims(f_ims, log_level='DEBUG'):
     """Fill gaps in-place in the IMS daily snow for a full year of data.
