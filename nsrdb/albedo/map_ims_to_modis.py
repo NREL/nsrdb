@@ -11,6 +11,7 @@ import pandas as pd
 import h5py
 import numpy as np
 import logging
+import psutil
 from scipy.spatial import cKDTree
 from warnings import warn
 
@@ -20,6 +21,19 @@ from nsrdb import CONFIGDIR
 
 
 logger = logging.getLogger(__name__)
+
+
+def mem_str():
+    """Get a string to log memory status."""
+    mem = psutil.virtual_memory()
+    msg = ('{0:.3f} GB used of {1:.3f} GB total ({2:.1f}% used) '
+           '({3:.3f} GB free) ({4:.3f} GB available).'
+           .format(mem.used / 1e9,
+                   mem.total / 1e9,
+                   100 * mem.used / mem.total,
+                   mem.free / 1e9,
+                   mem.available / 1e9))
+    return msg
 
 
 def get_modis_fmap(year=2015,
@@ -167,6 +181,8 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
     # get NSRDB meta data for albedo
     albedo_meta = AncillaryVarHandler(
         os.path.join(CONFIGDIR, 'nsrdb_vars.csv'), 'albedo', None)
+    albedo_attrs = {'units': albedo_meta.units,
+                    'scale_factor': albedo_meta.scale_factor}
 
     # get modis file listing and map
     modis_fmap = get_modis_fmap(year=modis_year, modis_dir=modis_dir)
@@ -178,7 +194,10 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
 
     # make tree
     logger.info('Making kdTree from MODIS meta data.')
+    logger.debug(mem_str())
     tree = cKDTree(mds_meta.values)
+    logger.debug('Completed kdTree from MODIS meta data.')
+    logger.debug(mem_str())
 
     for day_index in day_index_range:
         time_index = modis_fmap.index[day_index]
@@ -192,6 +211,7 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
 
         # get ims data
         logger.info('Getting IMS snow data.')
+        logger.debug(mem_str())
         ims_meta = get_ims_meta(f_ims)
         snow_data = get_snow(f_ims, day_index)
 
@@ -206,18 +226,18 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
         # write snow albedo value to indices in modis where snow in IMS
         logger.info('Updating snowy MODIS cells to albedo of {}'
                     .format(snow_albedo))
+        logger.debug(mem_str())
         albedo[ind] = snow_albedo
 
         # apply scale and dtype conversion
-        attrs = {'units': albedo_meta.units,
-                 'scale_factor': albedo_meta.scale_factor}
-        albedo *= attrs['scale_factor']
+        albedo *= albedo_attrs['scale_factor']
         albedo = albedo.astype(albedo_meta.dtype)
 
         # write to output file
         f_out = os.path.join(dir_out, 'nsrdb_albedo_{}_{}.h5'
                              .format(doy, year))
         logger.info('Writing NSRDB albedo data to {}'.format(f_out))
+        logger.debug(mem_str())
         with h5py.File(f_out, 'w') as f:
             f.create_dataset('albedo', shape=albedo.shape, dtype=albedo.dtype,
                              data=albedo)
