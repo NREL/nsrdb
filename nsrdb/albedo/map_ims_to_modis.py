@@ -49,9 +49,7 @@ def get_modis_fmap(year=2015,
     doy = []
     for f in flist:
         f = f.replace(year_str + '.h5', '')
-        print(f)
         splitlist = f.split('_')
-        print(splitlist)
         doy_year.append(splitlist[-1] + year_str)
         doy.append(int(splitlist[-1]))
 
@@ -145,7 +143,7 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
     ----------
     day_index_range : iterable
         Iterable (list, range) of zero-indexed day indices
-        (0 through 364 or 365 for full year).
+        (0 through 364 or 365[leap] for full year).
     year : int
         NSRDB and IMS year of interest.
     f_ims : str
@@ -226,7 +224,7 @@ def map_modis(day_index_range, year, f_ims, dir_out, modis_year=2015,
 
 
 if __name__ == '__main__':
-    day_index_range = [0]
+    day_index_range = range(365)
     year = 2018
     f_ims = '/scratch/gbuster/albedo/ims/ims_2018_1k.h5'
     dir_out = '/scratch/gbuster/albedo/combined'
