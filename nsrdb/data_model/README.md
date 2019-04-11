@@ -7,7 +7,7 @@ All source data is ultimately processed to match the NSRDB spatiotemporal resolu
 
 ### Albedo
 The surface albedo dataset is a measure of the ground reflectivity. 
-The albedo parameters is comprised of a slow-changing land-based albedo parameter from the 
+The albedo parameter is comprised of a slow-changing land-based albedo parameter from the 
 [MODIS Dataset](https://modis.gsfc.nasa.gov/data/dataprod/mod43.php), 
 and the daily [IMS Snow Dataset](https://nsidc.org/data/g02156). 
 Both datasets are available at a high spatial resolution close to the final NSRDB resolution, so no spatial interpolation is required. 
