@@ -275,18 +275,10 @@ def map_modis(day_index, year, f_ims, dir_out, modis_year=2015,
         ims_meta_sub = ims_meta.iloc[i0:i1, :]
 
         # Find the modis indices corresponding to ims coords where snow
-        lat_dist, lat_ind = lat_tree.query(
+        _, lat_ind = lat_tree.query(
             np.expand_dims(ims_meta_sub['latitude'].values, axis=1))
-        lon_dist, lon_ind = lon_tree.query(
+        _, lon_ind = lon_tree.query(
             np.expand_dims(ims_meta_sub['longitude'].values, axis=1))
-
-        if count % 100 == 0:
-            logger.debug('{} {} {} {}'.format(np.mean(lat_dist),
-                                              np.median(lat_dist),
-                                              np.max(lat_dist),
-                                              np.mean(lon_dist),
-                                              np.median(lon_dist),
-                                              np.max(lon_dist)))
 
         # write snow albedo value to indices in modis where snow in IMS
         albedo[lat_ind, lon_ind] = snow_albedo
@@ -298,17 +290,35 @@ def map_modis(day_index, year, f_ims, dir_out, modis_year=2015,
     mesh_lon = mesh_lon.ravel().astype(np.float32)
     plot_df = pd.DataFrame({'latitude': mesh_lat, 'longitude': mesh_lon,
                             'albedo': albedo.ravel()})
-    Spatial.plot_geo_df(plot_df.iloc[range(0, len(plot_df), 50), :],
+    Spatial.plot_geo_df(plot_df.iloc[range(0, len(plot_df), 10), :],
                         'albedo_{}_{}'.format(str(day_index).zfill(3), year),
                         dir_out, xlim=(-180, 180), ylim=(-90, 90))
     del plot_df, mesh_lat, mesh_lon
 
     # apply scale and dtype conversion
     albedo *= albedo_attrs['scale_factor']
-    albedo = albedo.astype(albedo_meta.dtype)
+    if 'int' in str(albedo_meta.dtype):
+        albedo = np.round(albedo)
+    min_a = np.nanmin(albedo)
+    max_a = np.nanmax(albedo)
+    logger.info('The final albedo range for date index {} in {} is {} to {}'
+                .format(day_index, year, min_a, max_a))
 
-    logger.debug('The final albedo range for date index {} in {} is {} to {}'
-                 .format(day_index, year, np.min(albedo), np.max(albedo)))
+    # Truncate values below the dtype byte range
+    d_min = np.iinfo(albedo_meta.dtype).min
+    if min_a < d_min:
+        logger.warning('Albedo min {} after scaling is less than bit range '
+                       'min of {}. Truncating.'.format(min_a, d_min))
+        albedo[albedo < d_min] = d_min
+
+    # Truncate values below the dtype byte range
+    d_max = np.iinfo(albedo_meta.dtype).max
+    if max_a > d_max:
+        logger.warning('Albedo max {} after scaling is greater than bit range '
+                       'max of {}. Truncating.'.format(min_a, d_min))
+        albedo[albedo > d_max] = d_max
+
+    albedo = albedo.astype(albedo_meta.dtype)
 
     # write to output file
     f_out = os.path.join(dir_out, 'nsrdb_albedo_{}_{}.h5'
@@ -353,12 +363,11 @@ def peregrine(index, year, f_ims, dir_out, alloc='pxs', queue='short',
 
 
 if __name__ == '__main__':
-    for index in range(0, 365, 10):
+    for index in range(0, 50):
         year = 2018
         f_ims = '/scratch/gbuster/albedo/ims/ims_2018_1k.h5'
-        dir_out = '/scratch/gbuster/albedo/combined'
+        dir_out = '/scratch/gbuster/albedo/nsrdb_final'
         f_out = 'nsrdb_albedo_{}_{}.h5'.format(str(index).zfill(3), year)
         dir_list = os.listdir(dir_out)
         if f_out not in dir_list:
-            peregrine(index, year, f_ims, dir_out, queue='short',
-                      feature='feature=haswell')
+            peregrine(index, year, f_ims, dir_out, queue='batch-h')

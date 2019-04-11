@@ -4,6 +4,18 @@
 Adapted from Nick Gilroy's initial script:
     - https://github.nrel.gov/dav-gis/pv_task/tree/dev/pv_task/ims_workflow
 
+IMS SNOW FORMAT
+---------------
+snow_cover = 0 - 4
+    0 = outside the coverage area
+    1 = sea
+    2 = land
+    3 = sea ice
+    4 = snow covered land
+
+The 2018 1km IMS snow data was plotted and shown to range from
+0-90 latitude, -180 to 180 longitude.
+
 @author: gbuster
 """
 
@@ -302,7 +314,16 @@ class ProcessIMS:
         -------
         arr : np.ndarray
             Extracted and flattened IMS snow data from target file with
-            dtype int8. Data contains values [0, 1, 2, 3, 4]
+            dtype int8. Data format:
+
+            IMS SNOW FORMAT
+            ---------------
+            snow_cover = 0 - 4
+                0 = outside the coverage area
+                1 = sea
+                2 = land
+                3 = sea ice
+                4 = snow covered land
         """
         dat = open(fname, 'r')
         lines = dat.readlines()
