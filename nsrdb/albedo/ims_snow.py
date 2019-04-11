@@ -338,7 +338,7 @@ class ProcessIMS:
             lon = np.fromfile(f, dtype='<d', count=24576 * 24576)\
                 .astype(np.float32)
 
-        # correct positive only longitude
+        # correct longitude
         lon = np.where(lon > 180, lon - 360, lon)
 
         meta = pd.DataFrame({'latitude': lat, 'longitude': lon})

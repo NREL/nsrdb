@@ -418,7 +418,8 @@ class Spatial:
             cmap = plt.get_cmap('Blues')
 
             if cbar_range is None:
-                cbar_range = [df.iloc[:, 2].min(), df.iloc[:, 2].max()]
+                cbar_range = [np.nanmin(df.iloc[:, 2]),
+                              np.nanmax(df.iloc[:, 2])]
 
             var = df.columns.values[2]
 
