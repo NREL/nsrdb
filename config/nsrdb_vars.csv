@@ -20,7 +20,7 @@ relative_humidity,%,uint16,100,0,100,,,,,,derived,
 solar_zenith_angle,degrees,uint16,100,0,180,,,,,,calculated,
 specific_humidity,kg kg-1,uint32,100000000,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
-surface_albedo,unitless,uint8,100,0,1,AVG,FALSE,linear,,,MODIS-IMS,
+surface_albedo,unitless,uint8,100,0,1,AVG,FALSE,nearest,,,MODIS-IMS,/projects/PXS/albedo/nsrdb_2018
 surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 total_precipitable_water,cm,uint8,10,0,15,IDW2,TRUE,linear,tavg1_2d_slv_Nx,TQV,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
 wind_direction,degrees,uint16,1,0,360,NN,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/lustre/eaglefs/projects/pxs/ancillary/source
