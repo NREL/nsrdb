@@ -161,6 +161,8 @@ class AlbedoVar(AncillaryVarHandler):
                 raise ValueError('Albedo data and grid do not match. '
                                  'Probably due to bad exclusions.')
             else:
+                # reshape to (time, space) as per NSRDB standard
+                data = data.reshape((1, len(self.grid)))
                 logger.debug('Albedo data has shape {} after lat/lon '
                              'exclusion filter.'.format(data.shape))
         return data
