@@ -31,7 +31,8 @@ class AlbedoVar(AncillaryVarHandler):
         date : datetime.date
             Single day to extract data for.
         """
-
+        self._lon_good = None
+        self._lat_good = None
         super().__init__(var_meta, name, date)
 
     @property
@@ -68,6 +69,64 @@ class AlbedoVar(AncillaryVarHandler):
                 break
         return falbedo
 
+    def set_exclusions(self, lat_in=None, lat_ex=None, lon_in=None,
+                       lon_ex=None):
+        """Set latitude/longitude inclusions/exclusions to minimize data read.
+
+        Only one inclusion or exclusion is used for each latitude or longitude.
+        The protected grid data attribute will be modified based on the inputs.
+
+        Parameters
+        ----------
+        lat_in : None | tuple
+            Latitude range to include (everything outside range is excluded).
+        lat_ex : None | tuple
+            Latitude range to exclude (everything inside range is excluded).
+        lon_in : None | tuple
+            Longitude range to include (everything outside range is excluded).
+        lon_ex : None | tuple
+            Longitude range to exclude (everything inside range is excluded).
+        """
+
+        # find the good latitude indices if requested
+        if lat_in is not None:
+            # find coordinates greater than min, less than max
+            self._lat_good = np.where(
+                self.grid['latitude'] > np.min(lat_in) &
+                self.grid['latitude'] < np.max(lat_in))[0]
+        elif lat_ex is not None:
+            # find coordinates less than min, greater than max
+            self._lat_good = np.where(
+                self.grid['latitude'] < np.min(lat_in) &
+                self.grid['latitude'] > np.max(lat_in))[0]
+        else:
+            # no inclusion/exclusion requested, all data will be pulled
+            self._lat_good = None
+
+        # find the good longitude indices if requested
+        if lon_in is not None:
+            # find coordinates greater than min, less than max
+            self._lon_good = np.where(
+                self.grid['longitude'] > np.min(lon_in) &
+                self.grid['longitude'] < np.max(lon_in))[0]
+        elif lon_ex is not None:
+            # find coordinates less than min, greater than max
+            self._lon_good = np.where(
+                self.grid['longitude'] < np.min(lon_in) &
+                self.grid['longitude'] > np.max(lon_in))[0]
+        else:
+            # no inclusion/exclusion requested, all data will be pulled
+            self._lon_good = None
+
+        # reduce the protected albedo grid attribute based on
+        # these inclusions/exclusions
+        if self._lat_good is not None:
+            self._albedo_grid['latitude'] = \
+                self._albedo_grid['latitude'][self._lat_good]
+        if self._lon_good is not None:
+            self._albedo_grid['longitude'] = \
+                self._albedo_grid['longitude'][self._lon_good]
+
     @property
     def source_data(self):
         """Get single day data from the Albedo source file.
@@ -75,15 +134,26 @@ class AlbedoVar(AncillaryVarHandler):
         Returns
         -------
         data : np.ndarray
-            2D spatially gridded numpy array (lon X lat) for a single day
-            of albedo data.
+            Flattened albedo data. Note that the data originates as a 2D
+            spatially gridded numpy array with shape (lat x lon).
         """
 
         # open h5py NSRDB albedo file
         with h5py.File(self.file, 'r') as f:
             attrs = dict(f['surface_albedo'].attrs)
             scale = attrs.get('scale_factor', 1)
-            data = f['surface_albedo'][...].astype(np.float32)
+
+            if self._lat_good is None and self._lon_good is None:
+                data = f['surface_albedo'][...]
+            elif self._lat_good is not None and self._lon_good is not None:
+                data = f['surface_albedo'][self._lat_good, self._lon_good]
+            elif self._lat_good is not None:
+                data = f['surface_albedo'][self._lat_good, :]
+            elif self._lon_good is not None:
+                data = f['surface_albedo'][:, self._lon_good]
+
+            data = data.ravel()
+            data = data.astype(np.float32)
             data /= scale
 
         return data
