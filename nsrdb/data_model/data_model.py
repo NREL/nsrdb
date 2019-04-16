@@ -614,8 +614,10 @@ class DataModel:
             # albedo is global 1km. Set exclusions to reduce data import load.
             lat_in = (np.min(self.nsrdb_grid['latitude']) - 0.1,
                       np.max(self.nsrdb_grid['latitude']) + 0.1)
-            # longitude exclusion window is closest to 0 and min lon where > 50
-            lon_ex = (np.min(np.abs(self.nsrdb_grid['longitude'])) + 0.1,
+            # longitude exclusion window is max/min around 50 degrees.
+            lon_ex = (np.max(self.nsrdb_grid.loc[
+                             self.nsrdb_grid['longitude'] < 50.0,
+                             'longitude']) + 0.1,
                       np.min(self.nsrdb_grid.loc[
                              self.nsrdb_grid['longitude'] > 50.0,
                              'longitude']) - 0.1)

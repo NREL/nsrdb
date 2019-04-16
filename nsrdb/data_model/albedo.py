@@ -88,32 +88,42 @@ class AlbedoVar(AncillaryVarHandler):
         lon_ex : None | tuple
             Longitude range to exclude (everything inside range is excluded).
         """
+
         with h5py.File(self.file, 'r') as f:
                 latitude = f['latitude'][...]
                 longitude = f['longitude'][...]
 
+        logger.debug('Albedo initializing with lat_in "{}", lat_ex "{}", '
+                     'lon_in "{}", lon_ex "{}".'
+                     .format(lat_in, lat_ex, lon_in, lon_ex))
+
+        logger.debug('Albedo native has {} latitudes and {} longitudes.'
+                     .format(len(latitude), len(longitude)))
+
         # find the good latitude indices if requested
         if lat_in is not None:
-            # find coordinates greater than min, less than max
-            self._lat_good = np.where(latitude > np.min(lat_in) &
-                                      latitude < np.max(lat_in))[0]
+            # find coordinates greater than min AND less than max
+            loc = np.where((latitude > np.min(lat_in)) &
+                           (latitude < np.max(lat_in)))[0]
+            self._lat_good = slice(np.min(loc), np.max(loc))
         elif lat_ex is not None:
-            # find coordinates less than min, greater than max
-            self._lat_good = np.where(latitude < np.min(lat_in) &
-                                      latitude > np.max(lat_in))[0]
+            # find coordinates less than min OR greater than max
+            self._lat_good = list(np.where((latitude < np.min(lat_ex)) |
+                                           (latitude > np.max(lat_ex)))[0])
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lat_good = None
 
         # find the good longitude indices if requested
         if lon_in is not None:
-            # find coordinates greater than min, less than max
-            self._lon_good = np.where(longitude > np.min(lon_in) &
-                                      longitude < np.max(lon_in))[0]
+            # find coordinates greater than min AND less than max
+            loc = np.where((longitude > np.min(lon_in)) &
+                           (longitude < np.max(lon_in)))[0]
+            self._lon_good = slice(np.min(loc), np.max(loc))
         elif lon_ex is not None:
-            # find coordinates less than min, greater than max
-            self._lon_good = np.where(longitude < np.min(lon_in) &
-                                      longitude > np.max(lon_in))[0]
+            # find coordinates less than min OR greater than max
+            self._lon_good = list(np.where((longitude < np.min(lon_ex)) |
+                                           (longitude > np.max(lon_ex)))[0])
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lon_good = None
@@ -153,7 +163,6 @@ class AlbedoVar(AncillaryVarHandler):
             else:
                 logger.debug('Albedo data has shape {} after lat/lon '
                              'exclusion filter.'.format(data.shape))
-
         return data
 
     @property
