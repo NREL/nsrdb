@@ -7,6 +7,7 @@ albedo files that are a combination of 1km MODIS (8day) with
 """
 
 import numpy as np
+import pandas as pd
 import os
 import h5py
 import logging
@@ -87,18 +88,19 @@ class AlbedoVar(AncillaryVarHandler):
         lon_ex : None | tuple
             Longitude range to exclude (everything inside range is excluded).
         """
+        with h5py.File(self.file, 'r') as f:
+                latitude = f['latitude'][...]
+                longitude = f['longitude'][...]
 
         # find the good latitude indices if requested
         if lat_in is not None:
             # find coordinates greater than min, less than max
-            self._lat_good = np.where(
-                self.grid['latitude'] > np.min(lat_in) &
-                self.grid['latitude'] < np.max(lat_in))[0]
+            self._lat_good = np.where(latitude > np.min(lat_in) &
+                                      latitude < np.max(lat_in))[0]
         elif lat_ex is not None:
             # find coordinates less than min, greater than max
-            self._lat_good = np.where(
-                self.grid['latitude'] < np.min(lat_in) &
-                self.grid['latitude'] > np.max(lat_in))[0]
+            self._lat_good = np.where(latitude < np.min(lat_in) &
+                                      latitude > np.max(lat_in))[0]
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lat_good = None
@@ -106,26 +108,15 @@ class AlbedoVar(AncillaryVarHandler):
         # find the good longitude indices if requested
         if lon_in is not None:
             # find coordinates greater than min, less than max
-            self._lon_good = np.where(
-                self.grid['longitude'] > np.min(lon_in) &
-                self.grid['longitude'] < np.max(lon_in))[0]
+            self._lon_good = np.where(longitude > np.min(lon_in) &
+                                      longitude < np.max(lon_in))[0]
         elif lon_ex is not None:
             # find coordinates less than min, greater than max
-            self._lon_good = np.where(
-                self.grid['longitude'] < np.min(lon_in) &
-                self.grid['longitude'] > np.max(lon_in))[0]
+            self._lon_good = np.where(longitude < np.min(lon_in) &
+                                      longitude > np.max(lon_in))[0]
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lon_good = None
-
-        # reduce the protected albedo grid attribute based on
-        # these inclusions/exclusions
-        if self._lat_good is not None:
-            self._albedo_grid['latitude'] = \
-                self._albedo_grid['latitude'][self._lat_good]
-        if self._lon_good is not None:
-            self._albedo_grid['longitude'] = \
-                self._albedo_grid['longitude'][self._lon_good]
 
     @property
     def source_data(self):
@@ -156,6 +147,13 @@ class AlbedoVar(AncillaryVarHandler):
             data = data.astype(np.float32)
             data /= scale
 
+            if len(data) != len(self.grid):
+                raise ValueError('Albedo data and grid do not match. '
+                                 'Probably due to bad exclusions.')
+            else:
+                logger.debug('Albedo data has shape {} after lat/lon '
+                             'exclusion filter.'.format(data.shape))
+
         return data
 
     @property
@@ -171,10 +169,21 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         if not hasattr(self, '_albedo_grid'):
-            self._albedo_grid = {}
-
             with h5py.File(self.file, 'r') as f:
-                self._albedo_grid['latitude'] = f['latitude'][...]
-                self._albedo_grid['longitude'] = f['longitude'][...]
+                if self._lat_good is not None:
+                    latitude = f['latitude'][self._lat_good]
+                else:
+                    latitude = f['latitude'][...]
+
+                if self._lat_good is not None:
+                    longitude = f['longitude'][self._lon_good]
+                else:
+                    longitude = f['longitude'][...]
+
+            # transform regular grid into flattened array of coordinate pairs
+            longitude, latitude = np.meshgrid(longitude, latitude)
+            self._albedo_grid = pd.DataFrame(
+                {'latitude': latitude.ravel().astype(np.float32),
+                 'longitude': longitude.ravel().astype(np.float32)})
 
         return self._albedo_grid

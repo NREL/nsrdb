@@ -43,7 +43,7 @@ from scipy.spatial import cKDTree
 
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
-from nsrdb.utilities.interpolation import (spatial_interp, geo_nn, reg_grid_nn,
+from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step,
                                            parse_method)
 from nsrdb.data_model.variable_factory import VarFactory
@@ -219,70 +219,6 @@ class DataModel:
         """
         return self._processed
 
-    def get_reg_grid_nn(self, latitude, longitude, nsrdb_grid, method,
-                        labels=('latitude', 'longitude'), cache=False):
-        """Get nearest neighbors from a regular lat/lon grid and NSRDB grid df.
-
-        Parameters
-        ----------
-        latitude : np.ndarray
-            1D array of latitude values from a regular grid.
-        longitude : np.ndarray
-            1D array of longitude values from a regular grid.
-        nsrdb_grid : pd.DataFrame:
-            Dataframe containing coodinate columns with the corresponding
-            labels.
-        labels : tuple | list
-            Column labels for lat/lon corresponding to the lat/lon columns
-            in nsrdb_grid.
-        method : str
-            Spatial interpolation method - AGG
-        cache : bool | str
-            Flag to cache nearest neighbor results or retrieve cached results
-            instead of performing NN query. Strings are evaluated as the file
-            name to cache.
-
-        Returns
-        -------
-        ind : ndarray
-            Array of indices that correspond to data mapped to the regular
-            latitude/longitude input grid. The regular grid data should be
-            flattened and then indexed with this output indices var.
-        """
-
-        if 'AGG' in method.upper():
-            n = parse_method(method)
-            if n is None:
-                n = 2
-        else:
-            raise ValueError('Did not recognize spatial interp method: "{}"'
-                             .format(method))
-
-        if isinstance(cache, str):
-            if not cache.endswith('.csv'):
-                cache += '.csv'
-            # try to get cached kdtree results. fast for prototyping.
-            cache_i = os.path.join(self.CACHE_DIR,
-                                   cache.replace('.csv', '_i.csv'))
-
-            if os.path.exists(cache_i):
-                logger.debug('Found cached nearest neighbor indices, '
-                             'importing: {}'.format(cache_i))
-                ind = np.genfromtxt(cache_i, dtype=int, delimiter=',')
-
-            else:
-                ind = reg_grid_nn(latitude, longitude, nsrdb_grid,
-                                  labels=labels, k=n)
-                logger.debug('Saving nearest neighbor indices to: {}'
-                             .format(cache_i))
-                np.savetxt(cache_i, ind, delimiter=',')
-
-        else:
-            ind = reg_grid_nn(latitude, longitude, nsrdb_grid,
-                              labels=labels, k=n)
-
-        return ind
-
     def get_geo_nn(self, df1, df2, method, labels=('latitude', 'longitude'),
                    cache=False):
         """Get the geographic nearest neighbor distances (km) and indices.
@@ -311,8 +247,10 @@ class DataModel:
         """
         if 'NN' in method.upper():
             k = 1
-        elif 'IDW' in method.upper():
-            k = 4
+        elif 'IDW' in method.upper() or 'AGG' in method.upper():
+            k = parse_method(method)
+            if k is None:
+                k = 4
         else:
             raise ValueError('Did not recognize spatial interp method: "{}"'
                              .format(method))
@@ -676,24 +614,19 @@ class DataModel:
             # albedo is global 1km. Set exclusions to reduce data import load.
             lat_in = (np.min(self.nsrdb_grid['latitude']) - 0.1,
                       np.max(self.nsrdb_grid['latitude']) + 0.1)
+            # longitude exclusion window is closest to 0 and min lon where > 50
             lon_ex = (np.min(np.abs(self.nsrdb_grid['longitude'])) + 0.1,
                       np.min(self.nsrdb_grid.loc[
-                          self.nsrdb_grid['longitude'] > 50.0,
-                          'longitude']) + 0.1)
+                             self.nsrdb_grid['longitude'] > 50.0,
+                             'longitude']) - 0.1)
             var_obj.set_exclusions(lat_in=lat_in, lon_ex=lon_ex)
 
         # get ancillary data source data array
         data = var_obj.source_data
 
         # get mapping from source data grid to NSRDB
-        if isinstance(var_obj.grid, pd.DataFrame):
-            dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
-                                        var_obj.spatial_method)
-        if isinstance(var_obj.grid, dict):
-            dist, ind = self.get_reg_grid_nn(var_obj.grid['latitude'],
-                                             var_obj.grid['longitude'],
-                                             self.nsrdb_grid,
-                                             var_obj.spatial_method)
+        dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
+                                    var_obj.spatial_method)
 
         # perform weighting if applicable
         if var in self.WEIGHTS:

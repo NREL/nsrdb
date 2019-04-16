@@ -80,9 +80,8 @@ def rad_to_dist(locs):
     return locs * R
 
 
-def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude'),
-                k=4):
-    """Get nearest neighbors for coordinate sets.
+def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude')):
+    """Get nearest neighbors from a regular lat/lon grid.
 
     Parameters
     ----------
@@ -95,8 +94,6 @@ def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude'),
         labels.
     labels : tuple | list
         Column labels corresponding to the lat/lon columns in df.
-    k : int
-        Number of nearest neighbors to return
 
     Returns
     -------
@@ -107,36 +104,69 @@ def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude'),
     """
 
     # make a kdTree for lat and lon seperately
+    if len(latitude.shape) == 1:
+        latitude = np.expand_dims(latitude, axis=1)
+    if len(longitude.shape) == 1:
+        longitude = np.expand_dims(longitude, axis=1)
+
+    logger.debug('Building lat/lon cKDTrees with lengths {} and {} '
+                 'respectively for a regular grid.'
+                 .format(len(latitude), len(longitude)))
     lat_tree = cKDTree(latitude)
     lon_tree = cKDTree(longitude)
 
+    logger.debug('Querying lat/lon cKDTrees with lengths {} and {} '
+                 'respectively for a regular grid.'
+                 .format(len(latitude), len(longitude)))
     # query each tree with the df lats/lons seperately
-    _, lat_ind = lat_tree.query(df[labels[0]].values, k=k)
-    _, lon_ind = lon_tree.query(df[labels[1]].values, k=k)
+    _, lat_ind = lat_tree.query(
+        np.expand_dims(df[labels[0]].values, axis=1), k=1)
+    _, lon_ind = lon_tree.query(
+        np.expand_dims(df[labels[1]].values, axis=1), k=1)
 
-    # initialize the output array
-    out = np.ndarray((len(df), k), dtype=np.uint32)
-
-    for i in range(k):
-        # make 2D arrays corresponding the lat/lon index results
-        mesh_lon_ind, mesh_lat_ind = np.meshgrid(lon_ind[:, i], lat_ind[:, i])
-        mesh_lat_ind = mesh_lat_ind.astype(np.uint32)
-        mesh_lon_ind = mesh_lon_ind.astype(np.uint32)
-
-        # convert corresponding 2D arrays to flattened index
-        one_d_index = np.ravel_multi_index(
-            [mesh_lat_ind.ravel(), mesh_lon_ind.ravel()],
-            (len(latitude), len(longitude)))
-        one_d_index = one_d_index.astype(np.uint32)
-
-        # assign to output array based on k
-        out[:, i] = one_d_index
+    # convert corresponding 2D arrays to flattened index
+    out = np.ravel_multi_index([lat_ind, lon_ind],
+                               (len(latitude), len(longitude)))
+    out = out.astype(np.uint32)
 
     return out
 
 
+def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
+    """Get nearest neighbors for data sets.
+
+    Parameters
+    ----------
+    df1/df2 : pd.DataFrame:
+        Dataframes containing columns with the corresponding labels.
+    labels : tuple | list
+        Column labels corresponding to the columns in df1/df2.
+    k : int
+        Number of nearest neighbors to return
+
+    Returns
+    -------
+    indicies : ndarray
+        1D array of row indicies in df1 that match df2.
+        df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
+    """
+
+    # need list for pandas column indexing
+    if not isinstance(labels, list):
+        labels = list(labels)
+
+    logger.debug('Building cKDTrees for {} coordinates.'
+                 .format(len(df1)))
+    tree = cKDTree(df1[labels].values)
+    logger.debug('Querying cKDTrees for {} coordinates.'
+                 .format(len(df2)))
+    _, ind = tree.query(df2[labels].values, k=k)
+    ind = ind.astype(np.uint32)
+    return ind
+
+
 def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
-    """Get nearest neighbors for coordinate sets.
+    """Get geo nearest neighbors for coordinate sets using haversine dist.
 
     Parameters
     ----------
@@ -150,7 +180,7 @@ def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
     Returns
     -------
     dist : ndarray
-        Distance array in km returned if return_dist input arg set to True.
+        Distance array in km.
     indicies : ndarray
         1D array of row indicies in df1 that match df2.
         df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
@@ -160,9 +190,13 @@ def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
     if not isinstance(labels, list):
         labels = list(labels)
 
-    coords1 = to_rads(np.array(df1[labels]))
-    coords2 = to_rads(np.array(df2[labels]))
+    coords1 = to_rads(df1[labels].values)
+    coords2 = to_rads(df2[labels].values)
+    logger.debug('Building Haversine BallTree for {} coordinates.'
+                 .format(len(df1)))
     tree = BallTree(coords1, metric='haversine')
+    logger.debug('Querying Haversine BallTree for {} coordinates.'
+                 .format(len(df2)))
     dist, ind = tree.query(coords2, return_distance=True, k=k)
     dist = rad_to_dist(dist)
     dist = dist.astype(np.float32)
