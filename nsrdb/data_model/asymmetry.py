@@ -40,7 +40,7 @@ class AsymVar(AncillaryVarHandler):
 
     @property
     def time_index(self):
-        """Get the MERRA native time index.
+        """Get the asymmetry native time index.
 
         Returns
         -------

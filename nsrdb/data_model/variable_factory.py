@@ -3,6 +3,7 @@
 
 import logging
 
+from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
 from nsrdb.data_model.merra import MerraVar
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
@@ -18,6 +19,7 @@ class VarFactory:
     # mapping of NSRDB variable names to helper objects
     MAPPING = {'asymmetry': AsymVar,
                'air_temperature': MerraVar,
+               'surface_albedo': AlbedoVar,
                'alpha': MerraVar,
                'aod': MerraVar,
                'cloud_type': CloudVar,

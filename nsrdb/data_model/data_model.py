@@ -44,7 +44,8 @@ from scipy.spatial import cKDTree
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
-                                           temporal_lin, temporal_step)
+                                           temporal_lin, temporal_step,
+                                           parse_method)
 from nsrdb.data_model.variable_factory import VarFactory
 
 
@@ -73,6 +74,7 @@ class DataModel:
                     'cld_reff_dcomp',
                     'ozone',
                     'ssa',
+                    'surface_albedo',
                     'surface_pressure',
                     'total_precipitable_water',
                     'solar_zenith_angle',
@@ -243,10 +245,12 @@ class DataModel:
             1D array of row indicies in df1 that match df2.
             df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
         """
-        if method == 'NN':
+        if 'NN' in method.upper():
             k = 1
-        elif method == 'IDW':
-            k = 4
+        elif 'IDW' in method.upper() or 'AGG' in method.upper():
+            k = parse_method(method)
+            if k is None:
+                k = 4
         else:
             raise ValueError('Did not recognize spatial interp method: "{}"'
                              .format(method))
@@ -605,6 +609,19 @@ class DataModel:
 
         kwargs = {'var_meta': self._var_meta, 'name': var, 'date': self.date}
         var_obj = self._var_factory.get(var, **kwargs)
+
+        if 'albedo' in var:
+            # albedo is global 1km. Set exclusions to reduce data import load.
+            lat_in = (np.min(self.nsrdb_grid['latitude']) - 0.1,
+                      np.max(self.nsrdb_grid['latitude']) + 0.1)
+            # longitude exclusion window is max/min around 50 degrees.
+            lon_ex = (np.max(self.nsrdb_grid.loc[
+                             self.nsrdb_grid['longitude'] < 50.0,
+                             'longitude']) + 0.1,
+                      np.min(self.nsrdb_grid.loc[
+                             self.nsrdb_grid['longitude'] > 50.0,
+                             'longitude']) - 0.1)
+            var_obj.set_exclusions(lat_in=lat_in, lon_ex=lon_ex)
 
         # get ancillary data source data array
         data = var_obj.source_data
