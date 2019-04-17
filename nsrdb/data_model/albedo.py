@@ -129,6 +129,18 @@ class AlbedoVar(AncillaryVarHandler):
             self._lon_good = None
 
     @property
+    def time_index(self):
+        """Get the albedo native time index.
+
+        Returns
+        -------
+        alb_ti : pd.DatetimeIndex
+            Pandas datetime index for the current day at the albedo
+            resolution (1-month).
+        """
+        return self._get_time_index(self._date, freq='1D')
+
+    @property
     def source_data(self):
         """Get single day data from the Albedo source file.
 
