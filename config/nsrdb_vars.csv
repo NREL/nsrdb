@@ -18,7 +18,7 @@ ghi,W/m2,uint16,1,0,1350,,,,,,output,
 ozone,atm-cm,uint16,1000,0.2,0.5,IDW2,FALSE,linear,tavg1_2d_slv_Nx,TO3,MERRA2,/projects/pxs/ancillary/source
 relative_humidity,%,uint16,100,0,100,,,,,,derived,
 solar_zenith_angle,degrees,uint16,100,0,180,,,,,,calculated,
-specific_humidity,kg kg-1,uint32,100000000,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/projects/pxs/ancillary/source
+specific_humidity,kg kg-1,na,na,na,na,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/projects/pxs/ancillary/source
 ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/projects/pxs/ancillary/source
 surface_albedo,unitless,uint8,100,0,1,AGG4,FALSE,nearest,,,MODIS-IMS,/projects/PXS/albedo/nsrdb_2018
 surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/projects/pxs/ancillary/source
