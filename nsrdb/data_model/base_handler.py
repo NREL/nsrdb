@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
-
+import numpy as np
 import pandas as pd
 import logging
 from warnings import warn
@@ -74,7 +74,10 @@ class AncillaryVarHandler:
         """Get a boolean mask to locate the current variable in the meta data.
         """
         if not hasattr(self, '_mask'):
-            self._mask = self.var_meta['var'] == self._name
+            if self._name in self.var_meta['var'].values:
+                self._mask = self.var_meta['var'] == self._name
+            else:
+                self._mask = None
         return self._mask
 
     @property
@@ -197,6 +200,32 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
 
     @property
+    def physical_min(self):
+        """Get the variable's physical minimum value.
+
+        Returns
+        -------
+        physical_min : float
+            Physical minimum value for the variable. Variable range can be
+            truncated at this value. Must be consistent with the final dtype
+            and scale factor.
+        """
+        return float(self.var_meta.loc[self.mask, 'min'].values[0])
+
+    @property
+    def physical_max(self):
+        """Get the variable's physical maximum value.
+
+        Returns
+        -------
+        physical_max : float
+            Physical maximum value for the variable. Variable range can be
+            truncated at this value. Must be consistent with the final dtype
+            and scale factor.
+        """
+        return float(self.var_meta.loc[self.mask, 'max'].values[0])
+
+    @property
     def scale_factor(self):
         """Get the variable's intended storage scale factor.
 
@@ -207,6 +236,87 @@ class AncillaryVarHandler:
             scale factor before being stored.
         """
         return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
+
+    def scale_data(self, array):
+        """Perform a safe data scaling operation on a source data array.
+
+        Steps:
+            1. Enforce physical range limits
+            2. Apply scale factor (mulitply)
+            3. Round if integer
+            4. Enforce dtype bit range limits
+            5. Perform dtype conversion
+            6. Return manipulated array
+
+        Parameters
+        ----------
+        array : np.ndarray
+            Source data array with full precision (likely float32).
+
+        Returns
+        -------
+        array : np.ndarray
+            Source data array with final datatype.
+        """
+
+        # check to make sure variable is in NSRDB meta config
+        if self._name in self.var_meta['var'].values:
+
+            # if the data is not in the final dtype yet
+            if not np.issubdtype(self.final_dtype, array.dtype):
+
+                # truncate unscaled array at physical min/max values
+                array[array < self.physical_min] = self.physical_min
+                array[array > self.physical_max] = self.physical_max
+
+                if self.scale_factor != 1:
+                    # apply scale factor
+                    array *= self.scale_factor
+
+                # if int, round at decimal precision determined by scale factor
+                if np.issubdtype(self.final_dtype, np.integer):
+                    array = np.round(array)
+
+                    # Get the min/max of the bit range
+                    d_min = np.iinfo(self.final_dtype).min
+                    d_max = np.iinfo(self.final_dtype).max
+
+                    # Truncate scaled array at bit range min/max
+                    array[array < d_min] = d_min
+                    array[array > d_max] = d_max
+
+                # perform type conversion to final dtype
+                array = array.astype(self.final_dtype)
+
+        return array
+
+    def unscale_data(self, array):
+        """Perform a safe data unscaling operation on a source data array.
+
+        Parameters
+        ----------
+        array : np.ndarray
+            Scaled source data array with integer precision.
+
+        Returns
+        -------
+        array : np.ndarray
+            Unscaled source data array with float32 precision.
+        """
+
+        # check to make sure variable is in NSRDB meta config
+        if self._name in self.var_meta['var'].values:
+
+            # if the data is not in the desired dtype yet
+            if not np.issubdtype(np.float32, array.dtype):
+
+                # increase precision to float32
+                array = array.astype(np.float32)
+
+                # apply scale factor
+                array /= self.scale_factor
+
+        return array
 
     @staticmethod
     def _get_time_index(date, freq='1h'):

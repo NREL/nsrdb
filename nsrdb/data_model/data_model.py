@@ -109,7 +109,8 @@ class DataModel:
     ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CALCULATED_VARS +
                          DERIVED_VARS + CLOUD_VARS))
 
-    def __init__(self, var_meta, date, nsrdb_grid, nsrdb_freq='5min'):
+    def __init__(self, var_meta, date, nsrdb_grid, nsrdb_freq='5min',
+                 scale=True):
         """
         Parameters
         ----------
@@ -122,12 +123,16 @@ class DataModel:
             or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         """
 
         self._var_meta = var_meta
         self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._nsrdb_freq = nsrdb_freq
+        self._scale = scale
         self._var_factory = VarFactory()
         self._processed = {}
         self._ti = None
@@ -358,6 +363,52 @@ class DataModel:
 
         return weights
 
+    def scale_data(self, var, data):
+        """Perform safe scaling and datatype conversion of data.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name.
+        data : np.ndarray
+            Data array to scale.
+
+        Returns
+        -------
+        data : np.ndarray
+            Scaled data array with final dtype.
+        """
+
+        if self._scale:
+            var_obj = self._var_factory.get_base_handler(
+                self._var_meta, var, self.date)
+            data = var_obj.scale_data(data)
+
+        return data
+
+    def unscale_data(self, var, data):
+        """Perform safe un-scaling and datatype conversion of data.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name.
+        data : np.ndarray
+            Scaled data array to unscale.
+
+        Returns
+        -------
+        data : np.ndarray
+            Unscaled float32 data array.
+        """
+
+        if self._scale:
+            var_obj = self._var_factory.get_base_handler(
+                self._var_meta, var, self.date)
+            data = var_obj.unscale_data(data)
+
+        return data
+
     @staticmethod
     def convert_units(var, data):
         """Convert MERRA data to NSRDB units.
@@ -420,6 +471,9 @@ class DataModel:
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
+
+        # scale if requested
+        data = self.scale_data(var, data)
 
         return data
 
@@ -497,6 +551,11 @@ class DataModel:
                 # write single timestep with NSRDB sites to appropriate row
                 # map the regridded data using the regrid NN indices
                 data[dset][i, :] = array[regrid_ind[i]]
+
+        # scale if requested
+        if self._scale:
+            for var, arr in data.items():
+                data[var] = self.scale_data(var, arr)
 
         return data
 
@@ -577,6 +636,9 @@ class DataModel:
                     # process and save data to processed attribute
                     self[dep] = self._interpolate(dep)
 
+                # unscale data to physical units for input to physical eqns
+                self[dep] = self.unscale_data(dep, self[dep])
+
             # get the calculation method from the var factory
             method = self._var_factory.get(var)
 
@@ -591,6 +653,14 @@ class DataModel:
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
+
+        # scale if requested
+        data = self.scale_data(var, data)
+
+        # re-scale dependencies
+        # (they had to be previously unscaled for physical eqns)
+        for dep in dependencies:
+            self[dep] = self.scale_data(dep, self[dep])
 
         return data
 
@@ -661,6 +731,9 @@ class DataModel:
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
+
+        # scale if requested
+        data = self.scale_data(var, data)
 
         return data
 
@@ -768,6 +841,10 @@ class DataModel:
         if derived_vars:
             for var in derived_vars:
                 data_model[var] = data_model._derive(var)
+
+        # scale if requested
+        for var, arr in data_model._processed.items():
+            data_model[var] = data_model.scale_data(var, arr)
 
         return data_model
 

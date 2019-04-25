@@ -15,7 +15,7 @@ import h5py
 import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
-from nsrdb.data_model import DataModel
+from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.utilities.loggers import init_logger
 
 
@@ -46,6 +46,9 @@ def test_asym(var='asymmetry'):
     else:
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
+            var_obj = VarFactory.get_base_handler(
+                var_meta, var, date)
+            data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
 
@@ -87,6 +90,9 @@ def test_ancillary_single(var):
     else:
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
+            var_obj = VarFactory.get_base_handler(
+                var_meta, var, date)
+            data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
 
@@ -120,6 +126,9 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
             else:
                 with h5py.File(baseline_path, 'r') as f:
                     data_baseline = f[key][...]
+                    var_obj = VarFactory.get_base_handler(
+                        var_meta, key, date)
+                    data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
                                    atol=ATOL, rtol=RTOL)
 
