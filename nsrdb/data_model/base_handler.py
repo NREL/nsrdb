@@ -54,6 +54,26 @@ class AncillaryVarHandler:
         return var_meta
 
     @property
+    def attrs(self):
+        """Return a dictionary of dataset attributes for HDF5 dataset attrs.
+
+        Returns
+        -------
+        attrs : dict
+            Namespace of attributes to define the dataset.
+        """
+
+        attrs = dict({'units': self.units,
+                      'scale_factor': self.scale_factor,
+                      'physical_min': self.physical_min,
+                      'physical_max': self.physical_max,
+                      'elevation_correction': self.elevation_correct,
+                      'temporal_interp_method': self.temporal_method,
+                      'spatial_interp_method': self.spatial_method,
+                      'source_dir': self.source_dir})
+        return attrs
+
+    @property
     def var_meta(self):
         """Return the meta data for NSRDB variables.
 
