@@ -666,6 +666,113 @@ class DataModel:
 
         return data
 
+    @classmethod
+    def _process_multiple(cls, var_list, var_meta, date,
+                          nsrdb_grid, nsrdb_freq='5min', parallel=False,
+                          cloud_extent='east', cloud_path=None):
+        """Process ancillary data for multiple variables for a single day.
+
+        Parameters
+        ----------
+        var_list : list | None
+            List of variables to process
+        var_meta : str | pd.DataFrame
+            CSV file or dataframe containing meta data for all NSRDB variables.
+        date : datetime.date
+            Single day to extract ancillary data for.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+        parallel : bool
+            Flag to perform parallel processing with each variable on a
+            seperate process.
+        cloud_extent : str
+            Regional (satellite) extent to process for cloud data processing,
+            used to form file paths to cloud data files.
+        cloud_path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
+        return_obj : bool
+            Flag to return full DataModel object instead of just the processed
+            data dictionary.
+
+        Returns
+        -------
+        out : DataModel
+            Full DataModel object with the data in the .processed property.
+        """
+
+        data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+
+        # default multiple compute
+        if var_list is None:
+            var_list = cls.ALL_SKY_VARS
+
+        # remove cloud variables from var_list to be processed together
+        # (most efficient to process all cloud variables together to minimize
+        # number of kdtrees during regrid)
+        cloud_vars = []
+        remove = []
+        for var in cls.CLOUD_VARS:
+            if var in var_list:
+                cloud_vars.append(var)
+                remove.append(var_list.index(var))
+        cloud_vars = tuple(cloud_vars)
+        var_list = tuple([v for i, v in enumerate(var_list)
+                          if i not in remove])
+
+        # remove derived (dependent) variables from var_list to be processed
+        # last (most efficient to process depdencies first, dependents last)
+        derived_vars = []
+        remove = []
+        for var in cls.DERIVED_VARS:
+            if var in var_list:
+                derived_vars.append(var)
+                remove.append(var_list.index(var))
+        derived_vars = tuple(derived_vars)
+        var_list = tuple([v for i, v in enumerate(var_list)
+                          if i not in remove])
+
+        logger.info('First processing data for variable list: {}'
+                    .format(var_list))
+        logger.info('Then processing cloud data for variable list: {}'
+                    .format(cloud_vars))
+        logger.info('Finally, processing derived data for variable list: {}'
+                    .format(derived_vars))
+
+        if var_list:
+            # run in serial
+            if parallel is False:
+                data = {}
+                for var in var_list:
+                    data_model[var] = cls.run_single(
+                        var, var_meta, date, nsrdb_grid,
+                        nsrdb_freq=nsrdb_freq)
+            # run in parallel
+            else:
+                data = cls._process_parallel(
+                    var_list, var_meta, date, nsrdb_grid,
+                    nsrdb_freq=nsrdb_freq)
+                for k, v in data.items():
+                    data_model[k] = v
+
+        # process cloud variables together
+        if cloud_vars:
+            data_model['clouds'] = cls.run_clouds(
+                cloud_vars, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+                parallel=parallel, extent=cloud_extent, path=cloud_path)
+
+        # process derived (dependent) variables last using the built
+        # AncillaryDataProcessing object instance.
+        if derived_vars:
+            for var in derived_vars:
+                data_model[var] = data_model._derive(var)
+
+        return data_model
+
     @staticmethod
     def _process_parallel(var_list, var_meta, date, nsrdb_grid,
                           nsrdb_freq='5min'):
@@ -701,7 +808,7 @@ class DataModel:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
                 futures[var] = exe.submit(
-                    DataModel.process_single, var, var_meta, date, nsrdb_grid,
+                    DataModel.run_single, var, var_meta, date, nsrdb_grid,
                     nsrdb_freq=nsrdb_freq)
 
             # watch memory during futures to get max memory usage
@@ -730,9 +837,8 @@ class DataModel:
         return futures
 
     @classmethod
-    def process_single(cls, var, var_meta, date, nsrdb_grid,
-                       nsrdb_freq='5min'):
-        """Process ancillary data for one variable for a single day.
+    def run_single(cls, var, var_meta, date, nsrdb_grid, nsrdb_freq='5min'):
+        """Run ancillary data processing for one variable for a single day.
 
         Parameters
         ----------
@@ -781,10 +887,10 @@ class DataModel:
         return data
 
     @classmethod
-    def process_clouds(cls, cloud_vars, var_meta, date, nsrdb_grid,
-                       nsrdb_freq='5min', extent='east', path=None,
-                       parallel=False):
-        """Process multiple cloud variables together
+    def run_clouds(cls, cloud_vars, var_meta, date, nsrdb_grid,
+                   nsrdb_freq='5min', extent='east', path=None,
+                   parallel=False):
+        """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
         number of kdtrees during regrid)
@@ -837,11 +943,10 @@ class DataModel:
         return data
 
     @classmethod
-    def process_multiple(cls, var_list, var_meta, date, nsrdb_grid,
-                         nsrdb_freq='5min', parallel=False,
-                         cloud_extent='east', cloud_path=None,
-                         return_obj=False):
-        """Process ancillary data for multiple variables for a single day.
+    def run_multiple(cls, var_list, var_meta, date, nsrdb_grid,
+                     nsrdb_freq='5min', parallel=False, cloud_extent='east',
+                     cloud_path=None, return_obj=False):
+        """Run ancillary data processing for multiple variables for single day.
 
         Parameters
         ----------
@@ -893,74 +998,14 @@ class DataModel:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(nsrdb_grid))
 
+        data_model = cls._process_multiple(
+            var_list, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+            parallel=parallel, cloud_extent=cloud_extent,
+            cloud_path=cloud_path)
+
         # Create an AncillaryDataProcessing object instance for storing data.
-        data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
         logger.info('Final NSRDB output shape is: {}'
                     .format(data_model.nsrdb_data_shape))
-
-        # default multiple compute
-        if var_list is None:
-            var_list = cls.ALL_SKY_VARS
-
-        # remove cloud variables from var_list to be processed together
-        # (most efficient to process all cloud variables together to minimize
-        # number of kdtrees during regrid)
-        cloud_vars = []
-        remove = []
-        for var in cls.CLOUD_VARS:
-            if var in var_list:
-                cloud_vars.append(var)
-                remove.append(var_list.index(var))
-        cloud_vars = tuple(cloud_vars)
-        var_list = tuple([v for i, v in enumerate(var_list)
-                          if i not in remove])
-
-        # remove derived (dependent) variables from var_list to be processed
-        # last (most efficient to process depdencies first, dependents last)
-        derived_vars = []
-        remove = []
-        for var in cls.DERIVED_VARS:
-            if var in var_list:
-                derived_vars.append(var)
-                remove.append(var_list.index(var))
-        derived_vars = tuple(derived_vars)
-        var_list = tuple([v for i, v in enumerate(var_list)
-                          if i not in remove])
-
-        logger.info('First processing data for variable list: {}'
-                    .format(var_list))
-        logger.info('Then processing cloud data for variable list: {}'
-                    .format(cloud_vars))
-        logger.info('Finally, processing derived data for variable list: {}'
-                    .format(derived_vars))
-
-        if var_list:
-            # run in serial
-            if parallel is False:
-                data = {}
-                for var in var_list:
-                    data_model[var] = cls.process_single(
-                        var, var_meta, date, nsrdb_grid,
-                        nsrdb_freq=nsrdb_freq)
-            # run in parallel
-            else:
-                data = cls._process_parallel(
-                    var_list, var_meta, date, nsrdb_grid,
-                    nsrdb_freq=nsrdb_freq)
-                for k, v in data.items():
-                    data_model[k] = v
-
-        # process cloud variables together
-        if cloud_vars:
-            data_model['clouds'] = cls.process_clouds(
-                cloud_vars, var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                parallel=parallel, extent=cloud_extent, path=cloud_path)
-
-        # process derived (dependent) variables last using the built
-        # AncillaryDataProcessing object instance.
-        if derived_vars:
-            for var in derived_vars:
-                data_model[var] = data_model._derive(var)
 
         logger.info('DataModel processing complete for: {}'.format(date))
 
