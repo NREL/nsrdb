@@ -16,7 +16,7 @@ snow_cover = 0 - 4
 The 2018 1km IMS snow data was plotted and shown to range from
 0-90 latitude, -180 to 180 longitude.
 
-@author: gbuster
+@authors: gbuster & ngilroy
 """
 
 from dask.distributed import Client, LocalCluster
@@ -365,6 +365,23 @@ class ProcessIMS:
         meta = pd.DataFrame({'latitude': lat, 'longitude': lon})
         return meta
 
+    @staticmethod
+    def get_4k_meta(ims_lat_file, ims_lon_file):
+        """Get IMS meta data (lat/lon df) from 4k meta files."""
+        # 4km workflow ONLY
+        # open longitude file for 4km resolution.
+        x = np.fromfile(ims_lon_file, dtype='<f4')
+        # correct positive only longitude
+        x = np.where(x > 180, x - 360, x)
+        # open latitude file for 4km resolution.
+        y = np.fromfile(ims_lat_file, dtype='<f4')
+
+        # correct positive only longitude
+        x = np.where(x > 180, x - 360, x)
+
+        meta = pd.DataFrame({'latitude': y, 'longitude': x})
+        return meta
+
     def get_indices(self):
         """Get the IMS to NSRDB mapping index.
 
@@ -386,44 +403,35 @@ class ProcessIMS:
         pos_lon = self.meta['lons'][self.meta['lons'] > 0].min()
 
         if self.res == '4km':
-            # 4km workflow ONLY
+            # open sample IMS file
             sample_ims_f = os.path.join(self.ims_data_dir,
                                         os.listdir(self.ims_data_dir)[0])
             data = self.extract_values(sample_ims_f, self.res)
-            # open longitude file for 4km resolution.
-            x = np.fromfile(self.ims_lon, dtype='<f4')
-            # correct positive only longitude
-            x = np.where(x > 180, x - 360, x)
-            # open latitude file for 4km resolution.
-            y = np.fromfile(self.ims_lat, dtype='<f4')
+
+            # get IMS meta
+            meta = ProcessIMS.get_4k_meta(self.ims_lat, self.ims_lon)
+            y = meta['latitude']
+            x = meta['longitude']
+
             # Create 4km mask
             x_mask = (x < (neg_lon + 0.35)) | (x > pos_lon - 0.35)
-
             valid_data = ((data == 4) | (data == 2)) & x_mask
+
             x_pnts = x[valid_data]
             y_pnts = y[valid_data]
 
         elif self.res == '1km':
-            # 1km workflow ONLY
-            # open latitude file for 1km resolution.
-            with open(self.ims_lat, 'rb') as f:
-                y = np.fromfile(f, dtype='<d', count=24576 * 24576)
-                # y = np.reshape(data, [24576, 24576], order='F')
-
-            # open longitude file for 1km resolution.
-            with open(self.ims_lon, 'rb') as f:
-                x = np.fromfile(f, dtype='<d', count=24576 * 24576)
-                # x = np.reshape(data, [24576, 24576], order='F')
-
+            # open sample IMS file
             sample_ims_f = os.path.join(self.ims_data_dir,
                                         os.listdir(self.ims_data_dir)[0])
-
             data = self.extract_values(sample_ims_f, self.res)
 
-            # correct positive only longitude
-            x = np.where(x > 180, x - 360, x)
+            # get IMS meta
+            meta = ProcessIMS.get_1k_meta(self.ims_lat, self.ims_lon)
+            y = meta['latitude']
+            x = meta['longitude']
 
-            # Create 4km mask
+            # Create 1km mask
             x_mask = (x < (neg_lon + 0.35)) | (x > pos_lon - 0.35)
             valid_data = ((data == 4) | (data == 2)) & x_mask
 
@@ -640,13 +648,13 @@ class ProcessIMS:
                       'ims_{}_daily_snow_cover.h5'
                       .format(year))
         nsrdb_meta = '/projects/PXS/reference_grids/east_psm_extent_2k.csv'
-        lon4 = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
-                'IMS1kmLons.24576x24576x1.double')
-        lat4 = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
-                'IMS1kmLats.24576x24576x1.double')
+        ims_lon = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                   'IMS1kmLons.24576x24576x1.double')
+        ims_lat = ('/scratch/ngilroy/nsrdb/albedo/ims_lat_lon/'
+                   'IMS1kmLats.24576x24576x1.double')
         ims_data_dir = '/scratch/ngilroy/nsrdb/albedo/ims_1k'
 
-        ims = cls(year, nsrdb_meta, lon4, lat4, ims_data_dir,
+        ims = cls(year, nsrdb_meta, ims_lon, ims_lat, ims_data_dir,
                   output_hdf, hpc=hpc)
         ims.main()
         print('IMS snow data processing script is complete, check outputs!')
@@ -710,7 +718,7 @@ def year_1k_to_h5(year, ims_dir, fout,
 
     OUTPUT SNOW FORMAT
     ------------------
-    snow_cover = 0 - 2.
+    snow_cover = -1 - 1.
         0 = no snow
         1 = snow
         -1 = no data
@@ -905,86 +913,10 @@ def gap_fill_ims(f_ims, log_level='DEBUG'):
                 .format((time.time() - t1) / 60.0))
 
 
-def append_new_year(source_my, new_year, new_my, log_level='INFO',
-                    log_file=None):
-    """Append IMS snow data for a single year to the full multi-year data file.
-
-    This script appends the latest gap-filled ims data to the complete version
-    of the gap-filled ims dataset which currently is (1998-2015).
-    You will need to use 'bigmem' on peregrin otherwise you will raise a
-    memory error due to the size of the numpy arrays during concatenation.
-
-    Parameters
-    ----------
-    source_my : str
-        Source multi-year IMS snow h5 file (with path) that the new year will
-        be added to.
-    new_year : str
-        Source single-year new IMS snow h5 file (with path) that will be added
-        to the source mult-year data.
-    new_my : str
-        Target multi-year h5 file (with path) that will be created combining
-        source_my and new_year data.
-    log_level : str
-        Level to log messages at. Logs will be sent to stdout.
-    log_file : str
-        Target file with path to log messages to.
-    """
-
-    # initialize a logger output file for this method in the ims directory.
-    init_logger(__name__, log_file=log_file, log_level=log_level)
-
-    # start timer.
-    t1 = time.time()
-
-    # read hdfs.
-    with h5py.File(source_my, 'r') as hf_old:
-        with h5py.File(new_year, 'r') as hf_new:
-            # meta does not need to change or be appended to.
-            meta = hf_old['meta'][...]
-
-            logger.info('hdfs loaded. Begin to append data.')
-            # append new gap-filled ims to old.
-            di_old = hf_old['time_index']
-            di_new = hf_new['time_index']
-            di_concat = np.concatenate([di_old, di_new])
-            logger.info('Finished appending time_index.')
-
-            ff_old = hf_old['fill_flag']
-            ff_new = hf_new['fill_flag']
-            ff_concat = np.concatenate([ff_old, ff_new])
-            logger.info('Finished appending fill_flag.')
-
-            gff_old = hf_old['gap_fill_flag'][...]
-            gff_new = hf_new['gap_fill_flag'][...]
-            gff_concat = np.concatenate([gff_old, gff_new], axis=0)
-            logger.info('Finished appending gap_fill_flag.')
-
-            sc_old = hf_old['snow_cover'][...]
-            sc_new = hf_new['snow_cover'][...]
-            sc_concat = np.concatenate([sc_old, sc_new], axis=0)
-            logger.info('Finished appending snow_cover.')
-
-    logger.info('Appended new ims data to old dataset. writing hdf.')
-    with h5py.File(new_my, 'w') as hfile:
-        hfile.create_dataset('time_index', data=di_concat)
-        hfile.create_dataset('fill_flag', data=ff_concat)
-        hfile.create_dataset('gap_fill_flag', data=gff_concat)
-        hfile.create_dataset('meta', data=meta)
-        hfile.create_dataset('snow_cover', data=sc_concat)
-    logger.info("Completed in {} minutes".format((time.time() - t1) / 60.0))
-
-
-def update_albedo_where_snow(
-        albedo_h5=('/scratch/ngilroy/nsrdb/albedo/outputs/'
-                   'nsrdb_wsa_albedo_daily.h5'),
-        snow_h5=('/scratch/ngilroy/nsrdb/albedo/outputs/'
-                 'ims_2018_daily_gap_filled_snow_cover.h5'),
-        output_h5='/scratch/ngilroy/nsrdb/albedo/outputs/nsrdb_albedo_2018.h5',
-        leap_year=False, snow_albedo=0.8669, log_level='DEBUG',
-        log_file='/scratch/ngilroy/nsrdb/albedo/update_albedo.log'):
-    """Update an Albedo dataset with a fixed snow albedo based on IMS snow data
-
+class UpdateAlbedoWithIMS:
+    """Class to manage updating Albedo with IMS."""
+    def __init__(self, albedo_h5, snow_h5, output_h5, leap_year, snow_albedo):
+        """
     Parameters
     ----------
     albedo_h5 : str
@@ -997,78 +929,114 @@ def update_albedo_where_snow(
         Flag to generate 365 or 366 days of albedo data.
     snow_albedo : float
         Constant value to assign to albedo when snow is present.
-    log_level : str
-        Level to log messages at.
-    log_file : str
-        Target file with path to log messages to.
     """
+        self.albedo_h5 = albedo_h5
+        self.snow_h5 = snow_h5
+        self.output_h5 = output_h5
+        self.leap_year = leap_year
+        self.snow_albedo = snow_albedo
 
-    # initialize a logger output file for this method in the ims directory.
-    init_logger(__name__, log_file=log_file, log_level=log_level)
+    def update_albedo_where_snow(self):
+        """
+        Update an Albedo dataset with a fixed snow albedo
+        based on IMS snow data.
+        """
+        t1 = time.time()
 
-    t1 = time.time()
+        logger.info(
+            'Opening the source albedo file: {}'.format(self.albedo_h5))
+        with h5py.File(self.albedo_h5, 'r') as hf:
 
-    logger.info('Opening the source albedo file: {}'.format(albedo_h5))
-    with h5py.File(albedo_h5, 'r') as hf:
+            # extract the last 365 days of albedo or 366 if leap year
+            albedo_year_index = -355
+            if self.leap_year:
+                albedo_year_index = -366
+            albedo = hf['albedo'][albedo_year_index:, :]
+            meta = hf['meta'][...]
+            albedo_latlon = pd.DataFrame(meta).loc[:, ['lats', 'lons']]
 
-        # extract the last 365 days of albedo or 366 if leap year
-        albedo_year_index = -355
-        if leap_year:
-            albedo_year_index = -366
-        albedo = hf['albedo'][albedo_year_index:, :]
-        meta = hf['meta'][...]
-        albedo_latlon = pd.DataFrame(meta).loc[:, ['lats', 'lons']]
+            # Diagnostics
+            logger.debug('Source albedo dataset shape: {}'
+                         .format(hf['albedo'].shape))
+            logger.debug('Extracted albedo dataset with shape: {}'
+                         .format(albedo.shape))
+            logger.debug('Source meta has {} entries, head:\n{}'
+                         .format(len(meta), meta[0:10]))
 
-        # Diagnostics
-        logger.debug('Source albedo dataset shape: {}'
-                     .format(hf['albedo'].shape))
-        logger.debug('Extracted albedo dataset with shape: {}'
-                     .format(albedo.shape))
-        logger.debug('Source meta has {} entries, head:\n{}'
-                     .format(len(meta), meta[0:10]))
+        logger.info('Albedo data imported. Reading snow file.')
+        with h5py.File(self.snow_h5, 'r') as hf2:
+            ims = hf2['snow_cover'][...]
+            time_index = hf2['time_index'][...]
+            snow_latlon = pd.DataFrame(hf2['meta'][...],
+                                       columns=['lats', 'lons'])
+            logger.debug('IMS snow dataset has shape: {}'.format(ims.shape))
 
-    logger.info('Albedo data imported. Reading snow file.')
-    with h5py.File(snow_h5, 'r') as hf2:
-        ims = hf2['snow_cover'][...]
-        time_index = hf2['time_index'][...]
-        snow_latlon = pd.DataFrame(hf2['meta'][...],
-                                   columns=['lats', 'lons'])
-        logger.debug('IMS snow dataset has shape: {}'.format(ims.shape))
+        logger.debug('Running NN on albedo and snow meta data')
+        tree = cKDTree(snow_latlon.values)
+        _, indices = tree.query(albedo_latlon.values, k=1)
 
-    logger.debug('Running NN on albedo and snow meta data')
-    tree = cKDTree(snow_latlon.values)
-    _, indices = tree.query(albedo_latlon.values, k=1)
+        # reduce IMS snow data to just the indices that match the albedo data.
+        snow_latlon = snow_latlon.loc[indices, :]
+        # time is in axis-0, sites are in axis-1, index site axis not time axis
+        ims = ims[:, indices]
 
-    # reduce the IMS snow data to just the indices that match the albedo data.
-    snow_latlon = snow_latlon.loc[indices, :]
-    # time is in axis-0, sites are in axis-1, index the site axis not time axis
-    ims = ims[:, indices]
+        diff_lat = np.sum(
+            snow_latlon.iloc[:, 0].values - albedo_latlon.iloc[:, 0])
+        diff_lon = np.sum(
+            snow_latlon.iloc[:, 1].values - albedo_latlon.iloc[:, 1])
 
-    diff_lat = np.sum(snow_latlon.iloc[:, 0].values - albedo_latlon.iloc[:, 0])
-    diff_lon = np.sum(snow_latlon.iloc[:, 1].values - albedo_latlon.iloc[:, 1])
+        logger.debug(
+            'Difference in lat/lon arrays (should be zero): {}/{}'
+            .format(diff_lat, diff_lon))
 
-    logger.debug('Difference in lat/lon arrays (should be zero): {}/{}'
-                 .format(diff_lat, diff_lon))
+        logger.info(
+            'After matching the snow data to the Albedo data using NN, '
+            'the IMS snow data has shape {} and the albedo data has shape '
+            '{}'.format(ims.shape, albedo.shape))
 
-    logger.info('After matching the snow data to the Albedo data using NN, '
-                'the IMS snow data has shape {} and the albedo data has shape '
-                '{}'.format(ims.shape, albedo.shape))
+        logger.info('Snow file data imported. Updating albedo where snow.')
+        for day in range(len(albedo)):
+            try:
+                albedo[day, :] = np.where(ims[day, :] == 1, self.snow_albedo,
+                                          albedo[day, :])
+            except Exception as e:
+                logger.debug('day: {} failed to write snow albedo value'
+                             .format(day))
+                logger.exception(e)
 
-    logger.info('Snow file data imported. Updating albedo where snow.')
-    for day in range(len(albedo)):
-        try:
-            albedo[day, :] = np.where(ims[day, :] == 1, snow_albedo,
-                                      albedo[day, :])
-        except Exception as e:
-            logger.debug('day: {} failed to write snow albedo value'
-                         .format(day))
-            logger.exception(e)
+        logger.info('Albedo snow updated. Writing output hdf: {}'
+                    .format(self.output_h5))
+        with h5py.File(self.output_h5, 'w') as hfile:
+            hfile.create_dataset('albedo', data=albedo)
+            hfile.create_dataset('time_index', data=time_index)
+            hfile.create_dataset('meta', data=meta)
 
-    logger.info('Albedo snow updated. Writing output hdf: {}'
-                .format(output_h5))
-    with h5py.File(output_h5, 'w') as hfile:
-        hfile.create_dataset('albedo', data=albedo)
-        hfile.create_dataset('time_index', data=time_index)
-        hfile.create_dataset('meta', data=meta)
+        logger.info(
+            "Completed in {} minutes".format((time.time() - t1) / 60.0))
 
-    logger.info("Completed in {} minutes".format((time.time() - t1) / 60.0))
+    @classmethod
+    def run(cls, albedo_h5, snow_h5, output_h5, leap_year=False,
+            snow_albedo=0.8669, log_level='DEBUG'):
+        """
+        Parameters
+        ----------
+        albedo_h5 : str
+            Albedo data source file with path.
+        snow_h5 : str
+            Source IMS snow data file with path.
+        output_h5 : str
+            Target final albedo file with path.
+        leap_year : bool
+            Flag to generate 365 or 366 days of albedo data.
+        snow_albedo : float
+            Constant value to assign to albedo when snow is present.
+        log_level : str
+            Level to log messages at.
+        """
+
+        # initialize a logger output file for this method in the ims directory.
+        init_logger(__name__, log_file='albedoIMS.log', log_level=log_level)
+
+        albedoIMS = cls(albedo_h5, snow_h5, output_h5, snow_albedo, leap_year)
+        albedoIMS.update_albedo_where_snow()
+        print('Alebdo update with IMS script is complete, check outputs!')
