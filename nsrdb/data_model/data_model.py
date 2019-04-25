@@ -118,8 +118,9 @@ class DataModel:
             CSV file or dataframe containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract MERRA2 data for.
-        nsrdb_grid : str
-            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         """
@@ -153,11 +154,13 @@ class DataModel:
             CSV file containing the NSRDB reference grid to interpolate to.
         """
 
-        if inp.endswith('.csv'):
+        if isinstance(inp, pd.DataFrame):
+            self._nsrdb_grid = inp
+        elif inp.endswith('.csv'):
             self._nsrdb_grid = pd.read_csv(inp)
         else:
-            raise TypeError('Expected csv grid file but received: {}'
-                            .format(inp))
+            raise TypeError('Expected csv grid file or DataFrame but '
+                            'received: {}'.format(inp))
 
     @property
     def date(self):
@@ -379,7 +382,7 @@ class DataModel:
                 # convert Kelvin to Celsius
                 data -= 273.15
 
-        if var == 'surface_pressure':
+        elif var == 'surface_pressure':
             if np.max(data) > 10000:
                 # convert surface pressure from Pa to mbar
                 data /= 100
@@ -474,7 +477,7 @@ class DataModel:
             for i, fpath in enumerate(var_obj.flist):
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
-                regrid_ind[i] = self.get_cloud_nn(fpath, self._nsrdb_grid)
+                regrid_ind[i] = self.get_cloud_nn(fpath, self.nsrdb_grid)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
@@ -525,7 +528,7 @@ class DataModel:
             # make the nearest neighbors regrid index mapping for all timesteps
             for i, fpath in enumerate(flist):
                 regrid_ind[i] = exe.submit(self.get_cloud_nn, fpath,
-                                           self._nsrdb_grid)
+                                           self.nsrdb_grid)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -676,8 +679,9 @@ class DataModel:
             CSV file or dataframe containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract MERRA2 data for.
-        nsrdb_grid : str
-            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
 
@@ -721,7 +725,6 @@ class DataModel:
 
             # gather results
             for k, v in futures.items():
-                # data returned from futures as read only for some reason
                 futures[k] = v.result()
 
         return futures
@@ -739,8 +742,9 @@ class DataModel:
             CSV file or dataframe containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract ancillary data for.
-        nsrdb_grid : str
-            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
 
@@ -756,10 +760,13 @@ class DataModel:
 
         if var in cls.CALCULATED_VARS:
             data = data_model._calculate(var)
+
         elif var in cls.CLOUD_VARS:
             data = data_model._cloud_regrid(var)
+
         elif var in cls.DERIVED_VARS:
             data = data_model._derive(var)
+
         else:
             data = data_model._interpolate(var)
 
@@ -790,8 +797,9 @@ class DataModel:
             CSV file or dataframe containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract ancillary data for.
-        nsrdb_grid : str
-            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         extent : str
@@ -843,8 +851,9 @@ class DataModel:
             CSV file or dataframe containing meta data for all NSRDB variables.
         date : datetime.date
             Single day to extract ancillary data for.
-        nsrdb_grid : str
-            CSV file containing the NSRDB reference grid to interpolate to.
+        nsrdb_grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         parallel : bool
@@ -871,8 +880,18 @@ class DataModel:
 
         logger.info('Building NSRDB data model for {} at a {} temporal '
                     'resolution.'.format(date, nsrdb_freq))
-        logger.info('Using the NSRDB reference grid file: {}'
-                    .format(nsrdb_grid))
+
+        if isinstance(nsrdb_grid, str):
+            logger.info('Using the NSRDB reference grid file: {}'
+                        .format(nsrdb_grid))
+        elif isinstance(nsrdb_grid, pd.DataFrame):
+            logger.info('Using the NSRDB reference grid dataframe with '
+                        'shape, head, tail:\n{}\n{}\n{}'
+                        .format(nsrdb_grid.shape, nsrdb_grid.head(),
+                                nsrdb_grid.tail()))
+        else:
+            raise TypeError('Expected csv grid file or DataFrame but '
+                            'received: {}'.format(nsrdb_grid))
 
         # Create an AncillaryDataProcessing object instance for storing data.
         data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
