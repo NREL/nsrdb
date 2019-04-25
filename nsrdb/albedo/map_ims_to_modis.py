@@ -1,6 +1,26 @@
 # -*- coding: utf-8 -*-
 """Map one year of IMS snow data to the MODIS dataset.
 
+The 8day 1km global MODIS files are copied to daily files, and MODIS pixels are
+updated for snow with the closest 1km IMS data. A constant snow albedo is
+applied.
+
+The main method in this module is map_modis()
+
+Inputs:
+    - Single IMS snow h5 data file with one year of daily snow data.
+      Dataset shape is (days x sites). Best with 1km IMS data. Should already
+      be gap-filled.
+
+    - Set of MODIS global albedo files, likely at 8-day intervals for one year.
+      The MODIS files are raw (straight from MODIS), but need to be converted
+      to .h5 before this is run.
+
+Outputs:
+    - Daily global albedo files at 1km. Each day has a base albedo from the
+      nearest 8-day MODIS file, updated with the daily IMS snow data.
+      Because both datasets are ~1km, this is an effective mapping.
+
 Created on Wed Apr 10 08:44:30 2019
 
 @author: gbuster
