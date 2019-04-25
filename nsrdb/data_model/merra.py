@@ -130,10 +130,10 @@ class MerraVar(AncillaryVarHandler):
         with netCDF4.Dataset(self.file, 'r') as f:
 
             # depending on variable, might need extra logic
-            if self.merra_name in ['wind_speed', 'wind_direction']:
+            if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
                 v_vector = f['V2M'][:]
-                if self.merra_name == 'wind_speed':
+                if self.name == 'wind_speed':
                     data = np.sqrt(u_vector**2 + v_vector**2)
                 else:
                     data = np.degrees(

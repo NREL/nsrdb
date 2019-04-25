@@ -44,8 +44,7 @@ from scipy.spatial import cKDTree
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
-                                           temporal_lin, temporal_step,
-                                           parse_method)
+                                           temporal_lin, temporal_step)
 from nsrdb.data_model.variable_factory import VarFactory
 
 
@@ -249,11 +248,11 @@ class DataModel:
             df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
         """
         if 'NN' in method.upper():
+            # always get 1 nearest neighbor for NN data copy
             k = 1
         elif 'IDW' in method.upper() or 'AGG' in method.upper():
-            k = parse_method(method)
-            if k is None:
-                k = 4
+            # always get 4 nearest neighbors for interpolation methods
+            k = 4
         else:
             raise ValueError('Did not recognize spatial interp method: "{}"'
                              .format(method))
@@ -342,9 +341,8 @@ class DataModel:
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
             _, i_nn = self.get_geo_nn(weights, var_obj.grid, 'NN')
-            i_nn = i_nn.flatten()
 
-            df_w = weights.iloc[i_nn.flatten()]
+            df_w = weights.iloc[i_nn.ravel()]
             df_w = df_w[df_w.columns[2:-1]].T.set_index(
                 pd.date_range(str(self.date.year), freq='M', periods=12))
             df_w[df_w < 0] = 1

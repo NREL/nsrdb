@@ -87,8 +87,8 @@ def test_regrid():
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
 
-    data = DataModel.process_clouds(cloud_vars, var_meta, date, nsrdb_grid,
-                                    nsrdb_freq='1d', path=path)
+    data = DataModel.run_clouds(cloud_vars, var_meta, date, nsrdb_grid,
+                                nsrdb_freq='1d', path=path)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 

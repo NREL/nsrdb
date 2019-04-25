@@ -37,9 +37,9 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data_model = DataModel.process_multiple(var_list, var_meta, date,
-                                            grid, parallel=False,
-                                            return_obj=True)
+    data_model = DataModel.run_multiple(var_list, var_meta, date,
+                                        grid, parallel=False,
+                                        return_obj=True)
 
     with Outputs(out_file, mode='w') as fout:
         fout.time_index = data_model.nsrdb_ti
