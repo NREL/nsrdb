@@ -225,7 +225,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                 ssa=fa['ssa', rows, cols],
                 surface_albedo=fa['surface_albedo', rows, cols],
                 surface_pressure=fa['surface_pressure', rows, cols],
-                time_index=fc.time_index,
+                time_index=fc.time_index[rows],
                 total_precipitable_water=fa['total_precipitable_water',
                                             rows, cols])
     return out

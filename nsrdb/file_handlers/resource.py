@@ -340,7 +340,8 @@ class Resource:
                 out += add_factor
             else:
                 # most variables have just scale factor
-                out /= scale_factor
+                if scale_factor != 1:
+                    out /= scale_factor
 
         return out
 

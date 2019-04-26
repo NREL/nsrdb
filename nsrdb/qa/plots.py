@@ -351,7 +351,8 @@ class Spatial:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
             self.dsets(h5, dsets, out_dir, timesteps=timesteps)
 
-    def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600)):
+    def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600),
+              **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -381,9 +382,18 @@ class Spatial:
 
                 for i in timesteps:
                     logger.info('Plotting timestep {}'.format(i))
-                    df[dset] = f[dset][i, :] / attrs['psm_scale_factor']
+                    if 'scale_factor' in attrs:
+                        scale_factor = attrs['scale_factor']
+                    elif 'psm_scale_factor' in attrs:
+                        scale_factor = attrs['psm_scale_factor']
+                    else:
+                        scale_factor = 1
+                        warn('Could not find scale factor attr in h5: {}'
+                             .format(h5))
+
+                    df[dset] = f[dset][i, :] / scale_factor
                     self.plot_geo_df(df, fname + '_' + dset + '_{}'.format(i),
-                                     out_dir)
+                                     out_dir, **kwargs)
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
