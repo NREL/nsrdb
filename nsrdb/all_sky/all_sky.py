@@ -8,7 +8,7 @@ from warnings import warn
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
-from nsrdb.all_sky.gap_fill import make_fill_flag, gap_fill_irrad
+from nsrdb.gap_fill.irradiance_fill import make_fill_flag, gap_fill_irrad
 from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
