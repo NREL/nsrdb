@@ -15,7 +15,7 @@ import logging
 from nsrdb import CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.file_handlers.collection import collect
+from nsrdb.file_handlers.collection import collect_daily_files
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class NSRDB:
                                        'ssa',
                                        'surface_albedo',
                                        'surface_pressure',
-                                       'total_precipitable_water'
+                                       'total_precipitable_water',
                                        'air_temperature',
                                        'wind_direction',
                                        'wind_speed'),
@@ -100,13 +100,14 @@ class NSRDB:
 
     @property
     def meta(self):
-        """Get the NSRDB meta data.
+        """Get the NSRDB meta dataframe from the grid file.
 
         Returns
         -------
         meta : pd.DataFrame
-            Pandas DataFrame of meta data.
+            DataFrame of meta data from grid file csv.
         """
+
         if isinstance(self._nsrdb_grid, str):
             self._nsrdb_grid = pd.read_csv(self._nsrdb_grid)
         return self._nsrdb_grid
@@ -152,7 +153,7 @@ class NSRDB:
         return data_model
 
     def _exe_fout(self, data_model):
-        """Send the daily data model to output files.
+        """Send the single-day data model results to output files.
 
         Parameters
         ----------
@@ -191,10 +192,19 @@ class NSRDB:
                     .format(self._out_dir))
 
     def _init_final_out(self, f_out, dsets):
-        """Initialize the final output file"""
+        """Initialize the final output file.
+
+        Parameters
+        ----------
+        f_out : str
+            File path to final .h5 file.
+        dsets : list
+            List of dataset / variable names that are to be contained in f_out.
+        """
 
         if not os.path.isfile(f_out):
-            logger.info('Initializing {}'.format(f_out))
+            logger.info('Initializing {} for the following datasets: {}'
+                        .format(f_out, dsets))
 
             attrs, chunks, dtypes = self.get_dset_attrs(dsets)
 
@@ -204,15 +214,32 @@ class NSRDB:
     @staticmethod
     def get_dset_attrs(dsets):
         """Get output file dataset attributes for a set of datasets.
+
+        Parameters
+        ----------
+        dsets : list
+            List of dataset / variable names.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
         """
+
         attrs = {}
         chunks = {}
         dtypes = {}
+
         for dset in dsets:
             var_obj = VarFactory.get_base_handler(NSRDB.DEFAULT_VAR_META, dset)
             attrs[dset] = var_obj.attrs
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype
+
         return attrs, chunks, dtypes
 
     @classmethod
@@ -255,9 +282,9 @@ class NSRDB:
         nsrdb._exe_fout(data_model)
 
     @classmethod
-    def collect_daily(cls, daily_dir, out_dir, year, nsrdb_grid,
-                      nsrdb_freq='5min'):
-        """Initialize output file (if doesnt exist) and collect daily files.
+    def collect_data_model(cls, daily_dir, out_dir, year, nsrdb_grid,
+                           nsrdb_freq='5min'):
+        """Init output file and collect daily data model output files.
 
         Parameters
         ----------
@@ -276,8 +303,8 @@ class NSRDB:
         nsrdb = cls(out_dir, year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                     cloud_extent=None)
 
-        for fname, dsets in cls.OUTS:
+        for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
                 f_out = os.path.join(out_dir, fname.format(y=year))
                 nsrdb._init_final_out(f_out, dsets)
-                collect(daily_dir, f_out, dsets)
+                collect_daily_files(daily_dir, f_out, dsets)
