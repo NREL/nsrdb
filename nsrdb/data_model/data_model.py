@@ -44,7 +44,8 @@ from scipy.spatial import cKDTree
 from nsrdb import NSRDBDIR, DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
-                                           temporal_lin, temporal_step)
+                                           temporal_lin, temporal_step,
+                                           parse_method)
 from nsrdb.data_model.variable_factory import VarFactory
 
 
@@ -255,9 +256,14 @@ class DataModel:
         if 'NN' in method.upper():
             # always get 1 nearest neighbor for NN data copy
             k = 1
-        elif 'IDW' in method.upper() or 'AGG' in method.upper():
-            # always get 4 nearest neighbors for interpolation methods
+        elif 'IDW' in method.upper():
+            # always get 4 nearest neighbors for dist interp method
             k = 4
+        elif 'AGG' in method.upper():
+            # aggregation can be from any number of neighbors, default to 4
+            k = parse_method(method)
+            if k is None:
+                k = 4
         else:
             raise ValueError('Did not recognize spatial interp method: "{}"'
                              .format(method))
