@@ -41,7 +41,7 @@ from concurrent.futures import ProcessPoolExecutor
 import time
 from scipy.spatial import cKDTree
 
-from nsrdb import NSRDBDIR, DATADIR
+from nsrdb import DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
                                            temporal_lin, temporal_step,
@@ -56,7 +56,7 @@ class DataModel:
     """Datamodel for single-day ancillary data processing to NSRDB."""
 
     # directory to cache intermediate data (nearest neighbor results)
-    CACHE_DIR = NSRDBDIR
+    CACHE_DIR = '/projects/pxs/reference_grids/_nn_query_cache'
 
     # source files for weight factors
     WEIGHTS = {
@@ -242,8 +242,8 @@ class DataModel:
             Spatial interpolation method - either NN or IDW
         cache : bool | str
             Flag to cache nearest neighbor results or retrieve cached results
-            instead of performing NN query. Strings are evaluated as the file
-            name to cache.
+            instead of performing NN query. Strings are evaluated as the csv
+            file name to cache.
 
         Returns
         -------
@@ -267,6 +267,10 @@ class DataModel:
         else:
             raise ValueError('Did not recognize spatial interp method: "{}"'
                              .format(method))
+
+        # Do not cache results if the intended Cache directory isn't available
+        if not os.path.exists(self.CACHE_DIR):
+            cache = False
 
         if isinstance(cache, str):
             if not cache.endswith('.csv'):
@@ -688,24 +692,16 @@ class DataModel:
         var_obj = self._var_factory.get(var, **kwargs)
 
         if 'albedo' in var:
-            # albedo is global 1km. Set exclusions to reduce data import load.
-            lat_in = (np.min(self.nsrdb_grid['latitude']) - 0.1,
-                      np.max(self.nsrdb_grid['latitude']) + 0.1)
-            # longitude exclusion window is max/min around 50 degrees.
-            lon_ex = (np.max(self.nsrdb_grid.loc[
-                             self.nsrdb_grid['longitude'] < 50.0,
-                             'longitude']) + 0.1,
-                      np.min(self.nsrdb_grid.loc[
-                             self.nsrdb_grid['longitude'] > 50.0,
-                             'longitude']) - 0.1)
-            var_obj.set_exclusions(lat_in=lat_in, lon_ex=lon_ex)
+            # special exclusions for large-extent albedo
+            var_obj.exclusions_from_nsrdb(self.nsrdb_grid)
 
         # get ancillary data source data array
         data = var_obj.source_data
 
         # get mapping from source data grid to NSRDB
         dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
-                                    var_obj.spatial_method)
+                                    var_obj.spatial_method,
+                                    cache=var_obj.cache_file)
 
         # perform weighting if applicable
         if var in self.WEIGHTS:

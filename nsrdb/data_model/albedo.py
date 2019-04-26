@@ -36,6 +36,9 @@ class AlbedoVar(AncillaryVarHandler):
         self._lat_good = None
         super().__init__(var_meta, name, date)
 
+        # Albedo benefits from caching the nn results
+        self._cache_file = 'albedo_nn_cache.csv'
+
     @property
     def date_stamp(self):
         """Get the Albedo datestamp corresponding to the specified date
@@ -69,6 +72,27 @@ class AlbedoVar(AncillaryVarHandler):
                 falbedo = os.path.join(self.source_dir, f)
                 break
         return falbedo
+
+    def exclusions_from_nsrdb(self, nsrdb_grid):
+        """Set lat/lon exclusions from NSRDB grid df to minimize data read.
+
+        Parameters
+        ----------
+        nsrdb_grid : pd.DataFrame
+            NSRDB grid dataframe (meta data) with latitude/longitude columns.
+        """
+
+        # albedo is global 1km. Set exclusions to reduce data import load.
+        lat_in = (np.min(nsrdb_grid['latitude']) - 0.1,
+                  np.max(nsrdb_grid['latitude']) + 0.1)
+        # longitude exclusion window is max/min around 50 degrees.
+        lon_ex = (np.max(nsrdb_grid.loc[
+                         nsrdb_grid['longitude'] < 50.0,
+                         'longitude']) + 0.1,
+                  np.min(nsrdb_grid.loc[
+                         nsrdb_grid['longitude'] > 50.0,
+                         'longitude']) - 0.1)
+        self.set_exclusions(lat_in=lat_in, lon_ex=lon_ex)
 
     def set_exclusions(self, lat_in=None, lat_ex=None, lon_in=None,
                        lon_ex=None):

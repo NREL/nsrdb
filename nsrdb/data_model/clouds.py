@@ -430,7 +430,14 @@ class CloudVar(AncillaryVarHandler):
 
     @property
     def path(self):
-        """Final path containing cloud data files."""
+        """Final path containing cloud data files.
+
+        Path is interpreted as:
+            /source_dir/extent/YYYY/DOY/level2/
+
+        Where source_dir is defined in the nsrdb_vars.csv meta/config file.
+        """
+
         if self._path is None:
             doy = str(self._date.timetuple().tm_yday).zfill(3)
             self._path = os.path.join(self.source_dir, self._extent,

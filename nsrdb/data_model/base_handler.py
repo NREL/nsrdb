@@ -31,6 +31,7 @@ class AncillaryVarHandler:
         self._var_meta = self._parse_var_meta(var_meta)
         self._name = name
         self._date = date
+        self._cache_file = False
 
     @staticmethod
     def _parse_var_meta(inp):
@@ -72,6 +73,17 @@ class AncillaryVarHandler:
                       'spatial_interp_method': self.spatial_method,
                       'source_dir': self.source_dir})
         return attrs
+
+    @property
+    def cache_file(self):
+        """Get the nearest neighbor result cache csv file for this var.
+
+        Returns
+        -------
+        _cache_file : False | str
+            False for no caching, or a string filename (no path).
+        """
+        return self._cache_file
 
     @property
     def var_meta(self):
