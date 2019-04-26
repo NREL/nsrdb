@@ -284,8 +284,8 @@ class DataModel:
             if os.path.exists(cache_i) and os.path.exists(cache_d):
                 logger.debug('Found cached nearest neighbor indices, '
                              'importing: {}'.format(cache_i))
-                dist = np.genfromtxt(cache_d, dtype=float, delimiter=',')
-                ind = np.genfromtxt(cache_i, dtype=int, delimiter=',')
+                dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
+                ind = np.genfromtxt(cache_i, dtype=np.uint32, delimiter=',')
 
             else:
                 dist, ind = geo_nn(df1, df2, labels=labels, k=k)
@@ -897,11 +897,13 @@ class DataModel:
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
                 running = 0
-                for future in futures.values():
+                keys = []
+                for key, future in futures.items():
                     if future.running():
                         running += 1
-                logger.debug('{} DataModel processing futures are running.'
-                             .format(running))
+                        keys += [key]
+                logger.debug('{} DataModel processing futures are running: {}'
+                             .format(running, keys))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -942,20 +944,24 @@ class DataModel:
         data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
         if var in cls.CALCULATED_VARS:
-            data = data_model._calculate(var)
-
+            method = data_model._calculate
         elif var in cls.CLOUD_VARS:
-            data = data_model._cloud_regrid(var)
-
+            method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
-            data = data_model._derive(var)
-
+            method = data_model._derive
         else:
-            data = data_model._interpolate(var)
+            method = data_model._interpolate
+
+        try:
+            data = method(var)
+        except Exception as e:
+            logger.exception('Processing method "DataModel.{}()" failed for '
+                             '"{}"'.format(method.__name__, var))
+            raise e
 
         if data.shape != data_model.nsrdb_data_shape:
-            raise ValueError('Expected NSRDB data shape of {}, but received '
-                             'shape {} for "{}"'
+            raise ValueError('Expected NSRDB data shape of {}, but '
+                             'received shape {} for "{}"'
                              .format(data_model.nsrdb_data_shape,
                                      data.shape, var))
 
@@ -1005,8 +1011,13 @@ class DataModel:
 
         data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
 
-        data = data_model._cloud_regrid(cloud_vars, extent=extent, path=path,
-                                        parallel=parallel)
+        try:
+            data = data_model._cloud_regrid(cloud_vars, extent=extent,
+                                            path=path, parallel=parallel)
+        except Exception as e:
+            logger.exception('Processing method "DataModel._cloud_regrid()" '
+                             'failed for "{}"'.format(cloud_vars))
+            raise e
 
         for k, v in data.items():
             if v.shape != data_model.nsrdb_data_shape:

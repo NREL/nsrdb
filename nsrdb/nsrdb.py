@@ -9,9 +9,14 @@ Created on Thu Apr 25 15:47:53 2019
 
 import datetime
 import os
+import logging
+
 from nsrdb import CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
+
+
+logger = logging.getLogger(__name__)
 
 
 class NSRDB:
@@ -77,11 +82,17 @@ class NSRDB:
         if var_list is None:
             var_list = DataModel.ALL_VARS
 
+        logger.info('Starting daily data model execution for {}-{}-{}'
+                    .format(month, day, self._year))
+
         # run data model
         data_model = DataModel.run_multiple(
             var_list, self._var_meta, date, self._nsrdb_grid,
             nsrdb_freq=self._nsrdb_freq, parallel=parallel,
             cloud_extent=self._cloud_extent, return_obj=True)
+
+        logger.info('Finished daily data model execution for {}-{}-{}'
+                    .format(month, day, self._year))
 
         return data_model
 
@@ -94,14 +105,19 @@ class NSRDB:
             Daily data model object.
         """
 
+        logger.info('Starting file export of daily data model results to: {}'
+                    .format(self._out_dir))
+
         # output handling for each entry in data model
         for var, arr in data_model._processed.items():
             if var not in ['time_index', 'meta']:
                 # filename format is YYYYMMDD_varname.h5
                 fname = ('{}{}{}_{}.h5'.format(data_model.date.year,
                          str(data_model.date.month).zfill(2),
-                         str(data_model.date.day).zfill(2)), var)
+                         str(data_model.date.day).zfill(2), var))
                 out_file = os.path.join(self._out_dir, fname)
+
+                logger.debug('\tWriting file: {}'.format(fname))
 
                 # make file for each var
                 with Outputs(out_file, mode='w') as fout:
@@ -115,6 +131,9 @@ class NSRDB:
                     fout._add_dset(dset_name=var, data=arr,
                                    dtype=var_obj.final_dtype,
                                    chunks=None, attrs=attrs)
+
+        logger.info('Finished file export of daily data model results to: {}'
+                    .format(self._out_dir))
 
     @classmethod
     def run_day(cls, out_dir, date, nsrdb_grid, nsrdb_freq='5min',
