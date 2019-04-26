@@ -4,7 +4,10 @@
 
 import numpy as np
 import pandas as pd
+import logging
 from warnings import warn
+
+from nsrdb.file_handlers.resource import Resource
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
@@ -13,6 +16,9 @@ from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
                                      dark_night, cloud_variability)
+
+
+logger = logging.getLogger(__name__)
 
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
@@ -171,3 +177,55 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
               'fill_flag': fill_flag}
 
     return output
+
+
+def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
+    """Run all-sky from .h5 files.
+
+    Parameters
+    ----------
+    f_ancillary : str
+        File path to ancillary data file.
+    f_cloud : str
+        File path the cloud data file.
+    rows : slice
+        Subset of rows to run.
+    cols : slice
+        Subset of columns to run.
+
+    Returns
+    -------
+    output : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
+    """
+    logger.info('Running all-sky from the following files:\n\t{}\n\t{}'
+                .format(f_ancillary, f_cloud))
+    logger.info('Running only for row slice {} and col slice {}'
+                .format(rows, cols))
+
+    with Resource(f_ancillary) as fa:
+        with Resource(f_cloud) as fc:
+            out = all_sky(
+                alpha=fa['alpha', rows, cols],
+                aod=fa['aod', rows, cols],
+                asymmetry=fa['asymmetry', rows, cols],
+                cloud_type=fc['cloud_type', rows, cols],
+                cld_opd_dcomp=fc['cld_opd_dcomp', rows, cols],
+                cld_reff_dcomp=fc['cld_reff_dcomp', rows, cols],
+                ozone=fa['ozone', rows, cols],
+                solar_zenith_angle=fc['solar_zenith_angle', rows, cols],
+                ssa=fa['ssa', rows, cols],
+                surface_albedo=fa['surface_albedo', rows, cols],
+                surface_pressure=fa['surface_pressure', rows, cols],
+                time_index=fc.time_index,
+                total_precipitable_water=fa['total_precipitable_water',
+                                            rows, cols])
+    return out

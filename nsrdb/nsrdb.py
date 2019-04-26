@@ -13,6 +13,7 @@ import os
 import logging
 
 from nsrdb import CONFIGDIR
+from nsrdb.all_sky.all_sky import all_sky_h5
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import collect_daily_files
@@ -43,12 +44,12 @@ class NSRDB:
                                     'cld_opd_dcomp',
                                     'cld_reff_dcomp',
                                     'cld_press_acha',
-                                    'fill_flag',
                                     'solar_zenith_angle'),
             'nsrdb_irradiance_{y}.h5': ('dhi', 'dni', 'ghi',
                                         'clearsky_dhi',
                                         'clearsky_dni',
-                                        'clearsky_ghi')}
+                                        'clearsky_ghi',
+                                        'fill_flag')}
 
     def __init__(self, out_dir, year, nsrdb_grid, nsrdb_freq='5min',
                  cloud_extent='east', var_meta=None):
@@ -243,8 +244,8 @@ class NSRDB:
         return attrs, chunks, dtypes
 
     @classmethod
-    def run_day(cls, out_dir, date, nsrdb_grid, nsrdb_freq='5min',
-                cloud_extent='east'):
+    def run_data_model(cls, out_dir, date, nsrdb_grid, nsrdb_freq='5min',
+                       cloud_extent='east'):
         """Run daily data model, and save output files.
 
         Parameters
@@ -308,3 +309,45 @@ class NSRDB:
                 f_out = os.path.join(out_dir, fname.format(y=year))
                 nsrdb._init_final_out(f_out, dsets)
                 collect_daily_files(daily_dir, f_out, dsets)
+
+    @classmethod
+    def run_all_sky(cls, out_dir, year, nsrdb_grid, nsrdb_freq='5min',
+                    rows=slice(None), cols=slice(None)):
+        """Run the all-sky physics model from .h5 files.
+
+        Parameters
+        ----------
+        out_dir : str
+            Directory containing ancillary and cloud output files, also where
+            all-sky output files will go.
+        year : int | str
+            Year of analysis
+        nsrdb_grid : str
+            NSRDB grid file.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+        rows : slice
+            Subset of rows to run.
+        cols : slice
+            Subset of columns to run.
+        """
+
+        nsrdb = cls(out_dir, year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+                    cloud_extent=None)
+
+        for fname, dsets in cls.OUTS.items():
+            if 'irradiance' in fname:
+                f_out = os.path.join(out_dir, fname.format(y=year))
+                nsrdb._init_final_out(f_out, dsets)
+            elif 'ancil' in fname:
+                f_ancillary = os.path.join(out_dir, fname.format(y=year))
+            elif 'cloud' in fname:
+                f_cloud = os.path.join(out_dir, fname.format(y=year))
+
+        out = all_sky_h5(f_ancillary, f_cloud, rows=rows, cols=cols)
+
+        logger.info('Finished all-sky. Writing results to: {}'.format(f_out))
+
+        with Outputs(f_out, mode='a') as f:
+            for dset, arr in out.items():
+                f[dset, rows, cols] = arr

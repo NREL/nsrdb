@@ -154,7 +154,9 @@ class CloudGapFill:
 
         # if bad data remains, it means full year is bad, set to clear.
         if any(pd.isnull(cloud_type)) is True:
-            loc = np.where(pd.isnull(cloud_type).any(axis=0) is True)[0]
+            # pylint: disable-msg=C0121
+            loc = np.where(
+                pd.isnull(cloud_type).any(axis=0) == True)[0]  # noqa: E712
             warn('The following sites have missing cloud types for the '
                  'entire year: {}'.format(list(loc)))
             cloud_type[pd.isnull(cloud_type)] = 0
