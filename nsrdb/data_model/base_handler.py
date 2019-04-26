@@ -17,7 +17,7 @@ class AncillaryVarHandler:
     # default source data directory
     DEFAULT_DIR = DATADIR
 
-    def __init__(self, var_meta, name, date):
+    def __init__(self, var_meta, name, date=None):
         """
         Parameters
         ----------
@@ -230,6 +230,27 @@ class AncillaryVarHandler:
             Data type for the current variable.
         """
         return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
+
+    @property
+    def chunks(self):
+        """Get the variable's intended storage chunk shape.
+
+        Returns
+        -------
+        chunks : tuple
+            Data storage chunk shape (row_chunk, col_chunk).
+        """
+        r = self.var_meta.loc[self.mask, 'row_chunks'].values[0]
+        c = self.var_meta.loc[self.mask, 'col_chunks'].values[0]
+        try:
+            r = int(r)
+        except ValueError as _:
+            r = None
+        try:
+            c = int(c)
+        except ValueError as _:
+            c = None
+        return (r, c)
 
     @property
     def physical_min(self):

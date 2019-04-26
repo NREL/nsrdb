@@ -8,12 +8,14 @@ Created on Thu Apr 25 15:47:53 2019
 """
 
 import datetime
+import pandas as pd
 import os
 import logging
 
 from nsrdb import CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.file_handlers.collection import collect
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,30 @@ class NSRDB:
     """Entry point for NSRDB data pipeline execution."""
 
     DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+
+    OUTS = {'nsrdb_ancillary_{y}.h5': ('alpha',
+                                       'aod',
+                                       'asymmetry',
+                                       'dew_point',
+                                       'relative_humidity',
+                                       'ozone',
+                                       'ssa',
+                                       'surface_albedo',
+                                       'surface_pressure',
+                                       'total_precipitable_water'
+                                       'air_temperature',
+                                       'wind_direction',
+                                       'wind_speed'),
+            'nsrdb_clouds_{y}.h5': ('cloud_type',
+                                    'cld_opd_dcomp',
+                                    'cld_reff_dcomp',
+                                    'cld_press_acha',
+                                    'fill_flag',
+                                    'solar_zenith_angle'),
+            'nsrdb_irradiance_{y}.h5': ('dhi', 'dni', 'ghi',
+                                        'clearsky_dhi',
+                                        'clearsky_dni',
+                                        'clearsky_ghi')}
 
     def __init__(self, out_dir, year, nsrdb_grid, nsrdb_freq='5min',
                  cloud_extent='east', var_meta=None):
@@ -52,9 +78,38 @@ class NSRDB:
         self._nsrdb_freq = nsrdb_freq
         self._cloud_extent = cloud_extent
         self._var_meta = var_meta
+        self._ti = None
 
         if self._var_meta is None:
             self._var_meta = self.DEFAULT_VAR_META
+
+    @property
+    def time_index_year(self):
+        """Get the NSRDB full-year time index.
+
+        Returns
+        -------
+        nsrdb_ti : pd.DatetimeIndex
+            Pandas datetime index for the current year at the NSRDB resolution.
+        """
+        if self._ti is None:
+            self._ti = pd.date_range('1-1-{y}'.format(y=self._year),
+                                     '1-1-{y}'.format(y=self._year + 1),
+                                     freq=self._nsrdb_freq)[:-1]
+        return self._ti
+
+    @property
+    def meta(self):
+        """Get the NSRDB meta data.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            Pandas DataFrame of meta data.
+        """
+        if isinstance(self._nsrdb_grid, str):
+            self._nsrdb_grid = pd.read_csv(self._nsrdb_grid)
+        return self._nsrdb_grid
 
     def _exe_daily_data_model(self, month, day, var_list=None, parallel=True):
         """Execute the data model for a single day.
@@ -135,6 +190,31 @@ class NSRDB:
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
 
+    def _init_final_out(self, f_out, dsets):
+        """Initialize the final output file"""
+
+        if not os.path.isfile(f_out):
+            logger.info('Initializing {}'.format(f_out))
+
+            attrs, chunks, dtypes = self.get_dset_attrs(dsets)
+
+            Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
+                            self.time_index_year, self.meta)
+
+    @staticmethod
+    def get_dset_attrs(dsets):
+        """Get output file dataset attributes for a set of datasets.
+        """
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+        for dset in dsets:
+            var_obj = VarFactory.get_base_handler(NSRDB.DEFAULT_VAR_META, dset)
+            attrs[dset] = var_obj.attrs
+            chunks[dset] = var_obj.chunks
+            dtypes[dset] = var_obj.final_dtype
+        return attrs, chunks, dtypes
+
     @classmethod
     def run_day(cls, out_dir, date, nsrdb_grid, nsrdb_freq='5min',
                 cloud_extent='east'):
@@ -143,9 +223,10 @@ class NSRDB:
         Parameters
         ----------
         out_dir : str
-            Target directory to dump all-sky-ready data files.
-        date : datetime.date
+            Target directory to dump data model output files.
+        date : datetime.date | str | int
             Single day to extract ancillary data for.
+            Can be str or int in YYYYMMDD format.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
@@ -156,9 +237,47 @@ class NSRDB:
             used to form file paths to cloud data files.
         """
 
+        if isinstance(date, (int, float)):
+            date = str(int(date))
+        if isinstance(date, str):
+            if len(date) == 8:
+                date = datetime.date(year=int(date[0:4]),
+                                     month=int(date[4:6]),
+                                     day=int(date[6:]))
+            else:
+                raise ValueError('Could not parse date: {}'.format(date))
+
         nsrdb = cls(out_dir, date.year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                     cloud_extent=cloud_extent)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day)
 
         nsrdb._exe_fout(data_model)
+
+    @classmethod
+    def collect_daily(cls, daily_dir, out_dir, year, nsrdb_grid,
+                      nsrdb_freq='5min'):
+        """Initialize output file (if doesnt exist) and collect daily files.
+
+        Parameters
+        ----------
+        daily_dir : str
+            Directory with daily files to be collected.
+        out_dir : str
+            Directory to put final output files.
+        year : int | str
+            Year of analysis
+        nsrdb_grid : str
+            NSRDB grid file.
+        nsrdb_freq : str
+            Final desired NSRDB temporal frequency.
+        """
+
+        nsrdb = cls(out_dir, year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+                    cloud_extent=None)
+
+        for fname, dsets in cls.OUTS:
+            if 'irradiance' not in fname:
+                f_out = os.path.join(out_dir, fname.format(y=year))
+                nsrdb._init_final_out(f_out, dsets)
+                collect(daily_dir, f_out, dsets)
