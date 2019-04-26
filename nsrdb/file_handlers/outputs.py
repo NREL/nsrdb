@@ -534,3 +534,39 @@ class Outputs(Resource):
         logger.info('{} added'.format(dset_name))
         logger.debug('\t- Saving to disc took {:.4f} minutes'
                      .format(tt))
+
+    @classmethod
+    def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta):
+        """Initialize a full h5 output file with the final intended shape.
+
+        Parameters
+        ----------
+        fout : str
+            Full output filepath.
+        dsets : list
+            List of dataset name strings.
+        attrs : dict
+            Dictionary of dataset attributes.
+        chunks : dict
+            Dictionary of chunk tuples corresponding to each dataset.
+        dtypes : dict
+            dictionary of numpy datatypes corresponding to each dataset.
+        time_index : pd.datetimeindex
+            Full pandas datetime index.
+        meta : pd.DataFrame
+            Full meta data.
+        """
+
+        logger.info("Initializing output file: {}".format(fout))
+        with cls(fout, mode='w-') as f:
+            f['time_index'] = time_index
+            f['meta'] = meta
+
+            shape = (len(time_index), len(meta))
+
+            for dset in dsets:
+                # initialize each dset to disk
+                f._create_dset(dset, shape, dtypes[dset], chunks=chunks[dset],
+                               attrs=attrs[dset], data=None)
+
+        logger.info('{} is complete'.format(fout))
