@@ -526,6 +526,8 @@ class DataModel:
                   'date': self.date, 'extent': extent, 'path': path,
                   'dsets': cloud_vars}
 
+        # use the first cloud var name to get object,
+        # full cloud_var list is passed in kwargs
         var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
 
         logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'

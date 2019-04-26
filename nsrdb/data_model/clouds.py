@@ -188,7 +188,7 @@ class CloudVarSingleH5(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from {}'
+        logger.debug('Retrieving single timestep cloud source data from: "{}"'
                      .format(os.path.basename(self._fpath)))
         data = {}
         with h5py.File(self._fpath, 'r') as f:
@@ -319,7 +319,7 @@ class CloudVarSingleNC(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from {}'
+        logger.debug('Retrieving single timestep cloud source data from: "{}"'
                      .format(os.path.basename(self._fpath)))
         data = {}
         with netCDF4.Dataset(self._fpath, 'r') as f:

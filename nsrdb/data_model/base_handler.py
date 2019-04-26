@@ -318,6 +318,15 @@ class AncillaryVarHandler:
             # if the data is not in the final dtype yet
             if not np.issubdtype(self.final_dtype, array.dtype):
 
+                # Warning if nan values are present. Will assign d_min below.
+                if np.sum(np.isnan(array)) != 0:
+                    d_min = ''
+                    if np.issubdtype(self.final_dtype, np.integer):
+                        d_min = np.iinfo(self.final_dtype).min
+                    warn('NaN values found in "{}" before dtype conversion '
+                         'to "{}". Will be assigned value of: "{}"'
+                         .format(self.name, self.final_dtype, d_min))
+
                 # truncate unscaled array at physical min/max values
                 array[array < self.physical_min] = self.physical_min
                 array[array > self.physical_max] = self.physical_max
@@ -333,6 +342,9 @@ class AncillaryVarHandler:
                     # Get the min/max of the bit range
                     d_min = np.iinfo(self.final_dtype).min
                     d_max = np.iinfo(self.final_dtype).max
+
+                    # set any nan values to the min of the bit range
+                    array[np.isnan(array)] = d_min
 
                     # Truncate scaled array at bit range min/max
                     array[array < d_min] = d_min
