@@ -51,8 +51,8 @@ class NSRDB:
                                         'clearsky_ghi',
                                         'fill_flag')}
 
-    def __init__(self, out_dir, year, nsrdb_grid, nsrdb_freq='5min',
-                 cloud_extent='east', var_meta=None):
+    def __init__(self, out_dir, year, grid, freq='5min', cloud_extent='east',
+                 var_meta=None):
         """
         Parameters
         ----------
@@ -60,10 +60,10 @@ class NSRDB:
             Target directory to dump all-sky-ready data files.
         year : int | str
             Processing year.
-        nsrdb_grid : str | pd.DataFrame
+        grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
-        nsrdb_freq : str
+        freq : str
             Final desired NSRDB temporal frequency.
         cloud_extent : str
             Regional (satellite) extent to process for cloud data processing,
@@ -75,8 +75,8 @@ class NSRDB:
 
         self._out_dir = out_dir
         self._year = int(year)
-        self._nsrdb_grid = nsrdb_grid
-        self._nsrdb_freq = nsrdb_freq
+        self._grid = grid
+        self._freq = freq
         self._cloud_extent = cloud_extent
         self._var_meta = var_meta
         self._ti = None
@@ -96,7 +96,7 @@ class NSRDB:
         if self._ti is None:
             self._ti = pd.date_range('1-1-{y}'.format(y=self._year),
                                      '1-1-{y}'.format(y=self._year + 1),
-                                     freq=self._nsrdb_freq)[:-1]
+                                     freq=self._freq)[:-1]
         return self._ti
 
     @property
@@ -109,9 +109,9 @@ class NSRDB:
             DataFrame of meta data from grid file csv.
         """
 
-        if isinstance(self._nsrdb_grid, str):
-            self._nsrdb_grid = pd.read_csv(self._nsrdb_grid)
-        return self._nsrdb_grid
+        if isinstance(self._grid, str):
+            self._grid = pd.read_csv(self._grid)
+        return self._grid
 
     def _exe_daily_data_model(self, month, day, var_list=None, parallel=True):
         """Execute the data model for a single day.
@@ -144,8 +144,8 @@ class NSRDB:
 
         # run data model
         data_model = DataModel.run_multiple(
-            var_list, self._var_meta, date, self._nsrdb_grid,
-            nsrdb_freq=self._nsrdb_freq, parallel=parallel,
+            var_list, self._var_meta, date, self._grid,
+            nsrdb_freq=self._freq, parallel=parallel,
             cloud_extent=self._cloud_extent, return_obj=True)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
@@ -244,7 +244,7 @@ class NSRDB:
         return attrs, chunks, dtypes
 
     @classmethod
-    def run_data_model(cls, out_dir, date, nsrdb_grid, nsrdb_freq='5min',
+    def run_data_model(cls, out_dir, date, grid, freq='5min',
                        cloud_extent='east'):
         """Run daily data model, and save output files.
 
@@ -255,10 +255,10 @@ class NSRDB:
         date : datetime.date | str | int
             Single day to extract ancillary data for.
             Can be str or int in YYYYMMDD format.
-        nsrdb_grid : str | pd.DataFrame
+        grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
-        nsrdb_freq : str
+        freq : str
             Final desired NSRDB temporal frequency.
         cloud_extent : str
             Regional (satellite) extent to process for cloud data processing,
@@ -275,7 +275,7 @@ class NSRDB:
             else:
                 raise ValueError('Could not parse date: {}'.format(date))
 
-        nsrdb = cls(out_dir, date.year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+        nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day)
@@ -283,8 +283,7 @@ class NSRDB:
         nsrdb._exe_fout(data_model)
 
     @classmethod
-    def collect_data_model(cls, daily_dir, out_dir, year, nsrdb_grid,
-                           nsrdb_freq='5min'):
+    def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min'):
         """Init output file and collect daily data model output files.
 
         Parameters
@@ -295,14 +294,13 @@ class NSRDB:
             Directory to put final output files.
         year : int | str
             Year of analysis
-        nsrdb_grid : str
+        grid : str
             NSRDB grid file.
-        nsrdb_freq : str
+        freq : str
             Final desired NSRDB temporal frequency.
         """
 
-        nsrdb = cls(out_dir, year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                    cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
@@ -311,7 +309,7 @@ class NSRDB:
                 collect_daily_files(daily_dir, f_out, dsets)
 
     @classmethod
-    def run_all_sky(cls, out_dir, year, nsrdb_grid, nsrdb_freq='5min',
+    def run_all_sky(cls, out_dir, year, grid, freq='5min',
                     rows=slice(None), cols=slice(None)):
         """Run the all-sky physics model from .h5 files.
 
@@ -322,9 +320,9 @@ class NSRDB:
             all-sky output files will go.
         year : int | str
             Year of analysis
-        nsrdb_grid : str
+        grid : str
             NSRDB grid file.
-        nsrdb_freq : str
+        freq : str
             Final desired NSRDB temporal frequency.
         rows : slice
             Subset of rows to run.
@@ -332,8 +330,7 @@ class NSRDB:
             Subset of columns to run.
         """
 
-        nsrdb = cls(out_dir, year, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                    cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:

@@ -325,7 +325,7 @@ class Spatial:
     def multi_year(self, year_range, out_dir, dsets,
                    nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
                    fname_base='nsrdb_{year}.h5',
-                   timesteps=range(0, 17520, 8600)):
+                   timesteps=range(0, 17520, 8600), **kwargs):
         """Make map plots at timesteps for datasets in multiple NSRDB files.
 
         Parameters
@@ -349,7 +349,7 @@ class Spatial:
 
         for year in year_range:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
-            self.dsets(h5, dsets, out_dir, timesteps=timesteps)
+            self.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
     def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600),
               **kwargs):
@@ -397,7 +397,8 @@ class Spatial:
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    xlim=(-190, -20), ylim=(-30, 70), cbar_range=None):
+                    xlim=(-190, -20), ylim=(-30, 70), cmap='Blues',
+                    cbar_range=None, dpi=600, file_ext='.png'):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -425,7 +426,7 @@ class Spatial:
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            cmap = plt.get_cmap('Blues')
+            cmap = plt.get_cmap(cmap)
 
             if cbar_range is None:
                 cbar_range = [np.nanmin(df.iloc[:, 2]),
@@ -447,8 +448,8 @@ class Spatial:
             ax.set_xlim(xlim)
             fig.colorbar(c, ax=ax, label=var)
             ax.set_title(title)
-            out = os.path.join(out_dir, title + '.png')
-            fig.savefig(out, dpi=600)
+            out = os.path.join(out_dir, title + file_ext)
+            fig.savefig(out, dpi=dpi)
             logger.info('Saved figure: {}.png'.format(title))
             plt.close()
         except Exception as e:
