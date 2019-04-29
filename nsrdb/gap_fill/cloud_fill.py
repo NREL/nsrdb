@@ -212,6 +212,10 @@ class CloudGapFill:
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
 
+        logger.debug(prop_name)
+        logger.debug(cloud_prop.head())
+        logger.debug(cloud_prop.tail())
+
         # fill cloud types.
         cloud_type = cls.fill_cloud_type(cloud_type)
 
@@ -254,6 +258,7 @@ class CloudGapFill:
             Optional chunking method to gap fill a few chunks at a time
             to reduce memory requirements.
         """
+
         with Resource(f_cloud) as f:
             dsets = f.dsets
             shape = f.shape
@@ -293,11 +298,11 @@ class CloudGapFill:
 
             for dset in dsets:
                 if 'cld_' in dset:
-                    with Resource(f_cloud, unscale=False) as f:
+                    with Resource(f_cloud) as f:
                         cloud_prop = f[dset, rows, cols]
 
                     cloud_prop = cls.fill_cloud_prop(dset, cloud_prop,
                                                      cloud_type, sza)
 
-                    with Outputs(f_cloud, unscale=False, mode='a') as f:
+                    with Outputs(f_cloud, mode='a') as f:
                         f[dset, rows, cols] = cloud_prop
