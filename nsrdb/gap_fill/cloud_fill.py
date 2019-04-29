@@ -5,11 +5,17 @@ Created on Fri April 26 2019
 @author: gbuster
 """
 from copy import deepcopy
+import logging
 import numpy as np
 import pandas as pd
 from warnings import warn
 
 from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES
+from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.outputs import Outputs
+
+
+logger = logging.getLogger(__name__)
 
 
 class CloudGapFill:
@@ -148,21 +154,25 @@ class CloudGapFill:
             temporal nearest neighbor.
         """
 
-        cloud_type = cloud_type.astype(np.float32)
-        cloud_type[cloud_type == missing] = np.nan
-        cloud_type = cloud_type.interpolate(method='nearest', axis=0)\
-            .fillna(method='ffill').fillna(method='bfill')
+        if isinstance(cloud_type, np.ndarray):
+            cloud_type = pd.DataFrame(cloud_type)
 
-        # if bad data remains, it means full year is bad, set to clear.
-        if any(pd.isnull(cloud_type)) is True:
-            # pylint: disable-msg=C0121
-            loc = np.where(
-                pd.isnull(cloud_type).any(axis=0) == True)[0]  # noqa: E712
-            warn('The following sites have missing cloud types for the '
-                 'entire year: {}'.format(list(loc)))
-            cloud_type[pd.isnull(cloud_type)] = 0
+        if (cloud_type == missing).any().any():
+            cloud_type = cloud_type.astype(np.float32)
+            cloud_type[cloud_type == missing] = np.nan
+            cloud_type = cloud_type.interpolate(method='nearest', axis=0)\
+                .fillna(method='ffill').fillna(method='bfill')
 
-        cloud_type = cloud_type.astype(np.int8)
+            # if bad data remains, it means full year is bad, set to clear.
+            if any(pd.isnull(cloud_type)) is True:
+                # pylint: disable-msg=C0121
+                loc = np.where(
+                    pd.isnull(cloud_type).any(axis=0) == True)[0]  # noqa: E712
+                warn('The following sites have missing cloud types for the '
+                     'entire year: {}'.format(list(loc)))
+                cloud_type[pd.isnull(cloud_type)] = 0
+
+            cloud_type = cloud_type.astype(np.int8)
 
         return cloud_type
 
@@ -192,14 +202,11 @@ class CloudGapFill:
         if isinstance(cloud_prop, np.ndarray):
             df_convert = True
             cloud_prop = pd.DataFrame(cloud_prop)
-        if isinstance(cloud_type, np.ndarray):
-            cloud_type = pd.DataFrame(cloud_type)
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
 
         # fill cloud types.
-        if np.nanmin(cloud_type.values) < 0:
-            cloud_type = cls.fill_cloud_type(cloud_type)
+        cloud_type = cls.fill_cloud_type(cloud_type)
 
         # set missing property values to NaN
         cloud_prop[cloud_prop <= 0] = np.nan
@@ -220,3 +227,70 @@ class CloudGapFill:
             cloud_prop = cloud_prop.values
 
         return cloud_prop
+
+    @classmethod
+    def fill_file(cls, f_cloud, rows=slice(None), cols=slice(None),
+                  col_chunk=None):
+        """Gap fill cloud properties in an h5 file.
+
+        Parameters
+        ----------
+        f_cloud : str
+            File path to a cloud file with datasets 'cloud_type',
+            'solar_zenith_angle', and some cloud property dataset(s)
+            with prefix 'cld_'
+        rows : slice
+            Subset of rows to gap fill.
+        cols : slice
+            Subset of columns to gap fill.
+        col_chunks : None
+            Optional chunking method to gap fill a few chunks at a time
+            to reduce memory requirements.
+        """
+        with Resource(f_cloud) as f:
+            dsets = f.dsets
+            shape = f.shape
+
+        start = cols.start
+        stop = cols.stop
+        if start is None:
+            start = 0
+        if stop is None:
+            stop = shape[1]
+
+        if col_chunk is None:
+            col_chunk = stop - start
+
+        last = start
+
+        while True:
+            i0 = last
+            i1 = np.min((i0 + col_chunk, shape[1]))
+            cols = slice(i0, i1)
+            last = i1
+            if i0 == i1:
+                logger.debug('Job complete at index {}'.format(i0))
+                break
+            else:
+                logger.debug('Patching cloud properties: {} through {}'
+                             .format(i0, i1))
+
+            with Resource(f_cloud) as f:
+                cloud_type = f['cloud_type', rows, cols]
+                sza = f['solar_zenith_angle', rows, cols]
+
+            cloud_type = cls.fill_cloud_type(cloud_type)
+
+            with Outputs(f_cloud, mode='a') as f:
+                f['cloud_type', rows, cols] = cloud_type
+
+            for dset in dsets:
+                if 'cld_' in dset:
+                    with Resource(f_cloud, unscale=False) as f:
+                        cloud_prop = f[dset, rows, cols]
+
+                    cloud_prop = cls.fill_cloud_prop(dset, cloud_prop,
+                                                     cloud_type, sza)
+
+                    with Outputs(f_cloud, unscale=False, mode='a') as f:
+                        f[dset, rows, cols] = cloud_prop
