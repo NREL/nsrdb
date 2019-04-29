@@ -121,7 +121,8 @@ class DataModel:
             Single day to extract MERRA2 data for.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         scale : bool
@@ -130,6 +131,7 @@ class DataModel:
         """
 
         self._var_meta = var_meta
+        self._nsrdb_grid_file = None
         self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._nsrdb_freq = nsrdb_freq
@@ -157,12 +159,14 @@ class DataModel:
         ----------
         inp : str
             CSV file containing the NSRDB reference grid to interpolate to.
+            The first column must be the NSRDB site gid's.
         """
 
         if isinstance(inp, pd.DataFrame):
             self._nsrdb_grid = inp
         elif inp.endswith('.csv'):
-            self._nsrdb_grid = pd.read_csv(inp)
+            self._nsrdb_grid_file = inp
+            self._nsrdb_grid = pd.read_csv(inp, index_col=0)
         else:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(inp))
@@ -275,6 +279,8 @@ class DataModel:
         if isinstance(cache, str):
             if not cache.endswith('.csv'):
                 cache += '.csv'
+            if self._nsrdb_grid_file is not None:
+                cache = cache.replace('.csv', '_' + self._nsrdb_grid_file)
             # try to get cached kdtree results. fast for prototyping.
             cache_d = os.path.join(self.CACHE_DIR,
                                    cache.replace('.csv', '_d.csv'))
@@ -976,7 +982,8 @@ class DataModel:
             Single day to extract ancillary data for.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
 
@@ -1035,7 +1042,8 @@ class DataModel:
             Single day to extract ancillary data for.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         extent : str
@@ -1093,7 +1101,8 @@ class DataModel:
             Single day to extract ancillary data for.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
         parallel : bool

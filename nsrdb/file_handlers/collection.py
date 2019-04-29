@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 def get_flist(d, var):
     """Get a date-sorted .h5 file list for a given var.
 
-    Expects files with format "YYYYMMDD_var.h5"
+    Filename requirements:
+     - Expects file names with leading "YYYYMMDD_".
+     - Must have var in the file name.
+     - Should end with ".h5"
 
     Parameters
     ----------
@@ -67,8 +70,10 @@ def collect_daily_files(f_dir, f_out, dsets):
                 f_meta = f.meta
                 f_data = f[dset][...]
 
-            r_loc = np.where(time_index.isin(f_ti) == True)[0]
-            c_loc = np.where(meta.index.isin(f_meta.index) == True)[0]
+            # pylint: disable-msg=C0121
+            r_loc = np.where(time_index.isin(f_ti) == True)[0]  # noqa: E712
+            c_loc = np.where(
+                meta.index.isin(f_meta.index) == True)[0]  # noqa: E712
             r_loc = slice(np.min(r_loc), np.max(r_loc) + 1)
             c_loc = slice(np.min(c_loc), np.max(c_loc) + 1)
 

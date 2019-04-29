@@ -62,7 +62,8 @@ class NSRDB:
             Processing year.
         grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
         cloud_extent : str
@@ -107,10 +108,11 @@ class NSRDB:
         -------
         meta : pd.DataFrame
             DataFrame of meta data from grid file csv.
+            The first column must be the NSRDB site gid's.
         """
 
         if isinstance(self._grid, str):
-            self._grid = pd.read_csv(self._grid)
+            self._grid = pd.read_csv(self._grid, index_col=0)
         return self._grid
 
     def _exe_daily_data_model(self, month, day, var_list=None, parallel=True):
@@ -169,9 +171,10 @@ class NSRDB:
         for var, arr in data_model._processed.items():
             if var not in ['time_index', 'meta']:
                 # filename format is YYYYMMDD_varname.h5
-                fname = ('{}{}{}_{}.h5'.format(data_model.date.year,
+                fname = ('{}{}{}_{}_{}.h5'.format(data_model.date.year,
                          str(data_model.date.month).zfill(2),
-                         str(data_model.date.day).zfill(2), var))
+                         str(data_model.date.day).zfill(2), var,
+                         self.meta.index[0]))
                 out_file = os.path.join(self._out_dir, fname)
 
                 logger.debug('\tWriting file: {}'.format(fname))
@@ -257,7 +260,8 @@ class NSRDB:
             Can be str or int in YYYYMMDD format.
         grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
-            or a pre-extracted (and reduced) dataframe.
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
         cloud_extent : str
@@ -295,7 +299,8 @@ class NSRDB:
         year : int | str
             Year of analysis
         grid : str
-            NSRDB grid file.
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
         """
@@ -321,7 +326,8 @@ class NSRDB:
         year : int | str
             Year of analysis
         grid : str
-            NSRDB grid file.
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
         rows : slice
