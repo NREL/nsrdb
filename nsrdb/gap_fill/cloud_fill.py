@@ -154,7 +154,9 @@ class CloudGapFill:
             temporal nearest neighbor.
         """
 
+        df_convert = False
         if isinstance(cloud_type, np.ndarray):
+            df_convert = True
             cloud_type = pd.DataFrame(cloud_type)
 
         if (cloud_type == missing).any().any():
@@ -173,6 +175,9 @@ class CloudGapFill:
                 cloud_type[pd.isnull(cloud_type)] = 0
 
             cloud_type = cloud_type.astype(np.int8)
+
+        if df_convert:
+            cloud_type = cloud_type.values
 
         return cloud_type
 
@@ -202,6 +207,8 @@ class CloudGapFill:
         if isinstance(cloud_prop, np.ndarray):
             df_convert = True
             cloud_prop = pd.DataFrame(cloud_prop)
+        if isinstance(cloud_type, np.ndarray):
+            cloud_type = pd.DataFrame(cloud_type)
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
 
