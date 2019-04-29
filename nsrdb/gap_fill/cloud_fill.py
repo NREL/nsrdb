@@ -8,6 +8,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 from warnings import warn
+
 from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES
 
 
@@ -186,8 +187,19 @@ class CloudGapFill:
             DataFrame of cloud property values with no remaining NaN's.
         """
 
+        # make dataframes
+        df_convert = False
+        if isinstance(cloud_prop, np.ndarray):
+            df_convert = True
+            cloud_prop = pd.DataFrame(cloud_prop)
+        if isinstance(cloud_type, np.ndarray):
+            cloud_type = pd.DataFrame(cloud_type)
+        if isinstance(sza, np.ndarray):
+            sza = pd.DataFrame(sza)
+
         # fill cloud types.
-        cloud_type = cls.fill_cloud_type(cloud_type)
+        if np.nanmin(cloud_type.values) < 0:
+            cloud_type = cls.fill_cloud_type(cloud_type)
 
         # set missing property values to NaN
         cloud_prop[cloud_prop <= 0] = np.nan
@@ -203,4 +215,8 @@ class CloudGapFill:
         # handle persistent nan properties
         cloud_prop = cls.handle_persistent_nan(prop_name, cloud_prop,
                                                cloud_type)
+
+        if df_convert:
+            cloud_prop = cloud_prop.values
+
         return cloud_prop
