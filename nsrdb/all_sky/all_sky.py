@@ -209,11 +209,6 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
             'fill_flag'
     """
 
-    logger.info('Running all-sky from the following files:\n\t{}\n\t{}'
-                .format(f_ancillary, f_cloud))
-    logger.info('Running only for rows: "{}" and columns: "{}"'
-                .format(rows, cols))
-
     with Resource(f_ancillary) as fa:
         with Resource(f_cloud) as fc:
             out = all_sky(
@@ -235,7 +230,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
 
 
 def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
-                        cols=slice(None)):
+                        cols=slice(None), col_chunk=10):
     """Run all-sky from .h5 files.
 
     Parameters
@@ -248,6 +243,9 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
         Subset of rows to run.
     cols : slice
         Subset of columns to run.
+    col_chunk : int
+        Number of columns to process on a single core. Larger col_chunk will
+        increase the REST2 memory spike substantially.
 
     Returns
     -------
@@ -276,7 +274,7 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
             cols = slice(cols.start, res.shape[1])
 
     out_shape = (rows.stop - rows.start, cols.stop - cols.start)
-    c_range = range(cols.start, cols.stop)
+    c_range = range(cols.start, cols.stop, col_chunk)
 
     # start a local cluster
     max_workers = int(os.cpu_count())
@@ -286,9 +284,10 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
     with ProcessPoolExecutor(max_workers=max_workers) as exe:
         # submit a future for each NSRDB site
         for c in c_range:
+            c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
             futures[c] = exe.submit(
                 all_sky_h5, f_ancillary, f_cloud,
-                rows=rows, cols=slice(c, c + 1))
+                rows=rows, cols=c_slice)
 
         # watch memory during futures to get max memory usage
         logger.debug('Waiting on parallel futures...')
@@ -299,13 +298,17 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
             max_mem = np.max((mem.used / 1e9, max_mem))
             time.sleep(5)
             running = 0
+            complete = 0
             keys = []
             for key, future in futures.items():
                 if future.running():
                     running += 1
                     keys += [key]
-            logger.debug('{} sites are being processed by all-sky futures.'
-                         .format(running))
+                elif future.done():
+                    complete += 1
+            logger.debug('{} sites are being processed by all-sky futures. '
+                         '{} are complete.'
+                         .format(running, complete))
 
         logger.info('Futures finished, maximum memory usage was '
                     '{0:.3f} GB out of {1:.3f} GB total.'
@@ -319,8 +322,9 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
     for var, arr in futures[cols.start].items():
         out[var] = np.ndarray(out_shape, dtype=arr.dtype)
 
-    for c, as_out_dict in futures.items():
-        for var, arr in as_out_dict.items():
-            out[var][:, c] = arr
+    for c, all_sky_out in futures.items():
+        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
+        for var, arr in all_sky_out.items():
+            out[var][:, c_slice] = arr
 
     return out
