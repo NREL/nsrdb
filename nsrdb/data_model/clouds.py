@@ -401,6 +401,8 @@ class CloudVar(AncillaryVarHandler):
     def __iter__(self):
         """Initialize this instance as an iter object."""
         self._i = 0
+        logger.info('Iterating through {} cloud data {} files located in "{}"'
+                    .format(len(self._flist), self._ftype, self.path))
         return self
 
     def __next__(self):
@@ -536,10 +538,6 @@ class CloudVar(AncillaryVarHandler):
             if not self._flist:
                 raise IOError('Could not find .h5 or .nc files for {} in '
                               'directory: {}'.format(self._date, self.path))
-
-            logger.debug('Cloud data handler initialized with the following '
-                         '{} file list of length {}:\n{}'
-                         .format(self._ftype, len(self._flist), self._flist))
         return self._flist
 
     @property

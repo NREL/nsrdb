@@ -11,11 +11,12 @@ from nsrdb.file_handlers.resource import Resource
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
-from nsrdb.gap_fill.irradiance_fill import make_fill_flag, gap_fill_irrad
-from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
+from nsrdb.all_sky import SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
                                      dark_night, cloud_variability)
+from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
+                                            missing_cld_props)
 
 
 logger = logging.getLogger(__name__)
@@ -44,10 +45,10 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Array of integer cloud types.
     cloud_opd_dcomp : np.ndarray
         Array of cloud optical depths. Expected range is 0 - 160 with
-        missing values < 0.
+        missing values <= 0.
     cld_reff_dcomp : np.ndarray
         Array of cloud effective partical radii. Expected range is 0 - 160
-        with missing values < 0.
+        with missing values <= 0.
     ozone : np.ndarray
         reduced ozone vertical pathlength (atm-cm)
         [Note: 1 atm-cm = 1000 DU]
@@ -93,10 +94,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # make boolean flag for where there were missing cloud properties
     # need to do this before the cloud property ranges are screened
-    missing_cld_props = ((np.isin(cloud_type, CLOUD_TYPES)) &
-                         ((cld_opd_dcomp < 0) | (cld_reff_dcomp < 0) |
-                          (np.isnan(cld_opd_dcomp) |
-                          (np.isnan(cld_reff_dcomp)))))
+    missing_props = missing_cld_props(cloud_type, cld_opd_dcomp,
+                                      cld_reff_dcomp)
 
     # screen variables based on expected ranges
     solar_zenith_angle = screen_sza(solar_zenith_angle, lim=SZA_LIM)
@@ -144,8 +143,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
-    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type,
-                               missing_cld_props)
+    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
     ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
@@ -206,6 +204,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
             'ghi'
             'fill_flag'
     """
+
     logger.info('Running all-sky from the following files:\n\t{}\n\t{}'
                 .format(f_ancillary, f_cloud))
     logger.info('Running only for row slice {} and col slice {}'

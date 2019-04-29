@@ -277,10 +277,16 @@ class DataModel:
             cache = False
 
         if isinstance(cache, str):
+
             if not cache.endswith('.csv'):
+                # cache file must be csv
                 cache += '.csv'
+
             if self._nsrdb_grid_file is not None:
-                cache = cache.replace('.csv', '_' + self._nsrdb_grid_file)
+                # make sure cache file is nsrdb-grid-specific
+                cache = cache.replace(
+                    '.csv', '_' + os.path.basename(self._nsrdb_grid_file))
+
             # try to get cached kdtree results. fast for prototyping.
             cache_d = os.path.join(self.CACHE_DIR,
                                    cache.replace('.csv', '_d.csv'))
@@ -462,9 +468,11 @@ class DataModel:
                     missing_list.append(missing)
 
         if missing_list:
-            raise IOError('The data model pre-flight checks could not find '
-                          'some required directories and/or files. '
-                          'The following are missing: {}'.format(missing_list))
+            e = ('The data model pre-flight checks could not find '
+                 'some required directories and/or files. '
+                 'The following are missing: {}'.format(missing_list))
+            logger.exception(e)
+            raise IOError(e)
 
     @staticmethod
     def convert_units(var, data):
@@ -933,7 +941,8 @@ class DataModel:
         # start a local cluster
         max_workers = int(np.min((len(var_list), os.cpu_count())))
         futures = {}
-
+        logger.debug('Starting local cluster with {} workers.'
+                     .format(max_workers))
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
