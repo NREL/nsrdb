@@ -11,6 +11,7 @@ import sys
 import numpy as np
 import pandas as pd
 import logging
+from warnings import warn
 if 'linux' in sys.platform:
     import matplotlib
     matplotlib.use('Agg')
@@ -274,9 +275,21 @@ class Temporal:
                 for dset in dsets:
                     logger.info('Plotting dataset "{}"'.format(dset))
 
+                    try:
+                        scale1 = t.attrs1(dset)['psm_scale_factor']
+                    except KeyError as _:
+                        scale1 = 1
+                        warn('Dataset "{}" does not have psm_scale_factor.'
+                             .format(dset))
+
+                    try:
+                        scale2 = t.attrs2(dset)['psm_scale_factor']
+                    except KeyError as _:
+                        scale2 = 1
+                        warn('Dataset "{}" does not have psm_scale_factor.'
+                             .format(dset))
+
                     # make time-series dataframes with one site of data
-                    scale1 = t.attrs1(dset)['psm_scale_factor']
-                    scale2 = t.attrs2(dset)['psm_scale_factor']
                     df1 = pd.DataFrame({dset: t.h1[dset][:, site1] / scale1},
                                        index=t.t1)
                     df2 = pd.DataFrame({dset: t.h2[dset][:, site2] / scale2},
@@ -405,7 +418,8 @@ class Spatial:
             cmap = plt.get_cmap('Blues')
 
             if cbar_range is None:
-                cbar_range = [df.iloc[:, 2].min(), df.iloc[:, 2].max()]
+                cbar_range = [np.nanmin(df.iloc[:, 2]),
+                              np.nanmax(df.iloc[:, 2])]
 
             var = df.columns.values[2]
 

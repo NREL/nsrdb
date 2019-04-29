@@ -20,7 +20,7 @@ from nsrdb.all_sky.rest2 import rest2, rest2_tddclr, rest2_tuuclr
 
 RTOL = 0.001
 ATOL = 0.001
-TEST_FILE = './data/test_nsrdb_2017.h5'
+TEST_FILE = './data/validation_nsrdb/nsrdb_surfrad_2017.h5'
 
 
 @pytest.mark.parametrize('angle', (84.2608, 72.5424, 60.0000, 45.5730, 25.8419,
@@ -49,18 +49,20 @@ def test_rest2_tddclr(angle):
     print('Testing rest2_tddclr on data shape {0} took {1:.1f} seconds.'
           .format(p.shape, time.time() - t0))
 
-    csv = "./data/rest2/rest2_Tddclr_{}.csv".format(int(angle))
+    h5 = "./data/rest2/rest2_Tddclr.h5"
 
-    if os.path.exists(csv):
-        baseline = np.genfromtxt(csv, delimiter=',')
-        result = np.allclose(Tddclr, baseline, rtol=RTOL, atol=ATOL)
-        assert result, 'rest2_tddclr() test failed for angle {}'.format(angle)
+    dset = 'tddclr_{}'.format(angle)
+    with h5py.File(h5, 'a') as f:
+        if dset in f:
+            baseline = f[dset][...]
+            result = np.allclose(Tddclr, baseline, rtol=RTOL, atol=ATOL)
+            assert result, 'rest2_tddclr test failed at angle {}'.format(angle)
 
-    else:
-        np.savetxt(csv, Tddclr, delimiter=",")
-        raise ValueError('Baseline rest2_tddclr() outputs did not exist. '
-                         'Test failed. Printed new outputs to: {}'
-                         .format(csv))
+        else:
+            f.create_dataset(dset, data=Tddclr)
+            raise ValueError('Baseline rest2_tddclr() outputs did not exist. '
+                             'Test failed. Printed new outputs to: {}'
+                             .format(h5))
 
 
 def test_rest2_tuuclr():
@@ -88,18 +90,20 @@ def test_rest2_tuuclr():
     print('Testing rest2_tuuclr on data shape {0} took {1:.1f} seconds.'
           .format(p.shape, time.time() - t0))
 
-    csv = "./data/rest2/rest2_Tuuclr.csv"
+    h5 = "./data/rest2/rest2_Tuuclr.h5"
 
-    if os.path.exists(csv):
-        baseline = np.genfromtxt(csv, delimiter=',')
+    if os.path.exists(h5):
+        with h5py.File(h5, 'r') as f:
+            baseline = f['tuuclr'][...]
         result = np.allclose(Tuuclr, baseline, rtol=RTOL, atol=ATOL)
         assert result, 'rest2_tddclr() test failed.'
 
     else:
-        np.savetxt(csv, Tuuclr, delimiter=",")
+        with h5py.File(h5, 'w') as f:
+            f.create_dataset('tuuclr', data=Tuuclr, dtype=Tuuclr.dtype)
         raise ValueError('Baseline rest2_tuuclr() outputs did not exist. '
                          'Test failed. Printed new outputs to: {}'
-                         .format(csv))
+                         .format(h5))
 
 
 def test_rest2():
@@ -147,19 +151,21 @@ def test_rest2():
     for var in check_vars:
         data = getattr(rest_data, var)[:, 0:10]
 
-        csv = "./data/rest2/rest2_{}.csv".format(var)
+        h5 = "./data/rest2/rest2.h5".format(var)
 
-        if os.path.exists(csv):
-            baseline = np.genfromtxt(csv, delimiter=',')
-            result = np.allclose(data, baseline, rtol=RTOL, atol=ATOL)
-            assert result, 'REST2 test failed for "{}"'.format(var)
+        with h5py.File(h5, 'a') as f:
 
-        else:
-            result = False
-            np.savetxt(csv, data, delimiter=",")
-            warn('Baseline REST2 outputs for "{}" did not exist. '
-                 'Test failed. Printed new outputs to: {}'
-                 .format(var, csv))
+            if var in f:
+                baseline = f[var][...]
+                result = np.allclose(data, baseline, rtol=RTOL, atol=ATOL)
+                assert result, 'REST2 test failed for "{}"'.format(var)
+
+            else:
+                result = False
+                f.create_dataset(var, data=data, dtype=data.dtype)
+                warn('Baseline REST2 outputs for "{}" did not exist. '
+                     'Test failed. Printed new outputs to: {}'
+                     .format(var, h5))
     assert result
 
     baseline = (('dhi', baseline_dhi),
