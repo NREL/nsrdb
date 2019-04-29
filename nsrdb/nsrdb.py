@@ -13,7 +13,7 @@ import os
 import logging
 
 from nsrdb import CONFIGDIR
-from nsrdb.all_sky.all_sky import all_sky_h5
+from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import collect_daily_files
@@ -248,7 +248,7 @@ class NSRDB:
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, freq='5min',
-                       cloud_extent='east'):
+                       cloud_extent='east', parallel=True):
         """Run daily data model, and save output files.
 
         Parameters
@@ -267,6 +267,8 @@ class NSRDB:
         cloud_extent : str
             Regional (satellite) extent to process for cloud data processing,
             used to form file paths to cloud data files.
+        parallel : bool
+            Flag to perform data model processing in parallel.
         """
 
         if isinstance(date, (int, float)):
@@ -282,7 +284,8 @@ class NSRDB:
         nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
 
-        data_model = nsrdb._exe_daily_data_model(date.month, date.day)
+        data_model = nsrdb._exe_daily_data_model(date.month, date.day,
+                                                 parallel=parallel)
 
         nsrdb._exe_fout(data_model)
 
@@ -315,7 +318,7 @@ class NSRDB:
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min',
-                    rows=slice(None), cols=slice(None)):
+                    rows=slice(None), cols=slice(None), parallel=True):
         """Run the all-sky physics model from .h5 files.
 
         Parameters
@@ -347,7 +350,11 @@ class NSRDB:
             elif 'cloud' in fname:
                 f_cloud = os.path.join(out_dir, fname.format(y=year))
 
-        out = all_sky_h5(f_ancillary, f_cloud, rows=rows, cols=cols)
+        if parallel:
+            out = all_sky_h5_parallel(f_ancillary, f_cloud, rows=rows,
+                                      cols=cols)
+        else:
+            out = all_sky_h5(f_ancillary, f_cloud, rows=rows, cols=cols)
 
         logger.info('Finished all-sky. Writing results to: {}'.format(f_out))
 

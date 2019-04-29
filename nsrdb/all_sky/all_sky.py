@@ -2,8 +2,12 @@
 """NSRDB all-sky module.
 """
 
+from concurrent.futures import ProcessPoolExecutor
+import os
 import numpy as np
 import pandas as pd
+import psutil
+import time
 import logging
 from warnings import warn
 
@@ -227,4 +231,96 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                 time_index=fc.time_index[rows],
                 total_precipitable_water=fa['total_precipitable_water',
                                             rows, cols])
+    return out
+
+
+def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
+                        cols=slice(None)):
+    """Run all-sky from .h5 files.
+
+    Parameters
+    ----------
+    f_ancillary : str
+        File path to ancillary data file.
+    f_cloud : str
+        File path the cloud data file.
+    rows : slice
+        Subset of rows to run.
+    cols : slice
+        Subset of columns to run.
+
+    Returns
+    -------
+    output : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
+    """
+
+    if rows.start is None:
+        rows = slice(0, rows.stop)
+    if rows.stop is None:
+        with Resource(f_cloud) as res:
+            rows = slice(rows.start, res.shape[0])
+
+    if cols.start is None:
+        cols = slice(0, cols.stop)
+    if cols.stop is None:
+        with Resource(f_cloud) as res:
+            cols = slice(cols.start, res.shape[1])
+
+    out_shape = (rows.stop - rows.start, cols.stop - cols.start)
+    c_range = range(cols.start, cols.stop)
+
+    # start a local cluster
+    max_workers = int(os.cpu_count())
+    futures = {}
+    logger.info('Running all-sky in parallel on {} workers.'
+                .format(max_workers))
+    with ProcessPoolExecutor(max_workers=max_workers) as exe:
+        # submit a future for each NSRDB site
+        for c in c_range:
+            futures[c] = exe.submit(
+                all_sky_h5, f_ancillary, f_cloud,
+                rows=rows, cols=slice(c, c + 1))
+
+        # watch memory during futures to get max memory usage
+        logger.debug('Waiting on parallel futures...')
+        max_mem = 0
+        running = len(futures)
+        while running > 0:
+            mem = psutil.virtual_memory()
+            max_mem = np.max((mem.used / 1e9, max_mem))
+            time.sleep(5)
+            running = 0
+            keys = []
+            for key, future in futures.items():
+                if future.running():
+                    running += 1
+                    keys += [key]
+            logger.debug('{} sites are being processed by all-sky futures.'
+                         .format(running))
+
+        logger.info('Futures finished, maximum memory usage was '
+                    '{0:.3f} GB out of {1:.3f} GB total.'
+                    .format(max_mem, mem.total / 1e9))
+
+        # gather results
+        for k, v in futures.items():
+            futures[k] = v.result()
+
+    out = {}
+    for var, arr in futures[cols.start].items():
+        out[var] = np.ndarray(out_shape, dtype=arr.dtype)
+
+    for c, as_out_dict in futures.items():
+        for var, arr in as_out_dict.items():
+            out[var][:, c] = arr
+
     return out
