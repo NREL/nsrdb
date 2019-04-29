@@ -306,8 +306,7 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
                     keys += [key]
                 elif future.done():
                     complete += 1
-            logger.debug('{} sites are being processed by all-sky futures. '
-                         '{} are complete.'
+            logger.debug('{} all-sky futures are running, {} are complete.'
                          .format(running, complete))
 
         logger.info('Futures finished, maximum memory usage was '

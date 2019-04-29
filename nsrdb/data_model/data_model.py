@@ -667,10 +667,14 @@ class DataModel:
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
                 running = 0
+                complete = 0
                 for future in regrid_ind.values():
                     if future.running():
                         running += 1
-                logger.debug('{} ReGrid futures are running.'.format(running))
+                    elif future.done():
+                        complete += 1
+                logger.debug('{} ReGrid futures are running, {} are complete.'
+                             .format(running, complete))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
