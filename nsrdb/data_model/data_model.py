@@ -419,6 +419,47 @@ class DataModel:
 
         return data
 
+    def run_pre_flight(self, var_list, cloud_extent='east', cloud_path=None):
+        """Run pre-flight checks, raise if specified paths/files are not found.
+
+        Parameters
+        ----------
+        var_list : list
+            List of variable names
+        cloud_extent : str
+            Cloud data extent ('east' or 'west') for cloud variables in
+            var_list.
+        cloud_path : str | NoneType
+            Optional path string to force a cloud data directory. If this is
+            None, the file path will be infered from the extent, year, and day
+            of year.
+        """
+
+        missing_list = []
+        for var in var_list:
+            kwargs = {'var_meta': self._var_meta, 'name': var,
+                      'date': self.date}
+            if 'cld' in var or 'cloud' in var:
+                kwargs['extent'] = cloud_extent
+                kwargs['path'] = cloud_path
+                kwargs['dsets'] = [var]
+
+            if var in self._var_factory.MAPPING:
+                var_obj = self._var_factory.get(var, **kwargs)
+
+                if hasattr(var_obj, 'pre_flight'):
+                    missing = var_obj.pre_flight()
+                else:
+                    missing = ''
+
+                if missing:
+                    missing_list.append(missing)
+
+        if missing_list:
+            raise IOError('The data model pre-flight checks could not find '
+                          'some required directories and/or files. '
+                          'The following are missing: {}'.format(missing_list))
+
     @staticmethod
     def convert_units(var, data):
         """Convert MERRA data to NSRDB units.
@@ -781,6 +822,10 @@ class DataModel:
         """
 
         data_model = cls(var_meta, date, nsrdb_grid, nsrdb_freq=nsrdb_freq)
+
+        # run pre-flight checks
+        data_model.run_pre_flight(var_list, cloud_extent=cloud_extent,
+                                  cloud_path=cloud_path)
 
         # default multiple compute
         if var_list is None:

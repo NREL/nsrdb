@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
+
+import os
 import numpy as np
 import pandas as pd
 import logging
@@ -71,6 +73,7 @@ class AncillaryVarHandler:
                       'elevation_correction': self.elevation_correct,
                       'temporal_interp_method': self.temporal_method,
                       'spatial_interp_method': self.spatial_method,
+                      'data_source': self.data_source,
                       'source_dir': self.source_dir})
         return attrs
 
@@ -111,6 +114,17 @@ class AncillaryVarHandler:
             else:
                 self._mask = None
         return self._mask
+
+    @property
+    def data_source(self):
+        """Get the data source.
+
+        Returns
+        -------
+        data_source : str
+            Data source.
+        """
+        return str(self.var_meta.loc[self.mask, 'data_source'].values[0])
 
     @property
     def elevation_correct(self):
@@ -289,6 +303,24 @@ class AncillaryVarHandler:
             scale factor before being stored.
         """
         return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
+
+    def pre_flight(self):
+        """Perform pre-flight checks - source dir check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source dir and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        # empty cell (no source dir) evaluates to 'nan'.
+        if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
+            if not os.path.exists(self.source_dir):
+                # source dir is not nan and does not exist
+                missing = self.source_dir
+        return missing
 
     def scale_data(self, array):
         """Perform a safe data scaling operation on a source data array.

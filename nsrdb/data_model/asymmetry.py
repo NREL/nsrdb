@@ -38,6 +38,21 @@ class AsymVar(AncillaryVarHandler):
         """Get the Asymmetry source file path with file name."""
         return os.path.join(self.source_dir, self._fname)
 
+    def pre_flight(self):
+        """Perform pre-flight checks - source file check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source file and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.isfile(self.fpath):
+            missing = self.fpath
+        return missing
+
     @property
     def time_index(self):
         """Get the asymmetry native time index.

@@ -73,6 +73,21 @@ class AlbedoVar(AncillaryVarHandler):
                 break
         return falbedo
 
+    def pre_flight(self):
+        """Perform pre-flight checks - source file check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source file and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.isfile(self.file):
+            missing = self.file
+        return missing
+
     def exclusions_from_nsrdb(self, nsrdb_grid, margin=0.1):
         """Set lat/lon exclusions from NSRDB grid df to minimize data read.
 

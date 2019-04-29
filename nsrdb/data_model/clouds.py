@@ -447,6 +447,21 @@ class CloudVar(AncillaryVarHandler):
                               'target path: {}'.format(self._path))
         return self._path
 
+    def pre_flight(self):
+        """Perform pre-flight checks - source dir check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source dir and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.exists(self.path):
+            missing = self.path
+        return missing
+
     @staticmethod
     def _h5_flist(path, date):
         """Get the .h5 cloud data file list.

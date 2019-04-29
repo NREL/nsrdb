@@ -68,6 +68,21 @@ class MerraVar(AncillaryVarHandler):
                 break
         return fmerra
 
+    def pre_flight(self):
+        """Perform pre-flight checks - source file check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source file and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.isfile(self.file):
+            missing = self.file
+        return missing
+
     @property
     def merra_name(self):
         """Get the MERRA variable name from the NSRDB variable name.
