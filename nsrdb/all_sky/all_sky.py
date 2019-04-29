@@ -207,7 +207,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
 
     logger.info('Running all-sky from the following files:\n\t{}\n\t{}'
                 .format(f_ancillary, f_cloud))
-    logger.info('Running only for row slice {} and col slice {}'
+    logger.info('Running only for rows: "{}" and columns: "{}"'
                 .format(rows, cols))
 
     with Resource(f_ancillary) as fa:

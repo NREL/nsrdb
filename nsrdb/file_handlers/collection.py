@@ -70,6 +70,10 @@ def collect_daily_files(f_dir, f_out, dsets):
                 f_meta = f.meta
                 f_data = f[dset][...]
 
+            # use gid in the chunked file in case results are chunked by site.
+            if 'gid' in f_meta:
+                f_meta.index = f_meta['gid']
+
             # pylint: disable-msg=C0121
             r_loc = np.where(time_index.isin(f_ti) == True)[0]  # noqa: E712
             c_loc = np.where(

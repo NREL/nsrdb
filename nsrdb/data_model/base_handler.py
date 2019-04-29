@@ -355,9 +355,11 @@ class AncillaryVarHandler:
                     d_min = ''
                     if np.issubdtype(self.final_dtype, np.integer):
                         d_min = np.iinfo(self.final_dtype).min
-                    warn('NaN values found in "{}" before dtype conversion '
+                    w = ('NaN values found in "{}" before dtype conversion '
                          'to "{}". Will be assigned value of: "{}"'
                          .format(self.name, self.final_dtype, d_min))
+                    logger.warning(w)
+                    warn(w)
 
                 # truncate unscaled array at physical min/max values
                 array[array < self.physical_min] = self.physical_min

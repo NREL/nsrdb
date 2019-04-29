@@ -171,6 +171,10 @@ class DataModel:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(inp))
 
+        # copy index to gid data column that will be saved in output files
+        # used in the case that the grid is chunked into subsets of sites
+        self._nsrdb_grid['gid'] = self._nsrdb_grid.index
+
     @property
     def date(self):
         """Get the single-day datetime.date for this instance."""
