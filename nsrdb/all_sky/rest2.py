@@ -32,15 +32,12 @@ c++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 import numpy as np
 import collections
 from warnings import warn
-import logging
 import concurrent.futures as cf
 import gc
 
 import nsrdb.all_sky.utilities as ut
 from nsrdb.all_sky import SOLAR_CONSTANT
 from nsrdb.all_sky import SZA_LIM
-
-logger = logging.getLogger(__name__)
 
 
 def op_mass(p, am, cosz, z):
@@ -835,7 +832,6 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
         diffuse outgoing fluxes (uu).
     """
 
-    logger.debug('Calculating Tuuclr...')
     Tddclr_list = []
 
     # ensure radius is of the correct shape
@@ -845,7 +841,6 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
     if not parallel:
         # serial execution
         for angle in diffuse_angles:
-            logger.debug('\tGetting Tddclr for angle {}'.format(angle))
             Tddclr_list.append(
                 rest2_tddclr(p=p, albedo=albedo, ssa=ssa, z=angle,
                              radius=radius, alpha=alpha, beta=0,
@@ -855,14 +850,12 @@ def rest2_tuuclr(p, albedo, ssa, radius, alpha, ozone, w, parallel=False,
         # parallel execution
         n_workers = len(diffuse_angles)
         with cf.ProcessPoolExecutor(max_workers=n_workers) as executor:
-            logger.info('Using concurrent futures to calculate Tuuclr.')
             # submit futures for each angle
             futures = [executor.submit(rest2_tddclr, p, albedo, ssa, angle,
                                        radius, alpha, 0, ozone, w)
                        for angle in diffuse_angles]
 
             Tddclr_list = [future.result() for future in futures]
-            logger.info('Futures gathered and concurrent futures closed.')
         gc.collect()
 
     scalar = 1 / (len(diffuse_angles))

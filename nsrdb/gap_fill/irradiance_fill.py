@@ -10,6 +10,34 @@ import numpy as np
 from nsrdb.all_sky import CLOUD_TYPES
 
 
+def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
+    """Make a boolean mask showing where there are missing cloud properties.
+
+    Parameters
+    ----------
+    cloud_type : np.ndarray
+        Array of integer cloud types.
+    cloud_opd_dcomp : np.ndarray
+        Array of cloud optical depths. Expected range is 0 - 160 with
+        missing values <= 0.
+    cld_reff_dcomp : np.ndarray
+        Array of cloud effective partical radii. Expected range is 0 - 160
+        with missing values <= 0.
+
+    Returns
+    -------
+    missing_props : np.ndarray
+        Boolean array with True values where there are clouds but no cloud
+        properties.
+    """
+
+    missing_props = ((np.isin(cloud_type, CLOUD_TYPES)) &
+                     ((cld_opd_dcomp <= 0) | (cld_reff_dcomp <= 0) |
+                      (np.isnan(cld_opd_dcomp) |
+                      (np.isnan(cld_reff_dcomp)))))
+    return missing_props
+
+
 def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
     """Make a dataset indicating where to fill bad irradiance data.
 

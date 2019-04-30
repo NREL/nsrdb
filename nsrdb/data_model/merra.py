@@ -68,6 +68,21 @@ class MerraVar(AncillaryVarHandler):
                 break
         return fmerra
 
+    def pre_flight(self):
+        """Perform pre-flight checks - source file check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source file and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.isfile(self.file):
+            missing = self.file
+        return missing
+
     @property
     def merra_name(self):
         """Get the MERRA variable name from the NSRDB variable name.
@@ -130,10 +145,10 @@ class MerraVar(AncillaryVarHandler):
         with netCDF4.Dataset(self.file, 'r') as f:
 
             # depending on variable, might need extra logic
-            if self.merra_name in ['wind_speed', 'wind_direction']:
+            if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
                 v_vector = f['V2M'][:]
-                if self.merra_name == 'wind_speed':
+                if self.name == 'wind_speed':
                     data = np.sqrt(u_vector**2 + v_vector**2)
                 else:
                     data = np.degrees(

@@ -3,6 +3,7 @@
 
 import logging
 
+from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
 from nsrdb.data_model.merra import MerraVar
@@ -64,6 +65,25 @@ class VarFactory:
             raise KeyError('Did not recognize "{}" as an available NSRDB '
                            'variable. The following variables are available: '
                            '{}'.format(var_name, list(self.MAPPING.keys())))
+
+    @staticmethod
+    def get_base_handler(*args, **kwargs):
+        """Get the base ancillary variable handler to parse var meta.
+
+        Parameters
+        ----------
+        *args : list
+            List of positional args for instantiation of ancillary var.
+        **kwargs : dict
+            List of keyword args for instantiation of ancillary var.
+
+        Returns
+        -------
+        instance : AncillaryVarHandler
+            Instantiated base ancillary variable helper object.
+        """
+
+        return AncillaryVarHandler(*args, **kwargs)
 
     @staticmethod
     def get_cloud_handler(fpath, dsets=None):

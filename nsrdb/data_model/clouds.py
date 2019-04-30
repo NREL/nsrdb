@@ -188,7 +188,7 @@ class CloudVarSingleH5(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from {}'
+        logger.debug('Retrieving single timestep cloud source data from: "{}"'
                      .format(os.path.basename(self._fpath)))
         data = {}
         with h5py.File(self._fpath, 'r') as f:
@@ -319,7 +319,7 @@ class CloudVarSingleNC(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from {}'
+        logger.debug('Retrieving single timestep cloud source data from: "{}"'
                      .format(os.path.basename(self._fpath)))
         data = {}
         with netCDF4.Dataset(self._fpath, 'r') as f:
@@ -401,6 +401,8 @@ class CloudVar(AncillaryVarHandler):
     def __iter__(self):
         """Initialize this instance as an iter object."""
         self._i = 0
+        logger.info('Iterating through {} cloud data {} files located in "{}"'
+                    .format(len(self._flist), self._ftype, self.path))
         return self
 
     def __next__(self):
@@ -430,7 +432,14 @@ class CloudVar(AncillaryVarHandler):
 
     @property
     def path(self):
-        """Final path containing cloud data files."""
+        """Final path containing cloud data files.
+
+        Path is interpreted as:
+            /source_dir/extent/YYYY/DOY/level2/
+
+        Where source_dir is defined in the nsrdb_vars.csv meta/config file.
+        """
+
         if self._path is None:
             doy = str(self._date.timetuple().tm_yday).zfill(3)
             self._path = os.path.join(self.source_dir, self._extent,
@@ -439,6 +448,21 @@ class CloudVar(AncillaryVarHandler):
                 raise IOError('Looking for cloud data but could not find the '
                               'target path: {}'.format(self._path))
         return self._path
+
+    def pre_flight(self):
+        """Perform pre-flight checks - source dir check.
+
+        Returns
+        -------
+        missing : str
+            Look for the source dir and return the string if not found.
+            If nothing is missing, return an empty string.
+        """
+
+        missing = ''
+        if not os.path.exists(self.path):
+            missing = self.path
+        return missing
 
     @staticmethod
     def _h5_flist(path, date):
@@ -514,10 +538,6 @@ class CloudVar(AncillaryVarHandler):
             if not self._flist:
                 raise IOError('Could not find .h5 or .nc files for {} in '
                               'directory: {}'.format(self._date, self.path))
-
-            logger.debug('Cloud data handler initialized with the following '
-                         '{} file list of length {}:\n{}'
-                         .format(self._ftype, len(self._flist), self._flist))
         return self._flist
 
     @property

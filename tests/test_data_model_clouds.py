@@ -14,7 +14,7 @@ import datetime
 import h5py
 
 from nsrdb import CONFIGDIR, TESTDATADIR
-from nsrdb.data_model import DataModel
+from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.data_model.clouds import CloudVarSingleH5
 from nsrdb.utilities.loggers import init_logger
 
@@ -87,8 +87,8 @@ def test_regrid():
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
 
-    data = DataModel.process_clouds(cloud_vars, var_meta, date, nsrdb_grid,
-                                    nsrdb_freq='1d', path=path)
+    data = DataModel.run_clouds(cloud_vars, var_meta, date, nsrdb_grid,
+                                nsrdb_freq='1d', path=path)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 
@@ -104,6 +104,9 @@ def test_regrid():
         else:
             with h5py.File(baseline_path, 'r') as f:
                 data_baseline = f[key][...]
+                var_obj = VarFactory.get_base_handler(
+                    var_meta, key, date)
+                data_baseline = var_obj.scale_data(data_baseline)
             assert np.allclose(data_baseline, value,
                                atol=ATOL, rtol=RTOL)
 

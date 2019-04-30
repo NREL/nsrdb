@@ -14,7 +14,7 @@ import pandas as pd
 import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR
-from nsrdb.data_model import DataModel
+from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 
 
@@ -37,9 +37,9 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data_model = DataModel.process_multiple(var_list, var_meta, date,
-                                            grid, parallel=False,
-                                            return_obj=True)
+    data_model = DataModel.run_multiple(var_list, var_meta, date,
+                                        grid, parallel=False,
+                                        return_obj=True)
 
     with Outputs(out_file, mode='w') as fout:
         fout.time_index = data_model.nsrdb_ti
@@ -47,17 +47,13 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
 
         for k, v in data_model.processed_data.items():
             if k not in ['time_index', 'meta']:
-                mask = (var_meta['var'] == k)
-                units = str(var_meta.loc[mask, 'units'].values[0])
-                dtype = str(var_meta.loc[mask, 'final_dtype'].values[0])
-                scale_factor = float(
-                    var_meta.loc[mask, 'scale_factor'].values[0])
-                attrs = {'units': units, 'scale_factor': scale_factor}
+                var = VarFactory.get_base_handler(var_meta, k, date)
+                attrs = var.attrs
 
-                fout._add_dset(dset_name=k, data=v, dtype=dtype,
+                fout._add_dset(dset_name=k, data=v, dtype=var.final_dtype,
                                chunks=None, attrs=attrs)
 
-    with Outputs(out_file, mode='r') as fout:
+    with Outputs(out_file, mode='r', unscale=False) as fout:
         for dset in data_model.processed_data.keys():
             if dset not in ['time_index', 'meta']:
                 data = fout[dset]

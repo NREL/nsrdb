@@ -15,12 +15,12 @@ import h5py
 import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
-from nsrdb.data_model import DataModel
+from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.utilities.loggers import init_logger
 
 
-RTOL = 0.001
-ATOL = 0.001
+RTOL = 0.01
+ATOL = 0.0
 
 
 def test_asym(var='asymmetry'):
@@ -35,7 +35,7 @@ def test_asym(var='asymmetry'):
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = DATADIR
 
-    data = DataModel.process_single(var, var_meta, date, grid)
+    data = DataModel.run_single(var, var_meta, date, grid)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -46,6 +46,9 @@ def test_asym(var='asymmetry'):
     else:
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
+            var_obj = VarFactory.get_base_handler(
+                var_meta, var, date)
+            data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
 
@@ -76,7 +79,7 @@ def test_ancillary_single(var):
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.process_single(var, var_meta, date, grid)
+    data = DataModel.run_single(var, var_meta, date, grid)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -87,6 +90,9 @@ def test_ancillary_single(var):
     else:
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
+            var_obj = VarFactory.get_base_handler(
+                var_meta, var, date)
+            data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
 
@@ -106,8 +112,8 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.process_multiple(var_list, var_meta, date,
-                                      grid, parallel=True)
+    data = DataModel.run_multiple(var_list, var_meta, date,
+                                  grid, parallel=True)
 
     for key, value in data.items():
         if key != 'time_index':
@@ -120,6 +126,9 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
             else:
                 with h5py.File(baseline_path, 'r') as f:
                     data_baseline = f[key][...]
+                    var_obj = VarFactory.get_base_handler(
+                        var_meta, key, date)
+                    data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
                                    atol=ATOL, rtol=RTOL)
 

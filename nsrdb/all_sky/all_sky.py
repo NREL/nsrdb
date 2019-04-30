@@ -2,17 +2,28 @@
 """NSRDB all-sky module.
 """
 
+from concurrent.futures import ProcessPoolExecutor
+import os
 import numpy as np
 import pandas as pd
+import psutil
+import time
+import logging
 from warnings import warn
+
+from nsrdb.file_handlers.resource import Resource
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
-from nsrdb.all_sky.gap_fill import make_fill_flag, gap_fill_irrad
-from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
+from nsrdb.all_sky import SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
                                      dark_night, cloud_variability)
+from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
+                                            missing_cld_props)
+
+
+logger = logging.getLogger(__name__)
 
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
@@ -38,10 +49,10 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Array of integer cloud types.
     cloud_opd_dcomp : np.ndarray
         Array of cloud optical depths. Expected range is 0 - 160 with
-        missing values < 0.
+        missing values <= 0.
     cld_reff_dcomp : np.ndarray
         Array of cloud effective partical radii. Expected range is 0 - 160
-        with missing values < 0.
+        with missing values <= 0.
     ozone : np.ndarray
         reduced ozone vertical pathlength (atm-cm)
         [Note: 1 atm-cm = 1000 DU]
@@ -87,10 +98,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # make boolean flag for where there were missing cloud properties
     # need to do this before the cloud property ranges are screened
-    missing_cld_props = ((np.isin(cloud_type, CLOUD_TYPES)) &
-                         ((cld_opd_dcomp < 0) | (cld_reff_dcomp < 0) |
-                          (np.isnan(cld_opd_dcomp) |
-                          (np.isnan(cld_reff_dcomp)))))
+    missing_props = missing_cld_props(cloud_type, cld_opd_dcomp,
+                                      cld_reff_dcomp)
 
     # screen variables based on expected ranges
     solar_zenith_angle = screen_sza(solar_zenith_angle, lim=SZA_LIM)
@@ -138,8 +147,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
-    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type,
-                               missing_cld_props)
+    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
     ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
@@ -171,3 +179,151 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
               'fill_flag': fill_flag}
 
     return output
+
+
+def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
+    """Run all-sky from .h5 files.
+
+    Parameters
+    ----------
+    f_ancillary : str
+        File path to ancillary data file.
+    f_cloud : str
+        File path the cloud data file.
+    rows : slice
+        Subset of rows to run.
+    cols : slice
+        Subset of columns to run.
+
+    Returns
+    -------
+    output : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
+    """
+
+    with Resource(f_ancillary) as fa:
+        with Resource(f_cloud) as fc:
+            out = all_sky(
+                alpha=fa['alpha', rows, cols],
+                aod=fa['aod', rows, cols],
+                asymmetry=fa['asymmetry', rows, cols],
+                cloud_type=fc['cloud_type', rows, cols],
+                cld_opd_dcomp=fc['cld_opd_dcomp', rows, cols],
+                cld_reff_dcomp=fc['cld_reff_dcomp', rows, cols],
+                ozone=fa['ozone', rows, cols],
+                solar_zenith_angle=fc['solar_zenith_angle', rows, cols],
+                ssa=fa['ssa', rows, cols],
+                surface_albedo=fa['surface_albedo', rows, cols],
+                surface_pressure=fa['surface_pressure', rows, cols],
+                time_index=fc.time_index[rows],
+                total_precipitable_water=fa['total_precipitable_water',
+                                            rows, cols])
+    return out
+
+
+def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
+                        cols=slice(None), col_chunk=10):
+    """Run all-sky from .h5 files.
+
+    Parameters
+    ----------
+    f_ancillary : str
+        File path to ancillary data file.
+    f_cloud : str
+        File path the cloud data file.
+    rows : slice
+        Subset of rows to run.
+    cols : slice
+        Subset of columns to run.
+    col_chunk : int
+        Number of columns to process on a single core. Larger col_chunk will
+        increase the REST2 memory spike substantially.
+
+    Returns
+    -------
+    output : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
+    """
+
+    if rows.start is None:
+        rows = slice(0, rows.stop)
+    if rows.stop is None:
+        with Resource(f_cloud) as res:
+            rows = slice(rows.start, res.shape[0])
+
+    if cols.start is None:
+        cols = slice(0, cols.stop)
+    if cols.stop is None:
+        with Resource(f_cloud) as res:
+            cols = slice(cols.start, res.shape[1])
+
+    out_shape = (rows.stop - rows.start, cols.stop - cols.start)
+    c_range = range(cols.start, cols.stop, col_chunk)
+
+    # start a local cluster
+    max_workers = int(os.cpu_count())
+    futures = {}
+    logger.info('Running all-sky in parallel on {} workers.'
+                .format(max_workers))
+    with ProcessPoolExecutor(max_workers=max_workers) as exe:
+        # submit a future for each NSRDB site
+        for c in c_range:
+            c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
+            futures[c] = exe.submit(
+                all_sky_h5, f_ancillary, f_cloud,
+                rows=rows, cols=c_slice)
+
+        # watch memory during futures to get max memory usage
+        logger.debug('Waiting on parallel futures...')
+        max_mem = 0
+        running = len(futures)
+        while running > 0:
+            mem = psutil.virtual_memory()
+            max_mem = np.max((mem.used / 1e9, max_mem))
+            time.sleep(5)
+            running = 0
+            complete = 0
+            keys = []
+            for key, future in futures.items():
+                if future.running():
+                    running += 1
+                    keys += [key]
+                elif future.done():
+                    complete += 1
+            logger.debug('{} all-sky futures are running, {} are complete.'
+                         .format(running, complete))
+
+        logger.info('Futures finished, maximum memory usage was '
+                    '{0:.3f} GB out of {1:.3f} GB total.'
+                    .format(max_mem, mem.total / 1e9))
+
+        # gather results
+        for k, v in futures.items():
+            futures[k] = v.result()
+
+    out = {}
+    for var, arr in futures[cols.start].items():
+        out[var] = np.ndarray(out_shape, dtype=arr.dtype)
+
+    for c, all_sky_out in futures.items():
+        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
+        for var, arr in all_sky_out.items():
+            out[var][:, c_slice] = arr
+
+    return out

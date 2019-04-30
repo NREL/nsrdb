@@ -325,7 +325,7 @@ class Spatial:
     def multi_year(self, year_range, out_dir, dsets,
                    nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
                    fname_base='nsrdb_{year}.h5',
-                   timesteps=range(0, 17520, 8600)):
+                   timesteps=range(0, 17520, 8600), **kwargs):
         """Make map plots at timesteps for datasets in multiple NSRDB files.
 
         Parameters
@@ -349,9 +349,10 @@ class Spatial:
 
         for year in year_range:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
-            self.dsets(h5, dsets, out_dir, timesteps=timesteps)
+            self.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
-    def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600)):
+    def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600),
+              **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -381,13 +382,23 @@ class Spatial:
 
                 for i in timesteps:
                     logger.info('Plotting timestep {}'.format(i))
-                    df[dset] = f[dset][i, :] / attrs['psm_scale_factor']
+                    if 'scale_factor' in attrs:
+                        scale_factor = attrs['scale_factor']
+                    elif 'psm_scale_factor' in attrs:
+                        scale_factor = attrs['psm_scale_factor']
+                    else:
+                        scale_factor = 1
+                        warn('Could not find scale factor attr in h5: {}'
+                             .format(h5))
+
+                    df[dset] = f[dset][i, :] / scale_factor
                     self.plot_geo_df(df, fname + '_' + dset + '_{}'.format(i),
-                                     out_dir)
+                                     out_dir, **kwargs)
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    xlim=(-190, -20), ylim=(-30, 70), cbar_range=None):
+                    xlim=(-190, -20), ylim=(-30, 70), cmap='Blues',
+                    cbar_range=None, dpi=600, file_ext='.png'):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -415,7 +426,7 @@ class Spatial:
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            cmap = plt.get_cmap('Blues')
+            cmap = plt.get_cmap(cmap)
 
             if cbar_range is None:
                 cbar_range = [np.nanmin(df.iloc[:, 2]),
@@ -437,8 +448,8 @@ class Spatial:
             ax.set_xlim(xlim)
             fig.colorbar(c, ax=ax, label=var)
             ax.set_title(title)
-            out = os.path.join(out_dir, title + '.png')
-            fig.savefig(out, dpi=600)
+            out = os.path.join(out_dir, title + file_ext)
+            fig.savefig(out, dpi=dpi)
             logger.info('Saved figure: {}.png'.format(title))
             plt.close()
         except Exception as e:
