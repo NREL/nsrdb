@@ -7,7 +7,7 @@ import pandas as pd
 import logging
 from warnings import warn
 
-from nsrdb import DATADIR
+from nsrdb import DATADIR, DEFAULT_VAR_META
 
 
 logger = logging.getLogger(__name__)
@@ -19,14 +19,15 @@ class AncillaryVarHandler:
     # default source data directory
     DEFAULT_DIR = DATADIR
 
-    def __init__(self, var_meta, name, date=None):
+    def __init__(self, name, var_meta=None, date=None):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         """
@@ -41,9 +42,15 @@ class AncillaryVarHandler:
 
         Parameters
         ----------
-        inp : str
-            CSV file containing meta data for all NSRDB variables.
+        inp : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
+
+        # default to repo default
+        if inp is None:
+            inp = DEFAULT_VAR_META
+
         var_meta = None
         if isinstance(inp, str):
             if inp.endswith('.csv'):

@@ -20,19 +20,20 @@ class MerraVar(AncillaryVarHandler):
     # default MERRA paths.
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
-    def __init__(self, var_meta, name, date):
+    def __init__(self, name, var_meta, date):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         """
 
-        super().__init__(var_meta, name, date)
+        super().__init__(name, var_meta=var_meta, date=date)
 
     @property
     def date_stamp(self):

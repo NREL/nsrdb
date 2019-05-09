@@ -37,6 +37,8 @@ class VarFactory:
                'wind_speed': MerraVar,
                }
 
+    NO_ARGS = ('relative_humidity', 'dew_point')
+
     def get(self, var_name, *args, **kwargs):
         """Get a processing variable instance for the given var name.
 
@@ -58,12 +60,13 @@ class VarFactory:
         # ensure var is in the available handlers
         if var_name in self.MAPPING:
 
+            if var_name in self.NO_ARGS:
+                kwargs = {}
+
             # kwarg reduction for non-cloud vars
-            if 'cld' not in var_name and 'cloud' not in var_name:
+            elif 'cld' not in var_name and 'cloud' not in var_name:
                 del_list = ('extent', 'path', 'dsets')
-                for k, _ in kwargs.items():
-                    if k in del_list:
-                        del kwargs[k]
+                kwargs = {k: v for k, v in kwargs.items() if k not in del_list}
 
             # single creational statement to init handler
             return self.MAPPING[var_name](*args, **kwargs)

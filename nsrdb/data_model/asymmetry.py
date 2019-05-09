@@ -15,23 +15,24 @@ logger = logging.getLogger(__name__)
 class AsymVar(AncillaryVarHandler):
     """Framework for Asymmetry variable data extraction."""
 
-    def __init__(self, var_meta, name='asymmetry',
+    def __init__(self, name='asymmetry', var_meta=None,
                  date=datetime.date(year=2017, month=1, day=1),
                  fname='asymmetry_clim.h5'):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         fname : str
             Asymmetry source data filename.
         """
         self._fname = fname
-        super().__init__(var_meta, name, date)
+        super().__init__(name, var_meta=var_meta, date=date)
 
     @property
     def fpath(self):

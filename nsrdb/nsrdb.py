@@ -12,7 +12,6 @@ import pandas as pd
 import os
 import logging
 
-from nsrdb import CONFIGDIR
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
@@ -24,8 +23,6 @@ logger = logging.getLogger(__name__)
 
 class NSRDB:
     """Entry point for NSRDB data pipeline execution."""
-
-    DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
 
     OUTS = {'nsrdb_ancillary_{y}.h5': ('alpha',
                                        'aod',
@@ -82,9 +79,6 @@ class NSRDB:
         self._cloud_extent = cloud_extent
         self._var_meta = var_meta
         self._ti = None
-
-        if self._var_meta is None:
-            self._var_meta = self.DEFAULT_VAR_META
 
     @staticmethod
     def make_out_dir(out_dir):
@@ -159,8 +153,8 @@ class NSRDB:
 
         # run data model
         data_model = DataModel.run_multiple(
-            var_list, self._var_meta, date, self._grid,
-            nsrdb_freq=self._freq, parallel=parallel,
+            var_list, date, self._grid, nsrdb_freq=self._freq,
+            var_meta=self._var_meta, parallel=parallel,
             cloud_extent=self._cloud_extent, return_obj=True)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
@@ -197,8 +191,8 @@ class NSRDB:
                     fout.time_index = data_model.nsrdb_ti
                     fout.meta = data_model.nsrdb_grid
 
-                    var_obj = VarFactory.get_base_handler(self._var_meta, var,
-                                                          data_model.date)
+                    var_obj = VarFactory.get_base_handler(
+                        var, var_meta=self._var_meta, date=data_model.date)
                     attrs = var_obj.attrs
 
                     fout._add_dset(dset_name=var, data=arr,
@@ -252,7 +246,7 @@ class NSRDB:
         dtypes = {}
 
         for dset in dsets:
-            var_obj = VarFactory.get_base_handler(NSRDB.DEFAULT_VAR_META, dset)
+            var_obj = VarFactory.get_base_handler(dset)
             attrs[dset] = var_obj.attrs
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype

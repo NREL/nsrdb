@@ -351,16 +351,17 @@ class CloudVar(AncillaryVarHandler):
                    96: '15min',
                    288: '5min'}
 
-    def __init__(self, var_meta, name, date, extent='east', path=None,
+    def __init__(self, name, var_meta, date, extent='east', path=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         extent : str
@@ -381,7 +382,7 @@ class CloudVar(AncillaryVarHandler):
         self._dsets = dsets
         self._ftype = None
 
-        super().__init__(var_meta, name, date)
+        super().__init__(name, var_meta=var_meta, date=date)
 
         if len(self) not in self.LEN_TO_FREQ:
             raise KeyError('Bad number of cloud data files. Counted {} files '
