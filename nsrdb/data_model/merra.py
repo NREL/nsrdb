@@ -209,9 +209,13 @@ class MerraVar(AncillaryVarHandler):
 
         return self._merra_grid
 
+
+class RelativeHumidity:
+    """Class to derive the relative humidity from other MERRA2 vars."""
+
     @staticmethod
-    def relative_humidity(t, h, p):
-        """Calculate relative humidity.
+    def derive(t, h, p):
+        """Derive the relative humidity from ancillary vars.
 
         Parameters
         ----------
@@ -260,9 +264,13 @@ class MerraVar(AncillaryVarHandler):
 
         return rh
 
+
+class DewPoint:
+    """Class to derive the dew point from other MERRA2 vars."""
+
     @staticmethod
-    def dew_point(t, h, p):
-        """Calculate the dew point.
+    def derive(t, h, p):
+        """Derive the dew point from ancillary vars.
 
         Parameters
         ----------
@@ -285,7 +293,7 @@ class MerraVar(AncillaryVarHandler):
             convert_t = True
             t -= 273.15
 
-        rh = MerraVar.relative_humidity(t, h, p)
+        rh = RelativeHumidity.derive(t, h, p)
         dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
               (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
 

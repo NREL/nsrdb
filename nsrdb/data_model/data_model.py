@@ -453,15 +453,11 @@ class DataModel:
 
         missing_list = []
         for var in var_list:
-            kwargs = {'var_meta': self._var_meta, 'name': var,
-                      'date': self.date}
-            if 'cld' in var or 'cloud' in var:
-                kwargs['extent'] = cloud_extent
-                kwargs['path'] = cloud_path
-                kwargs['dsets'] = [var]
-
             if var in self._var_factory.MAPPING:
-                var_obj = self._var_factory.get(var, **kwargs)
+                var_obj = self._var_factory.get(var, var_meta=self._var_meta,
+                                                name=var, date=self.date,
+                                                extent=cloud_extent,
+                                                path=cloud_path, dsets=[var])
 
                 if hasattr(var_obj, 'pre_flight'):
                     missing = var_obj.pre_flight()
@@ -581,13 +577,12 @@ class DataModel:
                 raise KeyError('Did not recognize request to process cloud '
                                'variable "{}".'.format(var))
 
-        kwargs = {'var_meta': self._var_meta, 'name': cloud_vars[0],
-                  'date': self.date, 'extent': extent, 'path': path,
-                  'dsets': cloud_vars}
-
         # use the first cloud var name to get object,
         # full cloud_var list is passed in kwargs
-        var_obj = self._var_factory.get(cloud_vars[0], **kwargs)
+        var_obj = self._var_factory.get(cloud_vars[0], var_meta=self._var_meta,
+                                        name=cloud_vars[0], date=self.date,
+                                        extent=extent, path=path,
+                                        dsets=cloud_vars)
 
         logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
                      .format(len(var_obj)))
@@ -715,12 +710,12 @@ class DataModel:
                 self[dep] = self.unscale_data(dep, self[dep])
 
             # get the calculation method from the var factory
-            method = self._var_factory.get(var)
+            obj = self._var_factory.get(var)
 
             # calculate merra-derived vars
-            data = method(self['air_temperature'],
-                          self['specific_humidity'],
-                          self['surface_pressure'])
+            data = obj.derive(self['air_temperature'],
+                              self['specific_humidity'],
+                              self['surface_pressure'])
 
         else:
             raise KeyError('Did not recognize request to derive variable '
@@ -753,8 +748,8 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        kwargs = {'var_meta': self._var_meta, 'name': var, 'date': self.date}
-        var_obj = self._var_factory.get(var, **kwargs)
+        var_obj = self._var_factory.get(var, var_meta=self._var_meta,
+                                        name=var, date=self.date)
 
         if 'albedo' in var:
             # special exclusions for large-extent albedo

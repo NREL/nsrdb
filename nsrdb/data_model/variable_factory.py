@@ -6,7 +6,7 @@ import logging
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
-from nsrdb.data_model.merra import MerraVar
+from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
 
@@ -27,9 +27,9 @@ class VarFactory:
                'cld_opd_dcomp': CloudVar,
                'cld_reff_dcomp': CloudVar,
                'cld_press_acha': CloudVar,
-               'dew_point': MerraVar.dew_point,
+               'dew_point': DewPoint,
                'ozone': MerraVar,
-               'relative_humidity': MerraVar.relative_humidity,
+               'relative_humidity': RelativeHumidity,
                'specific_humidity': MerraVar,
                'ssa': MerraVar,
                'surface_pressure': MerraVar,
@@ -55,11 +55,18 @@ class VarFactory:
             Instantiated ancillary variable helper object (AsymVar, MerraVar).
         """
 
+        # ensure var is in the available handlers
         if var_name in self.MAPPING:
-            if var_name in ('dew_point', 'relative_humidity'):
-                return self.MAPPING[var_name]
-            else:
-                return self.MAPPING[var_name](*args, **kwargs)
+
+            # kwarg reduction for non-cloud vars
+            if 'cld' not in var_name and 'cloud' not in var_name:
+                del_list = ('extent', 'path', 'dsets')
+                for k, _ in kwargs.items():
+                    if k in del_list:
+                        del kwargs[k]
+
+            # single creational statement to init handler
+            return self.MAPPING[var_name](*args, **kwargs)
 
         else:
             raise KeyError('Did not recognize "{}" as an available NSRDB '
