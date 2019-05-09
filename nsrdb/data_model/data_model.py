@@ -853,27 +853,13 @@ class DataModel:
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
-        cloud_vars = []
-        remove = []
-        for var in cls.CLOUD_VARS:
-            if var in var_list:
-                cloud_vars.append(var)
-                remove.append(var_list.index(var))
-        cloud_vars = tuple(cloud_vars)
-        var_list = tuple([v for i, v in enumerate(var_list)
-                          if i not in remove])
+        cloud_vars = [cv for cv in var_list if cv in cls.CLOUD_VARS]
+        var_list = [v for v in var_list if v not in cls.CLOUD_VARS]
 
         # remove derived (dependent) variables from var_list to be processed
         # last (most efficient to process depdencies first, dependents last)
-        derived_vars = []
-        remove = []
-        for var in cls.DERIVED_VARS:
-            if var in var_list:
-                derived_vars.append(var)
-                remove.append(var_list.index(var))
-        derived_vars = tuple(derived_vars)
-        var_list = tuple([v for i, v in enumerate(var_list)
-                          if i not in remove])
+        derived_vars = [dv for dv in var_list if dv in cls.DERIVED_VARS]
+        var_list = [v for v in var_list if v not in cls.DERIVED_VARS]
 
         logger.info('First processing data for variable list: {}'
                     .format(var_list))
