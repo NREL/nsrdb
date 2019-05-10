@@ -322,7 +322,8 @@ class Temporal:
 class Spatial:
     """Framework to perform NSRDB spatial QA via map plots."""
 
-    def multi_year(self, year_range, out_dir, dsets,
+    @staticmethod
+    def multi_year(year_range, out_dir, dsets,
                    nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
                    fname_base='nsrdb_{year}.h5',
                    timesteps=range(0, 17520, 8600), **kwargs):
@@ -349,9 +350,10 @@ class Spatial:
 
         for year in year_range:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
-            self.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
+            Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
-    def dsets(self, h5, dsets, out_dir, timesteps=range(0, 17520, 8600),
+    @staticmethod
+    def dsets(h5, dsets, out_dir, timesteps=(0,),
               **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
@@ -392,13 +394,14 @@ class Spatial:
                              .format(h5))
 
                     df[dset] = f[dset][i, :] / scale_factor
-                    self.plot_geo_df(df, fname + '_' + dset + '_{}'.format(i),
-                                     out_dir, **kwargs)
+                    fname_out = fname + '_' + dset + '_{}'.format(i)
+                    Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    xlim=(-190, -20), ylim=(-30, 70), cmap='Blues',
-                    cbar_range=None, dpi=600, file_ext='.png'):
+                    marker_size=0.5, xlim=(-128, -65), ylim=(23, 50),
+                    cmap='OrRd', cbar_range=None, dpi=300, figsize=(10, 5),
+                    file_ext='.png'):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -412,19 +415,30 @@ class Spatial:
             Where to save the plot.
         labels : list | tuple
             latitude/longitude column labels.
+        marker_size : float
+            Marker size.
         xlim : list | tuple
-            Plot x limits (left limit, right limit). (-190, -20) is whole NSRDB
+            Plot x limits (left limit, right limit).
+            (-190, -20) is whole NSRDB
+            (-128, -65) is CONUS
         ylim : list | tuple
-            Plot y limits (lower limit, upper limit). (-30, 70) is whole NSRDB.
+            Plot y limits (lower limit, upper limit).
+            (-30, 70) is whole NSRDB.
+            (23, 50) is CONUS
+        cmap : str
+            Matplotlib colormap (Blues, OrRd)
+        cbar_range = None | tuple
+            Optional fixed range for the colormap.
+        dpi : int
+            Dots per inch.
+        figsize : tuple
+            Figure size inches (width, height).
+        file_ext : str
+            Image file extension (.png, .jpeg).
         """
 
         try:
-            # HPC matplot lib import
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-
-            fig = plt.figure()
+            fig = plt.figure(figsize=figsize)
             ax = fig.add_subplot(111)
             cmap = plt.get_cmap(cmap)
 
@@ -437,19 +451,19 @@ class Spatial:
             c = ax.scatter(df.loc[:, labels[1]],
                            df.loc[:, labels[0]],
                            marker='s',
-                           s=0.5,
+                           s=marker_size,
                            c=df.iloc[:, 2],
                            cmap=cmap,
                            vmin=cbar_range[0],
                            vmax=cbar_range[1])
-            ax.set_xlabel('Longitude')
-            ax.set_ylabel('Latitude')
+            ax.set_xlabel(labels[1])
+            ax.set_ylabel(labels[0])
             ax.set_ylim(ylim)
             ax.set_xlim(xlim)
             fig.colorbar(c, ax=ax, label=var)
             ax.set_title(title)
             out = os.path.join(out_dir, title + file_ext)
-            fig.savefig(out, dpi=dpi)
+            fig.savefig(out, dpi=dpi, bbox_inches='tight')
             logger.info('Saved figure: {}.png'.format(title))
             plt.close()
         except Exception as e:
