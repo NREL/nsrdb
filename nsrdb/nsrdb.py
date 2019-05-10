@@ -75,6 +75,7 @@ class NSRDB:
         """
 
         self._out_dir = out_dir
+        self.make_out_dir(self._out_dir)
         self._year = int(year)
         self._grid = grid
         self._freq = freq
@@ -84,6 +85,18 @@ class NSRDB:
 
         if self._var_meta is None:
             self._var_meta = self.DEFAULT_VAR_META
+
+    @staticmethod
+    def make_out_dir(out_dir):
+        """Ensure that out_dir exists.
+
+        Parameters
+        ----------
+        out_dir : str
+            Directory to put output files
+        """
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
 
     @property
     def time_index_year(self):
