@@ -209,23 +209,28 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
             'fill_flag'
     """
 
-    with Resource(f_ancillary) as fa:
-        with Resource(f_cloud) as fc:
-            out = all_sky(
-                alpha=fa['alpha', rows, cols],
-                aod=fa['aod', rows, cols],
-                asymmetry=fa['asymmetry', rows, cols],
-                cloud_type=fc['cloud_type', rows, cols],
-                cld_opd_dcomp=fc['cld_opd_dcomp', rows, cols],
-                cld_reff_dcomp=fc['cld_reff_dcomp', rows, cols],
-                ozone=fa['ozone', rows, cols],
-                solar_zenith_angle=fc['solar_zenith_angle', rows, cols],
-                ssa=fa['ssa', rows, cols],
-                surface_albedo=fa['surface_albedo', rows, cols],
-                surface_pressure=fa['surface_pressure', rows, cols],
-                time_index=fc.time_index[rows],
-                total_precipitable_water=fa['total_precipitable_water',
-                                            rows, cols])
+    try:
+        with Resource(f_ancillary) as fa:
+            with Resource(f_cloud) as fc:
+                out = all_sky(
+                    alpha=fa['alpha', rows, cols],
+                    aod=fa['aod', rows, cols],
+                    asymmetry=fa['asymmetry', rows, cols],
+                    cloud_type=fc['cloud_type', rows, cols],
+                    cld_opd_dcomp=fc['cld_opd_dcomp', rows, cols],
+                    cld_reff_dcomp=fc['cld_reff_dcomp', rows, cols],
+                    ozone=fa['ozone', rows, cols],
+                    solar_zenith_angle=fc['solar_zenith_angle', rows, cols],
+                    ssa=fa['ssa', rows, cols],
+                    surface_albedo=fa['surface_albedo', rows, cols],
+                    surface_pressure=fa['surface_pressure', rows, cols],
+                    time_index=fc.time_index[rows],
+                    total_precipitable_water=fa['total_precipitable_water',
+                                                rows, cols])
+    except Exception as e:
+        logger.exception('All-Sky failed!')
+        raise e
+
     return out
 
 
@@ -266,12 +271,14 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
     if rows.stop is None:
         with Resource(f_cloud) as res:
             rows = slice(rows.start, res.shape[0])
+    logger.info('Running all-sky for rows: {}'.format(rows))
 
     if cols.start is None:
         cols = slice(0, cols.stop)
     if cols.stop is None:
         with Resource(f_cloud) as res:
             cols = slice(cols.start, res.shape[1])
+    logger.info('Running all-sky for cols: {}'.format(cols))
 
     out_shape = (rows.stop - rows.start, cols.stop - cols.start)
     c_range = range(cols.start, cols.stop, col_chunk)

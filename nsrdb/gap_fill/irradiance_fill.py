@@ -7,6 +7,7 @@ Created on Wed Dec 12 2018
 
 import pandas as pd
 import numpy as np
+from warnings import warn
 from nsrdb.all_sky import CLOUD_TYPES
 
 
@@ -110,9 +111,17 @@ def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
     # replace to-fill values with nan
     csr[fill_mask] = np.nan
 
+    # assign sites csr=1 with all NaN or just one non-NaN but warn
+    all_na = (np.isnan(csr).sum(axis=0) >= (csr.shape[0] - 1))
+    if any(all_na):
+        warn('{} sites exist with full NaN csr timeseries.'
+             .format(np.sum(all_na)))
+        csr[:, all_na] = 1.0
+
     # fill nan ratio values with nearest good ratio values
-    csr = pd.DataFrame(csr).interpolate(method='nearest', axis=0).\
-        fillna(method='ffill').fillna(method='bfill').values
+    csr = pd.DataFrame(csr).interpolate(method='nearest', axis=0)\
+        .fillna(method='ffill', axis=0)\
+        .fillna(method='bfill', axis=0).values
 
     # Set the cloud/clear ratio when it's nighttime
     csr[(cs_irrad == 0)] = 0

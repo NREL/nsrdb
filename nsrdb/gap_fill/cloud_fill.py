@@ -27,10 +27,10 @@ class CloudGapFill:
     # hard fill for sites that have full year w no data.
     FILL = {'water': {'cld_opd_dcomp': 10.0,
                       'cld_reff_dcomp': 8.0,
-                      'cloud_press_acha': 800.0},
+                      'cld_press_acha': 800.0},
             'ice': {'cld_opd_dcomp': 5.0,
                     'cld_reff_dcomp': 20.0,
-                    'cloud_press_acha': 250.0}}
+                    'cld_press_acha': 250.0}}
 
     @staticmethod
     def fill_cloud_cat(category, cloud_prop, cloud_type):
@@ -64,10 +64,19 @@ class CloudGapFill:
         # set other locations to nan to not impede gap fill
         cloud_prop_fill[~type_mask] = np.nan
 
+        # patch sites with all NaN or just one non-NaN but warn
+        all_na = (np.isnan(cloud_prop_fill).sum(axis=0) >=
+                  (cloud_prop_fill.shape[0] - 1))
+        if any(all_na):
+            cloud_prop_fill.loc[:, all_na] = -999
+
         # gap fill all missing values
         cloud_prop_fill = cloud_prop_fill.interpolate(
             method='nearest', axis=0)\
             .fillna(method='ffill').fillna(method='bfill')
+
+        # Make sure sites with only NaN props stay as nan
+        cloud_prop_fill.loc[:, all_na] = np.nan
 
         # fill values for the specified cloud type
         cloud_prop[type_mask] = cloud_prop_fill[type_mask].values
@@ -125,9 +134,7 @@ class CloudGapFill:
 
         if np.sum(np.isnan(cloud_prop.values)) > 0:
             loc = np.where(np.sum(np.isnan(cloud_prop.values), axis=0) > 0)[0]
-            loc = list(loc)
-            warn('NaN values persist at the following sites: {}'
-                 .format(loc))
+            warn('NaN values persist at {} sites.'.format(len(loc)))
 
             # do a hard fix of remaining nan values
             for cat, types in CloudGapFill.CATS.items():
@@ -170,8 +177,8 @@ class CloudGapFill:
                 # pylint: disable-msg=C0121
                 loc = np.where(
                     pd.isnull(cloud_type).any(axis=0) == True)[0]  # noqa: E712
-                warn('The following sites have missing cloud types for the '
-                     'entire year: {}'.format(list(loc)))
+                warn('{} sites have missing cloud types for the '
+                     'entire year.'.format(len(loc)))
                 cloud_type[pd.isnull(cloud_type)] = 0
 
             cloud_type = cloud_type.astype(np.int8)
@@ -202,6 +209,8 @@ class CloudGapFill:
             DataFrame of cloud property values with no remaining NaN's.
         """
 
+        logger.debug('Gap filling "{}".'.format(prop_name))
+
         # make dataframes
         df_convert = False
         if isinstance(cloud_prop, np.ndarray):
@@ -211,10 +220,6 @@ class CloudGapFill:
             cloud_type = pd.DataFrame(cloud_type)
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
-
-        logger.debug(prop_name)
-        logger.debug(cloud_prop.head())
-        logger.debug(cloud_prop.tail())
 
         # fill cloud types.
         cloud_type = cls.fill_cloud_type(cloud_type)
@@ -258,6 +263,7 @@ class CloudGapFill:
             Optional chunking method to gap fill a few chunks at a time
             to reduce memory requirements.
         """
+        logger.info('Patching cloud properties in file: "{}"'.format(f_cloud))
 
         with Resource(f_cloud) as f:
             dsets = f.dsets
