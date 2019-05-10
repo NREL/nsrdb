@@ -399,8 +399,8 @@ class Spatial:
 
     @staticmethod
     def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
-                    marker_size=0.5, xlim=(-128, -65), ylim=(23, 50),
-                    cmap='OrRd', cbar_range=None, dpi=300, figsize=(10, 5),
+                    marker_size=0.1, xlim=(-127, -65), ylim=(24, 50),
+                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5),
                     file_ext='.png'):
         """Plot a dataframe to verify the blending operation.
 
@@ -417,14 +417,15 @@ class Spatial:
             latitude/longitude column labels.
         marker_size : float
             Marker size.
+            0.1 is good for CONUS at 4km.
         xlim : list | tuple
             Plot x limits (left limit, right limit).
             (-190, -20) is whole NSRDB
-            (-128, -65) is CONUS
+            (-127, -65) is CONUS
         ylim : list | tuple
             Plot y limits (lower limit, upper limit).
             (-30, 70) is whole NSRDB.
-            (23, 50) is CONUS
+            (24, 50) is CONUS
         cmap : str
             Matplotlib colormap (Blues, OrRd)
         cbar_range = None | tuple
@@ -433,6 +434,7 @@ class Spatial:
             Dots per inch.
         figsize : tuple
             Figure size inches (width, height).
+            (10, 5) is good for CONUS
         file_ext : str
             Image file extension (.png, .jpeg).
         """
@@ -467,5 +469,6 @@ class Spatial:
             logger.info('Saved figure: {}.png'.format(title))
             plt.close()
         except Exception as e:
+            # never break a full data pipeline on failed plots
             logger.warning('Could not plot "{}". Received the following '
                            'exception: {}'.format(title, e))
