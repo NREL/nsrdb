@@ -290,7 +290,7 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
                 rows=rows, cols=c_slice)
 
         # watch memory during futures to get max memory usage
-        logger.debug('Waiting on parallel futures...')
+        logger.debug('Waiting on {} parallel futures...'.format(len(futures)))
         max_mem = 0
         running = len(futures)
         while running > 0:

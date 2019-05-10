@@ -153,7 +153,8 @@ class DataModel:
             raise TypeError('Did not recognize dtype sent to DataModel '
                             'processed dictionary: {}'.format(type(value)))
 
-    def _parse_nsrdb_grid(self, inp):
+    def _parse_nsrdb_grid(self, inp, req=('latitude', 'longitude',
+                                          'elevation')):
         """Set the NSRDB reference grid from a csv file.
 
         Parameters
@@ -161,6 +162,8 @@ class DataModel:
         inp : str
             CSV file containing the NSRDB reference grid to interpolate to.
             The first column must be the NSRDB site gid's.
+        req : tuple | list
+            Required column labels in nsrdb grid file.
         """
 
         if isinstance(inp, pd.DataFrame):
@@ -171,6 +174,12 @@ class DataModel:
         else:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(inp))
+
+        # check requirements
+        for r in req:
+            if r not in self._nsrdb_grid:
+                raise KeyError('Could not find "{}" in nsrdb grid labels: "{}"'
+                               .format(r, self._nsrdb_grid.columns.values))
 
         # copy index to gid data column that will be saved in output files
         # used in the case that the grid is chunked into subsets of sites
