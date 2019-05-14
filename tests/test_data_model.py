@@ -35,7 +35,7 @@ def test_asym(var='asymmetry'):
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = DATADIR
 
-    data = DataModel.run_single(var, var_meta, date, grid)
+    data = DataModel.run_single(var, date, grid, var_meta=var_meta)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -47,7 +47,7 @@ def test_asym(var='asymmetry'):
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
             var_obj = VarFactory.get_base_handler(
-                var_meta, var, date)
+                var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
@@ -79,7 +79,7 @@ def test_ancillary_single(var):
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.run_single(var, var_meta, date, grid)
+    data = DataModel.run_single(var, date, grid, var_meta=var_meta)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -91,7 +91,7 @@ def test_ancillary_single(var):
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
             var_obj = VarFactory.get_base_handler(
-                var_meta, var, date)
+                var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
@@ -112,8 +112,8 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.run_multiple(var_list, var_meta, date,
-                                  grid, parallel=True)
+    data = DataModel.run_multiple(var_list, date, grid, var_meta=var_meta,
+                                  parallel=True)
 
     for key, value in data.items():
         if key != 'time_index':
@@ -127,7 +127,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                 with h5py.File(baseline_path, 'r') as f:
                     data_baseline = f[key][...]
                     var_obj = VarFactory.get_base_handler(
-                        var_meta, key, date)
+                        key, var_meta=var_meta, date=date)
                     data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
                                    atol=ATOL, rtol=RTOL)

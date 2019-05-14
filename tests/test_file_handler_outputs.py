@@ -37,8 +37,9 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data_model = DataModel.run_multiple(var_list, var_meta, date,
-                                        grid, parallel=False,
+    data_model = DataModel.run_multiple(var_list, date,
+                                        grid, var_meta=var_meta,
+                                        parallel=False,
                                         return_obj=True)
 
     with Outputs(out_file, mode='w') as fout:
@@ -47,7 +48,8 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
 
         for k, v in data_model.processed_data.items():
             if k not in ['time_index', 'meta']:
-                var = VarFactory.get_base_handler(var_meta, k, date)
+                var = VarFactory.get_base_handler(k, var_meta=var_meta,
+                                                  date=date)
                 attrs = var.attrs
 
                 fout._add_dset(dset_name=k, data=v, dtype=var.final_dtype,

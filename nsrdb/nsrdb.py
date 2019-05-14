@@ -12,11 +12,12 @@ import pandas as pd
 import os
 import logging
 
-from nsrdb import CONFIGDIR
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import collect_daily_files
+from nsrdb.utilities.execution import SLURM
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,6 @@ logger = logging.getLogger(__name__)
 
 class NSRDB:
     """Entry point for NSRDB data pipeline execution."""
-
-    DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
 
     OUTS = {'nsrdb_ancillary_{y}.h5': ('alpha',
                                        'aod',
@@ -82,9 +81,6 @@ class NSRDB:
         self._cloud_extent = cloud_extent
         self._var_meta = var_meta
         self._ti = None
-
-        if self._var_meta is None:
-            self._var_meta = self.DEFAULT_VAR_META
 
     @staticmethod
     def make_out_dir(out_dir):
@@ -159,8 +155,8 @@ class NSRDB:
 
         # run data model
         data_model = DataModel.run_multiple(
-            var_list, self._var_meta, date, self._grid,
-            nsrdb_freq=self._freq, parallel=parallel,
+            var_list, date, self._grid, nsrdb_freq=self._freq,
+            var_meta=self._var_meta, parallel=parallel,
             cloud_extent=self._cloud_extent, return_obj=True)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
@@ -197,8 +193,8 @@ class NSRDB:
                     fout.time_index = data_model.nsrdb_ti
                     fout.meta = data_model.nsrdb_grid
 
-                    var_obj = VarFactory.get_base_handler(self._var_meta, var,
-                                                          data_model.date)
+                    var_obj = VarFactory.get_base_handler(
+                        var, var_meta=self._var_meta, date=data_model.date)
                     attrs = var_obj.attrs
 
                     fout._add_dset(dset_name=var, data=arr,
@@ -207,6 +203,41 @@ class NSRDB:
 
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
+
+    def _init_loggers(self, loggers=None, log_file='nsrdb.log',
+                      log_level='DEBUG', date=None):
+        """Initialize nsrdb loggers.
+
+        Parameters
+        ----------
+        loggers : None | list | tuple
+            List of logger names to initialize. None defaults to all NSRDB
+            loggers.
+        log_file : str
+            Log file name. Will be placed in the nsrdb out dir.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        date : None | datetime
+            Optional date to put in the log file name.
+        """
+
+        if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+
+            if loggers is None:
+                loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
+                           'nsrdb.file_handlers', 'nsrdb.all_sky')
+
+            log_file = os.path.join(self._out_dir, log_file)
+
+            if isinstance(date, datetime.date):
+                date_str = ('{}{}{}'.format(date.year,
+                                            str(date.month).zfill(2),
+                                            str(date.day).zfill(2)))
+                log_file = log_file.replace('.log', '_{}.log'.format(date_str))
+
+            for name in loggers:
+                init_logger(name, log_level=log_level, log_file=log_file)
 
     def _init_final_out(self, f_out, dsets):
         """Initialize the final output file.
@@ -252,7 +283,7 @@ class NSRDB:
         dtypes = {}
 
         for dset in dsets:
-            var_obj = VarFactory.get_base_handler(NSRDB.DEFAULT_VAR_META, dset)
+            var_obj = VarFactory.get_base_handler(dset)
             attrs[dset] = var_obj.attrs
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype
@@ -261,7 +292,7 @@ class NSRDB:
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, freq='5min',
-                       cloud_extent='east', parallel=True):
+                       cloud_extent='east', parallel=True, log_level='DEBUG'):
         """Run daily data model, and save output files.
 
         Parameters
@@ -282,6 +313,9 @@ class NSRDB:
             used to form file paths to cloud data files.
         parallel : bool
             Flag to perform data model processing in parallel.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
         """
 
         if isinstance(date, (int, float)):
@@ -296,6 +330,7 @@ class NSRDB:
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
+        nsrdb._init_loggers(date=date, log_level=log_level)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
                                                  parallel=parallel)
@@ -303,7 +338,8 @@ class NSRDB:
         nsrdb._exe_fout(data_model)
 
     @classmethod
-    def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min'):
+    def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min',
+                           log_level='DEBUG'):
         """Init output file and collect daily data model output files.
 
         Parameters
@@ -319,9 +355,14 @@ class NSRDB:
             site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb._init_loggers(log_file='nsrdb_collect_dm.log',
+                            log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
@@ -331,7 +372,8 @@ class NSRDB:
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min',
-                    rows=slice(None), cols=slice(None), parallel=True):
+                    rows=slice(None), cols=slice(None), parallel=True,
+                    log_level='DEBUG'):
         """Run the all-sky physics model from .h5 files.
 
         Parameters
@@ -350,9 +392,13 @@ class NSRDB:
             Subset of rows to run.
         cols : slice
             Subset of columns to run.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb._init_loggers(log_file='nsrdb_all_sky.log', log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
@@ -374,3 +420,50 @@ class NSRDB:
         with Outputs(f_out, mode='a') as f:
             for dset, arr in out.items():
                 f[dset, rows, cols] = arr
+
+    @staticmethod
+    def eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=2,
+              node_name='nsrdb', stdout_path=None):
+        """Run an NSRDB class or static method on an Eagle node.
+
+        Format: NSRDB.fun_str(arg_str)
+
+        Parameters
+        ----------
+        fun_str : str
+            Name of the class or static method belonging to the NSRDB class
+            to execute in the SLURM job.
+        arg_str : str
+            Arguments passed to the target method.
+        alloc : str
+            SLURM project allocation.
+        memory : int
+            Node memory request in GB.
+        walltime : int
+            Node walltime request in hours.
+        node_name : str
+            Name for the SLURM job.
+        stdout_path : str
+            Path to dump the stdout/stderr files.
+        """
+
+        if stdout_path is None:
+            stdout_path = os.getcwd()
+
+        cmd = "python -c 'from nsrdb.nsrdb import NSRDB;NSRDB.{f}({a})'"
+
+        cmd = cmd.format(f=fun_str, a=arg_str)
+
+        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
+                      name=node_name, stdout_path=stdout_path)
+
+        print('\ncmd:\n{}\n'.format(cmd))
+
+        if slurm.id:
+            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                   'Eagle.'.format(node_name, slurm.id))
+        else:
+            msg = ('Was unable to kick off job "{}". '
+                   'Please see the stdout error messages'
+                   .format(node_name))
+        print(msg)

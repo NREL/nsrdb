@@ -353,7 +353,7 @@ class Spatial:
             Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
     @staticmethod
-    def dsets(h5, dsets, out_dir, timesteps=(0,),
+    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png',
               **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
@@ -382,26 +382,28 @@ class Spatial:
                                                           'longitude']]
                 attrs = dict(f[dset].attrs)
 
-                for i in timesteps:
-                    logger.info('Plotting timestep {}'.format(i))
-                    if 'scale_factor' in attrs:
-                        scale_factor = attrs['scale_factor']
-                    elif 'psm_scale_factor' in attrs:
-                        scale_factor = attrs['psm_scale_factor']
-                    else:
-                        scale_factor = 1
-                        warn('Could not find scale factor attr in h5: {}'
-                             .format(h5))
+                if 'scale_factor' in attrs:
+                    scale_factor = attrs['scale_factor']
+                elif 'psm_scale_factor' in attrs:
+                    scale_factor = attrs['psm_scale_factor']
+                else:
+                    scale_factor = 1
+                    warn('Could not find scale factor attr in h5: {}'
+                         .format(h5))
 
-                    df[dset] = f[dset][i, :] / scale_factor
-                    fname_out = fname + '_' + dset + '_{}'.format(i)
+                data = f[dset][timesteps, :].astype(np.float32) / scale_factor
+
+                for i, ts in enumerate(timesteps):
+                    df[dset] = data[i, :]
+                    fname_out = (fname + '_' + dset +
+                                 '_{}{}'.format(ts, file_ext))
                     Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
 
     @staticmethod
-    def plot_geo_df(df, title, out_dir, labels=('latitude', 'longitude'),
+    def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
+                    xlabel=None, ylabel=None, title=None, cbar_label=None,
                     marker_size=0.1, xlim=(-127, -65), ylim=(24, 50),
-                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5),
-                    file_ext='.png'):
+                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5)):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -458,13 +460,24 @@ class Spatial:
                            cmap=cmap,
                            vmin=cbar_range[0],
                            vmax=cbar_range[1])
-            ax.set_xlabel(labels[1])
-            ax.set_ylabel(labels[0])
+
+            if xlabel is None:
+                xlabel = labels[1]
+            if ylabel is None:
+                ylabel = labels[0]
+            if title is None:
+                title = fname
+            if cbar_label is None:
+                cbar_label = var
+
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_title(title)
+            fig.colorbar(c, ax=ax, label=cbar_label)
+
             ax.set_ylim(ylim)
             ax.set_xlim(xlim)
-            fig.colorbar(c, ax=ax, label=var)
-            ax.set_title(title)
-            out = os.path.join(out_dir, title + file_ext)
+            out = os.path.join(out_dir, fname)
             fig.savefig(out, dpi=dpi, bbox_inches='tight')
             logger.info('Saved figure: {}.png'.format(title))
             plt.close()

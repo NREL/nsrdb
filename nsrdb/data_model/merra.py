@@ -20,19 +20,20 @@ class MerraVar(AncillaryVarHandler):
     # default MERRA paths.
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
-    def __init__(self, var_meta, name, date):
+    def __init__(self, name, var_meta, date):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         """
 
-        super().__init__(var_meta, name, date)
+        super().__init__(name, var_meta=var_meta, date=date)
 
     @property
     def date_stamp(self):
@@ -209,9 +210,13 @@ class MerraVar(AncillaryVarHandler):
 
         return self._merra_grid
 
+
+class RelativeHumidity:
+    """Class to derive the relative humidity from other MERRA2 vars."""
+
     @staticmethod
-    def relative_humidity(t, h, p):
-        """Calculate relative humidity.
+    def derive(t, h, p):
+        """Derive the relative humidity from ancillary vars.
 
         Parameters
         ----------
@@ -260,9 +265,13 @@ class MerraVar(AncillaryVarHandler):
 
         return rh
 
+
+class DewPoint:
+    """Class to derive the dew point from other MERRA2 vars."""
+
     @staticmethod
-    def dew_point(t, h, p):
-        """Calculate the dew point.
+    def derive(t, h, p):
+        """Derive the dew point from ancillary vars.
 
         Parameters
         ----------
@@ -285,7 +294,7 @@ class MerraVar(AncillaryVarHandler):
             convert_t = True
             t -= 273.15
 
-        rh = MerraVar.relative_humidity(t, h, p)
+        rh = RelativeHumidity.derive(t, h, p)
         dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
               (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
 

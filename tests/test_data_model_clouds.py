@@ -87,8 +87,8 @@ def test_regrid():
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
 
-    data = DataModel.run_clouds(cloud_vars, var_meta, date, nsrdb_grid,
-                                nsrdb_freq='1d', path=path)
+    data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
+                                nsrdb_freq='1d', path=path, var_meta=var_meta)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 
@@ -105,7 +105,7 @@ def test_regrid():
             with h5py.File(baseline_path, 'r') as f:
                 data_baseline = f[key][...]
                 var_obj = VarFactory.get_base_handler(
-                    var_meta, key, date)
+                    key, var_meta=var_meta, date=date)
                 data_baseline = var_obj.scale_data(data_baseline)
             assert np.allclose(data_baseline, value,
                                atol=ATOL, rtol=RTOL)

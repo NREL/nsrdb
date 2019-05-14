@@ -21,20 +21,21 @@ logger = logging.getLogger(__name__)
 class AlbedoVar(AncillaryVarHandler):
     """Framework for Albedo data extraction."""
 
-    def __init__(self, var_meta, name, date):
+    def __init__(self, name, var_meta, date):
         """
         Parameters
         ----------
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
         name : str
             NSRDB var name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
         """
         self._lon_good = None
         self._lat_good = None
-        super().__init__(var_meta, name, date)
+        super().__init__(name, var_meta=var_meta, date=date)
 
         # Albedo benefits from caching the nn results
         self._cache_file = 'albedo_nn_cache.csv'
