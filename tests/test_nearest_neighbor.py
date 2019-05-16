@@ -12,7 +12,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from nsrdb.utilities.interpolation import knn, geo_nn, reg_grid_nn
+from nsrdb.utilities.nearest_neighbor import knn, geo_nn, reg_grid_nn
 
 
 latitude = np.array(range(0, 90))

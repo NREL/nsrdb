@@ -43,9 +43,9 @@ from scipy.spatial import cKDTree
 
 from nsrdb import DATADIR
 from nsrdb.utilities.solar_position import SolarPosition
-from nsrdb.utilities.interpolation import (spatial_interp, geo_nn,
-                                           temporal_lin, temporal_step,
-                                           parse_method)
+from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
+                                           temporal_step, parse_method)
+from nsrdb.utilities.nearest_neighbor import geo_nn
 from nsrdb.data_model.variable_factory import VarFactory
 
 
