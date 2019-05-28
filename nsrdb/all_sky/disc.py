@@ -13,10 +13,10 @@ There were four main changes from the original code
 """
 
 import numpy as np
-from nsrdb.all_sky import SOLAR_CONSTANT
+from nsrdb.all_sky import SOLAR_CONSTANT, SZA_LIM
 
 
-def disc(ghi, sza, doy, pressure=101325, sza_lim=87):
+def disc(ghi, sza, doy, pressure=101325, sza_lim=SZA_LIM):
     """Estimate DNI from GHI using the DISC model.
 
     *Warning: should only be used for cloudy FARMS data.
@@ -37,8 +37,7 @@ def disc(ghi, sza, doy, pressure=101325, sza_lim=87):
         Pressure in Pascals.
     sza_lim : float | int
         Upper limit for solar zenith angle in degrees. SZA values greater than
-        this will be truncated at this value. 87 deg chosen to simulate the
-        FORTRAN code in use by SRRL (from Perez).
+        this will be truncated at this value.
 
     Returns
     -------
