@@ -391,12 +391,22 @@ class Spatial:
                     warn('Could not find scale factor attr in h5: {}'
                          .format(h5))
 
-                data = f[dset][timesteps, :].astype(np.float32) / scale_factor
+                # 2D array with timesteps
+                if len(f[dset].shape) > 1:
+                    data = (f[dset][timesteps, :].astype(np.float32) /
+                            scale_factor)
+                    for i, ts in enumerate(timesteps):
+                        df[dset] = data[i, :]
+                        fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
+                                                        file_ext)
+                        Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
 
-                for i, ts in enumerate(timesteps):
-                    df[dset] = data[i, :]
-                    fname_out = (fname + '_' + dset +
-                                 '_{}{}'.format(ts, file_ext))
+                # 1D array, no timesteps
+                else:
+                    data = (f[dset][...].astype(np.float32) /
+                            scale_factor)
+                    df[dset] = data
+                    fname_out = '{}_{}{}'.format(fname, dset, file_ext)
                     Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
 
     @staticmethod
