@@ -3,17 +3,15 @@ NREL's solar position algorithm (SPA)
 """
 import numpy as np
 import pandas as pd
+from nsrdb.solar_position.spa_tables import SPAtables
+
+SPA_TABLES = SPAtables()
 
 
 class SPA:
     """
     Solar position algorithm
     """
-    HELIO_LONG_TABLE = None
-    HELIO_LAT_TABLE = None
-    HELIO_RADIUS_TABLE = None
-    NUTATION_YTERM_ARRAY = None
-    NUTATION_ABCD_ARRAY = None
 
     def __init__(self, time_index, lat_lon):
         """
@@ -134,14 +132,12 @@ class SPA:
         return out
 
     @staticmethod
-    def heliocentric_longitude(helio_lon, jme):
+    def heliocentric_longitude(jme):
         """
         Compute heliocentric Longitude
 
         Parameters
         ----------
-        helio_lon : ndarray
-            heliocentric longitude table
         jme : ndarray
             Julian ephemeris millennium
 
@@ -150,19 +146,17 @@ class SPA:
         lon : ndarray
             Heliocentric longitude in degrees
         """
-        lon = SPA._helicocentric_vector(helio_lon, jme)
+        lon = SPA._helicocentric_vector(SPA_TABLES.helio_long_table, jme)
         lon = np.rad2deg(lon) % 360
         return lon
 
     @staticmethod
-    def heliocentric_latitude(helio_lat, jme):
+    def heliocentric_latitude(jme):
         """
         Compute heliocentric latitude
 
         Parameters
         ----------
-        helio_lat : ndarray
-            heliocentric latitude table
         jme : ndarray
             Julian ephemeris millennium
 
@@ -171,9 +165,27 @@ class SPA:
         b : ndarray
             Heliocentric longitude in degrees
         """
-        b = SPA._helicocentric_vector(helio_lat, jme)
+        b = SPA._helicocentric_vector(SPA_TABLES.helio_lat_table, jme)
         b = np.rad2deg(b)
         return b
+
+    @staticmethod
+    def heliocentric_radius_vector(jme):
+        """
+        Compute heliocentric radius
+
+        Parameters
+        ----------
+        jme : ndarray
+            Julian ephemeris millennium
+
+        Returns
+        -------
+        r : ndarray
+            Heliocentric radius in radians
+        """
+        r = SPA._helicocentric_vector(SPA_TABLES.helio_radius_table, jme)
+        return r
 
     @staticmethod
     def geocentric_longitude(heliocentric_longitude):
@@ -332,6 +344,42 @@ class SPA:
         x3 = SPA.moon_argument_latitude(jce)
         x4 = SPA.moon_ascending_longitude(jce)
         return np.array([x0, x1, x2, x3, x4])
+
+    @staticmethod
+    def nutation_position(jce):
+        """
+        Compute nutation longitude for all timesteps
+
+        Parameters
+        ----------
+        jce : ndarray
+            Julian ephemeris century for all timesteps
+
+        Returns
+        -------
+        delta_psi : ndarray
+            nutation longitude
+        """
+        nut_arr = SPA.nutation_coefficients(jce)
+        nut_arr = np.radians(np.dot(SPA_TABLES.nutation_yterm_table, nut_arr))
+
+        abcd = SPA_TABLES.nutation_abcd_table
+        a = abcd[:, 0]
+        b = abcd[:, 1]
+        c = abcd[:, 2]
+        d = abcd[:, 3]
+
+        argsin = np.sin(nut_arr)
+        delta_psi = np.sum((a + b * np.expand_dims(jce, axis=0).T).T * argsin,
+                           axis=0)
+        delta_psi = delta_psi / 36000000
+
+        argcos = np.cos(nut_arr)
+        delta_eps = np.sum((c + d * np.expand_dims(jce, axis=0).T).T * argcos,
+                           axis=0)
+        delta_eps = delta_eps / 36000000
+
+        return delta_psi, delta_eps
 
     @staticmethod
     def mean_ecliptic_obliquity(jme):
@@ -541,7 +589,7 @@ class SPA:
         obs_lat : ndarray
             Observers latitudes
         obs_elev : ndarray
-            Observers elevations
+            Observers elevations (above sealevel in m)
 
         Returns
         -------
@@ -689,7 +737,7 @@ class SPA:
         return e0, phi
 
     @staticmethod
-    def atmospheric_refraction_correction(pres, temp, e0,
+    def atmospheric_refraction_correction(e0, pres=101325, temp=12,
                                           atmos_refract=0.5667):
         """
         Compute the atmospheric refraction correction value for all
@@ -697,12 +745,12 @@ class SPA:
 
         Parameters
         ----------
-        pres : ndarray
-            Pressure at all sites
-        temp : ndarray
-            Temperature at all sites
         e0 : ndarray
             Topocentric elevation angle
+        pres : ndarray
+            Pressure at all sites in Pascals
+        temp : ndarray
+            Temperature at all sites in C
         atmos_refract : float
             Atmospheric refraction constant
 
@@ -719,7 +767,8 @@ class SPA:
         return delta_e
 
     @staticmethod
-    def apparent_elevation_angle(e0, delta_e):
+    def apparent_elevation_angle(e0, pres=101325, temp=12,
+                                 atmos_refract=0.5667):
         """
         The apparent topocentric elevation angle after refraction
 
@@ -727,14 +776,22 @@ class SPA:
         ----------
         e0 : ndarray
             Topocentric elevation angle
-        delta_e : ndarray
-            Atmospheric refraction correction
+        pres : ndarray
+            Pressure at all sites in Pascals
+        temp : ndarray
+            Temperature at all sites in C
+        atmos_refract : float
+            Atmospheric refraction constant
 
         Returns
         -------
         e : ndarray
             Apparent topocentric elevation angle after refraction
         """
+        a = atmos_refract
+        delta_e = SPA.atmospheric_refraction_correction(e0, pres=pres,
+                                                        temp=temp,
+                                                        atmos_refract=a)
         e = e0 + delta_e
         return e
 
@@ -808,107 +865,115 @@ class SPA:
         E = greater * (E - 1440) + less * (E + 1440) + other * E
         return E
 
-    def heliocentric_radius_vector(self, jme):
+    def temporal_params(self, delta_t=67):
         """
-        Compute heliocentric radius
+        Compute the solely time dependant parameters for SPA:
+        - Apparent sidereal time (v)
+        - Geocentric sun right ascension angle (alpha)
+        - Geocentric sun delcination angle (delta)
+        - Equatorial horizontal parallax (xi)
+        - Equation of time (eot)
 
         Parameters
         ----------
-        jme : ndarray
-            Julian ephemeris millennium
+        delta_t : float
+            Difference between terrestrial time and UT1
 
         Returns
         -------
-        r : ndarray
-            Heliocentric radius in radians
+        v : ndarray
+            Apparent sidereal time degrees
+        alpha : ndarray
+            Geocentric sun right ascension in degrees
+        delta : ndarray
+            Geocentric sun delication in degrees
+        xi : ndarray
+            Equatorial horizontal parallax in degrees
+        eot : ndarray
+            Equation of time values for all timesteps
         """
-        r = self._helicocentric_vector(self.HELIO_RADIUS_TABLE, jme)
-        return r
+        jd, _, jc, jce, jme = self._parse_time(self.time_index,
+                                               delta_t=delta_t)
+        R = self.heliocentric_radius_vector(jme)
+        L = self.heliocentric_longitude(jme)
+        B = self.heliocentric_longitude(jme)
+        Theta = self.geocentric_longitude(L)
+        beta = self.geocentric_latitude(B)
+        delta_psi, delta_epsilon = self.nutation_position(jce)
+        epsilon0 = self.mean_ecliptic_obliquity(jme)
+        epsilon = self.true_ecliptic_obliquity(epsilon0, delta_epsilon)
+        delta_tau = self.aberration_correction(R)
+        lamd = self.apparent_sun_longitude(Theta, delta_psi, delta_tau)
+        v0 = self.mean_sidereal_time(jd, jc)
+        v = self.apparent_sidereal_time(v0, delta_psi, epsilon)
+        alpha, delta = self.geocentric_sun_position(lamd, epsilon, beta)
+        xi = self.equatorial_horizontal_parallax(R)
+        eot = self.equation_of_time(jme, alpha, delta_psi, epsilon)
 
-    def centric_longitude(self, jme):
+        return v, alpha, delta, xi, eot
+
+    def solar_position(self, altitude=0, delta_t=67):
         """
-        Compute the heliocentric and geocentric longitude
+        Compute the solar position for all locations and times:
+        - elevation (e0)
+        - azimuth (phi)
+        - zenith (theta0)
 
         Parameters
         ----------
-        jme : ndarray
+        altitude : float | ndarray
+            Elevation above sea level
+        delta_t : float
+            Difference between terrestrial time and UT1.
 
         Returns
         -------
-        helio_lon : ndarray
-            Heliocentric longitude for all timesteps
-        geo_lon : ndarray
-            Geocentric longitude for all timesteps
+        e0 : ndarray
+            Solar elevation in degrees
+        phi : ndarray
+            Solar azimuth in degrees
+        theta0 : ndarray
+            Solar zenith in degrees
         """
-        helio_lon = self.heliocentric_longitude(self.HELIO_LONG_TABLE, jme)
-        geo_lon = self.geocentric_longitude(helio_lon)
-        return helio_lon, geo_lon
+        # compute temporal params
+        v, alpha, delta, xi, _ = self.temporal_params(delta_t=delta_t)
+        H = self.local_hour_angle(v, self.longitude, alpha)
+        e0, phi = self.topocentric_solar_position(self.longitude, altitude,
+                                                  xi, H, delta)
+        theta0 = self.topocentric_zenith_angle(e0)
+        return e0, phi, theta0
 
-    def centric_latitude(self, jme):
+    def apparent_solar_position(self, altitude=0, pressure=101325,
+                                temperature=12, atmospheric_refraction=0.5667,
+                                delta_t=67):
         """
-        Compute the heliocentric and geocentric latitude
+        Compute the apparent (atmospheric refraction corrected) solar position
+        for all locations and times:
+        - elevation (e)
+        - zenith (theta)
 
         Parameters
         ----------
-        jme : ndarray
+        altitude : float | ndarray
+            Elevation above sea level
+        pressure : ndarray
+            Pressure at all sites in Pascals
+        temperature : ndarray
+            Temperature at all sites in C
+        atmospheric_refract : float
+            Atmospheric refraction constant
+        delta_t : float
+            Difference between terrestrial time and UT1.
 
         Returns
         -------
-        helio_lat : ndarray
-            Heliocentric latitude for all timesteps
-        geo_lat : ndarray
-            Geocentric latitude for all timesteps
+        e : ndarray
+            Solar elevation after atmospheric refraction correction in degrees
+        theta : ndarray
+            Solar zenith after atmospheric refraction correction in degrees
         """
-        helio_lat = self.heliocentric_longitude(self.HELIO_LAT_TABLE, jme)
-        geo_lat = self.geocentric_longitude(helio_lat)
-        return helio_lat, geo_lat
-
-    def longitude_nutation(self, jce):
-        """
-        Compute nutation longitude for all timesteps
-
-        Parameters
-        ----------
-        jce : ndarray
-            Julian ephemeris century for all timesteps
-
-        Returns
-        -------
-        delta_psi : ndarray
-            nutation longitude
-        """
-        nut_arr = self.nutation_coefficients(jce)
-        argsin = np.sin(np.radians(np.dot(self.NUTATION_YTERM_ARRAY, nut_arr)))
-
-        a = self.NUTATION_ABCD_ARRAY[:, 0]
-        b = self.NUTATION_ABCD_ARRAY[:, 1]
-
-        delta_psi = np.sum((a + b * np.expand_dims(jce, axis=0).T).T * argsin,
-                           axis=0)
-        delta_psi = delta_psi / 36000000
-        return delta_psi
-
-    def obliquity_nutation(self, jce):
-        """
-        Compute nutation longitude for all timesteps
-
-        Parameters
-        ----------
-        jce : ndarray
-            Julian ephemeris century for all timesteps
-
-        Returns
-        -------
-        delta_eps : ndarray
-            nutation obliquity
-        """
-        nut_arr = self.nutation_coefficients(jce)
-        argcos = np.cos(np.radians(np.dot(self.NUTATION_YTERM_ARRAY, nut_arr)))
-
-        c = self.NUTATION_ABCD_ARRAY[:, 2]
-        d = self. NUTATION_ABCD_ARRAY[:, 3]
-
-        delta_eps = np.sum((c + d * np.expand_dims(jce, axis=0).T).T * argcos,
-                           axis=0)
-        delta_eps = delta_eps / 36000000
-        return delta_eps
+        e0 = self.solar_position(altitude=altitude, delta_t=delta_t)[0]
+        e = self.apparent_elevation_angle(e0, pres=pressure, temp=temperature,
+                                          atmos_refract=atmospheric_refraction)
+        theta = self.topocentric_zenith_angle(e)
+        return e, theta
