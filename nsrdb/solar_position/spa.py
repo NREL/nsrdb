@@ -1,5 +1,5 @@
 """
-Module to compute solar zenith angle outside of SAM
+NREL's solar position algorithm (SPA)
 """
 import numpy as np
 import pandas as pd
