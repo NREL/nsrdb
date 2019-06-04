@@ -130,10 +130,10 @@ class SPA:
             Julian ephemeris millennium
         """
         jd = time_index.to_julian_date().values
-        jde = jd + delta_t * 1 / 86400
-        jc = (jd - 2451545) * 1 / 36525
-        jce = (jde - 245154) * 1 / 36525
-        jme = jce * 1 / 10
+        jde = jd + delta_t / 86400
+        jc = (jd - 2451545) / 36525
+        jce = (jde - 2451545) / 36525
+        jme = jce / 10
 
         return jd, jde, jc, jce, jme
 
@@ -958,7 +958,7 @@ class SPA:
                                                delta_t=delta_t)
         R = self.heliocentric_radius_vector(jme)
         L = self.heliocentric_longitude(jme)
-        B = self.heliocentric_longitude(jme)
+        B = self.heliocentric_latitude(jme)
         Theta = self.geocentric_longitude(L)
         beta = self.geocentric_latitude(B)
         delta_psi, delta_epsilon = self.nutation_position(jce)
@@ -992,7 +992,7 @@ class SPA:
         """
         v, alpha, delta, xi, _ = self._temporal_params(delta_t=delta_t)
         H = self.local_hour_angle(v, self.longitude, alpha)
-        e0, phi = self.topocentric_solar_position(self.longitude,
+        e0, phi = self.topocentric_solar_position(self.latitude,
                                                   self.altitude, xi, H, delta)
         return e0, phi
 
