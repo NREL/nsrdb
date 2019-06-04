@@ -34,7 +34,7 @@ class SPA:
         lat_lon : ndarray
             (latitude, longitude) for site(s) of interest
         elev : ndarray
-            Elevation above sea-level for site(s) of interest
+            Elevation above sea-level for site(s) of interest in meters
         """
         if not isinstance(time_index, pd.DatetimeIndex):
             if isinstance(time_index, str):
@@ -793,7 +793,7 @@ class SPA:
         return arr
 
     @staticmethod
-    def atmospheric_refraction_correction(e0, pres=101325, temp=12,
+    def atmospheric_refraction_correction(e0, pres=1013.25, temp=12,
                                           atmos_refract=0.5667):
         """
         Compute the atmospheric refraction correction value for all
@@ -804,7 +804,7 @@ class SPA:
         e0 : ndarray
             Topocentric elevation angle
         pres : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibars
         temp : ndarray
             Temperature at all sites in C
         atmos_refract : float
@@ -829,7 +829,7 @@ class SPA:
         return delta_e
 
     @staticmethod
-    def apparent_elevation_angle(e0, pres=101325, temp=12,
+    def apparent_elevation_angle(e0, pres=1013.25, temp=12,
                                  atmos_refract=0.5667):
         """
         The apparent topocentric elevation angle after refraction
@@ -839,7 +839,7 @@ class SPA:
         e0 : ndarray
             Topocentric elevation angle
         pres : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibar
         temp : ndarray
             Temperature at all sites in C
         atmos_refract : float
@@ -1022,7 +1022,7 @@ class SPA:
         theta0 = self.topocentric_zenith_angle(e0)
         return e0.T, phi.T, theta0.T
 
-    def apparent_solar_position(self, pressure=101325, temperature=12,
+    def apparent_solar_position(self, pressure=1013.25, temperature=12,
                                 atmospheric_refraction=0.5667,
                                 delta_t=67):
         """
@@ -1034,7 +1034,7 @@ class SPA:
         Parameters
         ----------
         pressure : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibar
         temperature : ndarray
             Temperature at all sites in C
         atmospheric_refract : float
@@ -1163,7 +1163,7 @@ class SPA:
         return theta
 
     @classmethod
-    def apparent_position(cls, time_index, lat_lon, elev=0, pressure=101325,
+    def apparent_position(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                           temperature=12, atmospheric_refraction=0.5667,
                           delta_t=67):
         """
@@ -1180,7 +1180,7 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         pressure : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibar
         temperature : ndarray
             Temperature at all sites in C
         atmospheric_refract : float
@@ -1204,7 +1204,7 @@ class SPA:
         return e, theta
 
     @classmethod
-    def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=101325,
+    def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=10130.25,
                            temperature=12, atmospheric_refraction=0.5667,
                            delta_t=67):
         """
@@ -1219,7 +1219,7 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         pressure : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibar
         temperature : ndarray
             Temperature at all sites in C
         atmospheric_refract : float
@@ -1241,7 +1241,7 @@ class SPA:
         return e
 
     @classmethod
-    def apparent_zenith(cls, time_index, lat_lon, elev=0, pressure=101325,
+    def apparent_zenith(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                         temperature=12, atmospheric_refraction=0.5667,
                         delta_t=67):
         """
@@ -1256,7 +1256,7 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         pressure : ndarray
-            Pressure at all sites in Pascals
+            Pressure at all sites in millibar
         temperature : ndarray
             Temperature at all sites in C
         atmospheric_refract : float
