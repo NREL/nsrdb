@@ -1,11 +1,11 @@
 """
-Module to compute solar zenith angle outside of SAM
+SolPos solar position calculator
 """
 import numpy as np
 import pandas as pd
 
 
-class SolarPosition:
+class SolPos:
     """
     Class to compute solar position for time(s) and site(s)
     Based off of SAM Solar Position Function:
@@ -89,8 +89,6 @@ class SolarPosition:
         """
         n = (time_index.to_julian_date() - 2451545).values
         zulu = (time_index.hour + time_index.minute / 60).values
-        n = n.astype(np.float32)
-        zulu = zulu.astype(np.float32)
 
         return n, zulu
 
@@ -143,7 +141,7 @@ class SolarPosition:
         # Obliquity of ecliptic in radians
         oblqec = np.radians(23.439 - 0.0000004 * n)
         # Right ascension angle in radians
-        ra = SolarPosition._calc_right_ascension(eclong, oblqec)
+        ra = SolPos._calc_right_ascension(eclong, oblqec)
         # Declination angle in radians
         dec = np.arcsin(np.sin(oblqec) * np.sin(eclong))
 
@@ -230,10 +228,10 @@ class SolarPosition:
         elevation : ndarray
             Solar elevation angle in radians
         """
-        n, zulu = SolarPosition._parse_time(time_index)
-        ra, dec = SolarPosition._calc_sun_pos(n)
-        ha = SolarPosition._calc_hour_angle(n, zulu, ra, lon)
-        elevation = SolarPosition._calc_elevation(dec, ha, lat)
+        n, zulu = SolPos._parse_time(time_index)
+        ra, dec = SolPos._calc_sun_pos(n)
+        ha = SolPos._calc_hour_angle(n, zulu, ra, lon)
+        elevation = SolPos._calc_elevation(dec, ha, lat)
         return elevation
 
     @staticmethod
@@ -280,7 +278,7 @@ class SolarPosition:
         azm : ndarray
             Solar azimuth in radians
         """
-        elv = SolarPosition._calc_elevation(dec, ha, lat)
+        elv = SolPos._calc_elevation(dec, ha, lat)
         lat = np.radians(lat)
         arg = ((np.sin(elv) * np.sin(lat) - np.sin(dec)) /
                (np.cos(elv) * np.cos(lat)))
@@ -312,10 +310,10 @@ class SolarPosition:
         azimuth : ndarray
             Solar azimuth angle in radians
         """
-        n, zulu = SolarPosition._parse_time(time_index)
-        ra, dec = SolarPosition._calc_sun_pos(n)
-        ha = SolarPosition._calc_hour_angle(n, zulu, ra, lon)
-        azimuth = SolarPosition._calc_azimuth(dec, ha, lat)
+        n, zulu = SolPos._parse_time(time_index)
+        ra, dec = SolPos._calc_sun_pos(n)
+        ha = SolPos._calc_hour_angle(n, zulu, ra, lon)
+        azimuth = SolPos._calc_azimuth(dec, ha, lat)
         return azimuth
 
     @staticmethod
@@ -337,9 +335,9 @@ class SolarPosition:
         zen : ndarray
             Solar azimuth in radians
         """
-        elv = SolarPosition._calc_elevation(dec, ha, lat)
+        elv = SolPos._calc_elevation(dec, ha, lat)
         # Atmospheric correct elevation
-        elv = SolarPosition._atm_correction(elv)
+        elv = SolPos._atm_correction(elv)
 
         zen = np.pi / 2 - elv
 
@@ -364,10 +362,10 @@ class SolarPosition:
         zenith : ndarray
             Solar zenith angle in radians
         """
-        n, zulu = SolarPosition._parse_time(time_index)
-        ra, dec = SolarPosition._calc_sun_pos(n)
-        ha = SolarPosition._calc_hour_angle(n, zulu, ra, lon)
-        zenith = SolarPosition._calc_zenith(dec, ha, lat)
+        n, zulu = SolPos._parse_time(time_index)
+        ra, dec = SolPos._calc_sun_pos(n)
+        ha = SolPos._calc_hour_angle(n, zulu, ra, lon)
+        zenith = SolPos._calc_zenith(dec, ha, lat)
         return zenith
 
     def _format_output(self, arr):
@@ -390,8 +388,6 @@ class SolarPosition:
 
         if arr.shape[0] != len(self._time_index):
             arr = arr.T
-
-        arr = arr.astype(np.float32)
 
         return arr
 
