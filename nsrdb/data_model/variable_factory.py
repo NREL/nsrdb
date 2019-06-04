@@ -9,6 +9,7 @@ from nsrdb.data_model.asymmetry import AsymVar
 from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
+from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class VarFactory:
                'dew_point': DewPoint,
                'ozone': MerraVar,
                'relative_humidity': RelativeHumidity,
+               'solar_zenith_angle': SolarZenithAngle,
                'specific_humidity': MerraVar,
                'ssa': MerraVar,
                'surface_pressure': MerraVar,
@@ -37,7 +39,7 @@ class VarFactory:
                'wind_speed': MerraVar,
                }
 
-    NO_ARGS = ('relative_humidity', 'dew_point')
+    NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')
 
     def get(self, var_name, *args, **kwargs):
         """Get a processing variable instance for the given var name.

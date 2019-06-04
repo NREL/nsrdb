@@ -42,7 +42,6 @@ import time
 from scipy.spatial import cKDTree
 
 from nsrdb import DATADIR
-from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn
@@ -92,23 +91,33 @@ class DataModel:
                   'ssa',
                   )
 
+    # cloud variables from UW/GOES
     CLOUD_VARS = ('cloud_type',
                   'cld_opd_dcomp',
                   'cld_reff_dcomp',
                   'cld_press_acha',
                   )
 
-    # calculated variables (no dependencies)
-    CALCULATED_VARS = ('solar_zenith_angle',)
-
-    # derived variables (no interp, requires: temp, spec. humidity, pressure)
+    # derived variables
     DERIVED_VARS = ('relative_humidity',
                     'dew_point',
+                    'solar_zenith_angle',
                     )
 
+    # dependencies for derived variables.
+    DEPENDENCIES = {'relative_humidity': ('air_temperature',
+                                          'specific_humidity',
+                                          'surface_pressure'),
+                    'dew_point': ('air_temperature',
+                                  'specific_humidity',
+                                  'surface_pressure'),
+                    'solar_zenith_angle': ('air_temperature',
+                                           'surface_pressure'),
+                    }
+
     # all variables processed by this module
-    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CALCULATED_VARS +
-                         DERIVED_VARS + CLOUD_VARS))
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS +
+                         CLOUD_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
                  scale=True):
@@ -521,37 +530,6 @@ class DataModel:
 
         return data
 
-    def _calculate(self, var):
-        """Method for calculating variables (without dependencies).
-
-        Parameters
-        ----------
-        var : str
-            NSRDB var name.
-
-        Returns
-        -------
-        data : np.ndarray
-            NSRDB-resolution data for the given var and the current day.
-        """
-
-        if var == 'solar_zenith_angle':
-            lat_lon = self.nsrdb_grid[['latitude', 'longitude']].values
-            lat_lon = lat_lon.astype(np.float32)
-            data = SolarPosition(self.nsrdb_ti, lat_lon).zenith
-
-        else:
-            raise KeyError('Did not recognize request to calculate variable '
-                           '"{}".'.format(var))
-
-        # convert units from MERRA to NSRDB
-        data = self.convert_units(var, data)
-
-        # scale if requested
-        data = self.scale_data(var, data)
-
-        return data
-
     def _cloud_regrid(self, cloud_vars, extent='east', path=None,
                       parallel=False):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
@@ -691,6 +669,25 @@ class DataModel:
 
         return regrid_ind
 
+    def _process_dependencies(self, dependencies):
+        """Ensure that all dependencies have been processed.
+
+        Parameters
+        ----------
+        dependencies : list | tuple
+            List of variable names representing dependencies that have to be
+            processed before a downstream variable.
+        """
+
+        for dep in dependencies:
+            if dep not in self._processed:
+                logger.info('Processing dependency "{}".'.format(dep))
+                # process and save data to processed attribute
+                self[dep] = self._interpolate(dep)
+
+            # unscale data to physical units for input to physical eqns
+            self[dep] = self.unscale_data(dep, self[dep])
+
     def _derive(self, var):
         """Method for deriving variables (with dependencies).
 
@@ -705,31 +702,28 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        if var in ('relative_humidity', 'dew_point'):
-            dependencies = ('air_temperature', 'specific_humidity',
-                            'surface_pressure')
-            # ensure that all dependencies have been processed
-            for dep in dependencies:
-                if dep not in self._processed:
-                    logger.info('Processing dependency "{}" in order to '
-                                'derive "{}".'.format(dep, var))
-                    # process and save data to processed attribute
-                    self[dep] = self._interpolate(dep)
-
-                # unscale data to physical units for input to physical eqns
-                self[dep] = self.unscale_data(dep, self[dep])
-
-            # get the calculation method from the var factory
-            obj = self._var_factory.get(var)
-
-            # calculate merra-derived vars
-            data = obj.derive(self['air_temperature'],
-                              self['specific_humidity'],
-                              self['surface_pressure'])
+        if var in self.DEPENDENCIES:
+            dependencies = self.DEPENDENCIES[var]
 
         else:
             raise KeyError('Did not recognize request to derive variable '
                            '"{}".'.format(var))
+
+        # ensure dependencies are processed before working on derived var
+        self._process_dependencies(dependencies)
+
+        # get the derivation object from the var factory
+        obj = self._var_factory.get(var)
+
+        if var == 'solar_zenith_angle':
+            data = obj.derive(
+                self.nsrdb_ti,
+                self.nsrdb_grid[['latitude', 'longitude']].values,
+                self.nsrdb_grid['elevation'].values,
+                self['surface_pressure'],
+                self['air_temperature'])
+        else:
+            data = obj.derive(*[self[k] for k in dependencies])
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
@@ -1010,9 +1004,7 @@ class DataModel:
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta)
 
-        if var in cls.CALCULATED_VARS:
-            method = data_model._calculate
-        elif var in cls.CLOUD_VARS:
+        if var in cls.CLOUD_VARS:
             method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
             method = data_model._derive
