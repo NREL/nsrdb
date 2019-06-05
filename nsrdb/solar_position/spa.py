@@ -100,7 +100,7 @@ class SPA:
         return self._elev
 
     @staticmethod
-    def _parse_time(time_index, delta_t=67):
+    def _parse_time(time_index, delta_t=69.3032):
         """
         Convert UTC datetime index into:
         - Julian day
@@ -927,7 +927,7 @@ class SPA:
         E = greater * (E - 1440) + less * (E + 1440) + other * E
         return E
 
-    def _temporal_params(self, delta_t=67):
+    def _temporal_params(self, delta_t=69.3032):
         """
         Compute the solely time dependant parameters for SPA:
         - Apparent sidereal time (v)
@@ -974,7 +974,7 @@ class SPA:
 
         return v, alpha, delta, xi, eot
 
-    def _elevation_azimuth(self, delta_t=67):
+    def _elevation_azimuth(self, delta_t=69.3032):
         """
         Compute the solar elevation and azimuth locations and times
 
@@ -996,7 +996,7 @@ class SPA:
                                                   self.altitude, xi, H, delta)
         return e0, phi
 
-    def solar_position(self, delta_t=67):
+    def solar_position(self, delta_t=69.3032):
         """
         Compute the solar position for all locations and times:
         - elevation (e0)
@@ -1024,7 +1024,7 @@ class SPA:
 
     def apparent_solar_position(self, pressure=1013.25, temperature=12,
                                 atmospheric_refraction=0.5667,
-                                delta_t=67):
+                                delta_t=69.3032):
         """
         Compute the apparent (atmospheric refraction corrected) solar position
         for all locations and times:
@@ -1056,7 +1056,7 @@ class SPA:
         return e.T, theta.T
 
     @classmethod
-    def position(cls, time_index, lat_lon, elev=0, delta_t=67):
+    def position(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
         """
         Compute the solar position:
         - elevation
@@ -1088,7 +1088,7 @@ class SPA:
         return e0, phi, theta0
 
     @classmethod
-    def elevation(cls, time_index, lat_lon, elev=0, delta_t=67):
+    def elevation(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
         """
         Compute the solar elevation
 
@@ -1113,7 +1113,7 @@ class SPA:
         return e0
 
     @classmethod
-    def azimuth(cls, time_index, lat_lon, elev=0, delta_t=67):
+    def azimuth(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
         """
         Compute the solar elevation
 
@@ -1138,7 +1138,7 @@ class SPA:
         return phi
 
     @classmethod
-    def zenith(cls, time_index, lat_lon, elev=0, delta_t=67):
+    def zenith(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
         """
         Compute the solar elevation
 
@@ -1165,7 +1165,7 @@ class SPA:
     @classmethod
     def apparent_position(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                           temperature=12, atmospheric_refraction=0.5667,
-                          delta_t=67):
+                          delta_t=69.3032):
         """
         Compute the solar position after atmospheric refraction correction
         - elevation
@@ -1206,7 +1206,7 @@ class SPA:
     @classmethod
     def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=10130.25,
                            temperature=12, atmospheric_refraction=0.5667,
-                           delta_t=67):
+                           delta_t=69.3032):
         """
         Compute the solar elevation after atmospheric refraction correction
 
@@ -1243,7 +1243,7 @@ class SPA:
     @classmethod
     def apparent_zenith(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                         temperature=12, atmospheric_refraction=0.5667,
-                        delta_t=67):
+                        delta_t=69.3032):
         """
         Compute the solar zenith angle after atmospheric refraction correction
 
