@@ -42,6 +42,9 @@ class SolarZenithAngle:
                                            pressure=pressure,
                                            temperature=temperature)
 
+        # ensure float32 precision
+        apparent_sza = apparent_sza.astype(np.float32)
+
         if convert_pressure:
             pressure *= 100
 
