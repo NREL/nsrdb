@@ -60,9 +60,11 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
         data and the reason why. Fill flag codes:
             0 : No fill, irrad data is good
             1 : Missing cloud type (-15)
-            2 : Cloudy but irradiance >= clearsky
-            3 : Irradiance is NaN or < 0
-            4 : Missing cloud properties
+            2 : Full timeseries of missing cloud type
+            3 : Missing cloud properties when cloudy
+            4 : Full timeseries of missing cloud props
+            5 : Cloudy but irradiance >= clearsky
+            6 : Irradiance is NaN or < 0
     """
 
     cloudy = np.isin(cloud_type, CLOUD_TYPES)
@@ -70,9 +72,11 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
     # Make a categorical numerical fill flag
     fill_flag = np.zeros_like(irrad).astype(np.int8)
     fill_flag[(cloud_type == -15)] = 1
-    fill_flag[missing_cld_props] = 2
-    fill_flag[(cloudy & (irrad >= cs_irrad))] = 3
-    fill_flag[np.isnan(irrad) | (irrad < 0)] = 4
+    fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
+    fill_flag[missing_cld_props] = 3
+    fill_flag[:, missing_cld_props.all(axis=0)] = 4
+    fill_flag[(cloudy & (irrad >= cs_irrad))] = 5
+    fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
 
     return fill_flag
 

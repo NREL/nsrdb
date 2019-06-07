@@ -43,6 +43,7 @@ class NSRDB:
                                     'cld_opd_dcomp',
                                     'cld_reff_dcomp',
                                     'cld_press_acha',
+                                    'fill_flag',
                                     'solar_zenith_angle'),
             'nsrdb_irradiance_{y}.h5': ('dhi', 'dni', 'ghi',
                                         'clearsky_dhi',

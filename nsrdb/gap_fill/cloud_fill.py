@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from warnings import warn
 
-from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES
+from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
 
@@ -144,7 +144,7 @@ class CloudGapFill:
         return cloud_prop
 
     @staticmethod
-    def fill_cloud_type(cloud_type, missing=-15):
+    def fill_cloud_type(cloud_type, fill_flag=None, missing=-15):
         """Fill the cloud type data.
 
         Parameters
@@ -166,30 +166,37 @@ class CloudGapFill:
             df_convert = True
             cloud_type = pd.DataFrame(cloud_type)
 
-        if (cloud_type == missing).any().any():
+        missing_mask = (cloud_type == missing)
+
+        if fill_flag is None:
+            fill_flag = np.zeros(cloud_type.shape, dtype=np.int8)
+        fill_flag[missing_mask] = 1
+
+        if missing_mask.all(axis=0).any():
+            # full timeseries with no cloud type. set to clear and warn
+            fill_flag[:, missing_mask.all(axis=0)] = 2
+            cloud_type[:, missing_mask.all(axis=0)] = 0
+            warn('{} sites have missing cloud types for the '
+                 'entire year.'.format(np.sum(missing_mask.all(axis=0))))
+            # reset missing mask
+            missing_mask = (cloud_type == missing)
+
+        if missing_mask.any():
             cloud_type = cloud_type.astype(np.float32)
-            cloud_type[cloud_type == missing] = np.nan
+            cloud_type[missing_mask] = np.nan
             cloud_type = cloud_type.interpolate(method='nearest', axis=0)\
                 .fillna(method='ffill').fillna(method='bfill')
-
-            # if bad data remains, it means full year is bad, set to clear.
-            if any(pd.isnull(cloud_type)) is True:
-                # pylint: disable-msg=C0121
-                loc = np.where(
-                    pd.isnull(cloud_type).any(axis=0) == True)[0]  # noqa: E712
-                warn('{} sites have missing cloud types for the '
-                     'entire year.'.format(len(loc)))
-                cloud_type[pd.isnull(cloud_type)] = 0
 
             cloud_type = cloud_type.astype(np.int8)
 
         if df_convert:
             cloud_type = cloud_type.values
 
-        return cloud_type
+        return cloud_type, fill_flag
 
     @classmethod
-    def fill_cloud_prop(cls, prop_name, cloud_prop, cloud_type, sza):
+    def fill_cloud_prop(cls, prop_name, cloud_prop, cloud_type, sza,
+                        fill_flag=None):
         """Perform full cloud property fill.
 
         Parameters
@@ -221,11 +228,24 @@ class CloudGapFill:
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
 
-        # fill cloud types.
-        cloud_type = cls.fill_cloud_type(cloud_type)
+        if fill_flag is None:
+            fill_flag = np.zeros(cloud_type.shape, dtype=np.int8)
 
-        # set missing property values to NaN
-        cloud_prop[cloud_prop <= 0] = np.nan
+        # fill cloud types.
+        cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
+                                                    fill_flag=fill_flag)
+
+        # find location of missing properties
+        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0))
+        fill_flag[(missing_prop & (fill_flag == 0))] = 3
+
+        if missing_prop.all(axis=0).any():
+            # if full timeseries is missing properties but not type, set 4
+            all_missing_ctype = (fill_flag == 2).all(axis=0)
+            fill_flag[:, (missing_prop.all(axis=0) & ~all_missing_ctype)] = 4
+
+        # set missing property values to NaN. Clear will be reset later.
+        cloud_prop[(cloud_prop <= 0)] = np.nan
 
         # perform gap fill for each cloud category seperately
         for category, _ in cls.CATS.items():
@@ -242,7 +262,7 @@ class CloudGapFill:
         if df_convert:
             cloud_prop = cloud_prop.values
 
-        return cloud_prop
+        return cloud_prop, fill_flag
 
     @classmethod
     def fill_file(cls, f_cloud, rows=slice(None), cols=slice(None),
@@ -253,8 +273,8 @@ class CloudGapFill:
         ----------
         f_cloud : str
             File path to a cloud file with datasets 'cloud_type',
-            'solar_zenith_angle', and some cloud property dataset(s)
-            with prefix 'cld_'
+            'solar_zenith_angle', 'fill_flag', and some cloud property
+            dataset(s) with prefix 'cld_'.
         rows : slice
             Subset of rows to gap fill.
         cols : slice
@@ -297,7 +317,7 @@ class CloudGapFill:
                 cloud_type = f['cloud_type', rows, cols]
                 sza = f['solar_zenith_angle', rows, cols]
 
-            cloud_type = cls.fill_cloud_type(cloud_type)
+            cloud_type, fill_flag = cls.fill_cloud_type(cloud_type)
 
             with Outputs(f_cloud, mode='a') as f:
                 f['cloud_type', rows, cols] = cloud_type
@@ -307,8 +327,11 @@ class CloudGapFill:
                     with Resource(f_cloud) as f:
                         cloud_prop = f[dset, rows, cols]
 
-                    cloud_prop = cls.fill_cloud_prop(dset, cloud_prop,
-                                                     cloud_type, sza)
+                    cloud_prop, fill_flag = cls.fill_cloud_prop(
+                        dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag)
 
                     with Outputs(f_cloud, mode='a') as f:
                         f[dset, rows, cols] = cloud_prop
+
+            with Outputs(f_cloud, mode='a') as f:
+                f['fill_flag', rows, cols] = fill_flag

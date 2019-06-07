@@ -66,16 +66,17 @@ def test_rayleigh():
                         [0.77036961, 0.03514198],
                         [0.95301128, 0.36230728],
                         [0.65396809, 0.95803792]])
-    fill_out = np.array([[5, 0],
+    fill_out = np.array([[1, 0],
                          [0, 0],
-                         [5, 0],
+                         [1, 0],
                          [0, 0],
-                         [0, 5]], dtype=np.int16)
+                         [0, 1]], dtype=np.int16)
 
     fill_flag = np.zeros_like(dhi).astype(np.int16)
 
     dhi, dni, ghi, fill_flag = rayleigh_check(dhi, dni, ghi, cs_dhi, cs_dni,
-                                              cs_ghi, fill_flag)
+                                              cs_ghi, fill_flag,
+                                              rayleigh_flag=1)
 
     assert np.array_equal(dhi, dhi_out)
     assert np.array_equal(dni, dni_out)

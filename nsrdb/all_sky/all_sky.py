@@ -141,7 +141,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # calculate the DNI using the DISC model
     dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,
-               pressure=surface_pressure, sza_lim=SZA_LIM)
+               pressure=surface_pressure)
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
@@ -151,7 +151,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
     ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
-    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag)
+    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False)
 
     # calculate the DHI, patching DNI for negative DHI values
     dni, dhi = calc_dhi(dni, ghi, solar_zenith_angle)

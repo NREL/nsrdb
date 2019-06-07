@@ -85,6 +85,7 @@ class DataModel:
                   'ozone',
                   'total_precipitable_water',
                   'wind_speed',
+                  'wind_direction',
                   'specific_humidity',
                   'alpha',
                   'aod',
