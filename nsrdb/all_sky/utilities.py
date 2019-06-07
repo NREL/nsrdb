@@ -1,6 +1,7 @@
 """Common utilities for NSRDB all-sky module.
 """
 
+from copy import deepcopy
 import pandas as pd
 import numpy as np
 import os
@@ -155,27 +156,15 @@ def calc_dhi(dni, ghi, sza):
     return dni, dhi
 
 
-def rayleigh(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
-             rayleigh_flag=7):
-    """Perform the rayleigh violation check.
-
-    This check ensures that all-sky diffuse irradiance >= clearsky diffuse.
-    If the condition is not met, all irradiances are set to clearsky values.
+def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
+    """Perform Rayleigh violation check (all-sky diffuse >= clearsky diffuse).
 
     Parameters
     ----------
     dhi : np.ndarray
         All-sky diffuse irradiance.
-    dni : np.ndarray
-        All-sky direct normal irradiance.
-    ghi : np.ndarray
-        All-sky global horizontal irradiance.
     cs_dhi : np.ndarray
         Clearsky (rest) diffuse irradiance.
-    cs_dni : np.ndarray
-        Clearsky (rest) direct normal irradiance.
-    cs_ghi : np.ndarray
-        Clearsky (rest) global horizontal irradiance.
     fill_flag : np.ndarray
         Array of integers signifying whether irradiance has been filled.
     rayleigh_flag : int
@@ -183,14 +172,6 @@ def rayleigh(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
 
     Returns
     -------
-    dhi : np.ndarray
-        All-sky diffuse irradiance. Rayleigh violations are set to cs_dhi.
-    dni : np.ndarray
-        All-sky direct normal irradiance. Rayleigh violations are set to
-        cs_dni.
-    ghi : np.ndarray
-        All-sky global horizontal irradiance. Rayleigh violations are set to
-        cs_ghi.
     fill_flag : np.ndarray
         Array of integers signifying whether irradiance has been filled, with
         rayleigh violations marked with the rayleigh flag.
@@ -198,16 +179,10 @@ def rayleigh(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
 
     # boolean mask where the rayleigh check fails
     # (compare agains 99.9% to avoid false positives)
-    failed = (dhi < (0.999 * cs_dhi))
+    failed = ((dhi < (0.999 * deepcopy(cs_dhi))) & (cs_dhi > 0))
+    fill_flag[failed] = rayleigh_flag
 
-    if failed.any():
-        # set irradiance values to clearsky, set fill flag.
-        dhi[failed] = cs_dhi[failed]
-        dni[failed] = cs_dni[failed]
-        ghi[failed] = cs_ghi[failed]
-        fill_flag[failed] = rayleigh_flag
-
-    return dhi, dni, ghi, fill_flag
+    return fill_flag
 
 
 def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):

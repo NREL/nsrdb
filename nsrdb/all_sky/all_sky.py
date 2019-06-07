@@ -73,9 +73,10 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     total_precipitable_water : np.ndarray
         Total precip. water (cm).
     fill_flag : None | np.ndarray
-        Integer array of flags showing what data was filled and why.
+        Integer array of flags showing what data was previously filled and why.
         None will create a new fill flag initialized as all zeros.
-        An array input will only be overwritten in the 0 locations.
+        An array input will be interpreted as flags showing which cloud
+        properties have already been filled.
     ghi_variability : NoneType | float
         Variability fraction to apply to GHI. Provides synthetic variability
         for cloudy irradiance when downscaling data.
@@ -96,6 +97,12 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     if isinstance(time_index, np.ndarray):
         time_index = pd.to_datetime(time_index.astype(str))
+
+    # do not all-sky irradiance gap fill previously filled cloud props
+    flags_to_fill = list(range(1, 7))
+    if fill_flag is not None:
+        already_filled = np.unique(fill_flag)
+        flags_to_fill = list(set(flags_to_fill) - set(already_filled))
 
     # calculate derived variables
     radius = ti_to_radius(time_index, n_cols=alpha.shape[1])
@@ -156,16 +163,24 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                                fill_flag=fill_flag)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
-    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
-    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False)
+    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False,
+                         flags_to_fill=flags_to_fill)
+    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
+                         flags_to_fill=flags_to_fill)
 
     # calculate the DHI, patching DNI for negative DHI values
     dni, dhi = calc_dhi(dni, ghi, solar_zenith_angle)
 
     # perform the rayleigh violation check
-    dhi, dni, ghi, fill_flag = rayleigh(dhi, dni, ghi, rest_data.dhi,
-                                        rest_data.dni, rest_data.ghi,
-                                        fill_flag)
+    fill_flag = rayleigh(dhi, rest_data.dhi, fill_flag)
+
+    # Gap fill bad data once again now with rayleigh check
+    dhi = gap_fill_irrad(dhi, rest_data.dni, fill_flag, return_csr=False,
+                         flags_to_fill=7)
+    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False,
+                         flags_to_fill=7)
+    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
+                         flags_to_fill=7)
 
     # ensure that final irradiance is zero when sun is below horizon.
     dhi = dark_night(dhi, solar_zenith_angle, lim=SZA_LIM)

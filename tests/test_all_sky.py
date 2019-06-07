@@ -69,7 +69,7 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     return out
 
 
-def run_all_sky(test_file=TEST_FILE, sites=list(range(10))):
+def run_all_sky(test_file=TEST_FILE, sites=list(range(9))):
     """Run the all-sky processing code over the specified site list."""
 
     source_vars = get_source_data(test_file=test_file, sites=sites)
@@ -179,28 +179,19 @@ def plot_benchmark(sites, y_range=None):
 
 @pytest.mark.parametrize('test_file',
                          ('./data/validation_nsrdb/nsrdb_surfrad_1998.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_1999.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2000.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2001.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2002.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2003.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2004.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2005.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2006.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2007.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2008.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2009.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2010.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2011.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2012.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2013.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2014.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2015.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2016.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2017.h5',
                           ))
-def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
-                 mae_perc_threshold=5):
+def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
+                 mae_perc_threshold=15):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
     baseline = {}

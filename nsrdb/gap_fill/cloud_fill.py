@@ -174,7 +174,7 @@ class CloudGapFill:
         missing_mask = (cloud_type.values == missing)
 
         if fill_flag is None:
-            fill_flag = np.zeros(cloud_type.shape, dtype=np.int8)
+            fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
         fill_flag[missing_mask] = 1
 
         if missing_mask.all(axis=0).any():
@@ -244,7 +244,7 @@ class CloudGapFill:
             sza = pd.DataFrame(sza)
 
         if fill_flag is None:
-            fill_flag = np.zeros(cloud_type.shape, dtype=np.int8)
+            fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
 
         # fill cloud types.
         cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,

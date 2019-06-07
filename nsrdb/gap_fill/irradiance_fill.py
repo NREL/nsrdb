@@ -54,9 +54,10 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
     missing_cld_props : np.ndarray
         Boolean array flagging timesteps with missing cloud properties.
     fill_flag : None | np.ndarray
-        Integer array of flags showing what data was filled and why.
+        Integer array of flags showing what data was previously filled and why.
         None will create a new fill flag initialized as all zeros.
-        An array input will only be overwritten in the 0 locations.
+        An array input will be interpreted as flags showing which cloud
+        properties have already been filled.
 
     Returns
     -------
@@ -78,16 +79,14 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
     new_fill_flag[(cloudy & (irrad >= cs_irrad) & (cs_irrad > 0))] = 5
     new_fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
 
-    if fill_flag is None:
-        # no pre-existing fill flags, return new fill flag
+    if fill_flag is not None:
+        return np.where(new_fill_flag == 0, fill_flag, new_fill_flag)
+    else:
         return new_fill_flag
 
-    else:
-        # overwrite fill flag where 0 with new fill flag values
-        return np.where(fill_flag == 0, new_fill_flag, fill_flag)
 
-
-def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
+def gap_fill_irrad(irrad, cs_irrad, fill_flag, return_csr=False,
+                   flags_to_fill=None):
     """Fill bad irradiance data using clearsky and nearest good cloudy data.
 
     Parameters
@@ -96,10 +95,12 @@ def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
         Full FARMS + REST2 merged irradiance 2D array.
     cs_irrad : np.ndarray
         REST2 clearsky irradiance without bad or missing data.
-    fill_mask : np.ndarray
-        2D boolean mask with True where bad data must be filled.
+    fill_flag : np.ndarray
+        2D array with nonzero values where bad data must be filled.
     return_csr : bool
         If set to true, this function will return the clearsky ratio array.
+    flags_to_fill : None | list
+        List of fill_flag values to fill. None defaults to all nonzero flags.
 
     Returns
     -------
@@ -111,15 +112,19 @@ def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
     # disable divide by zero warnings
     np.seterr(divide='ignore', invalid='ignore')
 
-    # convert to boolean if necessary
-    if np.issubdtype(fill_mask.dtype, np.integer):
-        fill_mask = fill_mask.astype(bool)
+    # Default flags to fill to all nonzero values
+    if flags_to_fill is None:
+        flags_to_fill = np.unique(fill_flag)
+        flags_to_fill = list(flags_to_fill).remove(0)
+
+    # convert fill flag to boolean
+    fill_flag = np.isin(fill_flag, flags_to_fill)
 
     # get the merged div by clearsky ratio dataframe
     csr = irrad / cs_irrad
 
     # replace to-fill values with nan
-    csr[fill_mask] = np.nan
+    csr[fill_flag] = np.nan
 
     # assign sites csr=1 with all NaN or just one non-NaN but warn
     all_na = (np.isnan(csr).sum(axis=0) >= (csr.shape[0] - 1))
@@ -138,7 +143,7 @@ def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):
 
     # fill values with (closest good ratio values X
     # good clearsky data at the bad data index)
-    irrad[fill_mask] = csr[fill_mask] * cs_irrad[fill_mask]
+    irrad[fill_flag] = csr[fill_flag] * cs_irrad[fill_flag]
 
     if return_csr:
         return irrad, csr
