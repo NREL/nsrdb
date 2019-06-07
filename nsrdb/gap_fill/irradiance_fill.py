@@ -70,9 +70,9 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
     # Make a categorical numerical fill flag
     fill_flag = np.zeros_like(irrad).astype(np.int8)
     fill_flag[(cloud_type == -15)] = 1
-    fill_flag[(cloudy & (irrad >= cs_irrad))] = 2
-    fill_flag[np.isnan(irrad) | (irrad < 0)] = 3
-    fill_flag[missing_cld_props] = 4
+    fill_flag[missing_cld_props] = 2
+    fill_flag[(cloudy & (irrad >= cs_irrad))] = 3
+    fill_flag[np.isnan(irrad) | (irrad < 0)] = 4
 
     return fill_flag
 

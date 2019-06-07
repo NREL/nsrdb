@@ -125,6 +125,90 @@ def calc_beta(aod, alpha):
     return beta
 
 
+def calc_dhi(dni, ghi, sza):
+    """Calculate the diffuse horizontal irradiance and correct the direct.
+
+    Parameters
+    ----------
+    dni : np.ndarray
+        Direct normal irradiance.
+    ghi : np.ndarray
+        Global horizontal irradiance.
+    sza : np.ndarray
+        Solar zenith angle (degrees).
+
+    Returns
+    -------
+    dni : np.ndarray
+        Direct normal irradiance. This is set to zero where dhi < 0
+    dhi : np.ndarray
+        Diffuse horizontal irradiance. This is ensured to be non-negative.
+    """
+
+    dhi = ghi - dni * np.cos(np.radians(sza))
+    if np.min(dhi) < 0:
+        # patch for negative DHI values. Set DNI to zero, set DHI to GHI
+        pos = np.where(dhi < 0)
+        dni[pos] = 0
+        dhi[pos] = ghi[pos]
+
+    return dni, dhi
+
+
+def rayleigh_check(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
+                   rayleigh_flag=5):
+    """Perform the rayleigh violation check.
+
+    This check ensures that all-sky diffuse irradiance >= clearsky diffuse.
+    If the condition is not met, all irradiances are set to clearsky values.
+
+    Parameters
+    ----------
+    dhi : np.ndarray
+        All-sky diffuse irradiance.
+    dni : np.ndarray
+        All-sky direct normal irradiance.
+    ghi : np.ndarray
+        All-sky global horizontal irradiance.
+    cs_dhi : np.ndarray
+        Clearsky (rest) diffuse irradiance.
+    cs_dni : np.ndarray
+        Clearsky (rest) direct normal irradiance.
+    cs_ghi : np.ndarray
+        Clearsky (rest) global horizontal irradiance.
+    fill_flag : np.ndarray
+        Array of integers signifying whether irradiance has been filled.
+    rayleigh_flag : int
+        Fill flag for rayleigh violation.
+
+    Returns
+    -------
+    dhi : np.ndarray
+        All-sky diffuse irradiance. Rayleigh violations are set to cs_dhi.
+    dni : np.ndarray
+        All-sky direct normal irradiance. Rayleigh violations are set to
+        cs_dni.
+    ghi : np.ndarray
+        All-sky global horizontal irradiance. Rayleigh violations are set to
+        cs_ghi.
+    fill_flag : np.ndarray
+        Array of integers signifying whether irradiance has been filled, with
+        rayleigh violations marked with the rayleigh flag.
+    """
+
+    # boolean mask where the rayleigh check fails
+    failed = (dhi < cs_dhi)
+
+    if failed.any():
+        # set irradiance values to clearsky, set fill flag.
+        dhi[failed] = cs_dhi[failed]
+        dni[failed] = cs_dni[failed]
+        ghi[failed] = cs_ghi[failed]
+        fill_flag[failed] = rayleigh_flag
+
+    return dhi, dni, ghi, fill_flag
+
+
 def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """Combine clearsky and rest data into all-sky irradiance array.
 
@@ -159,36 +243,6 @@ def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
                              clearsky_irrad, cloudy_irrad)
 
     return all_sky_irrad
-
-
-def calc_dhi(dni, ghi, sza):
-    """Calculate the diffuse horizontal irradiance and correct the direct.
-
-    Parameters
-    ----------
-    dni : np.ndarray
-        Direct normal irradiance.
-    ghi : np.ndarray
-        Global horizontal irradiance.
-    sza : np.ndarray
-        Solar zenith angle (degrees).
-
-    Returns
-    -------
-    dni : np.ndarray
-        Direct normal irradiance. This is set to zero where dhi < 0
-    dhi : np.ndarray
-        Diffuse horizontal irradiance. This is ensured to be non-negative.
-    """
-
-    dhi = ghi - dni * np.cos(np.radians(sza))
-    if np.min(dhi) < 0:
-        # patch for negative DHI values. Set DNI to zero, set DHI to GHI
-        pos = np.where(dhi < 0)
-        dni[pos] = 0
-        dhi[pos] = ghi[pos]
-
-    return dni, dhi
 
 
 def screen_cld(cld_data, rng=(0, 160)):

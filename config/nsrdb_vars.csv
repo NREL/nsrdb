@@ -13,7 +13,7 @@ cloud_type,"'N/A': -15, 'Clear': 0, 'Probably Clear': 1, 'Fog': 2, 'Water': 3, '
 dew_point,Celsius,int16,10,-100,70,,,,,,derived,,2000,500
 dhi,W/m2,uint16,1,0,800,,,,,,output,,2000,500
 dni,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
-fill_flag,,uint8,1,0,100,,,,,,output,,2000,1000
+fill_flag,"0: no fill, 1: missing cloud type, 2: missing cloud prop, 3: allsky ghi exceeds clearsky, 4: neg or missing irrad, 5: rayleigh violation",uint8,1,0,100,,,,,,output,,2000,1000
 ghi,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
 ozone,atm-cm,uint16,1000,0.2,0.5,IDW2,FALSE,linear,tavg1_2d_slv_Nx,TO3,MERRA2,/projects/pxs/ancillary/source,2000,500
 relative_humidity,%,uint16,100,0,100,,,,,,derived,,2000,500
