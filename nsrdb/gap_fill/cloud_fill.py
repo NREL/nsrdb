@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 from warnings import warn
 
-from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES
+from nsrdb.all_sky import (WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES,
+                           SZA_LIM)
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
 
@@ -84,7 +85,7 @@ class CloudGapFill:
         return cloud_prop
 
     @staticmethod
-    def make_zeros(cloud_prop, cloud_type, sza, sza_lim=89):
+    def make_zeros(cloud_prop, cloud_type, sza, sza_lim=SZA_LIM):
         """set clear and night cloud properties to zero
 
         Parameters
@@ -170,7 +171,7 @@ class CloudGapFill:
             df_convert = True
             cloud_type = pd.DataFrame(cloud_type)
 
-        missing_mask = (cloud_type == missing)
+        missing_mask = (cloud_type.values == missing)
 
         if fill_flag is None:
             fill_flag = np.zeros(cloud_type.shape, dtype=np.int8)
@@ -179,11 +180,11 @@ class CloudGapFill:
         if missing_mask.all(axis=0).any():
             # full timeseries with no cloud type. set to clear and warn
             fill_flag[:, missing_mask.all(axis=0)] = 2
-            cloud_type[:, missing_mask.all(axis=0)] = 0
+            cloud_type.loc[:, missing_mask.all(axis=0)] = 0
             warn('{} sites have missing cloud types for the '
                  'entire year.'.format(np.sum(missing_mask.all(axis=0))))
             # reset missing mask
-            missing_mask = (cloud_type == missing)
+            missing_mask = (cloud_type.values == missing)
 
         if missing_mask.any():
             cloud_type = cloud_type.astype(np.float32)
@@ -226,6 +227,12 @@ class CloudGapFill:
 
         logger.debug('Gap filling "{}".'.format(prop_name))
 
+        float_convert = False
+        if np.issubdtype(cloud_prop.dtype, np.integer):
+            float_convert = True
+            native_dtype = cloud_prop.dtype
+            cloud_prop = cloud_prop.astype(np.float32)
+
         # make dataframes
         df_convert = False
         if isinstance(cloud_prop, np.ndarray):
@@ -245,7 +252,7 @@ class CloudGapFill:
 
         # find location of missing properties
         missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0))
-        fill_flag[(missing_prop & (fill_flag == 0))] = 3
+        fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
 
         if missing_prop.all(axis=0).any():
             # if full timeseries is missing properties but not type, set 4
@@ -269,6 +276,9 @@ class CloudGapFill:
 
         if df_convert:
             cloud_prop = cloud_prop.values
+
+        if float_convert:
+            cloud_prop = cloud_prop.astype(native_dtype)
 
         return cloud_prop, fill_flag
 

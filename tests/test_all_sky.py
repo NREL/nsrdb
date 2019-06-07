@@ -52,9 +52,6 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
         # get unscaled source variables
         out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
 
-        meta = pd.DataFrame(f['meta'][sites])
-        print(meta[['latitude', 'longitude', 'state', 'county']].head())
-
         for var in var_list:
             out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
 
@@ -84,6 +81,8 @@ def run_all_sky(test_file=TEST_FILE, sites=list(range(10))):
 
 def make_df(site):
     """Get dataframes containing single-site timeseries data for checking."""
+    if isinstance(site, int):
+        site = [site]
 
     d = get_source_data(sites=site)
 
@@ -91,8 +90,8 @@ def make_df(site):
 
     dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=site)
 
-    df_dhi = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_dhi = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
@@ -101,8 +100,8 @@ def make_df(site):
                            'dhi_orig': dhi_orig.flatten(),
                            'cs_dhi': aso['clearsky_dhi'].flatten(),
                            })
-    df_dni = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_dni = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
@@ -111,8 +110,8 @@ def make_df(site):
                            'dni_orig': dni_orig.flatten(),
                            'cs_dni': aso['clearsky_dni'].flatten(),
                            })
-    df_ghi = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_ghi = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),

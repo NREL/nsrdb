@@ -155,8 +155,8 @@ def calc_dhi(dni, ghi, sza):
     return dni, dhi
 
 
-def rayleigh_check(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
-                   rayleigh_flag=7):
+def rayleigh(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
+             rayleigh_flag=7):
     """Perform the rayleigh violation check.
 
     This check ensures that all-sky diffuse irradiance >= clearsky diffuse.
@@ -197,7 +197,8 @@ def rayleigh_check(dhi, dni, ghi, cs_dhi, cs_dni, cs_ghi, fill_flag,
     """
 
     # boolean mask where the rayleigh check fails
-    failed = (dhi < cs_dhi)
+    # (compare agains 99.9% to avoid false positives)
+    failed = (dhi < (0.999 * cs_dhi))
 
     if failed.any():
         # set irradiance values to clearsky, set fill flag.

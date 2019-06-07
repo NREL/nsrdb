@@ -73,9 +73,9 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
     # make fill flags
     new_fill_flag[(cloud_type == -15)] = 1
     new_fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
-    new_fill_flag[missing_cld_props] = 3
+    new_fill_flag[missing_cld_props & (cs_irrad > 0)] = 3
     new_fill_flag[:, missing_cld_props.all(axis=0)] = 4
-    new_fill_flag[(cloudy & (irrad >= cs_irrad))] = 5
+    new_fill_flag[(cloudy & (irrad >= cs_irrad) & (cs_irrad > 0))] = 5
     new_fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
 
     if fill_flag is None:

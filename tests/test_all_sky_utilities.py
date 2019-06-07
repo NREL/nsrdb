@@ -10,7 +10,7 @@ Created on June 7th 2019.
 import os
 import pytest
 import numpy as np
-from nsrdb.all_sky.utilities import rayleigh_check
+from nsrdb.all_sky.utilities import rayleigh
 
 
 RTOL = 0.001
@@ -19,6 +19,12 @@ ATOL = 0.001
 
 def test_rayleigh():
     """Test the rayleigh violation check."""
+
+    cloud_type = np.array([[5, 5],
+                           [5, 5],
+                           [5, 5],
+                           [5, 5],
+                           [5, 5]], dtype=np.int16)
 
     dhi = np.array([[0.72444256, 0.23359043],
                     [0.81759012, 0.88451122],
@@ -74,9 +80,8 @@ def test_rayleigh():
 
     fill_flag = np.zeros_like(dhi).astype(np.int16)
 
-    dhi, dni, ghi, fill_flag = rayleigh_check(dhi, dni, ghi, cs_dhi, cs_dni,
-                                              cs_ghi, fill_flag,
-                                              rayleigh_flag=1)
+    dhi, dni, ghi, fill_flag = rayleigh(dhi, dni, ghi, cs_dhi, cs_dni,
+                                        cs_ghi, fill_flag, rayleigh_flag=1)
 
     assert np.array_equal(dhi, dhi_out)
     assert np.array_equal(dni, dni_out)
