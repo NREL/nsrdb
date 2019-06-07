@@ -114,7 +114,8 @@ class SPA:
         time_index : pandas.DatetimeIndex
             Datetime stamps of interest
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -939,7 +940,8 @@ class SPA:
         Parameters
         ----------
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -981,7 +983,8 @@ class SPA:
         Parameters
         ----------
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1006,7 +1009,8 @@ class SPA:
         Parameters
         ----------
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1040,7 +1044,8 @@ class SPA:
         atmospheric_refract : float
             Atmospheric refraction constant
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1072,7 +1077,8 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1101,7 +1107,8 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1126,7 +1133,8 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1151,7 +1159,8 @@ class SPA:
         elev : ndarray
             Elevation above sea-level for site(s) of interest
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1186,7 +1195,8 @@ class SPA:
         atmospheric_refract : float
             Atmospheric refraction constant
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1225,7 +1235,8 @@ class SPA:
         atmospheric_refract : float
             Atmospheric refraction constant
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
@@ -1262,7 +1273,8 @@ class SPA:
         atmospheric_refract : float
             Atmospheric refraction constant
         delta_t : float
-            Difference between terrestrial time and UT1
+            Difference between terrestrial time and UT1. Dependent on year.
+            Data source: http://maia.usno.navy.mil/ser7/deltat.data
 
         Returns
         -------
