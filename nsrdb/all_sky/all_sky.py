@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
-            time_index, total_precipitable_water, ghi_variability=None):
+            time_index, total_precipitable_water, fill_flag=None,
+            ghi_variability=None):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -71,6 +72,10 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Time index.
     total_precipitable_water : np.ndarray
         Total precip. water (cm).
+    fill_flag : None | np.ndarray
+        Integer array of flags showing what data was filled and why.
+        None will create a new fill flag initialized as all zeros.
+        An array input will only be overwritten in the 0 locations.
     ghi_variability : NoneType | float
         Variability fraction to apply to GHI. Provides synthetic variability
         for cloudy irradiance when downscaling data.
@@ -147,7 +152,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
-    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props)
+    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,
+                               fill_flag=fill_flag)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
     ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
@@ -231,7 +237,8 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                     surface_pressure=fa['surface_pressure', rows, cols],
                     time_index=fc.time_index[rows],
                     total_precipitable_water=fa['total_precipitable_water',
-                                                rows, cols])
+                                                rows, cols],
+                    fill_flag=fa['fill_flag', rows, cols])
     except Exception as e:
         logger.exception('All-Sky failed!')
         raise e

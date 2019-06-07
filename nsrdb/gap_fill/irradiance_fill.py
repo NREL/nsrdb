@@ -39,7 +39,8 @@ def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
     return missing_props
 
 
-def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
+def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
+                   fill_flag=None):
     """Make a dataset indicating where to fill bad irradiance data.
 
     Parameters
@@ -52,33 +53,38 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props):
         Array of numerical cloud types.
     missing_cld_props : np.ndarray
         Boolean array flagging timesteps with missing cloud properties.
+    fill_flag : None | np.ndarray
+        Integer array of flags showing what data was filled and why.
+        None will create a new fill flag initialized as all zeros.
+        An array input will only be overwritten in the 0 locations.
 
     Returns
     -------
     fill_flag : np.ndarray
         Array of integers signifying whether to fill the irradiance
-        data and the reason why. Fill flag codes:
-            0 : No fill, irrad data is good
-            1 : Missing cloud type (-15)
-            2 : Full timeseries of missing cloud type
-            3 : Missing cloud properties when cloudy
-            4 : Full timeseries of missing cloud props
-            5 : Cloudy but irradiance >= clearsky
-            6 : Irradiance is NaN or < 0
+        data and the reason why.
     """
 
     cloudy = np.isin(cloud_type, CLOUD_TYPES)
 
     # Make a categorical numerical fill flag
-    fill_flag = np.zeros_like(irrad).astype(np.int8)
-    fill_flag[(cloud_type == -15)] = 1
-    fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
-    fill_flag[missing_cld_props] = 3
-    fill_flag[:, missing_cld_props.all(axis=0)] = 4
-    fill_flag[(cloudy & (irrad >= cs_irrad))] = 5
-    fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
+    new_fill_flag = np.zeros_like(irrad).astype(np.int8)
 
-    return fill_flag
+    # make fill flags
+    new_fill_flag[(cloud_type == -15)] = 1
+    new_fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
+    new_fill_flag[missing_cld_props] = 3
+    new_fill_flag[:, missing_cld_props.all(axis=0)] = 4
+    new_fill_flag[(cloudy & (irrad >= cs_irrad))] = 5
+    new_fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
+
+    if fill_flag is None:
+        # no pre-existing fill flags, return new fill flag
+        return new_fill_flag
+
+    else:
+        # overwrite fill flag where 0 with new fill flag values
+        return np.where(fill_flag == 0, new_fill_flag, fill_flag)
 
 
 def gap_fill_irrad(irrad, cs_irrad, fill_mask, return_csr=False):

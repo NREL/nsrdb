@@ -153,12 +153,16 @@ class CloudGapFill:
             Integer cloud type data with missing flags.
         missing : int
             Flag for missing cloud types.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
 
         Returns
         -------
         cloud_type : pd.DataFrame
             Integer cloud type data with missing values filled using the
             temporal nearest neighbor.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         """
 
         df_convert = False
@@ -209,11 +213,15 @@ class CloudGapFill:
             Integer cloud type data with no missing values.
         sza : pd.DataFrame
             DataFrame of solar zenith angle values to determine nighttime.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
 
         Returns
         -------
         cloud_prop : pd.DataFrame
             DataFrame of cloud property values with no remaining NaN's.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         """
 
         logger.debug('Gap filling "{}".'.format(prop_name))
