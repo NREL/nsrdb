@@ -1,6 +1,7 @@
 # Welcome to the National Solar Radiation Data Base (NSRDB)!
 This repository contains all of the methods for the NSRDB data processing pipeline. 
 You can read more about the NSRDB [here](https://nsrdb.nrel.gov/) and [here](https://www.sciencedirect.com/science/article/pii/S136403211830087X). 
+For details on NSRDB variable units, datatypes, and attributes, see the [NSRDB variable meta data](https://github.nrel.gov/PXS/nsrdb/blob/master/config/nsrdb_vars.csv).
 
 ## The PXS All-Sky Irradiance Model
 The PXS All-Sky Irradiance Model is the main physics package that calculates surface irradiance variables. 
