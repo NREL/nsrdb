@@ -7,6 +7,7 @@ import h5py
 import os
 import netCDF4
 import logging
+from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
@@ -435,19 +436,35 @@ class CloudVar(AncillaryVarHandler):
     def path(self):
         """Final path containing cloud data files.
 
-        Path is interpreted as:
-            /source_dir/extent/YYYY/DOY/level2/
+        The path is searched in source_dir based on the analysis date.
 
         Where source_dir is defined in the nsrdb_vars.csv meta/config file.
         """
 
         if self._path is None:
+
             doy = str(self._date.timetuple().tm_yday).zfill(3)
-            self._path = os.path.join(self.source_dir, self._extent,
-                                      str(self._date.year), doy, 'level2')
-            if not os.path.exists(self._path):
-                raise IOError('Looking for cloud data but could not find the '
-                              'target path: {}'.format(self._path))
+
+            dirsearch = '/{}/level2'.format(doy)
+            fsearch = '{}{}'.format(self._date.year, doy)
+
+            # walk through current directory looking for day directory
+            for dirpath, _, _ in os.walk(self.source_dir):
+                if dirsearch in dirpath:
+                    for fn in os.listdir(dirpath):
+                        if fsearch in fn:
+                            self._path = dirpath
+                            break
+                if self._path is not None:
+                    break
+
+            logger.info('Cloud data dir for date {} found at: {}'
+                        .format(self._date, self._path))
+
+            if self._extent not in self._path:
+                warn('Cloud extent "{}" not found in cloud path: {}'
+                     .format(self._extent, self._path))
+
         return self._path
 
     def pre_flight(self):
