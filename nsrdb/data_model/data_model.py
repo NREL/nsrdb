@@ -590,21 +590,31 @@ class DataModel:
 
         data = {}
         # extract the regrided data for all timesteps
-        for i, obj in enumerate(var_obj):
-            # save all datasets
-            for dset, array in obj.source_data.items():
-                if dset not in data:
-                    # initialize array based on time index and NN index result
-                    if np.issubdtype(array.dtype, np.float):
-                        data[dset] = np.full(self.nsrdb_data_shape, np.nan,
-                                             dtype=array.dtype)
-                    else:
-                        data[dset] = np.full(self.nsrdb_data_shape, -15,
-                                             dtype=array.dtype)
+        for i, (timestamp, obj) in enumerate(var_obj):
 
-                # write single timestep with NSRDB sites to appropriate row
-                # map the regridded data using the regrid NN indices
-                data[dset][i, :] = array[regrid_ind[i]]
+            if timestamp != self.nsrdb_ti[i]:
+                raise ValueError('Cloud iteration timestamp "{}" did not '
+                                 'match NSRDB timestamp "{}" at index #{}'
+                                 .format(timestamp, self.nsrdb_ti[i], i))
+
+            # obj is None if cloud data file is missing
+            if obj is not None:
+
+                # save all datasets
+                for dset, array in obj.source_data.items():
+
+                    # initialize array based on time index and NN index result
+                    if dset not in data:
+                        if np.issubdtype(array.dtype, np.float):
+                            data[dset] = np.full(self.nsrdb_data_shape, np.nan,
+                                                 dtype=array.dtype)
+                        else:
+                            data[dset] = np.full(self.nsrdb_data_shape, -15,
+                                                 dtype=array.dtype)
+
+                    # write single timestep with NSRDB sites to appropriate row
+                    # map the regridded data using the regrid NN indices
+                    data[dset][i, :] = array[regrid_ind[i]]
 
         # scale if requested
         if self._scale:
