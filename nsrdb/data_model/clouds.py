@@ -4,9 +4,11 @@
 import numpy as np
 import pandas as pd
 import h5py
+import re
 import os
 import netCDF4
 import logging
+from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
@@ -188,8 +190,7 @@ class CloudVarSingleH5(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from: "{}"'
-                     .format(os.path.basename(self._fpath)))
+
         data = {}
         with h5py.File(self._fpath, 'r') as f:
             for dset in self._dsets:
@@ -319,8 +320,7 @@ class CloudVarSingleNC(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from: "{}"'
-                     .format(os.path.basename(self._fpath)))
+
         data = {}
         with netCDF4.Dataset(self._fpath, 'r') as f:
             for dset in self._dsets:
@@ -344,12 +344,6 @@ class CloudVarSingleNC(CloudVarSingle):
 
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
-
-    # the number of files for a given day dictates the temporal frequency
-    LEN_TO_FREQ = {1: '1d',
-                   48: '30min',
-                   96: '15min',
-                   288: '5min'}
 
     def __init__(self, name, var_meta, date, extent='east', path=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
@@ -379,31 +373,29 @@ class CloudVar(AncillaryVarHandler):
         self._extent = extent
         self._path = path
         self._flist = None
+        self._file_df = None
         self._dsets = dsets
         self._ftype = None
 
         super().__init__(name, var_meta=var_meta, date=date)
 
-        if len(self) not in self.LEN_TO_FREQ:
-            raise KeyError('Bad number of cloud data files. Counted {} files '
-                           'in {} but expected one of the following: {}'
-                           .format(len(self), self.path,
-                                   list(self.LEN_TO_FREQ.keys())))
-
-        if len(self) != 1 and len(self) != len(self.time_index):
-            raise KeyError('Bad number of cloud data files. Counted {} files '
-                           'in {} but a time index with length {}.'
-                           .format(len(self), self.path, len(self.time_index)))
+        if any(pd.isnull(self.file_df)):
+            msg = ('Bad number of cloud data files for {}. Counted {} files '
+                   'in {} but expected: {}'
+                   .format(self._date, len(self.flist), self.path,
+                           len(self.file_df)))
+            warn(msg)
+            logger.warning(msg)
 
     def __len__(self):
         """Length of this object is the number of source files."""
-        return len(self.flist)
+        return len(self.file_df)
 
     def __iter__(self):
         """Initialize this instance as an iter object."""
         self._i = 0
         logger.info('Iterating through {} cloud data {} files located in "{}"'
-                    .format(len(self._flist), self._ftype, self.path))
+                    .format(len(self.file_df), self._ftype, self.path))
         return self
 
     def __next__(self):
@@ -411,23 +403,37 @@ class CloudVar(AncillaryVarHandler):
 
         Returns
         -------
-        obj : CloudVarSingle
-            Single cloud data retrieval object.
+        timestamp : pd.Timestamp
+            Timestamp from the datetime index.
+        obj : CloudVarSingle | None
+            Single cloud data retrieval object. None if there's a file missing.
         """
 
         # iterate through all timesteps (one file per timestep)
-        if self._i < len(self.flist):
-            # initialize a single timestep helper object
-            if self._ftype == '.h5':
-                obj = CloudVarSingleH5(self.flist[self._i], dsets=self._dsets)
-            elif self._ftype == '.nc':
-                obj = CloudVarSingleNC(self.flist[self._i], dsets=self._dsets)
+        if self._i < len(self.file_df):
+
+            timestamp = self.file_df.index[self._i]
+            fpath = self.file_df.iloc[self._i, 0]
+
+            if isinstance(fpath, str):
+                # initialize a single timestep helper object
+                if fpath.endswith('.h5'):
+                    obj = CloudVarSingleH5(fpath, dsets=self._dsets)
+                elif fpath.endswith('.nc'):
+                    obj = CloudVarSingleNC(fpath, dsets=self._dsets)
+
+                logger.debug('Cloud data timestep {} has source file: {}'
+                             .format(timestamp, os.path.basename(fpath)))
+
             else:
-                raise TypeError('Did not recognize cloud file type as .nc or '
-                                '.h5: {}'.format(self._ftype))
+                obj = None
+                msg = ('Cloud data timestep {} is missing its '
+                       'source file.'.format(timestamp))
+                warn(msg)
+                logger.warning(msg)
 
             self._i += 1
-            return obj
+            return timestamp, obj
         else:
             raise StopIteration
 
@@ -435,19 +441,45 @@ class CloudVar(AncillaryVarHandler):
     def path(self):
         """Final path containing cloud data files.
 
-        Path is interpreted as:
-            /source_dir/extent/YYYY/DOY/level2/
+        The path is searched in source_dir based on the analysis date.
 
         Where source_dir is defined in the nsrdb_vars.csv meta/config file.
         """
 
         if self._path is None:
+
             doy = str(self._date.timetuple().tm_yday).zfill(3)
-            self._path = os.path.join(self.source_dir, self._extent,
-                                      str(self._date.year), doy, 'level2')
-            if not os.path.exists(self._path):
-                raise IOError('Looking for cloud data but could not find the '
-                              'target path: {}'.format(self._path))
+
+            dirsearch = '/{}/'.format(doy)
+            fsearch1 = '{}{}'.format(self._date.year, doy)
+            fsearch2 = '{}_{}'.format(self._date.year, doy)
+
+            # walk through current directory looking for day directory
+            for dirpath, _, _ in os.walk(self.source_dir):
+                dirpath += '/'
+                if dirsearch in dirpath:
+                    for fn in os.listdir(dirpath):
+                        if fsearch1 in fn or fsearch2 in fn:
+                            self._path = dirpath
+                            break
+                if self._path is not None:
+                    break
+
+            if self._path is None:
+                msg = ('Could not find cloud data dir for doy {} in '
+                       'source_dir {}'.format(doy, self.source_dir))
+                logger.exception(msg)
+                raise IOError(msg)
+            else:
+                logger.info('Cloud data dir for date {} found at: {}'
+                            .format(self._date, self._path))
+
+            if self._extent not in self._path:
+                msg = ('Cloud extent "{}" not found in cloud path: {}'
+                       .format(self._extent, self._path))
+                warn(msg)
+                logger.warning(msg)
+
         return self._path
 
     def pre_flight(self):
@@ -466,8 +498,38 @@ class CloudVar(AncillaryVarHandler):
         return missing
 
     @staticmethod
-    def _h5_flist(path, date):
-        """Get the .h5 cloud data file list.
+    def get_timestamp(fstr):
+        """Extract the cloud file timestamp.
+
+        Parameters
+        ----------
+        fstr : str
+            File path or file name with timestamp.
+
+        Returns
+        -------
+        time : int | None
+            Integer timestamp of format:
+                YYYYDDDHHMMSSS (YYYY DDD HH MM SSS) (for .nc files)
+                YYYYDDDHHMM (YYYY DDD HH MM) (for .h5 files)
+            None if not found
+        """
+
+        match_nc = re.match(r".*s([1-2][0-9]{13})", fstr)
+        match_h5 = re.match(r".*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})", fstr)
+
+        if match_nc:
+            time = int(match_nc.group(1))
+        elif match_h5:
+            time = int(match_h5.group(1).replace('_', ''))
+        else:
+            time = None
+
+        return time
+
+    @staticmethod
+    def get_h5_flist(path, date):
+        """Get the .h5 cloud data file path list.
 
         Parameters
         ----------
@@ -479,22 +541,23 @@ class CloudVar(AncillaryVarHandler):
         Returns
         -------
         flist : list
-            List of files sorted by timestamp. Empty list if no files found.
+            List of full file paths sorted by timestamp. Empty list if no
+            files found.
         """
 
         fl = os.listdir(path)
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.h5') and str(date.year) in f]
+                 if f.endswith('.h5') and
+                 str(date.year) in str(CloudVar.get_timestamp(f))]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=lambda x: os.path.basename(x)
-                           .split('.')[0].split('_')[-1])
+            flist = sorted(flist, key=CloudVar.get_timestamp)
         return flist
 
     @staticmethod
-    def _nc_flist(path, date):
-        """Get the .nc cloud data file list.
+    def get_nc_flist(path, date):
+        """Get the .nc cloud data file path list.
 
         Parameters
         ----------
@@ -506,40 +569,123 @@ class CloudVar(AncillaryVarHandler):
         Returns
         -------
         flist : list
-            List of files sorted by timestamp. Empty list if no files found.
+            List of full file paths sorted by timestamp. Empty list if no
+            files found.
         """
 
         fl = os.listdir(path)
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.nc') and str(date.year) in f]
+                 if f.endswith('.nc') and
+                 str(date.year) in str(CloudVar.get_timestamp(f))]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=lambda x: os.path.basename(x)
-                           .split('.')[0].split('_')[-1].strip('s'))
+            flist = sorted(flist, key=CloudVar.get_timestamp)
         return flist
 
     @property
     def flist(self):
-        """List of cloud data files for one day. Each file is a timestep.
+        """List of cloud data file paths for one day. Each file is a timestep.
 
         Returns
         -------
         flist : list
-            List of .h5 or .nc files sorted by timestamp. Exception raised
-            if no files are found.
+            List of .h5 or .nc full file paths sorted by timestamp. Exception
+            raised if no files are found.
         """
 
         if self._flist is None:
-            self._flist = self._h5_flist(self.path, self._date)
+            self._flist = self.get_h5_flist(self.path, self._date)
             self._ftype = '.h5'
             if not self._flist:
-                self._flist = self._nc_flist(self.path, self._date)
+                self._flist = self.get_nc_flist(self.path, self._date)
                 self._ftype = '.nc'
             if not self._flist:
                 raise IOError('Could not find .h5 or .nc files for {} in '
                               'directory: {}'.format(self._date, self.path))
         return self._flist
+
+    @property
+    def file_df(self):
+        """Get a dataframe with nominal time index and available cloud files.
+
+        Returns
+        -------
+        _file_df : pd.DataFrame
+            Timeseries of available cloud file paths. The datetimeindex is
+            created by the infered timestep frequency of the cloud files.
+            The data column is the file paths. Timesteps with missing data
+            files has NaN file paths.
+        """
+
+        if self._file_df is None:
+            data_ti = self.data_time_index(self.flist)
+
+            freq = self.data_freq(self.flist)
+
+            df_actual = pd.DataFrame({'flist': self.flist}, index=data_ti)
+
+            df_nominal = pd.DataFrame(index=self._get_time_index(self._date,
+                                                                 freq=freq))
+
+            tolerance = pd.Timedelta(freq) / 2
+            self._file_df = pd.merge_asof(df_nominal, df_actual,
+                                          left_index=True, right_index=True,
+                                          direction='nearest',
+                                          tolerance=tolerance)
+        return self._file_df
+
+    @staticmethod
+    def data_time_index(flist):
+        """Get the actual time index of the file set based on the timestamps.
+
+        Parameters
+        ----------
+        flist : list
+            List of strings of cloud files (with or without full file path).
+
+        Returns
+        -------
+        data_time_index : pd.datetimeindex
+            Pandas datetime index based on the actual file timestamps.
+        """
+
+        strtime = [str(CloudVar.get_timestamp(fstr))[:11] for fstr in flist]
+        data_time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
+        return data_time_index
+
+    @staticmethod
+    def data_freq(flist):
+        """Infer the cloud data timestep frequency from the file list.
+
+        Parameters
+        ----------
+        flist : list
+            List of strings of cloud files (with or without full file path).
+
+        Returns
+        -------
+        freq : str
+            Pandas datetime frequency.
+        """
+
+        data_ti = CloudVar.data_time_index(flist)
+
+        if len(flist) == 1:
+            freq = '1d'
+        else:
+            for i in range(0, len(data_ti), 10):
+                freq = pd.infer_freq(data_ti[i:i + 5])
+
+                if freq is not None:
+                    break
+
+        if freq is None:
+            raise ValueError('Could not infer cloud data timestep frequency.')
+        else:
+            freq = freq.replace('T', 'min')
+
+        return freq
 
     @property
     def time_index(self):
@@ -551,5 +697,5 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime index for the current day at the cloud temporal
             resolution (should match the NSRDB resolution).
         """
-        freq = self.LEN_TO_FREQ[len(self)]
-        return self._get_time_index(self._date, freq=freq)
+
+        return self.file_df.index

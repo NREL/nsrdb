@@ -423,7 +423,7 @@ class NSRDB:
 
     @staticmethod
     def eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=2,
-              node_name='nsrdb', stdout_path=None):
+              feature='--qos=normal', node_name='nsrdb', stdout_path=None):
         """Run an NSRDB class or static method on an Eagle node.
 
         Format: NSRDB.fun_str(arg_str)
@@ -441,6 +441,9 @@ class NSRDB:
             Node memory request in GB.
         walltime : int
             Node walltime request in hours.
+        feature : str
+            Additional flags for SLURM job. Format is "--qos=high"
+            or "--depend=[state:job_id]". Default is None.
         node_name : str
             Name for the SLURM job.
         stdout_path : str
@@ -455,7 +458,7 @@ class NSRDB:
         cmd = cmd.format(f=fun_str, a=arg_str)
 
         slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      name=node_name, stdout_path=stdout_path)
+                      feature=feature, name=node_name, stdout_path=stdout_path)
 
         print('\ncmd:\n{}\n'.format(cmd))
 

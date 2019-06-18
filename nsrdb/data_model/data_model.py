@@ -42,7 +42,6 @@ import time
 from scipy.spatial import cKDTree
 
 from nsrdb import DATADIR
-from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn
@@ -92,23 +91,33 @@ class DataModel:
                   'ssa',
                   )
 
+    # cloud variables from UW/GOES
     CLOUD_VARS = ('cloud_type',
                   'cld_opd_dcomp',
                   'cld_reff_dcomp',
                   'cld_press_acha',
                   )
 
-    # calculated variables (no dependencies)
-    CALCULATED_VARS = ('solar_zenith_angle',)
-
-    # derived variables (no interp, requires: temp, spec. humidity, pressure)
+    # derived variables
     DERIVED_VARS = ('relative_humidity',
                     'dew_point',
+                    'solar_zenith_angle',
                     )
 
+    # dependencies for derived variables.
+    DEPENDENCIES = {'relative_humidity': ('air_temperature',
+                                          'specific_humidity',
+                                          'surface_pressure'),
+                    'dew_point': ('air_temperature',
+                                  'specific_humidity',
+                                  'surface_pressure'),
+                    'solar_zenith_angle': ('air_temperature',
+                                           'surface_pressure'),
+                    }
+
     # all variables processed by this module
-    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CALCULATED_VARS +
-                         DERIVED_VARS + CLOUD_VARS))
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS +
+                         CLOUD_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
                  scale=True):
@@ -308,15 +317,15 @@ class DataModel:
                                    cache.replace('.csv', '_i.csv'))
 
             if os.path.exists(cache_i) and os.path.exists(cache_d):
-                logger.debug('Found cached nearest neighbor indices, '
-                             'importing: {}'.format(cache_i))
+                logger.warning('Found cached nearest neighbor indices, '
+                               'importing: {}'.format(cache_i))
                 dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
                 ind = np.genfromtxt(cache_i, dtype=np.uint32, delimiter=',')
 
             else:
                 dist, ind = geo_nn(df1, df2, labels=labels, k=k)
-                logger.debug('Saving nearest neighbor indices to: {}'
-                             .format(cache_i))
+                logger.info('Saving nearest neighbor indices to: {}'
+                            .format(cache_i))
                 np.savetxt(cache_d, dist, delimiter=',')
                 np.savetxt(cache_i, ind, delimiter=',')
 
@@ -521,37 +530,6 @@ class DataModel:
 
         return data
 
-    def _calculate(self, var):
-        """Method for calculating variables (without dependencies).
-
-        Parameters
-        ----------
-        var : str
-            NSRDB var name.
-
-        Returns
-        -------
-        data : np.ndarray
-            NSRDB-resolution data for the given var and the current day.
-        """
-
-        if var == 'solar_zenith_angle':
-            lat_lon = self.nsrdb_grid[['latitude', 'longitude']].values
-            lat_lon = lat_lon.astype(np.float32)
-            data = SolarPosition(self.nsrdb_ti, lat_lon).zenith
-
-        else:
-            raise KeyError('Did not recognize request to calculate variable '
-                           '"{}".'.format(var))
-
-        # convert units from MERRA to NSRDB
-        data = self.convert_units(var, data)
-
-        # scale if requested
-        data = self.scale_data(var, data)
-
-        return data
-
     def _cloud_regrid(self, cloud_vars, extent='east', path=None,
                       parallel=False):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
@@ -602,31 +580,41 @@ class DataModel:
         else:
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
-            for i, fpath in enumerate(var_obj.flist):
+            for fpath in var_obj.flist:
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
-                regrid_ind[i] = self.get_cloud_nn(fpath, self.nsrdb_grid)
+                regrid_ind[fpath] = self.get_cloud_nn(fpath, self.nsrdb_grid)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
 
         data = {}
         # extract the regrided data for all timesteps
-        for i, obj in enumerate(var_obj):
-            # save all datasets
-            for dset, array in obj.source_data.items():
-                if dset not in data:
-                    # initialize array based on time index and NN index result
-                    if np.issubdtype(array.dtype, np.float):
-                        data[dset] = np.full(self.nsrdb_data_shape, np.nan,
-                                             dtype=array.dtype)
-                    else:
-                        data[dset] = np.full(self.nsrdb_data_shape, -15,
-                                             dtype=array.dtype)
+        for i, (timestamp, obj) in enumerate(var_obj):
 
-                # write single timestep with NSRDB sites to appropriate row
-                # map the regridded data using the regrid NN indices
-                data[dset][i, :] = array[regrid_ind[i]]
+            if timestamp != self.nsrdb_ti[i]:
+                raise ValueError('Cloud iteration timestamp "{}" did not '
+                                 'match NSRDB timestamp "{}" at index #{}'
+                                 .format(timestamp, self.nsrdb_ti[i], i))
+
+            # obj is None if cloud data file is missing
+            if obj is not None:
+
+                # save all datasets
+                for dset, array in obj.source_data.items():
+
+                    # initialize array based on time index and NN index result
+                    if dset not in data:
+                        if np.issubdtype(array.dtype, np.float):
+                            data[dset] = np.full(self.nsrdb_data_shape, np.nan,
+                                                 dtype=array.dtype)
+                        else:
+                            data[dset] = np.full(self.nsrdb_data_shape, -15,
+                                                 dtype=array.dtype)
+
+                    # write single timestep with NSRDB sites to appropriate row
+                    # map the regridded data using the regrid NN indices
+                    data[dset][i, :] = array[regrid_ind[obj.fpath]]
 
         # scale if requested
         if self._scale:
@@ -647,7 +635,8 @@ class DataModel:
         Returns
         -------
         regrid_ind : dict
-            Dictionary of NN index results keyed by the enumerated file list.
+            Dictionary of NN index results keyed by the file paths in the
+            file list.
         """
 
         logger.debug('Starting cloud ReGrid parallel.')
@@ -659,9 +648,9 @@ class DataModel:
         regrid_ind = {}
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
-            for i, fpath in enumerate(flist):
-                regrid_ind[i] = exe.submit(self.get_cloud_nn, fpath,
-                                           self.nsrdb_grid)
+            for fpath in flist:
+                regrid_ind[fpath] = exe.submit(self.get_cloud_nn, fpath,
+                                               self.nsrdb_grid)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -691,6 +680,25 @@ class DataModel:
 
         return regrid_ind
 
+    def _process_dependencies(self, dependencies):
+        """Ensure that all dependencies have been processed.
+
+        Parameters
+        ----------
+        dependencies : list | tuple
+            List of variable names representing dependencies that have to be
+            processed before a downstream variable.
+        """
+
+        for dep in dependencies:
+            if dep not in self._processed:
+                logger.info('Processing dependency "{}".'.format(dep))
+                # process and save data to processed attribute
+                self[dep] = self._interpolate(dep)
+
+            # unscale data to physical units for input to physical eqns
+            self[dep] = self.unscale_data(dep, self[dep])
+
     def _derive(self, var):
         """Method for deriving variables (with dependencies).
 
@@ -705,31 +713,28 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        if var in ('relative_humidity', 'dew_point'):
-            dependencies = ('air_temperature', 'specific_humidity',
-                            'surface_pressure')
-            # ensure that all dependencies have been processed
-            for dep in dependencies:
-                if dep not in self._processed:
-                    logger.info('Processing dependency "{}" in order to '
-                                'derive "{}".'.format(dep, var))
-                    # process and save data to processed attribute
-                    self[dep] = self._interpolate(dep)
-
-                # unscale data to physical units for input to physical eqns
-                self[dep] = self.unscale_data(dep, self[dep])
-
-            # get the calculation method from the var factory
-            obj = self._var_factory.get(var)
-
-            # calculate merra-derived vars
-            data = obj.derive(self['air_temperature'],
-                              self['specific_humidity'],
-                              self['surface_pressure'])
+        if var in self.DEPENDENCIES:
+            dependencies = self.DEPENDENCIES[var]
 
         else:
             raise KeyError('Did not recognize request to derive variable '
                            '"{}".'.format(var))
+
+        # ensure dependencies are processed before working on derived var
+        self._process_dependencies(dependencies)
+
+        # get the derivation object from the var factory
+        obj = self._var_factory.get(var)
+
+        if var == 'solar_zenith_angle':
+            data = obj.derive(
+                self.nsrdb_ti,
+                self.nsrdb_grid[['latitude', 'longitude']].values,
+                self.nsrdb_grid['elevation'].values,
+                self['surface_pressure'],
+                self['air_temperature'])
+        else:
+            data = obj.derive(*[self[k] for k in dependencies])
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
@@ -1010,9 +1015,7 @@ class DataModel:
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta)
 
-        if var in cls.CALCULATED_VARS:
-            method = data_model._calculate
-        elif var in cls.CLOUD_VARS:
+        if var in cls.CLOUD_VARS:
             method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
             method = data_model._derive
