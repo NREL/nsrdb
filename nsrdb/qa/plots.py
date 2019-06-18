@@ -374,6 +374,7 @@ class Spatial:
             sites to plot.
         """
 
+        og_title = None
         if isinstance(dsets, str):
             dsets = [dsets]
         if not os.path.exists(out_dir):
@@ -387,6 +388,7 @@ class Spatial:
                 if sites is None:
                     sites = slice(0, f['meta'].shape[0])
 
+                ti = pd.to_datetime(f['time_index'][...].astype(str))
                 df = pd.DataFrame(f['meta'][sites]).loc[:, ['latitude',
                                                             'longitude']]
                 attrs = dict(f[dset].attrs)
@@ -405,6 +407,17 @@ class Spatial:
                     data = (f[dset][timesteps, sites].astype(np.float32) /
                             scale_factor)
                     for i, ts in enumerate(timesteps):
+
+                        if 'title' in kwargs:
+                            if og_title is None:
+                                og_title = kwargs['title']
+                            if '{}' in og_title:
+                                s = ('{}-{}-{} {}:{}'.format(
+                                    ti[ts].month, ti[ts].day, ti[ts].year,
+                                    str(ti[ts].hour).zfill(2),
+                                    str(ti[ts].minute).zfill(2)))
+                                kwargs['title'] = og_title.format(s)
+
                         df[dset] = data[i, :]
                         fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
                                                         file_ext)
