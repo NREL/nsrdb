@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import h5py
+import re
 import os
 import netCDF4
 import logging
@@ -483,8 +484,38 @@ class CloudVar(AncillaryVarHandler):
         return missing
 
     @staticmethod
+    def get_timestamp(fstr, option=None):
+        """Extract the cloud file timestamp.
+
+        Parameters
+        ----------
+        fstr : str
+            File path or file name with timestamp.
+        option : None | str
+            Option to retrieve only part of the timestamp.
+
+        Returns
+        -------
+        time : int | None
+            Integer timestamp of format YYYYDDDHHMMSSS (YYYY DDD HH MM SSS).
+            None if not found
+        """
+
+        match = re.match(r".*s([1-2][0-9]{13})", fstr)
+
+        if match:
+            time = int(match.group(1))
+        else:
+            time = None
+
+        if option.lower() == 'hhmm' and time is not None:
+            time = str(time)[7:11]
+
+        return time
+
+    @staticmethod
     def _h5_flist(path, date):
-        """Get the .h5 cloud data file list.
+        """Get the .h5 cloud data file path list.
 
         Parameters
         ----------
@@ -496,7 +527,8 @@ class CloudVar(AncillaryVarHandler):
         Returns
         -------
         flist : list
-            List of files sorted by timestamp. Empty list if no files found.
+            List of full file paths sorted by timestamp. Empty list if no
+            files found.
         """
 
         fl = os.listdir(path)
@@ -505,13 +537,12 @@ class CloudVar(AncillaryVarHandler):
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=lambda x: os.path.basename(x)
-                           .split('.')[0].split('_')[-1])
+            flist = sorted(flist, key=CloudVar.get_timestamp)
         return flist
 
     @staticmethod
     def _nc_flist(path, date):
-        """Get the .nc cloud data file list.
+        """Get the .nc cloud data file path list.
 
         Parameters
         ----------
@@ -523,7 +554,8 @@ class CloudVar(AncillaryVarHandler):
         Returns
         -------
         flist : list
-            List of files sorted by timestamp. Empty list if no files found.
+            List of full file paths sorted by timestamp. Empty list if no
+            files found.
         """
 
         fl = os.listdir(path)
@@ -532,19 +564,18 @@ class CloudVar(AncillaryVarHandler):
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=lambda x: os.path.basename(x)
-                           .split('.')[0].split('_')[-1].strip('s'))
+            flist = sorted(flist, key=CloudVar.get_timestamp)
         return flist
 
     @property
     def flist(self):
-        """List of cloud data files for one day. Each file is a timestep.
+        """List of cloud data file paths for one day. Each file is a timestep.
 
         Returns
         -------
         flist : list
-            List of .h5 or .nc files sorted by timestamp. Exception raised
-            if no files are found.
+            List of .h5 or .nc full file paths sorted by timestamp. Exception
+            raised if no files are found.
         """
 
         if self._flist is None:
@@ -557,6 +588,25 @@ class CloudVar(AncillaryVarHandler):
                 raise IOError('Could not find .h5 or .nc files for {} in '
                               'directory: {}'.format(self._date, self.path))
         return self._flist
+
+    @staticmethod
+    def data_time_index(flist):
+        """Get the actual time index of the file set based on the timestamps.
+
+        Parameters
+        ----------
+        flist : list
+            List of strings of cloud files (with or without full file path).
+
+        Returns
+        -------
+        data_time_index : pd.datetimeindex
+            Pandas datetime index based on the actual file timestamps.
+        """
+
+        strtime = [str(CloudVar.get_timestamp(fstr))[:-3] for fstr in flist]
+        data_time_index = pd.to_datetime(strtime, format='%Y,%j,%H,%M')
+        return data_time_index
 
     @property
     def time_index(self):
