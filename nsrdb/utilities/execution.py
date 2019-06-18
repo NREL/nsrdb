@@ -2,7 +2,7 @@
 Execution utilities.
 """
 from dask.distributed import Client, LocalCluster, wait
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call
 import logging
 import gc
 from math import floor
@@ -314,21 +314,23 @@ class PBS(SubprocessManager):
 class SLURM(SubprocessManager):
     """Subclass for SLURM subprocess jobs."""
 
-    def __init__(self, cmd, alloc, memory, walltime, name='nsrdb',
-                 stdout_path='./stdout'):
+    def __init__(self, cmd, alloc, memory, walltime, feature='--qos=normal',
+                 name='nsrdb', stdout_path='./stdout'):
         """Initialize and submit a PBS job.
 
         Parameters
         ----------
         cmd : str
-            Command to be submitted in PBS shell script. Example:
-                'python -m nsrdb.cli'
+            Command to be submitted in SLURM shell script.
         alloc : str
-            HPC project (allocation) handle. Example: 'nsrdb'.
+            HPC project (allocation) handle. Example: 'pxs'.
         memory : int
             Node memory request in GB.
         walltime : float
             Node walltime request in hours.
+        feature : str
+            Additional flags for SLURM job. Format is "--qos=high"
+            or "--depend=[state:job_id]". Default is None.
         name : str
             SLURM job name.
         stdout_path : str
@@ -340,6 +342,7 @@ class SLURM(SubprocessManager):
                                          alloc=alloc,
                                          memory=memory,
                                          walltime=walltime,
+                                         feature=feature,
                                          name=name,
                                          stdout_path=stdout_path)
         if self.out:
@@ -347,7 +350,8 @@ class SLURM(SubprocessManager):
         else:
             self.id = None
 
-    def check_status(self, job, var='id'):
+    @staticmethod
+    def check_status(job, var='id'):
         """Check the status of this PBS job using qstat.
 
         Parameters
@@ -369,9 +373,9 @@ class SLURM(SubprocessManager):
 
         if var == 'name':
             # check for specific name
-            squeue_rows = self.squeue(name=job)
+            squeue_rows = SLURM.squeue(name=job)
         else:
-            squeue_rows = self.squeue()
+            squeue_rows = SLURM.squeue()
 
         if squeue_rows is None:
             return None
@@ -392,7 +396,8 @@ class SLURM(SubprocessManager):
                     return row[4]
         return None
 
-    def squeue(self, name=None):
+    @staticmethod
+    def squeue(name=None):
         """Run the SLURM squeue command and return the stdout split to rows.
 
         Parameters
@@ -409,9 +414,9 @@ class SLURM(SubprocessManager):
         """
 
         cmd = ('squeue -u {user}{job_name}'
-               .format(user=self.USER,
+               .format(user=SLURM.USER,
                        job_name=' -n {}'.format(name) if name else ''))
-        stdout, _ = self.submit(cmd)
+        stdout, _ = SLURM.submit(cmd)
         if not stdout:
             # No jobs are currently running.
             return None
@@ -419,21 +424,37 @@ class SLURM(SubprocessManager):
             squeue_rows = stdout.split('\n')
             return squeue_rows
 
-    def sbatch(self, cmd, alloc, memory, walltime, name='nsrdb',
-               stdout_path='./stdout', keep_sh=False):
+    @staticmethod
+    def scancel(job_id):
+        """Cancel a slurm job.
+
+        Parameters
+        ----------
+        job_id : int
+            SLURM job id to cancel
+        """
+
+        cmd = ('scancel {job_id}'.format(job_id=job_id))
+        cmd = shlex.split(cmd)
+        call(cmd)
+
+    def sbatch(self, cmd, alloc, memory, walltime, feature='--qos=normal',
+               name='nsrdb', stdout_path='./stdout', keep_sh=False):
         """Submit a SLURM job via sbatch command and SLURM shell script
 
         Parameters
         ----------
         cmd : str
-            Command to be submitted in PBS shell script. Example:
-                'python -m nsrdb.generation.cli_gen'
+            Command to be submitted in SLURM shell script.
         alloc : str
-            HPC project (allocation) handle. Example: 'nsrdb'.
+            HPC project (allocation) handle. Example: 'pxs'.
         memory : int
             Node memory request in GB.
         walltime : float
             Node walltime request in hours.
+        feature : str
+            Additional flags for SLURM job. Format is "--qos=high"
+            or "--depend=[state:job_id]". Default is None.
         name : str
             SLURM job name.
         stdout_path : str
@@ -453,25 +474,32 @@ class SLURM(SubprocessManager):
 
         status = self.check_status(name, var='name')
 
-        if status == 'PD' or status == 'R':
+        if status in ('PD', 'R'):
             warn('Not submitting job "{}" because it is already in '
                  'squeue with status: "{}"'.format(name, status))
             out = None
             err = 'already_running'
+
         else:
+
+            feature_str = ''
+            if feature is not None:
+                feature_str = '#SBATCH {}  # extra feature\n'.format(feature)
+
             fname = '{}.sh'.format(name)
             script = ('#!/bin/bash\n'
-                      '#SBATCH --account={a} # allocation account\n'
-                      '#SBATCH --time={t} # walltime\n'
-                      '#SBATCH --job-name={n} # job name\n'
-                      '#SBATCH --nodes=1 # number of nodes\n'
-                      '#SBATCH --mem={m} # node RAM in MB\n'
+                      '#SBATCH --account={a}  # allocation account\n'
+                      '#SBATCH --time={t}  # walltime\n'
+                      '#SBATCH --job-name={n}  # job name\n'
+                      '#SBATCH --nodes=1  # number of nodes\n'
+                      '#SBATCH --mem={m}  # node RAM in MB\n'
                       '#SBATCH --output={p}/{n}_%j.o\n'
-                      '#SBATCH --error={p}/{n}_%j.e\n'
+                      '#SBATCH --error={p}/{n}_%j.e\n{f}'
                       'echo Running on: $HOSTNAME, Machine Type: $MACHTYPE\n'
                       '{cmd}'
                       .format(a=alloc, t=self.walltime(walltime), n=name,
-                              m=int(memory * 1000), p=stdout_path, cmd=cmd))
+                              m=int(memory * 1000), p=stdout_path,
+                              f=feature_str, cmd=cmd))
 
             # write the shell script file and submit as qsub job
             self.make_sh(fname, script)
