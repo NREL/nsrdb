@@ -190,8 +190,7 @@ class CloudVarSingleH5(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from: "{}"'
-                     .format(os.path.basename(self._fpath)))
+
         data = {}
         with h5py.File(self._fpath, 'r') as f:
             for dset in self._dsets:
@@ -321,8 +320,7 @@ class CloudVarSingleNC(CloudVarSingle):
             Dictionary of multiple cloud datasets. Keys are the cloud dataset
             names. Values are 1D (flattened/raveled) arrays of data.
         """
-        logger.debug('Retrieving single timestep cloud source data from: "{}"'
-                     .format(os.path.basename(self._fpath)))
+
         data = {}
         with netCDF4.Dataset(self._fpath, 'r') as f:
             for dset in self._dsets:
@@ -417,13 +415,22 @@ class CloudVar(AncillaryVarHandler):
             timestamp = self.file_df.index[self._i]
             fpath = self.file_df.iloc[self._i, 0]
 
-            obj = None
             if isinstance(fpath, str):
                 # initialize a single timestep helper object
                 if fpath.endswith('.h5'):
                     obj = CloudVarSingleH5(fpath, dsets=self._dsets)
                 elif fpath.endswith('.nc'):
                     obj = CloudVarSingleNC(fpath, dsets=self._dsets)
+
+                logger.debug('Cloud data timestep {} has source file: {}'
+                             .format(timestamp, os.path.basename(fpath)))
+
+            else:
+                obj = None
+                msg = ('Cloud data timestep {} is missing its '
+                       'source file.'.format(timestamp))
+                warn(msg)
+                logger.warning(msg)
 
             self._i += 1
             return timestamp, obj

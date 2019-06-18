@@ -317,15 +317,15 @@ class DataModel:
                                    cache.replace('.csv', '_i.csv'))
 
             if os.path.exists(cache_i) and os.path.exists(cache_d):
-                logger.debug('Found cached nearest neighbor indices, '
-                             'importing: {}'.format(cache_i))
+                logger.warning('Found cached nearest neighbor indices, '
+                               'importing: {}'.format(cache_i))
                 dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
                 ind = np.genfromtxt(cache_i, dtype=np.uint32, delimiter=',')
 
             else:
                 dist, ind = geo_nn(df1, df2, labels=labels, k=k)
-                logger.debug('Saving nearest neighbor indices to: {}'
-                             .format(cache_i))
+                logger.info('Saving nearest neighbor indices to: {}'
+                            .format(cache_i))
                 np.savetxt(cache_d, dist, delimiter=',')
                 np.savetxt(cache_i, ind, delimiter=',')
 
