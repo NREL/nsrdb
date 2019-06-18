@@ -456,14 +456,19 @@ class Spatial:
             Image file extension (.png, .jpeg).
         """
 
-        if extent.lower() == 'conus':
-            xlim = (-127, -65)
-            ylim = (24, 50)
-            figsize = (10, 5)
-        elif extent.lower() == 'nsrdb':
-            xlim = (-190, -20)
-            ylim = (-30, 70)
-            figsize = (10, 8)
+        if isinstance(extent, str):
+            if extent.lower() == 'conus':
+                xlim = (-127, -65)
+                ylim = (24, 50)
+                figsize = (10, 5)
+            elif extent.lower() == 'nsrdb':
+                xlim = (-190, -20)
+                ylim = (-30, 70)
+                figsize = (10, 8)
+            elif extent.lower() == 'canada':
+                xlim = (-140, -50)
+                ylim = (43, 68)
+                figsize = (12, 7)
 
         try:
             fig = plt.figure(figsize=figsize)
