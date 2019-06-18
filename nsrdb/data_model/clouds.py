@@ -483,33 +483,32 @@ class CloudVar(AncillaryVarHandler):
         return missing
 
     @staticmethod
-    def get_timestamp(fstr, option=None):
+    def get_timestamp(fstr):
         """Extract the cloud file timestamp.
 
         Parameters
         ----------
         fstr : str
             File path or file name with timestamp.
-        option : None | str
-            Option to retrieve only part of the timestamp.
 
         Returns
         -------
         time : int | None
-            Integer timestamp of format YYYYDDDHHMMSSS (YYYY DDD HH MM SSS).
+            Integer timestamp of format:
+                YYYYDDDHHMMSSS (YYYY DDD HH MM SSS) (for .nc files)
+                YYYYDDDHHMM (YYYY DDD HH MM) (for .h5 files)
             None if not found
         """
 
-        match = re.match(r".*s([1-2][0-9]{13})", fstr)
+        match_nc = re.match(r".*s([1-2][0-9]{13})", fstr)
+        match_h5 = re.match(r".*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})", fstr)
 
-        if match:
-            time = int(match.group(1))
+        if match_nc:
+            time = int(match_nc.group(1))
+        elif match_h5:
+            time = int(match_h5.group(1).replace('_', ''))
         else:
             time = None
-
-        if option is not None:
-            if option.lower() == 'hhmm' and time is not None:
-                time = str(time)[7:11]
 
         return time
 
@@ -636,7 +635,7 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime index based on the actual file timestamps.
         """
 
-        strtime = [str(CloudVar.get_timestamp(fstr))[:-3] for fstr in flist]
+        strtime = [str(CloudVar.get_timestamp(fstr))[:11] for fstr in flist]
         data_time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
         return data_time_index
 
@@ -657,11 +656,14 @@ class CloudVar(AncillaryVarHandler):
 
         data_ti = CloudVar.data_time_index(flist)
 
-        for i in range(0, len(data_ti), 10):
-            freq = pd.infer_freq(data_ti[i:i + 5])
+        if len(flist) == 1:
+            freq = '1d'
+        else:
+            for i in range(0, len(data_ti), 10):
+                freq = pd.infer_freq(data_ti[i:i + 5])
 
-            if freq is not None:
-                break
+                if freq is not None:
+                    break
 
         if freq is None:
             raise ValueError('Could not infer cloud data timestep frequency.')
