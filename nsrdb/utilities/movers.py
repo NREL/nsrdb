@@ -10,10 +10,9 @@ import pandas as pd
 import os
 import h5py
 import time
-import shlex
-from subprocess import Popen
 from warnings import warn
 
+from nsrdb.utilities.file_utils import repack_h5
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.execution import PBS, SLURM
 
@@ -149,63 +148,6 @@ def interrogate_dset(fname, dset):
         logger.info(shape)
         logger.info(f[dset].chunks)
         logger.info(dict(f[dset].attrs))
-
-
-def repack_h5(f_orig, f_new, dir_orig, dir_new=None, inplace=True):
-    """Repack an h5 file potentially decreasing its memory footprint.
-
-    Parameters
-    ----------
-    f_orig : str
-        Source/target h5 file (without path) to repack.
-    f_new : str
-        Intended destination h5 file. If inplace is specified, this can be
-        "temp.h5".
-    dir_orig : str
-        Source directory containing f_orig.
-    dir_new : str | NoneType
-        Target directory that the newly repacked file will be located in.
-        If this is None or inplace is requested, this will be the same as
-        dir_orig.
-    inplace : bool
-        If repacking inplace is requested, the final h5 file will have the same
-        name and location as the original file. The original file will be
-        removed.
-    """
-
-    # initialize a logger to the stdout
-    init_logger(__name__, log_file=None, log_level='INFO')
-
-    if dir_new is None or inplace is True:
-        dir_new = dir_orig
-
-    if dir_orig == dir_new and f_new == f_orig:
-        # protect against repacking to the same location
-        # (might cause error, unsure)
-        f_new = f_new.replace('.h5', '_repacked.h5')
-
-    f_orig = os.path.join(dir_orig, f_orig)
-    f_new = os.path.join(dir_new, f_new)
-
-    # Repack to new file and rename
-    t1 = time.time()
-    cmd = 'h5repack -i {i} -o {o}'.format(i=f_orig, o=f_new)
-    cmd = shlex.split(cmd)
-    logger.info('Submitting the following cmd as a subprocess:\n\t{}'
-                .format(cmd))
-
-    # use subprocess to submit command and wait until it is done
-    process = Popen(cmd)
-    process.wait()
-
-    if inplace:
-        # remove the original file and rename the newly packed file
-        os.remove(f_orig)
-        os.rename(f_new, f_orig)
-
-    min_elapsed = (time.time() - t1) / 60
-    logger.info('Finished repacking {} to {}. Time elapsed: {0:.2f} minutes.'
-                .format(f_orig, f_new, min_elapsed))
 
 
 def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
