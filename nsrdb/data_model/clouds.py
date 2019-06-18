@@ -444,20 +444,28 @@ class CloudVar(AncillaryVarHandler):
             doy = str(self._date.timetuple().tm_yday).zfill(3)
 
             dirsearch = '/{}/'.format(doy)
-            fsearch = '{}{}'.format(self._date.year, doy)
+            fsearch1 = '{}{}'.format(self._date.year, doy)
+            fsearch2 = '{}_{}'.format(self._date.year, doy)
 
             # walk through current directory looking for day directory
             for dirpath, _, _ in os.walk(self.source_dir):
+                dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in os.listdir(dirpath):
-                        if fsearch in fn:
+                        if fsearch1 in fn or fsearch2 in fn:
                             self._path = dirpath
                             break
                 if self._path is not None:
                     break
 
-            logger.info('Cloud data dir for date {} found at: {}'
-                        .format(self._date, self._path))
+            if self._path is None:
+                msg = ('Could not find cloud data dir for doy {} in '
+                       'source_dir {}'.format(doy, self.source_dir))
+                logger.exception(msg)
+                raise IOError(msg)
+            else:
+                logger.info('Cloud data dir for date {} found at: {}'
+                            .format(self._date, self._path))
 
             if self._extent not in self._path:
                 msg = ('Cloud extent "{}" not found in cloud path: {}'

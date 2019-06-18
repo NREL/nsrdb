@@ -580,10 +580,10 @@ class DataModel:
         else:
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
-            for i, fpath in enumerate(var_obj.flist):
+            for fpath in var_obj.flist:
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
-                regrid_ind[i] = self.get_cloud_nn(fpath, self.nsrdb_grid)
+                regrid_ind[fpath] = self.get_cloud_nn(fpath, self.nsrdb_grid)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
@@ -614,7 +614,7 @@ class DataModel:
 
                     # write single timestep with NSRDB sites to appropriate row
                     # map the regridded data using the regrid NN indices
-                    data[dset][i, :] = array[regrid_ind[i]]
+                    data[dset][i, :] = array[regrid_ind[obj.fpath]]
 
         # scale if requested
         if self._scale:
@@ -635,7 +635,8 @@ class DataModel:
         Returns
         -------
         regrid_ind : dict
-            Dictionary of NN index results keyed by the enumerated file list.
+            Dictionary of NN index results keyed by the file paths in the
+            file list.
         """
 
         logger.debug('Starting cloud ReGrid parallel.')
@@ -647,9 +648,9 @@ class DataModel:
         regrid_ind = {}
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
-            for i, fpath in enumerate(flist):
-                regrid_ind[i] = exe.submit(self.get_cloud_nn, fpath,
-                                           self.nsrdb_grid)
+            for fpath in flist:
+                regrid_ind[fpath] = exe.submit(self.get_cloud_nn, fpath,
+                                               self.nsrdb_grid)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
