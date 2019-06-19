@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 from nsrdb.utilities.loggers import init_logger
+from nsrdb.data_model.clouds import (CloudVarSingleH5, CloudVarSingleNC,
+                                     CloudVar)
 
 
 logger = logging.getLogger(__name__)
@@ -430,6 +432,47 @@ class Spatial:
                     df[dset] = data
                     fname_out = '{}_{}{}'.format(fname, dset, file_ext)
                     Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
+
+    @staticmethod
+    def goes_cloud(fpath, dsets, out_dir, nan_fill=-15, sparse_step=10,
+                   **kwargs):
+        """Plot datasets from a GOES cloud file.
+
+        Parameters
+        ----------
+        fpath : str
+            Target cloud file with path (either .nc or .h5).
+        dsets : str | list
+            Name of target dataset(s) to plot
+        out_dir : str
+            Path to dump output plot files.
+        nan_fill : int | float
+            Value to fill missing cloud data.
+        sparse_step : int
+            Step size to plot sites at a given interval (speeds things up).
+            sparse_step=1 will plot all datapoints.
+        """
+
+        if fpath.endswith('.nc'):
+            cld = CloudVarSingleNC(fpath, pre_proc_flag=True, index=None,
+                                   dsets=dsets)
+        else:
+            cld = CloudVarSingleH5(fpath, pre_proc_flag=True, index=None,
+                                   dsets=dsets)
+
+        timestamp = CloudVar.get_timestamp(fpath)
+
+        for dset in dsets:
+            df = cld.grid.copy()
+            data = cld.source_data[dset]
+            data[np.isnan(data)] = nan_fill
+            df[dset] = data
+
+            df = df.iloc[slice(0, None, sparse_step)]
+
+            fname = '{}_{}.png'.format(timestamp, dset)
+
+            Spatial.plot_geo_df(df, fname, out_dir, **kwargs)
 
     @staticmethod
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
