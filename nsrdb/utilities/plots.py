@@ -17,6 +17,7 @@ if 'linux' in sys.platform:
     matplotlib.use('Agg')
 # pylint: disable-msg=W0404
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 from nsrdb.utilities.loggers import init_logger
 
@@ -353,7 +354,7 @@ class Spatial:
             Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
     @staticmethod
-    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png',
+    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png', sites=None,
               **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
@@ -367,8 +368,13 @@ class Spatial:
             Path to dump output plot files.
         timesteps : iterable
             Timesteps (time indices) to make plots for.
+        file_ext : str
+            File extension
+        sites : None | List | Slice
+            sites to plot.
         """
 
+        og_title = None
         if isinstance(dsets, str):
             dsets = [dsets]
         if not os.path.exists(out_dir):
@@ -378,8 +384,13 @@ class Spatial:
             with h5py.File(h5, 'r') as f:
                 logger.info('Plotting "{}" from {}.'.format(dset, h5))
                 fname = os.path.basename(h5).replace('.h5', '')
-                df = pd.DataFrame(f['meta'][...]).loc[:, ['latitude',
-                                                          'longitude']]
+
+                if sites is None:
+                    sites = slice(0, f['meta'].shape[0])
+
+                ti = pd.to_datetime(f['time_index'][...].astype(str))
+                df = pd.DataFrame(f['meta'][sites]).loc[:, ['latitude',
+                                                            'longitude']]
                 attrs = dict(f[dset].attrs)
 
                 if 'scale_factor' in attrs:
@@ -393,9 +404,20 @@ class Spatial:
 
                 # 2D array with timesteps
                 if len(f[dset].shape) > 1:
-                    data = (f[dset][timesteps, :].astype(np.float32) /
+                    data = (f[dset][timesteps, sites].astype(np.float32) /
                             scale_factor)
                     for i, ts in enumerate(timesteps):
+
+                        if 'title' in kwargs:
+                            if og_title is None:
+                                og_title = kwargs['title']
+                            if '{}' in og_title:
+                                s = ('{}-{}-{} {}:{}'.format(
+                                    ti[ts].month, ti[ts].day, ti[ts].year,
+                                    str(ti[ts].hour).zfill(2),
+                                    str(ti[ts].minute).zfill(2)))
+                                kwargs['title'] = og_title.format(s)
+
                         df[dset] = data[i, :]
                         fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
                                                         file_ext)
@@ -403,7 +425,7 @@ class Spatial:
 
                 # 1D array, no timesteps
                 else:
-                    data = (f[dset][...].astype(np.float32) /
+                    data = (f[dset][sites].astype(np.float32) /
                             scale_factor)
                     df[dset] = data
                     fname_out = '{}_{}{}'.format(fname, dset, file_ext)
@@ -413,7 +435,8 @@ class Spatial:
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
                     xlabel=None, ylabel=None, title=None, cbar_label=None,
                     marker_size=0.1, xlim=(-127, -65), ylim=(24, 50),
-                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5)):
+                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5),
+                    extent=None, axis=None):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -432,12 +455,8 @@ class Spatial:
             0.1 is good for CONUS at 4km.
         xlim : list | tuple
             Plot x limits (left limit, right limit).
-            (-190, -20) is whole NSRDB
-            (-127, -65) is CONUS
         ylim : list | tuple
             Plot y limits (lower limit, upper limit).
-            (-30, 70) is whole NSRDB.
-            (24, 50) is CONUS
         cmap : str
             Matplotlib colormap (Blues, OrRd)
         cbar_range = None | tuple
@@ -446,30 +465,63 @@ class Spatial:
             Dots per inch.
         figsize : tuple
             Figure size inches (width, height).
-            (10, 5) is good for CONUS
         file_ext : str
             Image file extension (.png, .jpeg).
         """
 
+        if isinstance(extent, str):
+            if extent.lower() == 'conus':
+                xlim = (-127, -65)
+                ylim = (24, 50)
+                figsize = (10, 5)
+            elif extent.lower() == 'nsrdb':
+                xlim = (-190, -20)
+                ylim = (-30, 70)
+                figsize = (10, 8)
+            elif extent.lower() == 'canada':
+                xlim = (-140, -50)
+                ylim = (43, 68)
+                figsize = (12, 7)
+
         try:
             fig = plt.figure(figsize=figsize)
             ax = fig.add_subplot(111)
-            cmap = plt.get_cmap(cmap)
+            var = df.columns.values[2]
 
             if cbar_range is None:
                 cbar_range = [np.nanmin(df.iloc[:, 2]),
                               np.nanmax(df.iloc[:, 2])]
 
-            var = df.columns.values[2]
+            if '_' not in cmap:
+                custom_cmap = False
+                cmap = plt.get_cmap(cmap)
 
-            c = ax.scatter(df.loc[:, labels[1]],
-                           df.loc[:, labels[0]],
-                           marker='s',
-                           s=marker_size,
-                           c=df.iloc[:, 2],
-                           cmap=cmap,
-                           vmin=cbar_range[0],
-                           vmax=cbar_range[1])
+                c = ax.scatter(df.loc[:, labels[1]],
+                               df.loc[:, labels[0]],
+                               marker='s',
+                               s=marker_size,
+                               c=df.iloc[:, 2],
+                               cmap=cmap,
+                               vmin=cbar_range[0],
+                               vmax=cbar_range[1])
+
+            else:
+                custom_cmap = True
+                cmap_name, nbins = cmap.split('_')
+                cmap = plt.get_cmap(cmap_name)
+                cmaplist = [cmap(i) for i in range(cmap.N)]
+                bounds = np.linspace(cbar_range[0], cbar_range[1], int(nbins))
+                cmap = mpl.colors.LinearSegmentedColormap.from_list(
+                    '{}_{}'.format(cmap_name, nbins), cmaplist, len(bounds))
+                norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+                c = ax.scatter(df.loc[:, labels[1]],
+                               df.loc[:, labels[0]],
+                               marker='s',
+                               s=marker_size,
+                               c=df.iloc[:, 2],
+                               cmap=cmap,
+                               norm=norm)
 
             if xlabel is None:
                 xlabel = labels[1]
@@ -480,10 +532,27 @@ class Spatial:
             if cbar_label is None:
                 cbar_label = var
 
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-            ax.set_title(title)
-            fig.colorbar(c, ax=ax, label=cbar_label)
+            if axis is not None:
+                ax.axis(axis)
+            else:
+                ax.set_xlabel(xlabel)
+                ax.set_ylabel(ylabel)
+
+            if title is not False:
+                ax.set_title(title)
+
+            if not custom_cmap:
+                fig.colorbar(c, ax=ax, label=cbar_label)
+            else:
+                fmt = '%.2f'
+                int_bar = any([b % 1 == 0.0 for b in bounds])
+                if int_bar:
+                    fmt = '%.0f'
+                fig.colorbar(c, ax=ax, label=cbar_label, cmap=cmap, norm=norm,
+                             spacing='proportional',
+                             ticks=bounds,
+                             boundaries=bounds,
+                             format=fmt)
 
             ax.set_ylim(ylim)
             ax.set_xlim(xlim)
