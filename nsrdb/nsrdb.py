@@ -332,7 +332,8 @@ class NSRDB:
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
-        nsrdb._init_loggers(date=date, log_level=log_level)
+        nsrdb._init_loggers(date=date, log_file='nsrdb_data_model.log',
+                            log_level=log_level)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
                                                  parallel=parallel)
