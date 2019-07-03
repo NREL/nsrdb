@@ -379,7 +379,7 @@ class CloudVar(AncillaryVarHandler):
 
         super().__init__(name, var_meta=var_meta, date=date)
 
-        if any(pd.isnull(self.file_df)):
+        if len(self.file_df) != len(self.flist):
             msg = ('Bad number of cloud data files for {}. Counted {} files '
                    'in {} but expected: {}'
                    .format(self._date, len(self.flist), self.path,
