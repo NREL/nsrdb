@@ -1,6 +1,7 @@
 """Common utilities for NSRDB all-sky module.
 """
 
+from copy import deepcopy
 import pandas as pd
 import numpy as np
 import os
@@ -125,6 +126,69 @@ def calc_beta(aod, alpha):
     return beta
 
 
+def calc_dhi(dni, ghi, sza):
+    """Calculate the diffuse horizontal irradiance and correct the direct.
+
+    Parameters
+    ----------
+    dni : np.ndarray
+        Direct normal irradiance.
+    ghi : np.ndarray
+        Global horizontal irradiance.
+    sza : np.ndarray
+        Solar zenith angle (degrees).
+
+    Returns
+    -------
+    dhi : np.ndarray
+        Diffuse horizontal irradiance. This is ensured to be non-negative.
+    dni : np.ndarray
+        Direct normal irradiance. This is set to zero where dhi < 0
+    """
+
+    dhi = ghi - dni * np.cos(np.radians(sza))
+    if np.min(dhi) < 0:
+        # patch for negative DHI values. Set DNI to zero, set DHI to GHI
+        pos = np.where(dhi < 0)
+        dni[pos] = 0
+        dhi[pos] = ghi[pos]
+
+    return dhi, dni
+
+
+def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
+    """Perform Rayleigh violation check (all-sky diffuse >= clearsky diffuse).
+
+    Decided not to use this in all-sky on 7/3/2019
+
+    Failed data gets filled with farms data
+
+    Parameters
+    ----------
+    dhi : np.ndarray
+        All-sky diffuse irradiance.
+    cs_dhi : np.ndarray
+        Clearsky (rest) diffuse irradiance.
+    fill_flag : np.ndarray
+        Array of integers signifying whether irradiance has been filled.
+    rayleigh_flag : int
+        Fill flag for rayleigh violation.
+
+    Returns
+    -------
+    fill_flag : np.ndarray
+        Array of integers signifying whether irradiance has been filled, with
+        rayleigh violations marked with the rayleigh flag.
+    """
+
+    # boolean mask where the rayleigh check fails
+    # (compare agains 99.9% to avoid false positives)
+    failed = (dhi < (0.999 * deepcopy(cs_dhi))) & (cs_dhi > 0)
+    fill_flag[failed] = rayleigh_flag
+
+    return fill_flag
+
+
 def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """Combine clearsky and rest data into all-sky irradiance array.
 
@@ -159,36 +223,6 @@ def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
                              clearsky_irrad, cloudy_irrad)
 
     return all_sky_irrad
-
-
-def calc_dhi(dni, ghi, sza):
-    """Calculate the diffuse horizontal irradiance and correct the direct.
-
-    Parameters
-    ----------
-    dni : np.ndarray
-        Direct normal irradiance.
-    ghi : np.ndarray
-        Global horizontal irradiance.
-    sza : np.ndarray
-        Solar zenith angle (degrees).
-
-    Returns
-    -------
-    dni : np.ndarray
-        Direct normal irradiance. This is set to zero where dhi < 0
-    dhi : np.ndarray
-        Diffuse horizontal irradiance. This is ensured to be non-negative.
-    """
-
-    dhi = ghi - dni * np.cos(np.radians(sza))
-    if np.min(dhi) < 0:
-        # patch for negative DHI values. Set DNI to zero, set DHI to GHI
-        pos = np.where(dhi < 0)
-        dni[pos] = 0
-        dhi[pos] = ghi[pos]
-
-    return dni, dhi
 
 
 def screen_cld(cld_data, rng=(0, 160)):

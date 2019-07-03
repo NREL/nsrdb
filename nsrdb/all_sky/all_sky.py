@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
-            time_index, total_precipitable_water, ghi_variability=None):
+            time_index, total_precipitable_water, fill_flag=None,
+            ghi_variability=None):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -71,6 +72,11 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Time index.
     total_precipitable_water : np.ndarray
         Total precip. water (cm).
+    fill_flag : None | np.ndarray
+        Integer array of flags showing what data was previously filled and why.
+        None will create a new fill flag initialized as all zeros.
+        An array input will be interpreted as flags showing which cloud
+        properties have already been filled.
     ghi_variability : NoneType | float
         Variability fraction to apply to GHI. Provides synthetic variability
         for cloudy irradiance when downscaling data.
@@ -91,6 +97,12 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     if isinstance(time_index, np.ndarray):
         time_index = pd.to_datetime(time_index.astype(str))
+
+    # do not all-sky irradiance gap fill previously filled cloud props
+    flags_to_fill = list(range(1, 7))
+    if fill_flag is not None:
+        already_filled = np.unique(fill_flag)
+        flags_to_fill = list(set(flags_to_fill) - set(already_filled))
 
     # calculate derived variables
     radius = ti_to_radius(time_index, n_cols=alpha.shape[1])
@@ -141,20 +153,23 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # calculate the DNI using the DISC model
     dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,
-               pressure=surface_pressure, sza_lim=SZA_LIM)
+               pressure=surface_pressure)
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
-    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props)
+    fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,
+                               fill_flag=fill_flag)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
-    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False)
-    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag)
+    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False,
+                         flags_to_fill=flags_to_fill)
+    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
+                         flags_to_fill=flags_to_fill)
 
     # calculate the DHI, patching DNI for negative DHI values
-    dni, dhi = calc_dhi(dni, ghi, solar_zenith_angle)
+    dhi, dni = calc_dhi(dni, ghi, solar_zenith_angle)
 
     # ensure that final irradiance is zero when sun is below horizon.
     dhi = dark_night(dhi, solar_zenith_angle, lim=SZA_LIM)
@@ -226,7 +241,8 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                     surface_pressure=fa['surface_pressure', rows, cols],
                     time_index=fc.time_index[rows],
                     total_precipitable_water=fa['total_precipitable_water',
-                                                rows, cols])
+                                                rows, cols],
+                    fill_flag=fa['fill_flag', rows, cols])
     except Exception as e:
         logger.exception('All-Sky failed!')
         raise e

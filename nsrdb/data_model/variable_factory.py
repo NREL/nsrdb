@@ -37,6 +37,7 @@ class VarFactory:
                'surface_pressure': MerraVar,
                'total_precipitable_water': MerraVar,
                'wind_speed': MerraVar,
+               'wind_direction': MerraVar,
                }
 
     NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')

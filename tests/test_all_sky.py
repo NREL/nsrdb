@@ -16,7 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from nsrdb.all_sky.all_sky import all_sky
-from nsrdb.qa.statistics import mae_perc
+from nsrdb.utilities.statistics import mae_perc
 
 
 TEST_FILE = './data/validation_nsrdb/nsrdb_surfrad_2000.h5'
@@ -52,9 +52,6 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
         # get unscaled source variables
         out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
 
-        meta = pd.DataFrame(f['meta'][sites])
-        print(meta[['latitude', 'longitude', 'state', 'county']].head())
-
         for var in var_list:
             out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
 
@@ -72,7 +69,7 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
     return out
 
 
-def run_all_sky(test_file=TEST_FILE, sites=list(range(10))):
+def run_all_sky(test_file=TEST_FILE, sites=list(range(9))):
     """Run the all-sky processing code over the specified site list."""
 
     source_vars = get_source_data(test_file=test_file, sites=sites)
@@ -84,6 +81,8 @@ def run_all_sky(test_file=TEST_FILE, sites=list(range(10))):
 
 def make_df(site):
     """Get dataframes containing single-site timeseries data for checking."""
+    if isinstance(site, int):
+        site = [site]
 
     d = get_source_data(sites=site)
 
@@ -91,8 +90,8 @@ def make_df(site):
 
     dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=site)
 
-    df_dhi = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_dhi = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
@@ -101,8 +100,8 @@ def make_df(site):
                            'dhi_orig': dhi_orig.flatten(),
                            'cs_dhi': aso['clearsky_dhi'].flatten(),
                            })
-    df_dni = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_dni = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
@@ -111,8 +110,8 @@ def make_df(site):
                            'dni_orig': dni_orig.flatten(),
                            'cs_dni': aso['clearsky_dni'].flatten(),
                            })
-    df_ghi = pd.DataFrame({'ti': d['ti'],
-                           'sza': d['sza'].flatten(),
+    df_ghi = pd.DataFrame({'ti': d['time_index'],
+                           'sza': d['solar_zenith_angle'].flatten(),
                            'cloud_type': d['cloud_type'].flatten(),
                            'fill_flag': aso['fill_flag'].flatten(),
                            'fill_flag_orig': fill_orig.flatten(),
@@ -180,23 +179,14 @@ def plot_benchmark(sites, y_range=None):
 
 @pytest.mark.parametrize('test_file',
                          ('./data/validation_nsrdb/nsrdb_surfrad_1998.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_1999.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2000.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2001.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2002.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2003.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2004.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2005.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2006.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2007.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2008.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2009.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2010.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2011.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2012.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2013.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2014.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2015.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2016.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2017.h5',
                           ))
