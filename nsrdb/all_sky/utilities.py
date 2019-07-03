@@ -140,10 +140,10 @@ def calc_dhi(dni, ghi, sza):
 
     Returns
     -------
-    dni : np.ndarray
-        Direct normal irradiance. This is set to zero where dhi < 0
     dhi : np.ndarray
         Diffuse horizontal irradiance. This is ensured to be non-negative.
+    dni : np.ndarray
+        Direct normal irradiance. This is set to zero where dhi < 0
     """
 
     dhi = ghi - dni * np.cos(np.radians(sza))
@@ -153,11 +153,15 @@ def calc_dhi(dni, ghi, sza):
         dni[pos] = 0
         dhi[pos] = ghi[pos]
 
-    return dni, dhi
+    return dhi, dni
 
 
 def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
     """Perform Rayleigh violation check (all-sky diffuse >= clearsky diffuse).
+
+    Decided not to use this in all-sky on 7/3/2019
+
+    Failed data gets filled with farms data
 
     Parameters
     ----------
@@ -179,7 +183,7 @@ def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
 
     # boolean mask where the rayleigh check fails
     # (compare agains 99.9% to avoid false positives)
-    failed = ((dhi < (0.999 * deepcopy(cs_dhi))) & (cs_dhi > 0))
+    failed = (dhi < (0.999 * deepcopy(cs_dhi))) & (cs_dhi > 0)
     fill_flag[failed] = rayleigh_flag
 
     return fill_flag

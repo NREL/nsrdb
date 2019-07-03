@@ -16,7 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from nsrdb.all_sky.all_sky import all_sky
-from nsrdb.qa.statistics import mae_perc
+from nsrdb.utilities.statistics import mae_perc
 
 
 TEST_FILE = './data/validation_nsrdb/nsrdb_surfrad_2000.h5'
@@ -190,8 +190,8 @@ def plot_benchmark(sites, y_range=None):
                           './data/validation_nsrdb/nsrdb_surfrad_2016.h5',
                           './data/validation_nsrdb/nsrdb_surfrad_2017.h5',
                           ))
-def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
-                 mae_perc_threshold=15):
+def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
+                 mae_perc_threshold=5):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
     baseline = {}

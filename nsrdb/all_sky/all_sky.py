@@ -18,7 +18,7 @@ from nsrdb.all_sky.farms import farms
 from nsrdb.all_sky import SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
-                                     dark_night, cloud_variability, rayleigh)
+                                     dark_night, cloud_variability)
 from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
                                             missing_cld_props)
 
@@ -169,18 +169,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                          flags_to_fill=flags_to_fill)
 
     # calculate the DHI, patching DNI for negative DHI values
-    dni, dhi = calc_dhi(dni, ghi, solar_zenith_angle)
-
-    # perform the rayleigh violation check
-    fill_flag = rayleigh(dhi, rest_data.dhi, fill_flag)
-
-    # Gap fill bad data once again now with rayleigh check
-    dhi = gap_fill_irrad(dhi, rest_data.dni, fill_flag, return_csr=False,
-                         flags_to_fill=7)
-    ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False,
-                         flags_to_fill=7)
-    dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
-                         flags_to_fill=7)
+    dhi, dni = calc_dhi(dni, ghi, solar_zenith_angle)
 
     # ensure that final irradiance is zero when sun is below horizon.
     dhi = dark_night(dhi, solar_zenith_angle, lim=SZA_LIM)
