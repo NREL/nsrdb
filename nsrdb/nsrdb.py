@@ -476,7 +476,7 @@ class NSRDB:
         """
 
         if stdout_path is None:
-            stdout_path = '~/nsrdb_stdout/'
+            stdout_path = os.getcwd()
 
         cmd = "python -c 'from nsrdb.nsrdb import NSRDB;NSRDB.{f}({a})'"
 
