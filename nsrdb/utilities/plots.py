@@ -519,7 +519,7 @@ class Spatial:
                 figsize = (10, 5)
             elif extent.lower() == 'nsrdb':
                 xlim = (-190, -20)
-                ylim = (-30, 70)
+                ylim = (-62, 65)
                 figsize = (10, 8)
             elif extent.lower() == 'canada':
                 xlim = (-140, -50)
