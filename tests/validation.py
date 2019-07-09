@@ -19,6 +19,7 @@ from nsrdb.qa.statistics import mbe_perc, rmse_perc
 from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.all_sky import CLEAR_TYPES, CLOUD_TYPES
 from nsrdb.utilities.solar_position import SolarPosition
+from nsrdb.file_handlers.surfrad import Surfrad
 
 
 RTOL = 1e-03
@@ -34,45 +35,13 @@ SITE_CODES = {0: 'dra',  # desert rock nevada
               8: 'psu'}  # Penn. State
 
 
-def get_at_interval(df, dt, window=61):
-    """Get a rolling avg dataset sampled at a given timestep interval."""
-    year = df.index.year[0]
-    for var in df:
-        df[var] = df[var].rolling(window, center=True).mean()
-        ti = pd.date_range('1-1-{y}'.format(y=year),
-                           '1-1-{y}'.format(y=year + 1),
-                           freq=dt)[:-1]
-    df_new = pd.DataFrame(index=ti).join(df)
-    return df_new
-
-
 def get_measurement_data(surfrad_file):
-    """Get original irradiance data from an NSRDB file to benchmark against.
+    """Get original irradiance data from a surfrad ground meassurement h5
+    file to benchmark against.
     """
 
-    with h5py.File(surfrad_file, 'r') as f:
-        # get the measurement irradiance variables
-        dhi_msr = f['dhi'][...].astype(float)
-        dni_msr = f['dni'][...].astype(float)
-        ghi_msr = f['ghi'][...].astype(float)
-        ti_msr = pd.to_datetime(f['time_index'][...].astype(str))
-
-    dhi_msr[dhi_msr < 0] = np.nan
-    dni_msr[dni_msr < 0] = np.nan
-    ghi_msr[ghi_msr < 0] = np.nan
-
-    measurement_df = pd.DataFrame({'dhi': dhi_msr, 'dni': dni_msr,
-                                   'ghi': ghi_msr}, index=ti_msr)
-
-    measurement_df = measurement_df.sort_index()
-
-    # calculate the window size to take a moving average over
-    avg_min = 60  # take the average over this many minutes
-    dt = ti_msr.to_series().diff()
-    dt = dt[1].seconds / 60
-    window = int(np.round(avg_min / dt)) + 1
-
-    measurement_df = get_at_interval(measurement_df, dt='1h', window=window)
+    with Surfrad(surfrad_file) as f:
+        measurement_df = f.get_df(dt_out='5min', window_minutes=61)
 
     return measurement_df
 
