@@ -124,19 +124,19 @@ class ExtractNSRDB:
                 for dset in s.keys():
                     if dset not in self.IGNORE_LIST:
                         print(dset)
-                        print(s[dset].shape)
-                        n_time = s[dset].shape[0]
-                        t.create_dataset(dset, data=s[dset][:, sites],
-                                         shape=(n_time, n_sites),
-                                         dtype=s[dset].dtype)
-                        print(t[dset].shape)
-                        print(s[dset][0:5, 0:10])
-                        print(t[dset][0:5, 0:10])
+                        dset_shape = s[dset].shape
+
+                        if len(dset_shape) > 1:
+                            t.create_dataset(dset, data=s[dset][:, sites],
+                                             shape=(dset_shape[0], n_sites),
+                                             dtype=s[dset].dtype)
+                        else:
+                            t.create_dataset(dset, data=s[dset][sites],
+                                             shape=(n_sites, ),
+                                             dtype=s[dset].dtype)
+
                         for attr in s[dset].attrs.keys():
                             t[dset].attrs[attr] = s[dset].attrs[attr]
-                            print(attr,
-                                  t[dset].attrs[attr],
-                                  t[dset].attrs[attr])
 
                 t.create_dataset('meta', data=s['meta'][sites])
                 t.create_dataset('time_index', data=s['time_index'][...])
@@ -275,6 +275,18 @@ class ExtractPuertoRico(ExtractNSRDB):
         label = 'country'
         df = ex.filter_meta(val, label)
         sites = list(df.index.values)[0:50]
+        ex.extract_sites(sites=sites)
+
+    @classmethod
+    def extract_oriana(cls, target, source):
+        """Extract PR Oriana solar site data."""
+
+        ex = cls(target, source)
+        coords = np.array(((18.474486, -67.047259),  # oriana (google maps)
+                           ))
+        subset_meta = ex.extract_closest_meta(coords)
+        subset_meta = subset_meta.sort_index()
+        sites = list(subset_meta.index.values)
         ex.extract_sites(sites=sites)
 
 
