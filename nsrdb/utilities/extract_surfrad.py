@@ -4,7 +4,6 @@ Created on Tue Mar 12 16:50:16 2019
 
 @author: gbuster
 """
-import calendar
 import os
 import pandas as pd
 import numpy as np
@@ -136,6 +135,7 @@ def get_dat_table(d, flist):
 
     ti = pd.to_datetime(df['time_string'], format='%Y%m%d%H%M')
     df.index = ti
+    df = df.sort_index()
     return df
 
 
@@ -199,6 +199,7 @@ def get_lw1_table(d, flist):
     df['time_string'] = df['zdate'] + ' ' + df['ztim'].str.zfill(4)
     ti = pd.to_datetime(df['time_string'], format='%Y%m%d %H%M')
     df.index = ti
+    df = df.sort_index()
     return df
 
 
@@ -275,30 +276,24 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
                 print('Skipping: "{}" for {}. Path does not exist: {}'
                       .format(site, year, d))
                 bad_dirs.append(d)
+            elif os.path.exists(os.path.join(dir_out, fout)):
+                print('Skipping file, already exists: {}'.format(fout))
             else:
                 # get number of valid files in dir
                 flist = [f for f in os.listdir(d) if file_flag in f]
-                n_f = len(flist)
 
-                if not ((calendar.isleap(year) and n_f == 366) or
-                        (not calendar.isleap(year) and n_f == 365)):
-                    print('Skipping: "{}" for {}. Directory contains {} files.'
-                          .format(site, year, len(os.listdir(d))))
-                    bad_dirs.append(d)
-
+                print('Processing "{}" for {}'.format(site, year))
+                if 'dat' in file_flag:
+                    df = get_dat_table(d, flist)
+                elif 'lw1' in file_flag:
+                    df = get_lw1_table(d, flist)
                 else:
-                    print('Processing "{}" for {}'.format(site, year))
-                    if 'dat' in file_flag:
-                        df = get_dat_table(d, flist)
-                    elif 'lw1' in file_flag:
-                        df = get_lw1_table(d, flist)
-                    else:
-                        raise('Did not recongize user-specified file flag: '
-                              '"{}"'.format(file_flag))
+                    raise('Did not recongize user-specified file flag: '
+                          '"{}"'.format(file_flag))
 
-                    df = filter_measurement_df(df)
+                df = filter_measurement_df(df)
 
-                    surfrad_to_h5(df, fout, dir_out)
+                surfrad_to_h5(df, fout, dir_out)
 
     print('The following directories did not have valid datasets:\n{}'
           .format(bad_dirs))
@@ -306,7 +301,7 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
 
 
 if __name__ == '__main__':
-    root_dir = '/projects/PXS/surfrad_raw'
-    dir_out = '/home/gbuster/surfrad_data'
-    site_codes = ('sxf', 'tbl')
+    root_dir = '/lustre/eaglefs/projects/pxs/surfrad/raw'
+    dir_out = '/lustre/eaglefs/projects/pxs/surfrad/h5'
+    site_codes = ('bon', 'dra', 'fpk', 'gwn', 'psu', 'sxf', 'tbl')
     extract_all(root_dir, dir_out, site_codes=site_codes)
