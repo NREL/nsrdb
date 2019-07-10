@@ -278,16 +278,21 @@ class ExtractPuertoRico(ExtractNSRDB):
         ex.extract_sites(sites=sites)
 
     @classmethod
-    def extract_oriana(cls, target, source):
-        """Extract PR Oriana solar site data."""
+    def extract_gen_meta(cls, target, source):
+        """Extract PR solar site data."""
 
         ex = cls(target, source)
-        coords = np.array(((18.474486, -67.047259),  # oriana (google maps)
+        coords = np.array(((17.947249, -66.157321),  # ilumina
+                           (18.412413, -65.903370),  # san fermin
+                           (17.979177, -66.220556),  # horizon
+                           (18.474486, -67.047259),  # oriana
                            ))
         subset_meta = ex.extract_closest_meta(coords)
         subset_meta = subset_meta.sort_index()
-        sites = list(subset_meta.index.values)
-        ex.extract_sites(sites=sites)
+        if not os.path.exists(target) and target.endswith('.csv'):
+            subset_meta.to_csv(target)
+        else:
+            raise IOError('Cannot write to: {}'.format(target))
 
 
 class ExtractValidationData(ExtractNSRDB):
