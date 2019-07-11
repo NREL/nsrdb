@@ -449,7 +449,7 @@ class DataModel:
             Unscaled float32 data array.
         """
 
-        if self._scale:
+        if self._scale and isinstance(data, np.ndarray):
             var_obj = self._var_factory.get_base_handler(
                 var, var_meta=self._var_meta, date=self.date)
             data = var_obj.unscale_data(data)
@@ -695,7 +695,7 @@ class DataModel:
         return regrid_ind
 
     def _process_dependencies(self, dependencies):
-        """Ensure that all dependencies have been processed.
+        """Ensure that all dependencies have been processed and set to self.
 
         Parameters
         ----------
@@ -705,13 +705,24 @@ class DataModel:
         """
 
         for dep in dependencies:
+
+            # process and save data to processed attribute
+            # (unscale to physical units)
             if dep not in self._processed:
                 logger.info('Processing dependency "{}".'.format(dep))
-                # process and save data to processed attribute
                 self[dep] = self._interpolate(dep)
+                self[dep] = self.unscale_data(dep, self[dep])
 
-            # unscale data to physical units for input to physical eqns
-            self[dep] = self.unscale_data(dep, self[dep])
+            # dependency data dumped to disk, load from disk
+            elif isinstance(self._processed[dep], str):
+                logger.debug('Importing dependency "{}" from: {}'
+                             .format(dep, self._processed[dep]))
+                with Outputs(self._processed[dep]) as dep_out:
+                    self[dep] = dep_out[dep]
+
+            # dependency already in memory. Ensure physical units.
+            else:
+                self[dep] = self.unscale_data(dep, self[dep])
 
     def _derive(self, var, fpath_out=None):
         """Method for deriving variables (with dependencies).
@@ -765,6 +776,7 @@ class DataModel:
             self[dep] = self.scale_data(dep, self[dep])
 
         if fpath_out is not None:
+            fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
             data = self._dump(var, fpath_out, data)
 
         logger.info('Finished "{}".'.format(var))
@@ -1008,7 +1020,7 @@ class DataModel:
 
         return futures
 
-    def _dump(self, var, fpath_out, data):
+    def _dump(self, var, fpath_out, data, purge=True):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1020,15 +1032,19 @@ class DataModel:
             be returned as an object.
         data : np.ndarray
             NSRDB-resolution data for the given var and the current day.
+        purge : bool
+            Flag to purge data from memory after dumping to disk
 
         Returns
         -------
         data : str | np.ndarray
-            Input data array if var is a dependency, else file path to dump
-            results.
+            Input data array if no purge, else file path to dump results.
         """
 
-        if fpath_out is not None:
+        if isinstance(fpath_out, str):
+            if '{var}' in fpath_out and '{i}' in fpath_out:
+                fpath_out = fpath_out.format(var=var,
+                                             i=self.nsrdb_grid.index[0])
 
             logger.debug('Writing: {}'.format(os.path.basename(fpath_out)))
 
@@ -1045,7 +1061,8 @@ class DataModel:
                                dtype=var_obj.final_dtype,
                                chunks=None, attrs=attrs)
 
-            if var not in [d for s in self.DEPENDENCIES.values() for d in s]:
+            if purge:
+                del data
                 data = fpath_out
 
         return data
