@@ -11,6 +11,7 @@ import datetime
 import pandas as pd
 import os
 import logging
+import sys
 
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
@@ -129,7 +130,22 @@ class NSRDB:
             self._grid = pd.read_csv(self._grid, index_col=0)
         return self._grid
 
-    def _exe_daily_data_model(self, month, day, var_list=None, parallel=True):
+    @staticmethod
+    def _log_py_version():
+        """Check python version and 64-bit and print to logger."""
+
+        logger.info('Running python version: {}'.format(sys.version_info))
+
+        is_64bits = sys.maxsize > 2 ** 32
+        if is_64bits:
+            logger.info('Running on 64-bit python, sys.maxsize: {}'
+                        .format(sys.maxsize))
+        else:
+            logger.warning('Running 32-bit python, sys.maxsize: {}'
+                           .format(sys.maxsize))
+
+    def _exe_daily_data_model(self, month, day, var_list=None, parallel=True,
+                              fpath_out=None):
         """Execute the data model for a single day.
 
         Parameters
@@ -143,6 +159,9 @@ class NSRDB:
             variables.
         parallel : bool
             Flag to perform data model processing in parallel.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -162,7 +181,8 @@ class NSRDB:
         data_model = DataModel.run_multiple(
             var_list, date, self._grid, nsrdb_freq=self._freq,
             var_meta=self._var_meta, parallel=parallel,
-            cloud_extent=self._cloud_extent, return_obj=True)
+            cloud_extent=self._cloud_extent, return_obj=True,
+            fpath_out=fpath_out)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
                     .format(month, day, self._year))
@@ -184,17 +204,15 @@ class NSRDB:
         # output handling for each entry in data model
         for var, arr in data_model._processed.items():
             if var not in ['time_index', 'meta']:
-                # filename format is YYYYMMDD_varname.h5
-                fname = ('{}{}{}_{}_{}.h5'.format(data_model.date.year,
-                         str(data_model.date.month).zfill(2),
-                         str(data_model.date.day).zfill(2), var,
-                         self.meta.index[0]))
-                out_file = os.path.join(self._out_dir, fname)
 
-                logger.debug('\tWriting file: {}'.format(fname))
+                fpath_out = self._get_fpath_out(data_model.date)
+                fpath_out = fpath_out.format(var=var, i=self.meta.index[0])
+
+                logger.debug('\tWriting file: {}'
+                             .format(os.path.basename(fpath_out)))
 
                 # make file for each var
-                with Outputs(out_file, mode='w') as fout:
+                with Outputs(fpath_out, mode='w') as fout:
                     fout.time_index = data_model.nsrdb_ti
                     fout.meta = data_model.nsrdb_grid
 
@@ -209,8 +227,29 @@ class NSRDB:
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
 
+    def _get_fpath_out(self, date):
+        """Get the file output path based on a date. Will have {var} and {i}.
+
+        Parameters
+        ----------
+        date : datetime.date
+            Single day for the output file.
+
+        Returns
+        -------
+        fpath_out : str
+            Full file path with directory. format is /dir/YYYYMMDD_{var}_{i}.h5
+        """
+
+        fname = ('{}{}{}'.format(date.year,
+                                 str(date.month).zfill(2),
+                                 str(date.day).zfill(2)))
+        fname += '_{var}_{i}.h5'
+        fpath_out = os.path.join(self._out_dir, fname)
+        return fpath_out
+
     def _init_loggers(self, loggers=None, log_file='nsrdb.log',
-                      log_level='DEBUG', date=None):
+                      log_level='DEBUG', date=None, log_version=True):
         """Initialize nsrdb loggers.
 
         Parameters
@@ -243,6 +282,9 @@ class NSRDB:
 
             for name in loggers:
                 init_logger(name, log_level=log_level, log_file=log_file)
+
+        if log_version:
+            self._log_py_version()
 
     def _init_final_out(self, f_out, dsets):
         """Initialize the final output file.
@@ -338,10 +380,14 @@ class NSRDB:
         nsrdb._init_loggers(date=date, log_file='nsrdb_data_model.log',
                             log_level=log_level)
 
-        data_model = nsrdb._exe_daily_data_model(date.month, date.day,
-                                                 parallel=parallel)
+        fpath_out = nsrdb._get_fpath_out(date)
 
-        nsrdb._exe_fout(data_model)
+        data_model = nsrdb._exe_daily_data_model(date.month, date.day,
+                                                 parallel=parallel,
+                                                 fpath_out=fpath_out)
+
+        if fpath_out is None:
+            nsrdb._exe_fout(data_model)
 
     @classmethod
     def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min',
