@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """NSRDB chunked file collection tools.
 """
-import calendar
 import datetime
 import numpy as np
+import pandas as pd
 import os
 import logging
 from nsrdb.file_handlers.outputs import Outputs
@@ -48,7 +48,8 @@ class Collector:
             Variable name that is searched for in files in d.
         """
 
-        date_str = flist[0].split('_')[0]
+        date_str_list = [f.split('_')[0] for f in flist]
+        date_str = date_str_list[0]
 
         if len(date_str) == 8:
             date = datetime.date(year=int(date_str[0:4]),
@@ -57,16 +58,23 @@ class Collector:
         else:
             raise ValueError('Could not parse date: {}'.format(date))
 
-        emsg = ('Bad file count of {} for "{}" in year {} in dir: {}'
-                .format(len(flist), var, date.year, d))
+        ti = pd.date_range('1-1-{y}'.format(y=date.year),
+                           '1-1-{y}'.format(y=date.year + 1),
+                           freq='1D')[:-1]
 
-        if calendar.isleap(date.year) and len(flist) != 366:
-            raise FileNotFoundError(emsg)
-        elif not calendar.isleap(date.year) and len(flist) != 365:
-            raise FileNotFoundError(emsg)
-        else:
-            logger.info('Good file count of {} for "{}" in year {} in dir: {}'
-                        .format(len(flist), var, date.year, d))
+        missing = []
+        for date in ti:
+            date_str = ('{}{}{}'.format(date.year, str(date.month).zfill(2),
+                                        str(date.day).zfill(2)))
+            if date_str not in date_str_list:
+                missing.append(date_str)
+
+        if missing:
+            raise FileNotFoundError('Missing the following date files for '
+                                    '"{}":\n{}'.format(var, missing))
+
+        logger.info('Good file count of {} for "{}" in year {} in dir: {}'
+                    .format(len(flist), var, date.year, d))
 
     @staticmethod
     def get_flist(d, var):
@@ -133,8 +141,53 @@ class Collector:
 
         return row_slice, col_slice
 
+    @staticmethod
+    def collect_flist(flist, collect_dir, f_out, dset, sites=None):
+        """Collect a dataset from a file list.
+
+        Parameters
+        ----------
+        flist : list
+            List of filenames in collect_dir to collect.
+        collect_dir : str
+            Directory of chunked files. Each file should be one variable for
+            one day.
+        f_out : str
+            File path of final output file.
+        dsets : list
+            List of datasets / variable names to collect.
+        sites : None | np.ndarray
+            Subset of site indices to collect. None collects all sites.
+        """
+
+        with Outputs(f_out, mode='r') as f:
+            time_index = f.time_index
+            meta = f.meta
+
+        for fname in flist:
+            fpath = os.path.join(collect_dir, fname)
+
+            with Outputs(fpath, unscale=False, mode='r') as f:
+                logger.debug('Collecting data from {}'.format(fpath))
+                f_ti = f.time_index
+                f_meta = f.meta
+
+                if sites is None:
+                    f_data = f[dset][...]
+                else:
+                    f_data = f[dset][:, sites]
+
+            # use gid in chunked file in case results are chunked by site.
+            if 'gid' in f_meta:
+                f_meta.index = f_meta['gid']
+
+            row_slice, col_slice = Collector.get_slices(time_index, meta,
+                                                        f_ti, f_meta)
+            with Outputs(f_out, mode='a') as f:
+                f[dset, row_slice, col_slice] = f_data
+
     @classmethod
-    def collect(cls, collect_dir, f_out, dsets):
+    def collect(cls, collect_dir, f_out, dsets, sites=None):
         """Collect files from a dir to one output file.
 
         Parameters
@@ -146,32 +199,13 @@ class Collector:
             File path of final output file.
         dsets : list
             List of datasets / variable names to collect.
+        sites : None | np.ndarray
+            Subset of site indices to collect. None collects all sites.
         """
 
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
-        with Outputs(f_out, mode='r') as f:
-            time_index = f.time_index
-            meta = f.meta
-
         for dset in dsets:
-
-            col = cls(collect_dir, dset)
-
-            for fname in col.flist:
-                fpath = os.path.join(collect_dir, fname)
-
-                with Outputs(fpath, unscale=False, mode='r') as f:
-                    logger.debug('Collecting data from {}'.format(fpath))
-                    f_ti = f.time_index
-                    f_meta = f.meta
-                    f_data = f[dset][...]
-
-                # use gid in chunked file in case results are chunked by site.
-                if 'gid' in f_meta:
-                    f_meta.index = f_meta['gid']
-
-                row_slice, col_slice = col.get_slices(time_index, meta,
-                                                      f_ti, f_meta)
-                with Outputs(f_out, mode='a') as f:
-                    f[dset, row_slice, col_slice] = f_data
+            collector = cls(collect_dir, dset)
+            collector.collect_flist(collector.flist, collect_dir, f_out, dset,
+                                    sites=sites)

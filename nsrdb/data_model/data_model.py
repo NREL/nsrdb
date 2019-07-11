@@ -1059,7 +1059,7 @@ class DataModel:
 
                 fout._add_dset(dset_name=var, data=data,
                                dtype=var_obj.final_dtype,
-                               chunks=None, attrs=attrs)
+                               chunks=var_obj.chunks, attrs=attrs)
 
             if purge:
                 del data

@@ -7,8 +7,10 @@ Created on Thu Apr 25 15:47:53 2019
 @author: gbuster
 """
 
+from concurrent.futures import ProcessPoolExecutor
 import datetime
 import pandas as pd
+import numpy as np
 import os
 import logging
 import sys
@@ -222,7 +224,7 @@ class NSRDB:
 
                     fout._add_dset(dset_name=var, data=arr,
                                    dtype=var_obj.final_dtype,
-                                   chunks=None, attrs=attrs)
+                                   chunks=var_obj.chunks, attrs=attrs)
 
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
@@ -286,7 +288,7 @@ class NSRDB:
         if log_version:
             self._log_py_version()
 
-    def _init_final_out(self, f_out, dsets):
+    def _init_final_out(f_out, dsets, time_index, meta):
         """Initialize the final output file.
 
         Parameters
@@ -295,16 +297,60 @@ class NSRDB:
             File path to final .h5 file.
         dsets : list
             List of dataset / variable names that are to be contained in f_out.
+        time_index : pd.datetimeindex
+            Time index to init to file.
+        meta : pd.DataFrame
+            Meta data to init to file.
         """
 
         if not os.path.isfile(f_out):
             logger.info('Initializing {} for the following datasets: {}'
                         .format(f_out, dsets))
 
-            attrs, chunks, dtypes = self.get_dset_attrs(dsets)
+            attrs, chunks, dtypes = NSRDB.get_dset_attrs(dsets)
 
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
-                            self.time_index_year, self.meta)
+                            time_index, meta)
+
+    @staticmethod
+    def doy_to_datestr(year, doy):
+        """Convert day of year to YYYYMMDD string format
+
+        Parameters
+        ----------
+        year : int
+            Year of interest
+        doy : int
+            Enumerated day of year.
+
+        Returns
+        -------
+        date : str
+            Single day to extract ancillary data for.
+            str in YYYYMMDD format.
+        """
+        date = (datetime.datetime(int(year), 1, 1) +
+                datetime.timedelta(int(doy) - 1))
+        datestr = '{}{}{}'.format(date.year,
+                                  str(date.month).zfill(2),
+                                  str(date.day).zfill(2))
+        return datestr
+
+    @staticmethod
+    def date_to_doy(date):
+        """Convert a date to a day of year integer.
+
+        Parameters
+        ----------
+        date : datetime.date
+            Date object.
+
+        Returns
+        -------
+        doy : int
+            Day of year.
+        """
+        return date.timetuple().tm_yday
 
     @staticmethod
     def get_dset_attrs(dsets):
@@ -419,8 +465,85 @@ class NSRDB:
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
                 f_out = os.path.join(out_dir, fname.format(y=year))
-                nsrdb._init_final_out(f_out, dsets)
+                nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
+                                      nsrdb.meta)
                 Collector.collect(daily_dir, f_out, dsets)
+
+    @classmethod
+    def collect_data_model_chunks(cls, daily_dir, out_dir, year, grid,
+                                  n_chunks=1, freq='5min', log_level='DEBUG',
+                                  parallel=True):
+        """Init site-chunked output file and collect daily data model outputs.
+
+        Parameters
+        ----------
+        daily_dir : str
+            Directory with daily files to be collected.
+        out_dir : str
+            Directory to put final output files.
+        year : int | str
+            Year of analysis
+        grid : str
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
+        n_chunks : int
+            Number of chunks (site-wise) to collect to.
+        freq : str
+            Final desired NSRDB temporal frequency.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        parallel : bool
+            Flag to do chunk collection in parallel.
+        """
+
+        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb._init_loggers(log_file='nsrdb_collect_dm.log',
+                            log_level=log_level)
+
+        chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
+
+        for fname, dsets in cls.OUTS.items():
+            if 'irradiance' not in fname:
+                f_out = os.path.join(out_dir, fname.format(y=year))
+
+                if not parallel:
+                    for i, chunk in enumerate(chunks):
+                        nsrdb.collect_chunk(daily_dir, i, chunk, f_out, dsets,
+                                            nsrdb.time_index_year, nsrdb.meta)
+                else:
+                    with ProcessPoolExecutor(max_workers=os.cpu_count()) as ex:
+                        for i, chunk in enumerate(chunks):
+                            ex.submit(nsrdb.collect_chunk, daily_dir, i,
+                                      chunk, f_out, dsets,
+                                      nsrdb.time_index_year,
+                                      nsrdb.meta)
+
+    @staticmethod
+    def collect_chunk(daily_dir, i, chunk, f_out, dsets, time_index, meta):
+        """Collect a single chunk
+
+        Parameters
+        ----------
+        daily_dir : str
+            Directory with daily files to be collected.
+        i : int
+            Chunk number/enumeration.
+        chunk : np.ndarray
+            Array of site indices in meta that make up this chunk.
+        f_out : str
+            Output file path (with dir).
+        dsets : list
+            Datasets to collect
+        time_index : pd.datetimeindex
+            Full annual time index being collected
+        meta : pd.DataFrame
+            Full meta being collected (will be indexed with chunk).
+        """
+
+        f_out_i = f_out.replace('.h5', '_{}.h5'.format(i))
+        NSRDB._init_final_out(f_out_i, dsets, time_index, meta.iloc[chunk, :])
+        Collector.collect(daily_dir, f_out_i, dsets, sites=chunk)
 
     @staticmethod
     def gap_fill_clouds(f_cloud, rows=slice(None), cols=slice(None),
@@ -477,7 +600,8 @@ class NSRDB:
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
                 f_out = os.path.join(out_dir, fname.format(y=year))
-                nsrdb._init_final_out(f_out, dsets)
+                nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
+                                      nsrdb.meta)
             elif 'ancil' in fname:
                 f_ancillary = os.path.join(out_dir, fname.format(y=year))
             elif 'cloud' in fname:
