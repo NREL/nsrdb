@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """NSRDB chunked file collection tools.
 """
+import calendar
+import datetime
 import numpy as np
 import os
 import logging
@@ -8,6 +10,43 @@ from nsrdb.file_handlers.outputs import Outputs
 
 
 logger = logging.getLogger(__name__)
+
+
+def verify_flist(flist, d, var):
+    """Verify the correct number of files in d for var. Raise if bad flist.
+
+    Filename requirements:
+     - Expects file names with leading "YYYYMMDD_".
+     - Must have var in the file name.
+     - Should end with ".h5"
+
+    Parameters
+    ----------
+    flist : list
+        List of .h5 files in directory d that contain the var string. Sorted
+        by integer before the first underscore in the filename.
+    d : str
+        Directory to get file list from.
+    var : str
+        Variable name that is searched for in files in d.
+    """
+
+    date_str = flist[0].split('_')[0]
+
+    if len(date_str) == 8:
+        date = datetime.date(year=int(date_str[0:4]),
+                             month=int(date_str[4:6]),
+                             day=int(date_str[6:]))
+    else:
+        raise ValueError('Could not parse date: {}'.format(date))
+
+    emsg = ('Bad file count of {} for "{}" in year {} in dir: {}'
+            .format(len(flist), var, date.year, d))
+
+    if calendar.isleap(date.year) and len(flist) != 366:
+        raise FileNotFoundError(emsg)
+    elif not calendar.isleap(date.year) and len(flist) != 365:
+        raise FileNotFoundError(emsg)
 
 
 def get_flist(d, var):
@@ -61,6 +100,7 @@ def collect_daily_files(f_dir, f_out, dsets):
 
     for dset in dsets:
         flist = get_flist(f_dir, dset)
+        verify_flist(flist, f_dir, dset)
         for fname in flist:
             fpath = os.path.join(f_dir, fname)
 
