@@ -12,114 +12,166 @@ from nsrdb.file_handlers.outputs import Outputs
 logger = logging.getLogger(__name__)
 
 
-def verify_flist(flist, d, var):
-    """Verify the correct number of files in d for var. Raise if bad flist.
+class Collector:
+    """NSRDB file collection framework"""
 
-    Filename requirements:
-     - Expects file names with leading "YYYYMMDD_".
-     - Must have var in the file name.
-     - Should end with ".h5"
+    def __init__(self, collect_dir, dset):
+        """
+        Parameters
+        ----------
+        collect_dir : str
+            Directory that files are being collected from
+        dset : str
+            Dataset/var name that is searched for in file names in collect_dir.
+        """
 
-    Parameters
-    ----------
-    flist : list
-        List of .h5 files in directory d that contain the var string. Sorted
-        by integer before the first underscore in the filename.
-    d : str
-        Directory to get file list from.
-    var : str
-        Variable name that is searched for in files in d.
-    """
+        self.flist = self.get_flist(collect_dir, dset)
+        self.verify_flist(self.flist, collect_dir, dset)
 
-    date_str = flist[0].split('_')[0]
+    @staticmethod
+    def verify_flist(flist, d, var):
+        """Verify the correct number of files in d for var. Raise if bad flist.
 
-    if len(date_str) == 8:
-        date = datetime.date(year=int(date_str[0:4]),
-                             month=int(date_str[4:6]),
-                             day=int(date_str[6:]))
-    else:
-        raise ValueError('Could not parse date: {}'.format(date))
+        Filename requirements:
+         - Expects file names with leading "YYYYMMDD_".
+         - Must have var in the file name.
+         - Should end with ".h5"
 
-    emsg = ('Bad file count of {} for "{}" in year {} in dir: {}'
-            .format(len(flist), var, date.year, d))
+        Parameters
+        ----------
+        flist : list
+            List of .h5 files in directory d that contain the var string.
+            Sorted by integer before the first underscore in the filename.
+        d : str
+            Directory to get file list from.
+        var : str
+            Variable name that is searched for in files in d.
+        """
 
-    if calendar.isleap(date.year) and len(flist) != 366:
-        raise FileNotFoundError(emsg)
-    elif not calendar.isleap(date.year) and len(flist) != 365:
-        raise FileNotFoundError(emsg)
+        date_str = flist[0].split('_')[0]
 
+        if len(date_str) == 8:
+            date = datetime.date(year=int(date_str[0:4]),
+                                 month=int(date_str[4:6]),
+                                 day=int(date_str[6:]))
+        else:
+            raise ValueError('Could not parse date: {}'.format(date))
 
-def get_flist(d, var):
-    """Get a date-sorted .h5 file list for a given var.
+        emsg = ('Bad file count of {} for "{}" in year {} in dir: {}'
+                .format(len(flist), var, date.year, d))
 
-    Filename requirements:
-     - Expects file names with leading "YYYYMMDD_".
-     - Must have var in the file name.
-     - Should end with ".h5"
+        if calendar.isleap(date.year) and len(flist) != 366:
+            raise FileNotFoundError(emsg)
+        elif not calendar.isleap(date.year) and len(flist) != 365:
+            raise FileNotFoundError(emsg)
+        else:
+            logger.info('Good file count of {} for "{}" in year {} in dir: {}'
+                        .format(len(flist), var, date.year, d))
 
-    Parameters
-    ----------
-    d : str
-        Directory to get file list from.
-    var : str
-        Variable name that is searched for in files in d.
+    @staticmethod
+    def get_flist(d, var):
+        """Get a date-sorted .h5 file list for a given var.
 
-    Returns
-    -------
-    flist : list
-        List of .h5 files in directory d that contain the var string. Sorted
-        by integer before the first underscore in the filename.
-    """
+        Filename requirements:
+         - Expects file names with leading "YYYYMMDD_".
+         - Must have var in the file name.
+         - Should end with ".h5"
 
-    flist = os.listdir(d)
-    flist = [f for f in flist if '.h5' in f and var in f]
-    flist = sorted(flist, key=lambda x: int(x.split('_')[0]))
+        Parameters
+        ----------
+        d : str
+            Directory to get file list from.
+        var : str
+            Variable name that is searched for in files in d.
 
-    return flist
+        Returns
+        -------
+        flist : list
+            List of .h5 files in directory d that contain the var string.
+            Sorted by integer before the first underscore in the filename.
+        """
 
+        flist = os.listdir(d)
+        flist = [f for f in flist if '.h5' in f and var in f]
+        flist = sorted(flist, key=lambda x: int(x.split('_')[0]))
 
-def collect_daily_files(f_dir, f_out, dsets):
-    """Collect files from a dir to one output file.
+        return flist
 
-    Parameters
-    ----------
-    f_dir : str
-        Directory of chunked files. Each file should be one variable for one
-        day.
-    f_out : str
-        File path of final output file.
-    dsets : list
-        List of datasets / variable names to collect.
-    """
+    @staticmethod
+    def get_slices(final_time_index, final_meta,
+                   new_time_index, new_meta):
+        """Get index slices where the new ti/meta belong in the final ti/meta.
 
-    logger.info('Collecting data from {} to {}'.format(f_dir, f_out))
+        Parameters
+        ----------
+        final_time_index : pd.Datetimeindex
+            Time index of the final file that new_time_index is being written
+            to.
+        final_meta : pd.DataFrame
+            Meta data of the final file that new_meta is being written to.
+        new_time_index : pd.Datetimeindex
+            Chunk time index that is a subset of the final_time_index.
+        new_meta : pd.DataFrame
+            Chunk meta data that is a subset of the final_meta.
 
-    with Outputs(f_out, mode='r') as f:
-        time_index = f.time_index
-        meta = f.meta
+        Returns
+        -------
+        row_slice : slice
+            final_time_index[row_slice] = new_time_index
+        col_slice : slice
+            final_meta[col_slice] = new_meta
+        """
 
-    for dset in dsets:
-        flist = get_flist(f_dir, dset)
-        verify_flist(flist, f_dir, dset)
-        for fname in flist:
-            fpath = os.path.join(f_dir, fname)
+        # pylint: disable-msg=C0121
+        row_loc = np.where(
+            final_time_index.isin(new_time_index) == True)[0]  # noqa: E712
+        col_loc = np.where(
+            final_meta.index.isin(new_meta.index) == True)[0]  # noqa: E712
 
-            with Outputs(fpath, unscale=False, mode='r') as f:
-                logger.debug('Collecting data from {}'.format(fpath))
-                f_ti = f.time_index
-                f_meta = f.meta
-                f_data = f[dset][...]
+        row_slice = slice(np.min(row_loc), np.max(row_loc) + 1)
+        col_slice = slice(np.min(col_loc), np.max(col_loc) + 1)
 
-            # use gid in the chunked file in case results are chunked by site.
-            if 'gid' in f_meta:
-                f_meta.index = f_meta['gid']
+        return row_slice, col_slice
 
-            # pylint: disable-msg=C0121
-            r_loc = np.where(time_index.isin(f_ti) == True)[0]  # noqa: E712
-            c_loc = np.where(
-                meta.index.isin(f_meta.index) == True)[0]  # noqa: E712
-            r_loc = slice(np.min(r_loc), np.max(r_loc) + 1)
-            c_loc = slice(np.min(c_loc), np.max(c_loc) + 1)
+    @classmethod
+    def collect(cls, collect_dir, f_out, dsets):
+        """Collect files from a dir to one output file.
 
-            with Outputs(f_out, mode='a') as f:
-                f[dset, r_loc, c_loc] = f_data
+        Parameters
+        ----------
+        collect_dir : str
+            Directory of chunked files. Each file should be one variable for
+            one day.
+        f_out : str
+            File path of final output file.
+        dsets : list
+            List of datasets / variable names to collect.
+        """
+
+        logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
+
+        with Outputs(f_out, mode='r') as f:
+            time_index = f.time_index
+            meta = f.meta
+
+        for dset in dsets:
+
+            col = cls(collect_dir, dset)
+
+            for fname in col.flist:
+                fpath = os.path.join(collect_dir, fname)
+
+                with Outputs(fpath, unscale=False, mode='r') as f:
+                    logger.debug('Collecting data from {}'.format(fpath))
+                    f_ti = f.time_index
+                    f_meta = f.meta
+                    f_data = f[dset][...]
+
+                # use gid in chunked file in case results are chunked by site.
+                if 'gid' in f_meta:
+                    f_meta.index = f_meta['gid']
+
+                row_slice, col_slice = col.get_slices(time_index, meta,
+                                                      f_ti, f_meta)
+                with Outputs(f_out, mode='a') as f:
+                    f[dset, row_slice, col_slice] = f_data

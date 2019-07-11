@@ -17,7 +17,7 @@ from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.file_handlers.collection import collect_daily_files
+from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.execution import SLURM
 from nsrdb.utilities.loggers import init_logger
 
@@ -420,7 +420,7 @@ class NSRDB:
             if 'irradiance' not in fname:
                 f_out = os.path.join(out_dir, fname.format(y=year))
                 nsrdb._init_final_out(f_out, dsets)
-                collect_daily_files(daily_dir, f_out, dsets)
+                Collector.collect(daily_dir, f_out, dsets)
 
     @staticmethod
     def gap_fill_clouds(f_cloud, rows=slice(None), cols=slice(None),
