@@ -272,7 +272,8 @@ class NSRDB:
 
             if loggers is None:
                 loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
-                           'nsrdb.file_handlers', 'nsrdb.all_sky')
+                           'nsrdb.file_handlers', 'nsrdb.all_sky',
+                           'nsrdb.gap_fill')
 
             log_file = os.path.join(self._out_dir, log_file)
 
@@ -288,6 +289,7 @@ class NSRDB:
         if log_version:
             self._log_py_version()
 
+    @staticmethod
     def _init_final_out(f_out, dsets, time_index, meta):
         """Initialize the final output file.
 
@@ -437,7 +439,7 @@ class NSRDB:
 
     @classmethod
     def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min',
-                           log_level='DEBUG'):
+                           log_level='INFO'):
         """Init output file and collect daily data model output files.
 
         Parameters
@@ -471,7 +473,7 @@ class NSRDB:
 
     @classmethod
     def collect_data_model_chunks(cls, daily_dir, out_dir, year, grid,
-                                  n_chunks=1, freq='5min', log_level='DEBUG',
+                                  n_chunks=1, freq='5min', log_level='INFO',
                                   parallel=True):
         """Init site-chunked output file and collect daily data model outputs.
 
@@ -542,12 +544,15 @@ class NSRDB:
         """
 
         f_out_i = f_out.replace('.h5', '_{}.h5'.format(i))
-        NSRDB._init_final_out(f_out_i, dsets, time_index, meta.iloc[chunk, :])
+        meta = meta.iloc[chunk, :]
+        if 'gid' not in meta:
+            meta['gid'] = meta.index
+        NSRDB._init_final_out(f_out_i, dsets, time_index, meta)
         Collector.collect(daily_dir, f_out_i, dsets, sites=chunk)
 
-    @staticmethod
-    def gap_fill_clouds(f_cloud, rows=slice(None), cols=slice(None),
-                        col_chunk=1000):
+    @classmethod
+    def gap_fill_clouds(cls, f_cloud, rows=slice(None), cols=slice(None),
+                        col_chunk=1000, log_level='DEBUG'):
         """Gap fill cloud properties in a collected data model output file.
 
         Parameters
@@ -562,15 +567,20 @@ class NSRDB:
         col_chunks : None
             Optional chunking method to gap fill a few chunks at a time
             to reduce memory requirements.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
         """
-
+        nsrdb = cls(os.path.dirname(f_cloud), 2000, None)
+        nsrdb._init_loggers(log_file='nsrdb_cloud_fill.log',
+                            log_level=log_level)
         CloudGapFill.fill_file(f_cloud, rows=rows, cols=cols,
                                col_chunk=col_chunk)
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min',
                     rows=slice(None), cols=slice(None), parallel=True,
-                    log_level='DEBUG'):
+                    log_level='DEBUG', i_chunk=None):
         """Run the all-sky physics model from .h5 files.
 
         Parameters
@@ -592,6 +602,8 @@ class NSRDB:
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
+        i_chunk : None | int
+            Enumerated file index if running on site chunk.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
@@ -600,12 +612,19 @@ class NSRDB:
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
                 f_out = os.path.join(out_dir, fname.format(y=year))
-                nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
-                                      nsrdb.meta)
+                irrad_dsets = dsets
             elif 'ancil' in fname:
                 f_ancillary = os.path.join(out_dir, fname.format(y=year))
             elif 'cloud' in fname:
                 f_cloud = os.path.join(out_dir, fname.format(y=year))
+
+        if i_chunk is not None:
+            f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_ancillary = f_ancillary.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
+
+        nsrdb._init_final_out(f_out, irrad_dsets, nsrdb.time_index_year,
+                              nsrdb.meta)
 
         if parallel:
             out = all_sky_h5_parallel(f_ancillary, f_cloud, rows=rows,

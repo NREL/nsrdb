@@ -206,6 +206,7 @@ class Collector:
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
         for dset in dsets:
+            logger.debug('Collecting dataset "{}".'.format(dset))
             collector = cls(collect_dir, dset)
             collector.collect_flist(collector.flist, collect_dir, f_out, dset,
                                     sites=sites)
