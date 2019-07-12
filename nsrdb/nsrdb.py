@@ -7,7 +7,6 @@ Created on Thu Apr 25 15:47:53 2019
 @author: gbuster
 """
 
-from concurrent.futures import ProcessPoolExecutor
 import datetime
 import pandas as pd
 import numpy as np
@@ -387,7 +386,8 @@ class NSRDB:
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, freq='5min',
-                       cloud_extent='east', parallel=True, log_level='DEBUG'):
+                       cloud_extent='east', parallel=True, log_level='DEBUG',
+                       log_file='data_model.log'):
         """Run daily data model, and save output files.
 
         Parameters
@@ -411,6 +411,8 @@ class NSRDB:
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
         """
 
         if isinstance(date, (int, float)):
@@ -425,8 +427,7 @@ class NSRDB:
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
-        nsrdb._init_loggers(date=date, log_file='nsrdb_data_model.log',
-                            log_level=log_level)
+        nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
 
         fpath_out = nsrdb._get_fpath_out(date)
 
@@ -439,7 +440,7 @@ class NSRDB:
 
     @classmethod
     def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min',
-                           log_level='INFO'):
+                           log_level='DEBUG', log_file='collect_dm.log'):
         """Init output file and collect daily data model output files.
 
         Parameters
@@ -458,11 +459,12 @@ class NSRDB:
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
-        nsrdb._init_loggers(log_file='nsrdb_collect_dm.log',
-                            log_level=log_level)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
@@ -470,12 +472,15 @@ class NSRDB:
                 nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
                                       nsrdb.meta)
                 Collector.collect(daily_dir, f_out, dsets)
+        logger.info('Finished file collection to: {}'.format(out_dir))
 
     @classmethod
-    def collect_data_model_chunks(cls, daily_dir, out_dir, year, grid,
-                                  n_chunks=1, freq='5min', log_level='INFO',
-                                  parallel=True):
-        """Init site-chunked output file and collect daily data model outputs.
+    def collect_data_model_chunk(cls, daily_dir, out_dir, year, grid,
+                                 n_chunks, i_chunk, i_fname,
+                                 freq='5min', log_level='DEBUG',
+                                 log_file='collect_dm.log',
+                                 parallel=True):
+        """Collect daily data model files to a single site-chunked output file.
 
         Parameters
         ----------
@@ -490,69 +495,112 @@ class NSRDB:
             site gid's.
         n_chunks : int
             Number of chunks (site-wise) to collect to.
+        i_chunks : int
+            Chunk index (indexing n_chunks) to run.
+        i_fname : int
+            File name index from NSRDB.OUTS to run collection for.
         freq : str
             Final desired NSRDB temporal frequency.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        parallel : bool
-            Flag to do chunk collection in parallel.
+        log_file : str
+            File to log to. Will be put in output directory.
+        parallel : bool | int
+            Flag to do chunk collection in parallel. Can be integer number of
+            workers to use (number of parallel reads).
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
-        nsrdb._init_loggers(log_file='nsrdb_collect_dm.log',
-                            log_level=log_level)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
-        for fname, dsets in cls.OUTS.items():
-            if 'irradiance' not in fname:
-                f_out = os.path.join(out_dir, fname.format(y=year))
+        fnames = sorted(list(cls.OUTS.keys()))
+        fnames = [fn for fn in fnames if 'irradiance' not in fn]
 
-                if not parallel:
-                    for i, chunk in enumerate(chunks):
-                        nsrdb.collect_chunk(daily_dir, i, chunk, f_out, dsets,
-                                            nsrdb.time_index_year, nsrdb.meta)
-                else:
-                    with ProcessPoolExecutor(max_workers=os.cpu_count()) as ex:
-                        for i, chunk in enumerate(chunks):
-                            ex.submit(nsrdb.collect_chunk, daily_dir, i,
-                                      chunk, f_out, dsets,
-                                      nsrdb.time_index_year,
-                                      nsrdb.meta)
+        chunk = chunks[i_chunk]
+        fname = fnames[i_fname]
+        dsets = cls.OUTS[fname]
 
-    @staticmethod
-    def collect_chunk(daily_dir, i, chunk, f_out, dsets, time_index, meta):
-        """Collect a single chunk
+        if '{y}' in fname:
+            fname = fname.format(y=year)
+
+        f_out = os.path.join(out_dir, fname)
+        f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
+
+        meta_chunk = nsrdb.meta.iloc[chunk, :]
+        if 'gid' not in meta_chunk:
+            meta_chunk['gid'] = meta_chunk.index
+
+        logger.info('Running data model collection for chunk {} out of {} '
+                    'with meta gid {} to {} and target file: {}'
+                    .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
+                            meta_chunk['gid'].values[-1], f_out))
+
+        NSRDB._init_final_out(f_out, dsets, nsrdb.time_index_year, meta_chunk)
+        Collector.collect(daily_dir, f_out, dsets, sites=chunk,
+                          parallel=parallel)
+        logger.info('Finished file collection to: {}'.format(f_out))
+
+    @classmethod
+    def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
+                      log_level='DEBUG', log_file='final_collection.log',
+                      parallel=False):
+        """Collect chunked files to single final output files.
 
         Parameters
         ----------
-        daily_dir : str
-            Directory with daily files to be collected.
-        i : int
-            Chunk number/enumeration.
-        chunk : np.ndarray
-            Array of site indices in meta that make up this chunk.
-        f_out : str
-            Output file path (with dir).
-        dsets : list
-            Datasets to collect
-        time_index : pd.datetimeindex
-            Full annual time index being collected
-        meta : pd.DataFrame
-            Full meta being collected (will be indexed with chunk).
+        collect_dir : str
+            Directory with chunked files to be collected.
+        out_dir : str
+            Directory to put final output files.
+        year : int | str
+            Year of analysis
+        grid : str
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
+        freq : str
+            Final desired NSRDB temporal frequency.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+        parallel : bool | int
+            Flag to do chunk collection in parallel. Can be integer number of
+            workers to use (number of parallel reads).
         """
 
-        f_out_i = f_out.replace('.h5', '_{}.h5'.format(i))
-        meta = meta.iloc[chunk, :]
-        if 'gid' not in meta:
-            meta['gid'] = meta.index
-        NSRDB._init_final_out(f_out_i, dsets, time_index, meta)
-        Collector.collect(daily_dir, f_out_i, dsets, sites=chunk)
+        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
+
+        for fname, dsets in cls.OUTS.items():
+            f_out = os.path.join(out_dir, fname.format(y=year))
+
+            flist = [fn for fn in os.listdir(collect_dir)
+                     if fn.endswith('.h5') and
+                     fname.format(y=year).replace('.h5', '') in fn]
+
+            if any(flist):
+                nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
+                                      nsrdb.meta)
+                logger.info('Collecting file list: {}'.format(flist))
+                for dset in dsets:
+                    Collector.collect_flist(flist, collect_dir, f_out,
+                                            dset, sites=None,
+                                            parallel=parallel)
+            else:
+                emsg = ('Could not find files to collect for {} in the '
+                        'collect dir: {}'
+                        .format(fname.format(y=year), collect_dir))
+                raise FileNotFoundError(emsg)
+        logger.info('Finished final file collection to: {}'.format(out_dir))
 
     @classmethod
     def gap_fill_clouds(cls, f_cloud, rows=slice(None), cols=slice(None),
-                        col_chunk=1000, log_level='DEBUG'):
+                        col_chunk=1000, log_level='DEBUG',
+                        log_file='cloud_fill.log'):
         """Gap fill cloud properties in a collected data model output file.
 
         Parameters
@@ -570,17 +618,20 @@ class NSRDB:
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
         """
         nsrdb = cls(os.path.dirname(f_cloud), 2000, None)
-        nsrdb._init_loggers(log_file='nsrdb_cloud_fill.log',
-                            log_level=log_level)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
         CloudGapFill.fill_file(f_cloud, rows=rows, cols=cols,
                                col_chunk=col_chunk)
+        logger.info('Finished cloud gap fill.')
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min',
                     rows=slice(None), cols=slice(None), parallel=True,
-                    log_level='DEBUG', i_chunk=None):
+                    log_level='DEBUG', log_file='all_sky.log',
+                    i_chunk=None):
         """Run the all-sky physics model from .h5 files.
 
         Parameters
@@ -602,12 +653,14 @@ class NSRDB:
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
         i_chunk : None | int
             Enumerated file index if running on site chunk.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
-        nsrdb._init_loggers(log_file='nsrdb_all_sky.log', log_level=log_level)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
@@ -623,8 +676,11 @@ class NSRDB:
             f_ancillary = f_ancillary.replace('.h5', '_{}.h5'.format(i_chunk))
             f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
 
-        nsrdb._init_final_out(f_out, irrad_dsets, nsrdb.time_index_year,
-                              nsrdb.meta)
+        with Outputs(f_ancillary) as out:
+            meta = out.meta
+            time_index = out.time_index
+
+        nsrdb._init_final_out(f_out, irrad_dsets, time_index, meta)
 
         if parallel:
             out = all_sky_h5_parallel(f_ancillary, f_cloud, rows=rows,
@@ -637,6 +693,8 @@ class NSRDB:
         with Outputs(f_out, mode='a') as f:
             for dset, arr in out.items():
                 f[dset, rows, cols] = arr
+
+        logger.info('Finished writing results to: {}'.format(f_out))
 
     @staticmethod
     def eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=2,

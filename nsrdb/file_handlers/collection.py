@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 import os
 import logging
+import psutil
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from nsrdb.file_handlers.outputs import Outputs
 
 
@@ -26,6 +28,11 @@ class Collector:
         """
 
         self.flist = self.get_flist(collect_dir, dset)
+
+        if not any(self.flist):
+            raise FileNotFoundError('No "{}" files found in {}'
+                                    .format(dset, collect_dir))
+
         self.verify_flist(self.flist, collect_dir, dset)
 
     @staticmethod
@@ -142,52 +149,120 @@ class Collector:
         return row_slice, col_slice
 
     @staticmethod
-    def collect_flist(flist, collect_dir, f_out, dset, sites=None):
+    def _get_data(fpath, dset, time_index, meta, sites=None):
+        """Retreive a data array from a chunked file.
+
+        Parameters
+        ----------
+        fpath : str
+            h5 file to get data from
+        dset : str
+            dataset to retrieve data from in fpath.
+        time_index : pd.Datetimeindex
+            Time index of the final file.
+        final_meta : pd.DataFrame
+            Meta data of the final file.
+        sites : None | np.ndarray
+            Subset of site indices to collect. None collects all sites.
+
+        Returns
+        -------
+        f_data : np.ndarray
+            Data array from the fpath.
+        row_slice : slice
+            final_time_index[row_slice] = new_time_index
+        col_slice : slice
+            final_meta[col_slice] = new_meta
+        """
+
+        with Outputs(fpath, unscale=False, mode='r') as f:
+            f_ti = f.time_index
+            f_meta = f.meta
+
+            if sites is None:
+                f_data = f[dset][...]
+            else:
+                f_data = f[dset][:, sites]
+
+        # use gid in chunked file in case results are chunked by site.
+        if 'gid' in f_meta:
+            f_meta.index = f_meta['gid']
+
+        row_slice, col_slice = Collector.get_slices(time_index, meta,
+                                                    f_ti, f_meta)
+        return f_data, row_slice, col_slice
+
+    @staticmethod
+    def collect_flist(flist, collect_dir, f_out, dset, sites=None,
+                      parallel=True):
         """Collect a dataset from a file list.
 
         Parameters
         ----------
         flist : list
-            List of filenames in collect_dir to collect.
+            List of chunked filenames in collect_dir to collect.
         collect_dir : str
-            Directory of chunked files. Each file should be one variable for
-            one day.
+            Directory of chunked files (flist).
         f_out : str
             File path of final output file.
         dsets : list
             List of datasets / variable names to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        parallel : bool | int
+            Flag to do chunk collection in parallel. Can be integer number of
+            workers to use (number of parallel reads).
         """
 
         with Outputs(f_out, mode='r') as f:
             time_index = f.time_index
             meta = f.meta
+            shape, dtype, _ = f.get_dset_properties(dset)
 
-        for fname in flist:
-            fpath = os.path.join(collect_dir, fname)
+        data = np.zeros(shape, dtype=dtype)
 
-            with Outputs(fpath, unscale=False, mode='r') as f:
-                logger.debug('Collecting data from {}'.format(fpath))
-                f_ti = f.time_index
-                f_meta = f.meta
+        if not parallel:
+            for fname in flist:
+                fpath = os.path.join(collect_dir, fname)
+                f_data, row_slice, col_slice = Collector._get_data(fpath, dset,
+                                                                   time_index,
+                                                                   meta,
+                                                                   sites=sites)
+                data[row_slice, col_slice] = f_data
+        else:
+            if parallel is True:
+                max_workers = os.cpu_count()
+            else:
+                max_workers = parallel
+            logger.info('Running parallel collection on {} workers.'
+                        .format(max_workers))
 
-                if sites is None:
-                    f_data = f[dset][...]
-                else:
-                    f_data = f[dset][:, sites]
+            futures = []
+            completed = 0
+            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+                for fname in flist:
+                    fpath = os.path.join(collect_dir, fname)
+                    futures.append(exe.submit(Collector._get_data, fpath, dset,
+                                              time_index, meta, sites=sites))
+                for future in as_completed(futures):
+                    completed += 1
+                    mem = psutil.virtual_memory()
+                    logger.debug('Collection futures completed: '
+                                 '{0} out of {1}. '
+                                 'Current memory usage is '
+                                 '{2:.3f} GB out of {3:.3f} GB total.'
+                                 .format(completed, len(futures),
+                                         mem.used / 1e9, mem.total / 1e9))
+                    f_data, row_slice, col_slice = future.result()
+                    data[row_slice, col_slice] = f_data
 
-            # use gid in chunked file in case results are chunked by site.
-            if 'gid' in f_meta:
-                f_meta.index = f_meta['gid']
+        with Outputs(f_out, mode='a') as f:
+            f[dset] = data
 
-            row_slice, col_slice = Collector.get_slices(time_index, meta,
-                                                        f_ti, f_meta)
-            with Outputs(f_out, mode='a') as f:
-                f[dset, row_slice, col_slice] = f_data
+        logger.info('Finished writing dataset "{}"'.format(dset))
 
     @classmethod
-    def collect(cls, collect_dir, f_out, dsets, sites=None):
+    def collect(cls, collect_dir, f_out, dsets, sites=None, parallel=True):
         """Collect files from a dir to one output file.
 
         Parameters
@@ -201,12 +276,20 @@ class Collector:
             List of datasets / variable names to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        parallel : bool | int
+            Flag to do chunk collection in parallel. Can be integer number of
+            workers to use (number of parallel reads).
         """
 
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
         for dset in dsets:
             logger.debug('Collecting dataset "{}".'.format(dset))
-            collector = cls(collect_dir, dset)
-            collector.collect_flist(collector.flist, collect_dir, f_out, dset,
-                                    sites=sites)
+            try:
+                collector = cls(collect_dir, dset)
+            except FileNotFoundError:
+                logger.info('Skipping dataset "{}", no files found in: {}'
+                            .format(dset, collect_dir))
+            else:
+                collector.collect_flist(collector.flist, collect_dir, f_out,
+                                        dset, sites=sites, parallel=parallel)
