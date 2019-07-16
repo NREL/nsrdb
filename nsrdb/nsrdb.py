@@ -13,6 +13,7 @@ import numpy as np
 import os
 import logging
 import sys
+import shutil
 
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
@@ -549,7 +550,7 @@ class NSRDB:
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
                       log_level='DEBUG', log_file='final_collection.log',
-                      parallel=False):
+                      i_fname=None, tmp=True, parallel=2):
         """Collect chunked files to single final output files.
 
         Parameters
@@ -570,6 +571,13 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
+        i_fname : int | None
+            Optional index to collect just a single output file. Indexes the
+            sorted OUTS class attribute keys.
+        tmp : bool
+            Flag to use temporary scratch storage, then move to out_dir when
+            finished. Note that most standard nodes only have 1TB temporary
+            scratch storage.
         parallel : bool | int
             Flag to do chunk collection in parallel. Can be integer number of
             workers to use (number of parallel reads).
@@ -578,12 +586,22 @@ class NSRDB:
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        for fname, dsets in cls.OUTS.items():
-            f_out = os.path.join(out_dir, fname.format(y=year))
+        fnames = sorted(list(cls.OUTS.keys()))
+        if i_fname is not None:
+            fnames = [fnames[i_fname]]
+
+        for fname in fnames:
+            dsets = cls.OUTS[fname]
+            fname = fname.format(y=year)
+
+            if tmp:
+                f_out = os.path.join('/tmp/scratch/', fname)
+            else:
+                f_out = os.path.join(out_dir, fname)
 
             flist = [fn for fn in os.listdir(collect_dir)
                      if fn.endswith('.h5') and
-                     fname.format(y=year).replace('.h5', '') in fn]
+                     fname.replace('.h5', '') in fn]
 
             if any(flist):
                 nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
@@ -596,8 +614,13 @@ class NSRDB:
             else:
                 emsg = ('Could not find files to collect for {} in the '
                         'collect dir: {}'
-                        .format(fname.format(y=year), collect_dir))
+                        .format(fname, collect_dir))
                 raise FileNotFoundError(emsg)
+
+            if tmp:
+                logger.info('Moving temp file to final output directory.')
+                shutil.move(f_out, os.path.join(out_dir, fname))
+
         logger.info('Finished final file collection to: {}'.format(out_dir))
 
     @classmethod
