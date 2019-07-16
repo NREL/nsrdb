@@ -271,7 +271,8 @@ class CloudGapFill:
                                                     fill_flag=fill_flag)
 
         # find location of missing properties
-        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0))
+        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0) &
+                        (sza < SZA_LIM))
         fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
 
         if missing_prop.all(axis=0).any():

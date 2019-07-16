@@ -251,7 +251,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
 
 
 def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
-                        cols=slice(None), col_chunk=10):
+                        cols=slice(None), col_chunk=1):
     """Run all-sky from .h5 files.
 
     Parameters
@@ -329,8 +329,10 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
                     keys += [key]
                 elif future.done():
                     complete += 1
-            logger.debug('{} all-sky futures are running, {} are complete.'
-                         .format(running, complete))
+            logger.debug('{0} all-sky futures are running, {1} are complete. '
+                         'Memory usage is {2:.3f} out of {3:.3f} total.'
+                         .format(running, complete, mem.used / 1e9,
+                                 mem.total / 1e9))
 
         logger.info('Futures finished, maximum memory usage was '
                     '{0:.3f} GB out of {1:.3f} GB total.'

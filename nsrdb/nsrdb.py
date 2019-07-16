@@ -498,7 +498,10 @@ class NSRDB:
         i_chunks : int
             Chunk index (indexing n_chunks) to run.
         i_fname : int
-            File name index from NSRDB.OUTS to run collection for.
+            File name index from NSRDB.OUTS to run collection for:
+                0 - ancillary
+                1 - clouds
+                2 - sam vars
         freq : str
             Final desired NSRDB temporal frequency.
         log_level : str | None

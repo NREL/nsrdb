@@ -456,7 +456,8 @@ class CloudVar(AncillaryVarHandler):
 
             # walk through current directory looking for day directory
             for dirpath, _, _ in os.walk(self.source_dir):
-                dirpath += '/'
+                if not dirpath.endswith('/'):
+                    dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in os.listdir(dirpath):
                         if fsearch1 in fn or fsearch2 in fn:
@@ -466,8 +467,10 @@ class CloudVar(AncillaryVarHandler):
                     break
 
             if self._path is None:
-                msg = ('Could not find cloud data dir for doy {} in '
-                       'source_dir {}'.format(doy, self.source_dir))
+                msg = ('Could not find cloud data dir for date {} in '
+                       'source_dir {}. Looked for {}, {}, and {}'
+                       .format(self._date, self.source_dir, dirsearch,
+                               fsearch1, fsearch2))
                 logger.exception(msg)
                 raise IOError(msg)
             else:
