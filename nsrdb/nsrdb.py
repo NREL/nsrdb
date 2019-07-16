@@ -549,8 +549,8 @@ class NSRDB:
 
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
-                      log_level='DEBUG', log_file='final_collection.log',
-                      i_fname=None, tmp=True, parallel=2):
+                      i_fname=None, tmp=True,
+                      log_level='DEBUG', log_file='final_collection.log'):
         """Collect chunked files to single final output files.
 
         Parameters
@@ -578,9 +578,6 @@ class NSRDB:
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Note that most standard nodes only have 1TB temporary
             scratch storage.
-        parallel : bool | int
-            Flag to do chunk collection in parallel. Can be integer number of
-            workers to use (number of parallel reads).
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
@@ -602,15 +599,26 @@ class NSRDB:
             flist = [fn for fn in os.listdir(collect_dir)
                      if fn.endswith('.h5') and
                      fname.replace('.h5', '') in fn]
+            flist = sorted(flist, key=lambda x: float(
+                x.replace('.h5', '').split('_')[-1]))
+            fids = [int(fn.replace('.h5', '').split('_')[-1]) for fn in flist]
+            if fids != list(range(np.min(fids), 1 + np.max(fids))):
+                emsg = ('File list appears to be missing files. '
+                        '{} files from {} to {}.'
+                        .format(len(flist), np.min(fids), np.max(fids)))
+                raise FileNotFoundError(emsg)
 
             if any(flist):
                 nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
                                       nsrdb.meta)
-                logger.info('Collecting file list: {}'.format(flist))
+                logger.info('Collecting {} files in list: {}'
+                            .format(len(flist), flist))
+
                 for dset in dsets:
-                    Collector.collect_flist(flist, collect_dir, f_out,
-                                            dset, sites=None,
-                                            parallel=parallel)
+                    logger.info('Collecting dataset "{}".'.format(dset))
+                    Collector.collect_flist_lowmem(flist, collect_dir, f_out,
+                                                   dset)
+
             else:
                 emsg = ('Could not find files to collect for {} in the '
                         'collect dir: {}'

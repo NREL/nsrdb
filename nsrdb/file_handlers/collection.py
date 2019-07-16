@@ -149,7 +149,7 @@ class Collector:
         return row_slice, col_slice
 
     @staticmethod
-    def _get_data(fpath, dset, time_index, meta, sites=None):
+    def get_data(fpath, dset, time_index, meta, sites=None):
         """Retreive a data array from a chunked file.
 
         Parameters
@@ -157,7 +157,7 @@ class Collector:
         fpath : str
             h5 file to get data from
         dset : str
-            dataset to retrieve data from in fpath.
+            dataset to retrieve data from fpath.
         time_index : pd.Datetimeindex
             Time index of the final file.
         final_meta : pd.DataFrame
@@ -195,7 +195,7 @@ class Collector:
     @staticmethod
     def collect_flist(flist, collect_dir, f_out, dset, sites=None,
                       parallel=True):
-        """Collect a dataset from a file list.
+        """Collect a dataset from a file list with data pre-init.
 
         Parameters
         ----------
@@ -205,8 +205,8 @@ class Collector:
             Directory of chunked files (flist).
         f_out : str
             File path of final output file.
-        dsets : list
-            List of datasets / variable names to collect.
+        dset : str
+            Dataset name to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
         parallel : bool | int
@@ -218,16 +218,24 @@ class Collector:
             time_index = f.time_index
             meta = f.meta
             shape, dtype, _ = f.get_dset_properties(dset)
+            if sites is not None:
+                shape = (shape[0], len(sites))
 
         data = np.zeros(shape, dtype=dtype)
+        mem = psutil.virtual_memory()
+        logger.info('Initializing output dataset "{0}" with shape {1} and '
+                    'dtype {2}. Current memory usage is '
+                    '{3:.3f} GB out of {4:.3f} GB total.'
+                    .format(dset, shape, dtype,
+                            mem.used / 1e9, mem.total / 1e9))
 
         if not parallel:
             for fname in flist:
                 fpath = os.path.join(collect_dir, fname)
-                f_data, row_slice, col_slice = Collector._get_data(fpath, dset,
-                                                                   time_index,
-                                                                   meta,
-                                                                   sites=sites)
+                f_data, row_slice, col_slice = Collector.get_data(fpath, dset,
+                                                                  time_index,
+                                                                  meta,
+                                                                  sites=sites)
                 data[row_slice, col_slice] = f_data
         else:
             if parallel is True:
@@ -242,7 +250,7 @@ class Collector:
             with ProcessPoolExecutor(max_workers=max_workers) as exe:
                 for fname in flist:
                     fpath = os.path.join(collect_dir, fname)
-                    futures.append(exe.submit(Collector._get_data, fpath, dset,
+                    futures.append(exe.submit(Collector.get_data, fpath, dset,
                                               time_index, meta, sites=sites))
                 for future in as_completed(futures):
                     completed += 1
@@ -260,6 +268,36 @@ class Collector:
             f[dset] = data
 
         logger.info('Finished writing dataset "{}"'.format(dset))
+
+    @staticmethod
+    def collect_flist_lowmem(flist, collect_dir, f_out, dset):
+        """Collect a file list without data pre-init for low memory utilization
+
+        Parameters
+        ----------
+        flist : list
+            List of chunked filenames in collect_dir to collect.
+        collect_dir : str
+            Directory of chunked files (flist).
+        f_out : str
+            File path of final output file.
+        dset : str
+            Dataset name to collect.
+        """
+
+        with Outputs(f_out, mode='a') as f:
+
+            time_index = f.time_index
+            meta = f.meta
+
+            for fname in flist:
+                logger.debug('Collecting file "{}".'.format(fname))
+                fpath = os.path.join(collect_dir, fname)
+
+                data, rows, cols = Collector.get_data(fpath, dset, time_index,
+                                                      meta)
+
+                f[dset, rows, cols] = data
 
     @classmethod
     def collect(cls, collect_dir, f_out, dsets, sites=None, parallel=True):
