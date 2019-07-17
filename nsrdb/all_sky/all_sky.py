@@ -20,7 +20,8 @@ from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      dark_night, cloud_variability,
                                      scale_all_sky_outputs)
 from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
-                                            missing_cld_props)
+                                            missing_cld_props,
+                                            enforce_clearsky)
 
 
 logger = logging.getLogger(__name__)
@@ -149,7 +150,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi = merge_rest_farms(rest_data.ghi, ghi, cloud_type)
 
     # option to add synthetic variability to cloudy ghi
-    if ghi_variability:
+    if ghi_variability is not None:
         ghi = cloud_variability(ghi, rest_data.ghi, cloud_type,
                                 var_frac=ghi_variability, option='tri')
 
@@ -169,6 +170,11 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                          flags_to_fill=flags_to_fill)
     dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
                          flags_to_fill=flags_to_fill)
+
+    # enforce a max irradiance of clearsky irradiance
+    dni, ghi, fill_flag = enforce_clearsky(dni, ghi, rest_data.dni,
+                                           rest_data.ghi, solar_zenith_angle,
+                                           fill_flag, sza_lim=SZA_LIM)
 
     # calculate the DHI, patching DNI for negative DHI values
     dhi, dni = calc_dhi(dni, ghi, solar_zenith_angle)

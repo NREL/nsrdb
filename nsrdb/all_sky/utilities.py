@@ -225,9 +225,6 @@ def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
 def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """Combine clearsky and rest data into all-sky irradiance array.
 
-    This also ensures that the cloudy irradiance is always less
-    than the clearsky irradiance.
-
     Parameters
     ----------
     clearsky_irrad : np.ndarray
@@ -246,10 +243,6 @@ def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """
     # disable nan warnings
     np.seterr(divide='ignore', invalid='ignore')
-
-    # Don't let cloudy irradiance be greater than the clearsky irradiance.
-    cloudy_irrad = np.where(cloudy_irrad > clearsky_irrad,
-                            clearsky_irrad, cloudy_irrad)
 
     # combine clearsky and farms according to the cloud types.
     all_sky_irrad = np.where(np.isin(cloud_type, CLEAR_TYPES),

@@ -8,7 +8,7 @@ Created on Wed Dec 12 2018
 import pandas as pd
 import numpy as np
 from warnings import warn
-from nsrdb.all_sky import CLOUD_TYPES
+from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
 
 
 def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
@@ -66,8 +66,6 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
         data and the reason why.
     """
 
-    cloudy = np.isin(cloud_type, CLOUD_TYPES)
-
     # Make a categorical numerical fill flag
     new_fill_flag = np.zeros_like(irrad).astype(np.int8)
 
@@ -76,7 +74,7 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
     new_fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
     new_fill_flag[missing_cld_props & (cs_irrad > 0)] = 3
     new_fill_flag[:, missing_cld_props.all(axis=0)] = 4
-    new_fill_flag[(cloudy & (irrad >= cs_irrad) & (cs_irrad > 0))] = 5
+    # clearsky limit (fill flag 5) is filled in enforce_clearsky()
     new_fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
 
     if fill_flag is not None:
@@ -149,3 +147,43 @@ def gap_fill_irrad(irrad, cs_irrad, fill_flag, return_csr=False,
         return irrad, csr
     else:
         return irrad
+
+
+def enforce_clearsky(dni, ghi, cs_dni, cs_ghi, sza, fill_flag,
+                     sza_lim=SZA_LIM):
+    """Enforce a maximum irradiance equal to the clearsky irradiance.
+
+    Parameters
+    ----------
+    dni : np.ndarray
+        All-sky (cloudy + clear) DNI.
+    ghi : np.ndarray
+        All-sky (cloudy + clear) GHI.
+    cs_dni : np.ndarray
+        Clearsky (REST) DNI.
+    cs_ghi : np.ndarray
+        Clearsky (REST) GHI.
+    sza : np.ndarray
+        Solar zenith angle in degrees.
+    fill_flag : None
+        Integer array of flags showing what data was previously filled and why.
+    sza_lim : int | float
+        Upper limit of SZA in degrees.
+
+    Returns
+    -------
+    dni : np.ndarray
+        All-sky (cloudy + clear) DNI with max of clearsky values.
+    ghi : np.ndarray
+        All-sky (cloudy + clear) GHI with max of clearsky values.
+    fill_flag : np.ndarray
+        Array of integers signifying whether to fill the irradiance
+        data and the reason why.
+    """
+
+    mask = ((dni > cs_dni) | (ghi > cs_ghi)) & (sza < sza_lim)
+    dni[mask] = cs_dni[mask]
+    ghi[mask] = cs_ghi[mask]
+    fill_flag[mask] = 5
+
+    return dni, ghi, fill_flag
