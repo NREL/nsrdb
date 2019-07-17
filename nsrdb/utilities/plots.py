@@ -5,6 +5,7 @@ Created on Tue Dec  10 08:22:26 2018
 
 @author: gbuster
 """
+from concurrent.futures import ProcessPoolExecutor
 import h5py
 import os
 import sys
@@ -356,8 +357,26 @@ class Spatial:
             Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
 
     @staticmethod
+    def _fmt_title(kwargs, og_title, ti, ts, fname, dset, file_ext):
+        """Format the figure title with timestamp."""
+
+        if 'title' in kwargs:
+            if og_title is None:
+                og_title = kwargs['title']
+            if '{}' in og_title:
+                s = ('{}-{}-{} {}:{}'.format(
+                    ti[ts].month, ti[ts].day, ti[ts].year,
+                    str(ti[ts].hour).zfill(2),
+                    str(ti[ts].minute).zfill(2)))
+                kwargs['title'] = og_title.format(s)
+
+        fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
+                                        file_ext)
+        return fname_out, kwargs, og_title
+
+    @staticmethod
     def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png', sites=None,
-              **kwargs):
+              parallel=False, **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -374,6 +393,8 @@ class Spatial:
             File extension
         sites : None | List | Slice
             sites to plot.
+        parallel : bool
+            Flag to generate plots in parallel (for each timestep).
         """
 
         og_title = None
@@ -408,22 +429,25 @@ class Spatial:
                 if len(f[dset].shape) > 1:
                     data = (f[dset][timesteps, sites].astype(np.float32) /
                             scale_factor)
-                    for i, ts in enumerate(timesteps):
 
-                        if 'title' in kwargs:
-                            if og_title is None:
-                                og_title = kwargs['title']
-                            if '{}' in og_title:
-                                s = ('{}-{}-{} {}:{}'.format(
-                                    ti[ts].month, ti[ts].day, ti[ts].year,
-                                    str(ti[ts].hour).zfill(2),
-                                    str(ti[ts].minute).zfill(2)))
-                                kwargs['title'] = og_title.format(s)
-
-                        df[dset] = data[i, :]
-                        fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
-                                                        file_ext)
-                        Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
+                    if not parallel:
+                        for i, ts in enumerate(timesteps):
+                            df[dset] = data[i, :]
+                            fn_out, kwargs, og_title = Spatial._fmt_title(
+                                kwargs, og_title, ti, ts, fname, dset,
+                                file_ext)
+                            Spatial.plot_geo_df(df, fn_out, out_dir,
+                                                **kwargs)
+                    else:
+                        with ProcessPoolExecutor() as exe:
+                            for i, ts in enumerate(timesteps):
+                                df_par = df.copy()
+                                df_par[dset] = data[i, :]
+                                fn_out, kwargs, og_title = Spatial._fmt_title(
+                                    kwargs, og_title, ti, ts, fname, dset,
+                                    file_ext)
+                                exe.submit(Spatial.plot_geo_df, df_par, fn_out,
+                                           out_dir, **kwargs)
 
                 # 1D array, no timesteps
                 else:
