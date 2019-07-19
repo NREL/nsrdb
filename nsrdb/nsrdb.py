@@ -549,7 +549,7 @@ class NSRDB:
 
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
-                      i_fname=None, tmp=True,
+                      i_fname=None, tmp=False,
                       log_level='DEBUG', log_file='final_collection.log'):
         """Collect chunked files to single final output files.
 
@@ -576,8 +576,8 @@ class NSRDB:
             sorted OUTS class attribute keys.
         tmp : bool
             Flag to use temporary scratch storage, then move to out_dir when
-            finished. Note that most standard nodes only have 1TB temporary
-            scratch storage.
+            finished. Doesn't seem to be faster than collecting to normal
+            scratch on eagle.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
