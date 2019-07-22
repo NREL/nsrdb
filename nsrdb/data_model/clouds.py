@@ -84,25 +84,42 @@ class CloudVarSingleH5(CloudVarSingle):
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
     @staticmethod
-    def _parse_grid(fpath):
+    def _parse_grid(fpath, dsets=('latitude', 'longitude')):
         """Extract the cloud data grid for the current timestep.
+
+        Parameters
+        ----------
+        fpath : str
+            Full file path to netcdf4 file.
+        dsets : tuple
+            Latitude, longitude datasets to retrieve from cloud file. Lat/lon
+            dsets are supposed to be pre-parallax-corrected. Output
+            dataset names will always be 'latitude' and 'longitude'.
 
         Returns
         -------
-        self._grid : pd.DataFrame
+        grid : pd.DataFrame
             GOES source coordinates (labels: ['latitude', 'longitude']).
         """
 
-        labels = ['latitude', 'longitude']
         grid = pd.DataFrame()
         with h5py.File(fpath, 'r') as f:
-            for dset in labels:
+            for dset in dsets:
                 if dset not in list(f):
                     raise KeyError('Could not find "{}" in the cloud '
                                    'file: {}'
                                    .format(dset, fpath))
-                grid[dset] = CloudVarSingleH5.pre_process(
+                if 'lat' in dset:
+                    dset_out = 'latitude'
+                elif 'lon' in dset:
+                    dset_out = 'longitude'
+                else:
+                    raise KeyError('Did not recognize dataset as latitude '
+                                   'or longitude: "{}"'.format(dset))
+
+                grid[dset_out] = CloudVarSingleH5.pre_process(
                     dset, f[dset][...], dict(f[dset].attrs))
+
         return grid
 
     @staticmethod
@@ -233,22 +250,32 @@ class CloudVarSingleNC(CloudVarSingle):
         self._grid, self._sparse_mask = self._parse_grid(self._fpath)
 
     @staticmethod
-    def _parse_grid(fpath):
+    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc')):
         """Extract the cloud data grid for the current timestep.
+
+        Parameters
+        ----------
+        fpath : str
+            Full file path to netcdf4 file.
+        dsets : tuple
+            Latitude, longitude datasets to retrieve from cloud file. NetCDF4
+            files have parallax corrected datasets (*_pc). Different from the
+            h5 files we previously received from UW. Output dataset names will
+            always be 'latitude' and 'longitude'.
 
         Returns
         -------
         grid : pd.DataFrame
             GOES source coordinates (labels: ['latitude', 'longitude']).
         mask : np.ndarray
-            Boolean array to extract good data.
+            2D boolean array to extract good data.
         """
 
         sparse_mask = None
-        labels = ['latitude', 'longitude']
+
         grid = pd.DataFrame()
         with netCDF4.Dataset(fpath, 'r') as f:
-            for dset in labels:
+            for dset in dsets:
                 if dset not in list(f.variables.keys()):
                     raise KeyError('Could not find "{}" in the cloud '
                                    'file: {}'
@@ -257,7 +284,17 @@ class CloudVarSingleNC(CloudVarSingle):
                 # use netCDF masked array mask to reduce ~1/4 of the data
                 if sparse_mask is None:
                     sparse_mask = ~f[dset][:].mask
-                grid[dset] = f[dset][:].data[sparse_mask]
+
+                if 'lat' in dset:
+                    dset_out = 'latitude'
+                elif 'lon' in dset:
+                    dset_out = 'longitude'
+                else:
+                    raise KeyError('Did not recognize dataset as latitude '
+                                   'or longitude: "{}"'.format(dset))
+
+                grid[dset_out] = f[dset][:].data[sparse_mask]
+
         return grid, sparse_mask
 
     @staticmethod
