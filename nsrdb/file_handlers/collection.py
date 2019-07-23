@@ -325,9 +325,13 @@ class Collector:
             logger.debug('Collecting dataset "{}".'.format(dset))
             try:
                 collector = cls(collect_dir, dset)
-            except FileNotFoundError:
-                logger.info('Skipping dataset "{}", no files found in: {}'
-                            .format(dset, collect_dir))
+            except FileNotFoundError as e:
+                if 'No "{}" files found'.format(dset) in e:
+                    logger.info('Skipping dataset "{}", no files found in: {}'
+                                .format(dset, collect_dir))
+                else:
+                    logger.exception(e)
+                    raise e
             else:
                 collector.collect_flist(collector.flist, collect_dir, f_out,
                                         dset, sites=sites, parallel=parallel)

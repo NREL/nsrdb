@@ -52,8 +52,9 @@ class CloudVarSingle:
 
         Returns
         -------
-        self._grid : pd.DataFrame
+        self._grid : pd.DataFrame | None
             GOES source coordinates (labels: ['latitude', 'longitude']).
+            None if bad dataset
         """
         return self._grid
 
@@ -98,8 +99,9 @@ class CloudVarSingleH5(CloudVarSingle):
 
         Returns
         -------
-        grid : pd.DataFrame
+        grid : pd.DataFrame | None
             GOES source coordinates (labels: ['latitude', 'longitude']).
+            None if bad dataset
         """
 
         grid = pd.DataFrame()
@@ -119,6 +121,9 @@ class CloudVarSingleH5(CloudVarSingle):
 
                 grid[dset_out] = CloudVarSingleH5.pre_process(
                     dset, f[dset][...], dict(f[dset].attrs))
+
+        if grid.empty:
+            grid = None
 
         return grid
 
@@ -265,8 +270,9 @@ class CloudVarSingleNC(CloudVarSingle):
 
         Returns
         -------
-        grid : pd.DataFrame
+        grid : pd.DataFrame | None
             GOES source coordinates (labels: ['latitude', 'longitude']).
+            None if bad dataset
         mask : np.ndarray
             2D boolean array to extract good data.
         """
@@ -294,6 +300,9 @@ class CloudVarSingleNC(CloudVarSingle):
                                    'or longitude: "{}"'.format(dset))
 
                 grid[dset_out] = f[dset][:].data[sparse_mask]
+
+        if grid.empty:
+            grid = None
 
         return grid, sparse_mask
 

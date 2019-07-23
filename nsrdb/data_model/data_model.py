@@ -40,6 +40,7 @@ import psutil
 from concurrent.futures import ProcessPoolExecutor
 import time
 from scipy.spatial import cKDTree
+from warnings import warn
 
 from nsrdb import DATADIR
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
@@ -351,19 +352,23 @@ class DataModel:
 
         Returns
         -------
-        index : np.ndarray
+        index : np.ndarray | None
             KDTree query results mapping cloud data to the NSRDB grid. e.g.
-            nsrdb_data = cloud_data[index]
+            nsrdb_data = cloud_data[index]. None if bad grid data.
         """
 
         if isinstance(labels, tuple):
             labels = list(labels)
         # Build NN tree based on the unique cloud grid at single timestep
-        tree = cKDTree(VarFactory.get_cloud_handler(fpath).grid[labels])
-        # Get the index of NN to NSRDB grid
-        _, index = tree.query(nsrdb_grid[labels], k=1)
-        index = index.astype(np.uint32)
-        return index
+        grid = VarFactory.get_cloud_handler(fpath).grid
+        if grid is not None:
+            tree = cKDTree(grid[labels])
+            # Get the index of NN to NSRDB grid
+            _, index = tree.query(nsrdb_grid[labels], k=1)
+            index = index.astype(np.uint32)
+            return index
+        else:
+            return None
 
     def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
@@ -616,7 +621,13 @@ class DataModel:
 
                     # write single timestep with NSRDB sites to appropriate row
                     # map the regridded data using the regrid NN indices
-                    data[dset][i, :] = array[regrid_ind[obj.fpath]]
+                    if regrid_ind[obj.fpath] is not None:
+                        data[dset][i, :] = array[regrid_ind[obj.fpath]]
+                    else:
+                        wmsg = ('Cloud data does not appear to have valid '
+                                'coordinates: {}'.format(obj.fpath))
+                        warn(wmsg)
+                        logger.warning(wmsg)
 
         # scale if requested
         if self._scale:
