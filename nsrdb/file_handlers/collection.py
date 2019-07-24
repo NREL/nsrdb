@@ -326,7 +326,7 @@ class Collector:
             try:
                 collector = cls(collect_dir, dset)
             except FileNotFoundError as e:
-                if 'No "{}" files found'.format(dset) in e:
+                if 'No "{}" files found'.format(dset) in str(e):
                     logger.info('Skipping dataset "{}", no files found in: {}'
                                 .format(dset, collect_dir))
                 else:
