@@ -375,8 +375,8 @@ class Spatial:
         return fname_out, kwargs, og_title
 
     @staticmethod
-    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png', sites=None,
-              parallel=False, **kwargs):
+    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png',
+              sites=None, interval=None, parallel=False, **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -387,12 +387,16 @@ class Spatial:
             Name of target dataset(s) to plot
         out_dir : str
             Path to dump output plot files.
-        timesteps : iterable
-            Timesteps (time indices) to make plots for.
+        timesteps : iterable | slice
+            Timesteps (time indices) to make plots for. Slice will have faster
+            data extraction and will be later converted to an iterable.
         file_ext : str
             File extension
         sites : None | List | Slice
             sites to plot.
+        interval : None | int
+            Interval to plots sites at, i.e. if 100, only 1 every 100 sites
+            will be plotted.
         parallel : bool
             Flag to generate plots in parallel (for each timestep).
         """
@@ -404,58 +408,88 @@ class Spatial:
             os.makedirs(out_dir)
 
         for dset in dsets:
+            fname = os.path.basename(h5).replace('.h5', '')
             with h5py.File(h5, 'r') as f:
                 logger.info('Plotting "{}" from {}.'.format(dset, h5))
-                fname = os.path.basename(h5).replace('.h5', '')
-
-                if sites is None:
-                    sites = slice(0, f['meta'].shape[0])
+                attrs = dict(f[dset].attrs)
+                dset_shape = f[dset].shape
 
                 ti = pd.to_datetime(f['time_index'][...].astype(str))
-                df = pd.DataFrame(f['meta'][sites]).loc[:, ['latitude',
-                                                            'longitude']]
-                attrs = dict(f[dset].attrs)
-
-                if 'scale_factor' in attrs:
-                    scale_factor = attrs['scale_factor']
-                elif 'psm_scale_factor' in attrs:
-                    scale_factor = attrs['psm_scale_factor']
+                if sites is None:
+                    df = pd.DataFrame(f['meta'][...]).loc[:, ['latitude',
+                                                              'longitude']]
                 else:
-                    scale_factor = 1
-                    warn('Could not find scale factor attr in h5: {}'
-                         .format(h5))
+                    df = pd.DataFrame(f['meta'][sites]).loc[:, ['latitude',
+                                                                'longitude']]
+            if interval is not None:
+                df = df.iloc[slice(None, None, interval), :]
 
-                # 2D array with timesteps
-                if len(f[dset].shape) > 1:
-                    data = (f[dset][timesteps, sites].astype(np.float32) /
-                            scale_factor)
+            if 'scale_factor' in attrs:
+                scale_factor = attrs['scale_factor']
+            elif 'psm_scale_factor' in attrs:
+                scale_factor = attrs['psm_scale_factor']
+            else:
+                scale_factor = 1
+                warn('Could not find scale factor attr in h5: {}'
+                     .format(h5))
 
-                    if not parallel:
+            # 2D array with timesteps
+            if len(dset_shape) > 1:
+                logger.debug('Importing data for "{}"...'.format(dset))
+                with h5py.File(h5, 'r') as f:
+                    if sites is None:
+                        data = (f[dset][timesteps, :].astype(np.float32) /
+                                scale_factor)
+                    else:
+                        data = (f[dset][timesteps, sites].astype(np.float32) /
+                                scale_factor)
+                if interval is not None:
+                    data = data[:, slice(None, None, interval)]
+                logger.debug('Finished importing data for "{}".'
+                             .format(dset))
+
+                if isinstance(timesteps, slice):
+                    step = timesteps.step
+                    if step is None:
+                        step = 1
+                    timesteps = list(range(timesteps.start,
+                                           timesteps.stop,
+                                           step))
+
+                if not parallel:
+                    for i, ts in enumerate(timesteps):
+                        df[dset] = data[i, :]
+                        fn_out, kwargs, og_title = Spatial._fmt_title(
+                            kwargs, og_title, ti, ts, fname, dset,
+                            file_ext)
+                        Spatial.plot_geo_df(df, fn_out, out_dir,
+                                            **kwargs)
+                else:
+                    with ProcessPoolExecutor() as exe:
                         for i, ts in enumerate(timesteps):
-                            df[dset] = data[i, :]
+                            df_par = df.copy()
+                            df_par[dset] = data[i, :]
                             fn_out, kwargs, og_title = Spatial._fmt_title(
                                 kwargs, og_title, ti, ts, fname, dset,
                                 file_ext)
-                            Spatial.plot_geo_df(df, fn_out, out_dir,
-                                                **kwargs)
-                    else:
-                        with ProcessPoolExecutor() as exe:
-                            for i, ts in enumerate(timesteps):
-                                df_par = df.copy()
-                                df_par[dset] = data[i, :]
-                                fn_out, kwargs, og_title = Spatial._fmt_title(
-                                    kwargs, og_title, ti, ts, fname, dset,
-                                    file_ext)
-                                exe.submit(Spatial.plot_geo_df, df_par, fn_out,
-                                           out_dir, **kwargs)
+                            exe.submit(Spatial.plot_geo_df, df_par, fn_out,
+                                       out_dir, **kwargs)
 
-                # 1D array, no timesteps
-                else:
-                    data = (f[dset][sites].astype(np.float32) /
-                            scale_factor)
-                    df[dset] = data
-                    fname_out = '{}_{}{}'.format(fname, dset, file_ext)
-                    Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
+            # 1D array, no timesteps
+            else:
+                with h5py.File(h5, 'r') as f:
+                    if sites is None:
+                        data = (f[dset][...].astype(np.float32) /
+                                scale_factor)
+                    else:
+                        data = (f[dset][sites].astype(np.float32) /
+                                scale_factor)
+
+                if interval is not None:
+                    data = data[slice(None, None, interval)]
+                df[dset] = data
+                fname_out = '{}_{}{}'.format(fname, dset, file_ext)
+                Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
 
     @staticmethod
     def goes_cloud(fpath, dsets, out_dir, nan_fill=-15, sparse_step=10,
@@ -500,9 +534,10 @@ class Spatial:
 
     @staticmethod
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
-                    xlabel=None, ylabel=None, title=None, cbar_label=None,
-                    marker_size=0.1, xlim=(-127, -65), ylim=(24, 50),
-                    cmap='OrRd', cbar_range=None, dpi=150, figsize=(10, 5),
+                    xlabel='Longitude', ylabel='Latitude', title=None,
+                    cbar_label=None, marker_size=0.1,
+                    xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
+                    cmap='OrRd_11', cbar_range=None, dpi=150,
                     extent=None, axis=None):
         """Plot a dataframe to verify the blending operation.
 
@@ -549,6 +584,10 @@ class Spatial:
                 xlim = (-140, -50)
                 ylim = (43, 68)
                 figsize = (12, 7)
+            elif extent.lower() == 'east':
+                xlim = (-130, -20)
+                ylim = (-62, 62)
+                figsize = (7, 8)
 
         try:
             fig = plt.figure(figsize=figsize)
