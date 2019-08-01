@@ -589,6 +589,10 @@ class Spatial:
                 xlim = (-130, -20)
                 ylim = (-62, 62)
                 figsize = (7, 8)
+            elif extent.lower() == 'wecc':
+                xlim = (-127, -100)
+                ylim = (29, 50)
+                figsize = (8, 6)
 
         try:
             fig = plt.figure(figsize=figsize)
