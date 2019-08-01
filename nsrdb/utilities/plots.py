@@ -21,8 +21,6 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.data_model.clouds import (CloudVarSingleH5, CloudVarSingleNC,
-                                     CloudVar)
 
 
 logger = logging.getLogger(__name__)
@@ -510,6 +508,9 @@ class Spatial:
             Step size to plot sites at a given interval (speeds things up).
             sparse_step=1 will plot all datapoints.
         """
+        from nsrdb.data_model.clouds import (CloudVarSingleH5,
+                                             CloudVarSingleNC,
+                                             CloudVar)
 
         if fpath.endswith('.nc'):
             cld = CloudVarSingleNC(fpath, pre_proc_flag=True, index=None,
