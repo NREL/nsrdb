@@ -6,7 +6,40 @@ import pandas as pd
 import numpy as np
 import os
 from warnings import warn
+from nsrdb.data_model import VarFactory
 from nsrdb.all_sky import RADIUS, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
+
+
+def scale_all_sky_outputs(all_sky_out, var_meta=None):
+    """Perform safe scaling of all-sky outputs and change dtype.
+
+    Parameters
+    ----------
+    all_sky_out : dict
+        Namespace of all-sky irradiance output variables with the
+        following keys:
+            'clearsky_dhi'
+            'clearsky_dni'
+            'clearsky_ghi'
+            'dhi'
+            'dni'
+            'ghi'
+            'fill_flag'
+    var_meta : str | pd.DataFrame | None
+        CSV file or dataframe containing meta data for all NSRDB variables.
+        Defaults to the NSRDB var meta csv in git repo.
+
+    Returns
+    -------
+    all_sky_out : dict
+        Same as input but all arrays are scaled and with final dtype.
+    """
+
+    for var, arr in all_sky_out.items():
+        var_obj = VarFactory.get_base_handler(var, var_meta=var_meta)
+        all_sky_out[var] = var_obj.scale_data(arr)
+
+    return all_sky_out
 
 
 def check_range(data, name, rang=(0, 1)):
@@ -192,9 +225,6 @@ def rayleigh(dhi, cs_dhi, fill_flag, rayleigh_flag=7):
 def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """Combine clearsky and rest data into all-sky irradiance array.
 
-    This also ensures that the cloudy irradiance is always less
-    than the clearsky irradiance.
-
     Parameters
     ----------
     clearsky_irrad : np.ndarray
@@ -213,10 +243,6 @@ def merge_rest_farms(clearsky_irrad, cloudy_irrad, cloud_type):
     """
     # disable nan warnings
     np.seterr(divide='ignore', invalid='ignore')
-
-    # Don't let cloudy irradiance be greater than the clearsky irradiance.
-    cloudy_irrad = np.where(cloudy_irrad > clearsky_irrad,
-                            clearsky_irrad, cloudy_irrad)
 
     # combine clearsky and farms according to the cloud types.
     all_sky_irrad = np.where(np.isin(cloud_type, CLEAR_TYPES),

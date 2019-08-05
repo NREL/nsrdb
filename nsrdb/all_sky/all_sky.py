@@ -2,12 +2,11 @@
 """NSRDB all-sky module.
 """
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import numpy as np
 import pandas as pd
 import psutil
-import time
 import logging
 from warnings import warn
 
@@ -18,9 +17,11 @@ from nsrdb.all_sky.farms import farms
 from nsrdb.all_sky import SZA_LIM
 from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
                                      calc_dhi, screen_sza, screen_cld,
-                                     dark_night, cloud_variability)
+                                     dark_night, cloud_variability,
+                                     scale_all_sky_outputs)
 from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
-                                            missing_cld_props)
+                                            missing_cld_props,
+                                            enforce_clearsky)
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
             time_index, total_precipitable_water, fill_flag=None,
-            ghi_variability=None):
+            ghi_variability=None, scale_outputs=True):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -80,6 +81,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi_variability : NoneType | float
         Variability fraction to apply to GHI. Provides synthetic variability
         for cloudy irradiance when downscaling data.
+    scale_outputs : bool
+        Flag to safely scale and dtype convert output arrays.
 
     Returns
     -------
@@ -147,7 +150,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi = merge_rest_farms(rest_data.ghi, ghi, cloud_type)
 
     # option to add synthetic variability to cloudy ghi
-    if ghi_variability:
+    if ghi_variability is not None:
         ghi = cloud_variability(ghi, rest_data.ghi, cloud_type,
                                 var_frac=ghi_variability, option='tri')
 
@@ -167,6 +170,11 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                          flags_to_fill=flags_to_fill)
     dni = gap_fill_irrad(dni, rest_data.dni, fill_flag, return_csr=False,
                          flags_to_fill=flags_to_fill)
+
+    # enforce a max irradiance of clearsky irradiance
+    dni, ghi, fill_flag = enforce_clearsky(dni, ghi, rest_data.dni,
+                                           rest_data.ghi, solar_zenith_angle,
+                                           fill_flag, sza_lim=SZA_LIM)
 
     # calculate the DHI, patching DNI for negative DHI values
     dhi, dni = calc_dhi(dni, ghi, solar_zenith_angle)
@@ -192,6 +200,9 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
               'dni': dni,
               'ghi': ghi,
               'fill_flag': fill_flag}
+
+    if scale_outputs:
+        output = scale_all_sky_outputs(output)
 
     return output
 
@@ -242,7 +253,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                     time_index=fc.time_index[rows],
                     total_precipitable_water=fa['total_precipitable_water',
                                                 rows, cols],
-                    fill_flag=fa['fill_flag', rows, cols])
+                    fill_flag=fc['fill_flag', rows, cols])
     except Exception as e:
         logger.exception('All-Sky failed!')
         raise e
@@ -266,7 +277,8 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
         Subset of columns to run.
     col_chunk : int
         Number of columns to process on a single core. Larger col_chunk will
-        increase the REST2 memory spike substantially.
+        increase the REST2 memory spike substantially, but will be
+        significantly faster.
 
     Returns
     -------
@@ -298,55 +310,44 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
 
     out_shape = (rows.stop - rows.start, cols.stop - cols.start)
     c_range = range(cols.start, cols.stop, col_chunk)
-
-    # start a local cluster
-    max_workers = int(os.cpu_count())
-    futures = {}
-    logger.info('Running all-sky in parallel on {} workers.'
-                .format(max_workers))
-    with ProcessPoolExecutor(max_workers=max_workers) as exe:
-        # submit a future for each NSRDB site
-        for c in c_range:
-            c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
-            futures[c] = exe.submit(
-                all_sky_h5, f_ancillary, f_cloud,
-                rows=rows, cols=c_slice)
-
-        # watch memory during futures to get max memory usage
-        logger.debug('Waiting on {} parallel futures...'.format(len(futures)))
-        max_mem = 0
-        running = len(futures)
-        while running > 0:
-            mem = psutil.virtual_memory()
-            max_mem = np.max((mem.used / 1e9, max_mem))
-            time.sleep(5)
-            running = 0
-            complete = 0
-            keys = []
-            for key, future in futures.items():
-                if future.running():
-                    running += 1
-                    keys += [key]
-                elif future.done():
-                    complete += 1
-            logger.debug('{} all-sky futures are running, {} are complete.'
-                         .format(running, complete))
-
-        logger.info('Futures finished, maximum memory usage was '
-                    '{0:.3f} GB out of {1:.3f} GB total.'
-                    .format(max_mem, mem.total / 1e9))
-
-        # gather results
-        for k, v in futures.items():
-            futures[k] = v.result()
+    c_slices_all = {}
+    for c in c_range:
+        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
+        c_slices_all[c] = c_slice
 
     out = {}
-    for var, arr in futures[cols.start].items():
-        out[var] = np.ndarray(out_shape, dtype=arr.dtype)
+    completed = 0
 
-    for c, all_sky_out in futures.items():
-        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
-        for var, arr in all_sky_out.items():
-            out[var][:, c_slice] = arr
+    max_workers = int(os.cpu_count())
+    logger.info('Running all-sky in parallel on {} workers.'
+                .format(max_workers))
+
+    with ProcessPoolExecutor(max_workers=max_workers) as exe:
+
+        futures = {exe.submit(all_sky_h5, f_ancillary, f_cloud,
+                   rows=rows, cols=c_slices_all[c]): c for c in c_range}
+
+        for future in as_completed(futures):
+
+            c = futures[future]
+            c_slice = c_slices_all[c]
+            all_sky_out = future.result()
+
+            for var, arr in all_sky_out.items():
+                if var not in out:
+                    logger.info('Initializing output array for "{}" with '
+                                'shape {} and dtype {}.'
+                                .format(var, out_shape, arr.dtype))
+                    out[var] = np.ndarray(out_shape, dtype=arr.dtype)
+                out[var][:, c_slice] = arr
+
+            completed += 1
+            mem = psutil.virtual_memory()
+            logger.debug('All-sky futures completed: '
+                         '{0} out of {1}. '
+                         'Current memory usage is '
+                         '{2:.3f} GB out of {3:.3f} GB total.'
+                         .format(completed, len(futures),
+                                 mem.used / 1e9, mem.total / 1e9))
 
     return out

@@ -40,12 +40,14 @@ import psutil
 from concurrent.futures import ProcessPoolExecutor
 import time
 from scipy.spatial import cKDTree
+from warnings import warn
 
 from nsrdb import DATADIR
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn
 from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.file_handlers.outputs import Outputs
 
 
 logger = logging.getLogger(__name__)
@@ -155,7 +157,7 @@ class DataModel:
         return self._processed[key]
 
     def __setitem__(self, key, value):
-        if isinstance(value, (np.ndarray, pd.DatetimeIndex)):
+        if isinstance(value, (np.ndarray, pd.DatetimeIndex, str)):
             self._processed[key] = value
         elif isinstance(value, dict):
             self._processed.update(value)
@@ -350,19 +352,23 @@ class DataModel:
 
         Returns
         -------
-        index : np.ndarray
+        index : np.ndarray | None
             KDTree query results mapping cloud data to the NSRDB grid. e.g.
-            nsrdb_data = cloud_data[index]
+            nsrdb_data = cloud_data[index]. None if bad grid data.
         """
 
         if isinstance(labels, tuple):
             labels = list(labels)
         # Build NN tree based on the unique cloud grid at single timestep
-        tree = cKDTree(VarFactory.get_cloud_handler(fpath).grid[labels])
-        # Get the index of NN to NSRDB grid
-        _, index = tree.query(nsrdb_grid[labels], k=1)
-        index = index.astype(np.uint32)
-        return index
+        grid = VarFactory.get_cloud_handler(fpath).grid
+        if grid is not None:
+            tree = cKDTree(grid[labels])
+            # Get the index of NN to NSRDB grid
+            _, index = tree.query(nsrdb_grid[labels], k=1)
+            index = index.astype(np.uint32)
+            return index
+        else:
+            return None
 
     def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
@@ -425,7 +431,7 @@ class DataModel:
             Scaled data array with final dtype.
         """
 
-        if self._scale:
+        if self._scale and isinstance(data, np.ndarray):
             var_obj = self._var_factory.get_base_handler(
                 var, var_meta=self._var_meta, date=self.date)
             data = var_obj.scale_data(data)
@@ -448,7 +454,7 @@ class DataModel:
             Unscaled float32 data array.
         """
 
-        if self._scale:
+        if self._scale and isinstance(data, np.ndarray):
             var_obj = self._var_factory.get_base_handler(
                 var, var_meta=self._var_meta, date=self.date)
             data = var_obj.unscale_data(data)
@@ -573,8 +579,8 @@ class DataModel:
                                         extent=extent, path=path,
                                         dsets=cloud_vars)
 
-        logger.debug('Starting cloud data ReGrid for {} cloud timesteps.'
-                     .format(len(var_obj)))
+        logger.debug('Starting cloud data ReGrid with {} futures '
+                     '(cloud timesteps).'.format(len(var_obj)))
 
         if parallel:
             regrid_ind = self._cloud_regrid_parallel(var_obj.flist)
@@ -615,12 +621,25 @@ class DataModel:
 
                     # write single timestep with NSRDB sites to appropriate row
                     # map the regridded data using the regrid NN indices
-                    data[dset][i, :] = array[regrid_ind[obj.fpath]]
+                    if regrid_ind[obj.fpath] is not None:
+                        data[dset][i, :] = array[regrid_ind[obj.fpath]]
+                    else:
+                        wmsg = ('Cloud data does not appear to have valid '
+                                'coordinates: {}'.format(obj.fpath))
+                        warn(wmsg)
+                        logger.warning(wmsg)
 
         # scale if requested
         if self._scale:
             for var, arr in data.items():
                 data[var] = self.scale_data(var, arr)
+
+        logger.info('Finished extracting cloud data '
+                    'and writing to NSRDB arrays.')
+        mem = psutil.virtual_memory()
+        logger.info('Current memory usage is '
+                    '{0:.3f} GB out of {1:.3f} GB total.'
+                    .format(mem.used / 1e9, mem.total / 1e9))
 
         return data
 
@@ -675,6 +694,11 @@ class DataModel:
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
+            mem = psutil.virtual_memory()
+            logger.info('Current memory usage is '
+                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        .format(mem.used / 1e9, mem.total / 1e9))
+
             # gather results
             for k, v in regrid_ind.items():
                 regrid_ind[k] = v.result()
@@ -682,7 +706,7 @@ class DataModel:
         return regrid_ind
 
     def _process_dependencies(self, dependencies):
-        """Ensure that all dependencies have been processed.
+        """Ensure that all dependencies have been processed and set to self.
 
         Parameters
         ----------
@@ -692,21 +716,35 @@ class DataModel:
         """
 
         for dep in dependencies:
+
+            # process and save data to processed attribute
+            # (unscale to physical units)
             if dep not in self._processed:
                 logger.info('Processing dependency "{}".'.format(dep))
-                # process and save data to processed attribute
                 self[dep] = self._interpolate(dep)
+                self[dep] = self.unscale_data(dep, self[dep])
 
-            # unscale data to physical units for input to physical eqns
-            self[dep] = self.unscale_data(dep, self[dep])
+            # dependency data dumped to disk, load from disk
+            elif isinstance(self._processed[dep], str):
+                logger.debug('Importing dependency "{}" from: {}'
+                             .format(dep, self._processed[dep]))
+                with Outputs(self._processed[dep]) as dep_out:
+                    self[dep] = dep_out[dep]
 
-    def _derive(self, var):
+            # dependency already in memory. Ensure physical units.
+            else:
+                self[dep] = self.unscale_data(dep, self[dep])
+
+    def _derive(self, var, fpath_out=None):
         """Method for deriving variables (with dependencies).
 
         Parameters
         ----------
         var : str
             NSRDB var name.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -748,6 +786,11 @@ class DataModel:
         for dep in dependencies:
             self[dep] = self.scale_data(dep, self[dep])
 
+        if fpath_out is not None:
+            fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
+            data = self._dump(var, fpath_out, data)
+
+        logger.info('Finished "{}".'.format(var))
         return data
 
     def _interpolate(self, var):
@@ -818,7 +861,7 @@ class DataModel:
     @classmethod
     def _process_multiple(cls, var_list, date, nsrdb_grid, nsrdb_freq='5min',
                           var_meta=None, parallel=False, cloud_extent='east',
-                          cloud_path=None):
+                          cloud_path=None, fpath_out=None):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -847,6 +890,9 @@ class DataModel:
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -890,12 +936,12 @@ class DataModel:
                 for var in var_list:
                     data_model[var] = cls.run_single(
                         var, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                        var_meta=var_meta)
+                        var_meta=var_meta, fpath_out=fpath_out)
             # run in parallel
             else:
                 data = cls._process_parallel(
                     var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                    var_meta=var_meta)
+                    var_meta=var_meta, fpath_out=fpath_out)
                 for k, v in data.items():
                     data_model[k] = v
 
@@ -904,13 +950,13 @@ class DataModel:
             data_model['clouds'] = cls.run_clouds(
                 cloud_vars, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                 var_meta=var_meta, parallel=parallel, extent=cloud_extent,
-                path=cloud_path)
+                path=cloud_path, fpath_out=fpath_out)
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
         if derived_vars:
             for var in derived_vars:
-                data_model[var] = data_model._derive(var)
+                data_model[var] = data_model._derive(var, fpath_out=fpath_out)
 
         # scale if requested
         for var, arr in data_model._processed.items():
@@ -919,8 +965,7 @@ class DataModel:
         return data_model
 
     @staticmethod
-    def _process_parallel(var_list, date, nsrdb_grid, nsrdb_freq='5min',
-                          var_meta=None):
+    def _process_parallel(var_list, date, nsrdb_grid, **kwargs):
         """Process ancillary variables in parallel.
 
         Parameters
@@ -932,10 +977,8 @@ class DataModel:
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
-        nsrdb_freq : str
-            Final desired NSRDB temporal frequency.
-        var_meta : str | pd.DataFrame
-            CSV file or dataframe containing meta data for all NSRDB variables.
+        **kwargs : dict
+            Keyword args to pass to DataModel.run_single.
 
         Returns
         -------
@@ -954,8 +997,7 @@ class DataModel:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
                 futures[var] = exe.submit(
-                    DataModel.run_single, var, date, nsrdb_grid,
-                    nsrdb_freq=nsrdb_freq, var_meta=var_meta)
+                    DataModel.run_single, var, date, nsrdb_grid, **kwargs)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -978,15 +1020,67 @@ class DataModel:
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
+            mem = psutil.virtual_memory()
+            logger.info('Current memory usage is '
+                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        .format(mem.used / 1e9, mem.total / 1e9))
+
             # gather results
             for k, v in futures.items():
                 futures[k] = v.result()
 
         return futures
 
+    def _dump(self, var, fpath_out, data, purge=True):
+        """Run ancillary data processing for one variable for a single day.
+
+        Parameters
+        ----------
+        var : str
+            NSRDB var name.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
+        data : np.ndarray
+            NSRDB-resolution data for the given var and the current day.
+        purge : bool
+            Flag to purge data from memory after dumping to disk
+
+        Returns
+        -------
+        data : str | np.ndarray
+            Input data array if no purge, else file path to dump results.
+        """
+
+        if isinstance(fpath_out, str):
+            if '{var}' in fpath_out and '{i}' in fpath_out:
+                fpath_out = fpath_out.format(var=var,
+                                             i=self.nsrdb_grid.index[0])
+
+            logger.debug('Writing: {}'.format(os.path.basename(fpath_out)))
+
+            # make file for each var
+            with Outputs(fpath_out, mode='w') as fout:
+                fout.time_index = self.nsrdb_ti
+                fout.meta = self.nsrdb_grid
+
+                var_obj = VarFactory.get_base_handler(
+                    var, var_meta=self._var_meta, date=self.date)
+                attrs = var_obj.attrs
+
+                fout._add_dset(dset_name=var, data=data,
+                               dtype=var_obj.final_dtype,
+                               chunks=var_obj.chunks, attrs=attrs)
+
+            if purge:
+                del data
+                data = fpath_out
+
+        return data
+
     @classmethod
     def run_single(cls, var, date, nsrdb_grid, nsrdb_freq='5min',
-                   var_meta=None):
+                   var_meta=None, fpath_out=None):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1004,6 +1098,9 @@ class DataModel:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -1011,10 +1108,19 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        logger.info('Processing data for "{}".'.format(var))
-
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta)
+
+        if fpath_out is None:
+            logger.info('Processing data for "{}".'.format(var))
+        else:
+            if '{var}' not in fpath_out or '{i}' not in fpath_out:
+                raise IOError('Cannot write to fpath_out, need "var" and "i" '
+                              'format keywords: {}'.format(fpath_out))
+            fpath_out = fpath_out.format(var=var,
+                                         i=data_model.nsrdb_grid.index[0])
+            logger.info('Processing data for "{}" with fpath_out: {}'
+                        .format(var, fpath_out))
 
         if var in cls.CLOUD_VARS:
             method = data_model._cloud_regrid
@@ -1036,13 +1142,15 @@ class DataModel:
                              .format(data_model.nsrdb_data_shape,
                                      data.shape, var))
 
+        if fpath_out is not None:
+            data = data_model._dump(var, fpath_out, data)
         logger.info('Finished "{}".'.format(var))
-
         return data
 
     @classmethod
     def run_clouds(cls, cloud_vars, date, nsrdb_grid, nsrdb_freq='5min',
-                   extent='east', path=None, var_meta=None, parallel=False):
+                   extent='east', path=None, var_meta=None, parallel=False,
+                   fpath_out=None):
         """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
@@ -1071,6 +1179,9 @@ class DataModel:
             Defaults to the NSRDB var meta csv in git repo.
         parallel : bool
             Flag to perform regrid in parallel.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -1099,6 +1210,12 @@ class DataModel:
                                  .format(data_model.nsrdb_data_shape,
                                          v.shape, k))
 
+        if fpath_out is not None:
+            for var, arr in data.items():
+                fpath_out_var = fpath_out.format(
+                    var=var, i=data_model.nsrdb_grid.index[0])
+                data[var] = data_model._dump(var, fpath_out_var, arr)
+
         logger.info('Finished "{}".'.format(cloud_vars))
 
         return data
@@ -1106,7 +1223,7 @@ class DataModel:
     @classmethod
     def run_multiple(cls, var_list, date, nsrdb_grid, nsrdb_freq='5min',
                      var_meta=None, parallel=False, cloud_extent='east',
-                     cloud_path=None, return_obj=False):
+                     cloud_path=None, return_obj=False, fpath_out=None):
         """Run ancillary data processing for multiple variables for single day.
 
         Parameters
@@ -1137,6 +1254,9 @@ class DataModel:
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
+        fpath_out : str | None
+            File path to dump results. If no file path is given, results will
+            be returned as an object.
 
         Returns
         -------
@@ -1164,7 +1284,7 @@ class DataModel:
         data_model = cls._process_multiple(
             var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
             var_meta=var_meta, parallel=parallel, cloud_extent=cloud_extent,
-            cloud_path=cloud_path)
+            cloud_path=cloud_path, fpath_out=fpath_out)
 
         # Create an AncillaryDataProcessing object instance for storing data.
         logger.info('Final NSRDB output shape is: {}'

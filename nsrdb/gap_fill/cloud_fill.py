@@ -145,6 +145,22 @@ class CloudGapFill:
         return cloud_prop
 
     @staticmethod
+    def log_fill_results(fill_flag):
+        """Log fill flag results.
+
+        Parameters
+        ----------
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+        """
+        msg = ('Fill flag results for shape {}:\n'.format(fill_flag.shape))
+        for i in range(10):
+            m = '\tFlag {} has {} counts\n'.format(i, np.sum(fill_flag == i))
+            msg += m
+
+        logger.info(msg)
+
+    @staticmethod
     def fill_cloud_type(cloud_type, fill_flag=None, missing=-15):
         """Fill the cloud type data.
 
@@ -171,7 +187,11 @@ class CloudGapFill:
             df_convert = True
             cloud_type = pd.DataFrame(cloud_type)
 
-        missing_mask = (cloud_type.values == missing)
+        if missing < 0:
+            # everything less than zero is a missing value usually
+            missing_mask = (cloud_type.values < 0)
+        else:
+            missing_mask = (cloud_type.values == missing)
 
         if fill_flag is None:
             fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
@@ -251,7 +271,8 @@ class CloudGapFill:
                                                     fill_flag=fill_flag)
 
         # find location of missing properties
-        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0))
+        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0) &
+                        (sza < SZA_LIM))
         fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
 
         if missing_prop.all(axis=0).any():
@@ -279,6 +300,8 @@ class CloudGapFill:
 
         if float_convert:
             cloud_prop = cloud_prop.astype(native_dtype)
+
+        cls.log_fill_results(fill_flag)
 
         return cloud_prop, fill_flag
 

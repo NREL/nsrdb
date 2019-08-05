@@ -438,6 +438,21 @@ class SLURM(SubprocessManager):
         cmd = shlex.split(cmd)
         call(cmd)
 
+    @staticmethod
+    def _scancel_all():
+        """Cancel all user jobs.
+
+        Parameters
+        ----------
+        job_id : int
+            SLURM job id to cancel
+        """
+        squeue_rows = SLURM.squeue()
+        for row in squeue_rows[1:]:
+            cmd = ('scancel {job_id}'.format(job_id=row.strip().split(' ')[0]))
+            cmd = shlex.split(cmd)
+            call(cmd)
+
     def sbatch(self, cmd, alloc, memory, walltime, feature='--qos=normal',
                name='nsrdb', stdout_path='./stdout', keep_sh=False):
         """Submit a SLURM job via sbatch command and SLURM shell script
