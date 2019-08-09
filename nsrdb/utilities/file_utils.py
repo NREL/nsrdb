@@ -13,9 +13,9 @@ import shutil
 from urllib.request import urlopen
 from urllib.error import URLError
 from subprocess import Popen, PIPE
-from dask.distributed import Client, LocalCluster
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from nsrdb.utilities.loggers import init_logger, NSRDB_LOGGERS
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -169,22 +169,18 @@ def convert_h4(path4, f_h4, path5, f_h5):
         stderr = ''
     else:
         cmd = '{tool} {h4} {h5}'.format(tool=TOOL, h4=h4, h5=h5)
-        logger.debug('Executing the command: {}'.format(cmd))
         cmd = shlex.split(cmd)
 
         # submit subprocess and wait for stdout/stderr
-        t0 = time.time()
         process = Popen(cmd, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
         stderr = stderr.decode('ascii').rstrip()
         stdout = stdout.decode('ascii').rstrip()
-        elapsed = (time.time() - t0) / 60
         if stderr:
             logger.warning('Conversion of "{}" returned a stderr: "{}"'
                            .format(stderr))
         else:
-            logger.info('Finished conversion of "{0}" in {1:.2f} min, '
-                        'stdout: "{2}"'.format(f_h5, elapsed, stdout))
+            logger.debug('Finished conversion of: "{}"'.format(f_h5))
 
     return (stdout, stderr)
 
@@ -243,7 +239,7 @@ def convert_list_serial(conversion_list):
 
     logger.info('Converting {} hdf files in serial.'
                 .format(len(conversion_list)))
-    for [path4, f_h4, path5, f_h5] in conversion_list[0:1]:
+    for [path4, f_h4, path5, f_h5] in conversion_list:
         convert_h4(path4, f_h4, path5, f_h5)
 
 
@@ -261,18 +257,23 @@ def convert_list_parallel(conversion_list, n_workers=2):
 
     futures = []
     # start client with n_workers to use
-    logger.info('Starting a Dask client with {} workers to convert {} '
-                'hdf files.'.format(n_workers, len(conversion_list)))
-    with Client(LocalCluster(n_workers=n_workers)) as client:
-        # initialize loggers on workers.
-        client.run(NSRDB_LOGGERS.init_logger, __name__)
+    logger.info('Starting a concurrent futures executor with {} workers '
+                'to convert {} hdf files.'
+                .format(n_workers, len(conversion_list)))
+    with ProcessPoolExecutor(max_workers=n_workers) as exe:
+        logger.debug('Submitting futures.'
+                     .format(len(futures)))
         # iterate through list to convert
         for [path4, f_h4, path5, f_h5] in conversion_list:
             # kick off conversion on a worker without caring about result.
-            futures.append(client.submit(
+            futures.append(exe.submit(
                 convert_h4, path4, f_h4, path5, f_h5))
+        logger.debug('Finished submitting {} futures.'
+                     .format(len(futures)))
 
-        futures = client.gather(futures)
+        for i, _ in enumerate(as_completed(futures)):
+            logger.info('{} out of {} futures completed.'
+                        .format(i + 1, len(futures)))
 
 
 def convert_directory(path4, path5, n_workers=1):
@@ -313,8 +314,8 @@ def convert_directory(path4, path5, n_workers=1):
 
 
 if __name__ == '__main__':
-    path4 = '/scratch/mfoster/2018/adj_920/213/level2/'
-    path5 = '/scratch/gbuster/wisc_h5_data'
-    init_logger(__name__, log_level='DEBUG',
+    path4 = '/lustre/eaglefs/projects/pxs/uwisc/2018_west/'
+    path5 = '/lustre/eaglefs/projects/pxs/uwisc/2018_west_h5/'
+    init_logger(__name__, log_level='INFO',
                 log_file=os.path.join(path5, 'convert.log'))
-    convert_directory(path4, path5, n_workers=5)
+    convert_directory(path4, path5, n_workers=36)
