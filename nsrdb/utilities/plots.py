@@ -43,6 +43,12 @@ class Temporal:
 
         logger.info('Performing temporal QA of {} and {}'
                     .format(os.path.basename(f1), os.path.basename(f2)))
+        self._gids1 = None
+        self._gids2 = None
+        self._meta1 = None
+        self._meta2 = None
+        self._t1 = None
+        self._t2 = None
         self._h1 = h5py.File(f1, 'r')
         self._h2 = h5py.File(f2, 'r')
         self.gids1 = gids1
@@ -146,7 +152,7 @@ class Temporal:
             DataFrame representation of the 'meta' dataset in h1.
         """
 
-        if not hasattr(self, '_meta1'):
+        if self._meta1 is None:
             self._meta1 = pd.DataFrame(self.h1['meta'][...])
         return self._meta1
 
@@ -160,7 +166,7 @@ class Temporal:
             DataFrame representation of the 'meta' dataset in h2.
         """
 
-        if not hasattr(self, '_meta2'):
+        if self._meta2 is None:
             self._meta2 = pd.DataFrame(self.h2['meta'][...])
         return self._meta2
 
@@ -174,7 +180,7 @@ class Temporal:
             Get the timeseries index for h1 in pandas DateTime format.
         """
 
-        if not hasattr(self, '_t1'):
+        if self._t1 is None:
             self._t1 = pd.to_datetime(self.h1['time_index'][...].astype(str))
         return self._t1
 
@@ -188,7 +194,7 @@ class Temporal:
             Get the timeseries index for h2 in pandas DateTime format.
         """
 
-        if not hasattr(self, '_t2'):
+        if self._t2 is None:
             self._t2 = pd.to_datetime(self.h2['time_index'][...].astype(str))
         return self._t2
 
@@ -279,14 +285,14 @@ class Temporal:
 
                     try:
                         scale1 = t.attrs1(dset)['psm_scale_factor']
-                    except KeyError as _:
+                    except KeyError:
                         scale1 = 1
                         warn('Dataset "{}" does not have psm_scale_factor.'
                              .format(dset))
 
                     try:
                         scale2 = t.attrs2(dset)['psm_scale_factor']
-                    except KeyError as _:
+                    except KeyError:
                         scale2 = 1
                         warn('Dataset "{}" does not have psm_scale_factor.'
                              .format(dset))
@@ -300,8 +306,10 @@ class Temporal:
                     # check that the locations match
                     loc1 = t.meta1.loc[site1, ['latitude', 'longitude']].values
                     loc2 = t.meta2.loc[site2, ['latitude', 'longitude']].values
-                    loc_check = all(np.round(loc1.astype(float), decimals=2) ==
-                                    np.round(loc2.astype(float), decimals=2))
+                    loc_check = all(np.round(loc1.astype(float),
+                                             decimals=2)
+                                    == np.round(loc2.astype(float),
+                                                decimals=2))
                     if not loc_check:
                         logger.warning('Temporal QA sites do not match. '
                                        'Site in file 1 has index {} and '
@@ -315,8 +323,8 @@ class Temporal:
 
                     for month in months:
                         for day in days:
-                            title = (dset +
-                                     '_{}_{}_{}'.format(site1, month, day))
+                            title = (dset
+                                     + '_{}_{}_{}'.format(site1, month, day))
                             t.plot_timeseries(df2, df1, title, dset, legend,
                                               out_dir, month=month, day=day)
 
@@ -436,11 +444,11 @@ class Spatial:
                 logger.debug('Importing data for "{}"...'.format(dset))
                 with h5py.File(h5, 'r') as f:
                     if sites is None:
-                        data = (f[dset][timesteps, :].astype(np.float32) /
-                                scale_factor)
+                        data = (f[dset][timesteps, :].astype(np.float32)
+                                / scale_factor)
                     else:
-                        data = (f[dset][timesteps, sites].astype(np.float32) /
-                                scale_factor)
+                        data = (f[dset][timesteps, sites].astype(np.float32)
+                                / scale_factor)
                 if interval is not None:
                     data = data[:, slice(None, None, interval)]
                 logger.debug('Finished importing data for "{}".'
@@ -477,11 +485,11 @@ class Spatial:
             else:
                 with h5py.File(h5, 'r') as f:
                     if sites is None:
-                        data = (f[dset][...].astype(np.float32) /
-                                scale_factor)
+                        data = (f[dset][...].astype(np.float32)
+                                / scale_factor)
                     else:
-                        data = (f[dset][sites].astype(np.float32) /
-                                scale_factor)
+                        data = (f[dset][sites].astype(np.float32)
+                                / scale_factor)
 
                 if interval is not None:
                     data = data[slice(None, None, interval)]

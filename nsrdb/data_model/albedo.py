@@ -33,6 +33,7 @@ class AlbedoVar(AncillaryVarHandler):
         date : datetime.date
             Single day to extract data for.
         """
+        self._albedo_grid = None
         self._lon_good = None
         self._lat_good = None
         super().__init__(name, var_meta=var_meta, date=date)
@@ -155,13 +156,13 @@ class AlbedoVar(AncillaryVarHandler):
         # find the good latitude indices if requested
         if lat_in is not None:
             # find coordinates greater than min AND less than max
-            loc = np.where((latitude > np.min(lat_in)) &
-                           (latitude < np.max(lat_in)))[0]
+            loc = np.where((latitude > np.min(lat_in))
+                           & (latitude < np.max(lat_in)))[0]
             self._lat_good = slice(np.min(loc), np.max(loc))
         elif lat_ex is not None:
             # find coordinates less than min OR greater than max
-            self._lat_good = list(np.where((latitude < np.min(lat_ex)) |
-                                           (latitude > np.max(lat_ex)))[0])
+            self._lat_good = list(np.where((latitude < np.min(lat_ex))
+                                           | (latitude > np.max(lat_ex)))[0])
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lat_good = None
@@ -169,13 +170,13 @@ class AlbedoVar(AncillaryVarHandler):
         # find the good longitude indices if requested
         if lon_in is not None:
             # find coordinates greater than min AND less than max
-            loc = np.where((longitude > np.min(lon_in)) &
-                           (longitude < np.max(lon_in)))[0]
+            loc = np.where((longitude > np.min(lon_in))
+                           & (longitude < np.max(lon_in)))[0]
             self._lon_good = slice(np.min(loc), np.max(loc))
         elif lon_ex is not None:
             # find coordinates less than min OR greater than max
-            self._lon_good = list(np.where((longitude < np.min(lon_ex)) |
-                                           (longitude > np.max(lon_ex)))[0])
+            self._lon_good = list(np.where((longitude < np.min(lon_ex))
+                                           | (longitude > np.max(lon_ex)))[0])
         else:
             # no inclusion/exclusion requested, all data will be pulled
             self._lon_good = None
@@ -244,7 +245,7 @@ class AlbedoVar(AncillaryVarHandler):
             'longitude' with 1D arrays for each.
         """
 
-        if not hasattr(self, '_albedo_grid'):
+        if self._albedo_grid is None:
             with h5py.File(self.file, 'r') as f:
                 if self._lat_good is not None:
                     latitude = f['latitude'][self._lat_good]

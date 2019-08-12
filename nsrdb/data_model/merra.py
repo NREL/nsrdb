@@ -33,6 +33,7 @@ class MerraVar(AncillaryVarHandler):
             Single day to extract data for.
         """
 
+        self._merra_grid = None
         super().__init__(name, var_meta=var_meta, date=date)
 
     @property
@@ -179,7 +180,7 @@ class MerraVar(AncillaryVarHandler):
             MERRA source coordinates with elevation
         """
 
-        if not hasattr(self, '_merra_grid'):
+        if self._merra_grid is None:
 
             with netCDF4.Dataset(self.file, 'r') as nc:
                 lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
@@ -189,11 +190,11 @@ class MerraVar(AncillaryVarHandler):
 
             # merra grid has some bad values around 0 lat/lon
             # quick fix is to set to zero
-            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1) &
-                                 (self._merra_grid['latitude'] < 0.1),
+            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1)
+                                 & (self._merra_grid['latitude'] < 0.1),
                                  'latitude'] = 0
-            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1) &
-                                 (self._merra_grid['longitude'] < 0.1),
+            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1)
+                                 & (self._merra_grid['longitude'] < 0.1),
                                  'longitude'] = 0
 
             # add elevation to coordinate set
@@ -295,8 +296,8 @@ class DewPoint:
             t -= 273.15
 
         rh = RelativeHumidity.derive(t, h, p)
-        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t))) /
-              (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
+        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t)))
+              / (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
 
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:

@@ -670,6 +670,7 @@ class SmartParallelJob:
             be flushed and the local node memory will be cleared.
         """
 
+        self._cluster = None
         self._obj = obj
         self._execution_iter = execution_iter
         self._loggers = loggers
@@ -687,7 +688,7 @@ class SmartParallelJob:
             (if specified).
         """
 
-        if not hasattr(self, '_cluster'):
+        if self._cluster is None:
             # start a local cluster on a personal comp or HPC single node
             if self._n_workers is None:
                 try:

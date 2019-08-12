@@ -119,8 +119,8 @@ class DataModel:
                     }
 
     # all variables processed by this module
-    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS +
-                         CLOUD_VARS))
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS
+                         + CLOUD_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
                  scale=True):
@@ -143,6 +143,7 @@ class DataModel:
             data model processing.
         """
 
+        self._nsrdb_data_shape = None
         self._nsrdb_grid_file = None
         self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
@@ -152,6 +153,7 @@ class DataModel:
         self._var_factory = VarFactory()
         self._processed = {}
         self._ti = None
+        self._weights = {}
 
     def __getitem__(self, key):
         return self._processed[key]
@@ -226,8 +228,8 @@ class DataModel:
             self._ti = pd.date_range('1-1-{y}'.format(y=self.date.year),
                                      '1-1-{y}'.format(y=self.date.year + 1),
                                      freq=self._nsrdb_freq)[:-1]
-            mask = ((self._ti.month == self.date.month) &
-                    (self._ti.day == self.date.day))
+            mask = ((self._ti.month == self.date.month)
+                    & (self._ti.day == self.date.day))
             self._ti = self._ti[mask]
             self['time_index'] = self._ti
         return self._ti
@@ -241,7 +243,7 @@ class DataModel:
         _nsrdb_data_shape : tuple
             Two-entry shape tuple.
         """
-        if not hasattr(self, '_nsrdb_data_shape'):
+        if self._nsrdb_data_shape is None:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
         return self._nsrdb_data_shape
 
@@ -385,9 +387,6 @@ class DataModel:
             month. Returns None if var does not require weighting.
         """
 
-        if not hasattr(self, '_weights'):
-            self._weights = {}
-
         if var_obj.name in self.WEIGHTS and var_obj.name not in self._weights:
             logger.debug('Extracting weights for "{}"'.format(var_obj.name))
             weights = pd.read_csv(self.WEIGHTS[var_obj.name], sep=' ',
@@ -407,8 +406,8 @@ class DataModel:
             self._weights[var_obj.name] = df_w
 
         if var_obj.name in self._weights:
-            mask = (self._weights[var_obj.name].index.month ==
-                    self.date.month)
+            mask = (self._weights[var_obj.name].index.month
+                    == self.date.month)
             weights = self._weights[var_obj.name][mask].values[0]
         else:
             weights = None

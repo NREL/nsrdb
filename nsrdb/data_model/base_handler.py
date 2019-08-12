@@ -31,10 +31,12 @@ class AncillaryVarHandler:
         date : datetime.date
             Single day to extract data for.
         """
+
         self._var_meta = self._parse_var_meta(var_meta)
         self._name = name
         self._date = date
         self._cache_file = False
+        self._mask = None
 
     @staticmethod
     def _parse_var_meta(inp):
@@ -115,11 +117,9 @@ class AncillaryVarHandler:
     def mask(self):
         """Get a boolean mask to locate the current variable in the meta data.
         """
-        if not hasattr(self, '_mask'):
+        if self._mask is None:
             if self._name in self.var_meta['var'].values:
                 self._mask = self.var_meta['var'] == self._name
-            else:
-                self._mask = None
         return self._mask
 
     @property
@@ -158,12 +158,13 @@ class AncillaryVarHandler:
 
     @property
     def scale_factor(self):
-        """Get the scale factor attribute.
+        """Get the variable's intended storage scale factor.
 
         Returns
         -------
         scale_factor : float
-            Factor to apply (multiply) before writing to disk.
+            Scale factor for the current variable. Data is multiplied by this
+            scale factor before being stored.
         """
         return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
 
@@ -231,17 +232,6 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'merra_dset'].values[0])
 
     @property
-    def units(self):
-        """Get the variable units.
-
-        Returns
-        -------
-        units : str
-            Units for the current variable.
-        """
-        return str(self.var_meta.loc[self.mask, 'units'].values[0])
-
-    @property
     def final_dtype(self):
         """Get the variable's intended storage datatype.
 
@@ -265,11 +255,11 @@ class AncillaryVarHandler:
         c = self.var_meta.loc[self.mask, 'col_chunks'].values[0]
         try:
             r = int(r)
-        except ValueError as _:
+        except ValueError:
             r = None
         try:
             c = int(c)
-        except ValueError as _:
+        except ValueError:
             c = None
         return (r, c)
 
@@ -298,18 +288,6 @@ class AncillaryVarHandler:
             and scale factor.
         """
         return float(self.var_meta.loc[self.mask, 'max'].values[0])
-
-    @property
-    def scale_factor(self):
-        """Get the variable's intended storage scale factor.
-
-        Returns
-        -------
-        scale_factor : float
-            Scale factor for the current variable. Data is multiplied by this
-            scale factor before being stored.
-        """
-        return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
 
     def pre_flight(self):
         """Perform pre-flight checks - source dir check.

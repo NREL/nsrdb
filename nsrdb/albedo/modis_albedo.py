@@ -135,6 +135,17 @@ class AggregateMODIS(object):
         days : str
             Eight day periods that alebdo data is processed at ('001').
         """
+        self.meta = None
+        self.h5gtform = None
+        self.grid_shape = None
+        self.grid = None
+        self.lon4mask = None
+        self.lat4mask = None
+        self.lon4 = None
+        self.lat4 = None
+        self.h5_mask = None
+        self.agg_inds = None
+
         self.config = ConfigObj(config, unrepr=True)
         logger.debug(self.config)
         self.nsrdb_meta = nsrdb_meta
@@ -150,7 +161,7 @@ class AggregateMODIS(object):
         if self.nsrdb_meta.endswith('.csv'):
             logger.info('Getting NSRDB meta data: {}'.format(self.nsrdb_meta))
             self.meta = pd.read_csv(
-                self.nsrdb_meta, encoding = "ISO-8859-1", low_memory=False)
+                self.nsrdb_meta, encoding="ISO-8859-1", low_memory=False)
 
             logger.debug(self.meta.shape)
 
@@ -197,23 +208,30 @@ class AggregateMODIS(object):
                  'lat': lat5.flatten(),
                  'lon_ind': lon_ind.flatten(),
                  'lat_ind': lat_ind.flatten()})
-            self.grid = pd.merge(self.grid, coords, how='left', on=['lon', 'lat'])
-            self.grid['lon'] = (self.grid.loc[:, 'lon'].astype(np.float32)) / 100
-            self.grid['lat'] = (self.grid.loc[:, 'lat'].astype(np.float32)) / 100
-            self.grid['h5_order'] = self.grid.loc[:, 'h5_order'].astype(np.float32)
-            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'] = -99
-            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'] = -99
+            self.grid = pd.merge(self.grid, coords, how='left',
+                                 on=['lon', 'lat'])
+            self.grid['lon'] = self.grid.loc[:, 'lon'].astype(np.float32) / 100
+            self.grid['lat'] = self.grid.loc[:, 'lat'].astype(np.float32) / 100
+            self.grid['h5_order'] = (self.grid.loc[:, 'h5_order']
+                                     .astype(np.float32))
+            lon_mask = np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'
+            lat_mask = np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'
+            self.grid.loc[lon_mask] = -99
+            self.grid.loc[lat_mask] = -99
 
         elif self.nsrdb_meta.endswith('.h5'):
             fname = os.path.join(
-                self.config['dir']['nsrdb_dir'], self.config['fileNames']['nsrdb'])
+                self.config['dir']['nsrdb_dir'],
+                self.config['fileNames']['nsrdb'])
             logger.debug('reading{}'.format(fname))
 
             with h5py.File(fname, 'r') as hfile:
                 self.meta = hfile['meta'][...]
             coords = pd.DataFrame(
-                {'lon': np.round(self.meta['longitude'] * 100, 0).astype(np.int16),
-                 'lat': np.round(self.meta['latitude'] * 100, 0).astype(np.int16)})
+                {'lon': np.round(self.meta['longitude'] * 100, 0)
+                    .astype(np.int16),
+                 'lat': np.round(self.meta['latitude'] * 100, 0)
+                    .astype(np.int16)})
             coords.loc[(
                 coords['lon'] > 0), 'lon'] = coords.loc[(
                     coords['lon'] > 0), 'lon'] - 36000
@@ -253,12 +271,16 @@ class AggregateMODIS(object):
                  'lat': lat5.flatten(),
                  'lon_ind': lon_ind.flatten(),
                  'lat_ind': lat_ind.flatten()})
-            self.grid = pd.merge(self.grid, coords, how='left', on=['lon', 'lat'])
-            self.grid['lon'] = (self.grid.loc[:, 'lon'].astype(np.float32)) / 100
-            self.grid['lat'] = (self.grid.loc[:, 'lat'].astype(np.float32)) / 100
-            self.grid['h5_order'] = self.grid.loc[:, 'h5_order'].astype(np.float32)
-            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'] = -99
-            self.grid.loc[np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'] = -99
+            self.grid = pd.merge(self.grid, coords, how='left',
+                                 on=['lon', 'lat'])
+            self.grid['lon'] = self.grid.loc[:, 'lon'].astype(np.float32) / 100
+            self.grid['lat'] = self.grid.loc[:, 'lat'].astype(np.float32) / 100
+            self.grid['h5_order'] = (self.grid.loc[:, 'h5_order']
+                                     .astype(np.float32))
+            lon_mask = np.isnan(self.grid.loc[:, 'h5_order']), 'lon_ind'
+            lat_mask = np.isnan(self.grid.loc[:, 'h5_order']), 'lat_ind'
+            self.grid.loc[lon_mask] = -99
+            self.grid.loc[lat_mask] = -99
 
         else:
             raise TypeError('NSRDB meta data file should be input as a csv.')
@@ -492,7 +514,6 @@ class Eightday_to_dailyMODIS(object):
         self.config = ConfigObj(config, unrepr=True)
         self.years = years
 
-
     def main(self, log_level='DEBUG'):
         """Convert MODIS variables to daily from 8 day time steps."""
         init_logger(__name__, log_file='modis.log', log_level=log_level)
@@ -502,10 +523,9 @@ class Eightday_to_dailyMODIS(object):
         t0 = time.time()
         try:
             years = self.years
-            var=self.config['variables']['variable_names'][0],
+            var = self.config['variables']['variable_names'][0]
 
             hdfRows = [(366 if calendar.isleap(years) else 365)]
-            rowInds = np.cumsum([0] + hdfRows)
             modisDays = [d for d in range(0, 361, 8)] + [365]
 
             fname = os.path.join(
@@ -519,14 +539,14 @@ class Eightday_to_dailyMODIS(object):
                 meta = hfile['meta'][...]
 
             fname2 = os.path.join(
-                    self.config['dir']['out_dir'],
-                    self.config['fileNames']['dailyFileName'])
+                self.config['dir']['out_dir'],
+                self.config['fileNames']['dailyFileName'])
             logger.debug('reading{}'.format(fname2))
 
             with h5py.File(fname2, 'w') as hfile:
                 hfile.create_dataset('meta', data=meta)
                 hfile.create_dataset('albedo', shape=(
-                        (sum(hdfRows), meta.shape[0])), dtype=np.float32)
+                    (sum(hdfRows), meta.shape[0])), dtype=np.float32)
             logger.info('hdf created')
 
             days = (366 if calendar.isleap(int(years)) else 365)
@@ -534,7 +554,7 @@ class Eightday_to_dailyMODIS(object):
             rname = os.path.join(
                 self.config['dir']['out_dir'],
                 self.config['fileNames']['outName'].format(
-                    var=var[0],year=self.years))
+                    var=var[0], year=self.years))
 
             with h5py.File(rname, 'r') as hfile:
                 data = hfile['means'][...]
