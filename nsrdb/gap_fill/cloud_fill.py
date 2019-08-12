@@ -66,8 +66,8 @@ class CloudGapFill:
         cloud_prop_fill[~type_mask] = np.nan
 
         # patch sites with all NaN or just one non-NaN but warn
-        all_na = (np.isnan(cloud_prop_fill).sum(axis=0) >=
-                  (cloud_prop_fill.shape[0] - 1))
+        all_na = (np.isnan(cloud_prop_fill).sum(axis=0)
+                  >= (cloud_prop_fill.shape[0] - 1))
         if any(all_na):
             cloud_prop_fill.loc[:, all_na] = -999
 
@@ -271,14 +271,17 @@ class CloudGapFill:
                                                     fill_flag=fill_flag)
 
         # find location of missing properties
-        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0) &
-                        (sza < SZA_LIM))
+        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0)
+                        & (sza < SZA_LIM))
         fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
 
-        if missing_prop.all(axis=0).any():
+        missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag == 3))
+                        | cloud_type.isin(CLEAR_TYPES))
+        if missing_full.all(axis=0).any():
             # if full timeseries is missing properties but not type, set 4
             all_missing_ctype = (fill_flag == 2).all(axis=0)
-            fill_flag[:, (missing_prop.all(axis=0) & ~all_missing_ctype)] = 4
+            mask = (missing_full.all(axis=0) & ~all_missing_ctype)
+            fill_flag[:, mask] = 4
 
         # set missing property values to NaN. Clear will be reset later.
         cloud_prop[(cloud_prop <= 0)] = np.nan
