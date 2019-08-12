@@ -31,6 +31,7 @@ class AsymVar(AncillaryVarHandler):
         fname : str
             Asymmetry source data filename.
         """
+        self._asym_grid = None
         self._fname = fname
         super().__init__(name, var_meta=var_meta, date=date)
 
@@ -96,12 +97,12 @@ class AsymVar(AncillaryVarHandler):
             Asymmetry grid data with columns 'latitude' and 'longitude'.
         """
 
-        if not hasattr(self, '_asym_grid'):
+        if self._asym_grid is None:
             with h5py.File(self.fpath, 'r') as f:
                 self._asym_grid = pd.DataFrame(f['meta'][...])
 
-            if ('latitude' not in self._asym_grid or
-                    'longitude' not in self._asym_grid):
+            if ('latitude' not in self._asym_grid
+                    or 'longitude' not in self._asym_grid):
                 raise ValueError('Asymmetry file did not have '
                                  'latitude/longitude meta data. '
                                  'Please check: {}'.format(self.fpath))

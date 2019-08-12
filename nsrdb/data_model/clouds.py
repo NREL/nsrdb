@@ -422,6 +422,7 @@ class CloudVar(AncillaryVarHandler):
         self._file_df = None
         self._dsets = dsets
         self._ftype = None
+        self._i = None
 
         super().__init__(name, var_meta=var_meta, date=date)
 
@@ -596,8 +597,8 @@ class CloudVar(AncillaryVarHandler):
 
         fl = os.listdir(path)
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.h5') and
-                 str(date.year) in str(CloudVar.get_timestamp(f))]
+                 if f.endswith('.h5')
+                 and str(date.year) in str(CloudVar.get_timestamp(f))]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
@@ -624,8 +625,8 @@ class CloudVar(AncillaryVarHandler):
 
         fl = os.listdir(path)
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.nc') and
-                 str(date.year) in str(CloudVar.get_timestamp(f))]
+                 if f.endswith('.nc')
+                 and str(date.year) in str(CloudVar.get_timestamp(f))]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
