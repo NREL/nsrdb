@@ -219,6 +219,41 @@ class CloudGapFill:
 
         return cloud_type, fill_flag
 
+    @staticmethod
+    def flag_missing_properties(cloud_prop, cloud_type, sza, fill_flag):
+        """Look for missing cloud properties and set fill_flag accordingly.
+
+        Parameters
+        ----------
+        cloud_prop : pd.DataFrame
+            DataFrame of cloud property values.
+        cloud_type : pd.DataFrame
+            Integer cloud type data with no missing values.
+        sza : pd.DataFrame
+            DataFrame of solar zenith angle values to determine nighttime.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+
+        Returns
+        -------
+        fill_flag : np.ndarray
+            Integer array of flags with missing cloud property flags set.
+        """
+
+        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0)
+                        & (sza < SZA_LIM))
+        fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
+
+        # if full timeseries is missing properties but not type, set 4
+        missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag == 3))
+                        | cloud_type.isin(CLEAR_TYPES))
+        if missing_full.all(axis=0).any():
+            all_missing_ctype = (fill_flag == 2).all(axis=0)
+            mask = (missing_full.all(axis=0) & ~all_missing_ctype)
+            fill_flag[:, mask] = 4
+
+        return fill_flag
+
     @classmethod
     def fill_cloud_prop(cls, prop_name, cloud_prop, cloud_type, sza,
                         fill_flag=None):
@@ -270,18 +305,8 @@ class CloudGapFill:
         cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
                                                     fill_flag=fill_flag)
 
-        # find location of missing properties
-        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0)
-                        & (sza < SZA_LIM))
-        fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
-
-        missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag == 3))
-                        | cloud_type.isin(CLEAR_TYPES))
-        if missing_full.all(axis=0).any():
-            # if full timeseries is missing properties but not type, set 4
-            all_missing_ctype = (fill_flag == 2).all(axis=0)
-            mask = (missing_full.all(axis=0) & ~all_missing_ctype)
-            fill_flag[:, mask] = 4
+        fill_flag = cls.flag_missing_properties(cloud_prop, cloud_type, sza,
+                                                fill_flag)
 
         # set missing property values to NaN. Clear will be reset later.
         cloud_prop[(cloud_prop <= 0)] = np.nan
