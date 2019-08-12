@@ -72,6 +72,7 @@ class Blender:
         """
 
         log_mem()
+        self.files = None
         self.year = int(year)
         self.i_start = 0
         self.i_end = 0

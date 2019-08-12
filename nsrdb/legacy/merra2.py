@@ -306,6 +306,7 @@ class Ancillary(object):
         self.d_nn = None
         self.i_nn = None
         self.data = None
+        self._output_range = None
         self._get_files()
         self._define_grids()
         self._spatial_indices()
@@ -398,7 +399,7 @@ class Ancillary(object):
     def output_range(self):
         """Define the output time axis (y) index range based on full year and
         input subset date_range"""
-        if not hasattr(self, '_output_range'):
+        if self._output_range is None:
             out_freq = self.var_config['out_freq']
             ti_full = pd.date_range('1-1-{y}'.format(y=self.year),
                                     '1-1-{y}'.format(y=self.year + 1),
