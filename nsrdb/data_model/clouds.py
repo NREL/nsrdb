@@ -85,7 +85,7 @@ class CloudVarSingleH5(CloudVarSingle):
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
     @staticmethod
-    def _parse_grid(fpath, dsets=('latitude', 'longitude')):
+    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc')):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -93,9 +93,9 @@ class CloudVarSingleH5(CloudVarSingle):
         fpath : str
             Full file path to netcdf4 file.
         dsets : tuple
-            Latitude, longitude datasets to retrieve from cloud file. Lat/lon
-            dsets are supposed to be pre-parallax-corrected. Output
-            dataset names will always be 'latitude' and 'longitude'.
+            Latitude, longitude datasets to retrieve from cloud file. H5
+            files have parallax corrected datasets (*_pc). Output dataset
+            names will always be 'latitude' and 'longitude'.
 
         Returns
         -------
@@ -107,10 +107,7 @@ class CloudVarSingleH5(CloudVarSingle):
         grid = pd.DataFrame()
         with h5py.File(fpath, 'r') as f:
             for dset in dsets:
-                if dset not in list(f):
-                    raise KeyError('Could not find "{}" in the cloud '
-                                   'file: {}'
-                                   .format(dset, fpath))
+
                 if 'lat' in dset:
                     dset_out = 'latitude'
                 elif 'lon' in dset:
@@ -118,6 +115,13 @@ class CloudVarSingleH5(CloudVarSingle):
                 else:
                     raise KeyError('Did not recognize dataset as latitude '
                                    'or longitude: "{}"'.format(dset))
+
+                if dset not in list(f):
+                    wmsg = ('Could not find {}. Using {} instead.'
+                            .format(dset, dset_out))
+                    warn(wmsg)
+                    logger.warning(wmsg)
+                    dset = dset_out
 
                 grid[dset_out] = CloudVarSingleH5.pre_process(
                     dset, f[dset][...], dict(f[dset].attrs))
@@ -264,9 +268,8 @@ class CloudVarSingleNC(CloudVarSingle):
             Full file path to netcdf4 file.
         dsets : tuple
             Latitude, longitude datasets to retrieve from cloud file. NetCDF4
-            files have parallax corrected datasets (*_pc). Different from the
-            h5 files we previously received from UW. Output dataset names will
-            always be 'latitude' and 'longitude'.
+            files have parallax corrected datasets (*_pc). Output dataset
+            names will always be 'latitude' and 'longitude'.
 
         Returns
         -------
@@ -282,14 +285,6 @@ class CloudVarSingleNC(CloudVarSingle):
         grid = pd.DataFrame()
         with netCDF4.Dataset(fpath, 'r') as f:
             for dset in dsets:
-                if dset not in list(f.variables.keys()):
-                    raise KeyError('Could not find "{}" in the cloud '
-                                   'file: {}'
-                                   .format(dset, fpath))
-
-                # use netCDF masked array mask to reduce ~1/4 of the data
-                if sparse_mask is None:
-                    sparse_mask = ~f[dset][:].mask
 
                 if 'lat' in dset:
                     dset_out = 'latitude'
@@ -298,6 +293,17 @@ class CloudVarSingleNC(CloudVarSingle):
                 else:
                     raise KeyError('Did not recognize dataset as latitude '
                                    'or longitude: "{}"'.format(dset))
+
+                if dset not in list(f.variables.keys()):
+                    wmsg = ('Could not find {}. Using {} instead.'
+                            .format(dset, dset_out))
+                    warn(wmsg)
+                    logger.warning(wmsg)
+                    dset = dset_out
+
+                # use netCDF masked array mask to reduce ~1/4 of the data
+                if sparse_mask is None:
+                    sparse_mask = ~f[dset][:].mask
 
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
