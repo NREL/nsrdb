@@ -240,17 +240,17 @@ class CloudGapFill:
             Integer array of flags with missing cloud property flags set.
         """
 
-        missing_prop = (cloud_type.isin(CLOUD_TYPES) & (cloud_prop <= 0)
+        missing_prop = (cloud_type.isin(CLOUD_TYPES)
+                        & (cloud_prop <= 0)
                         & (sza < SZA_LIM))
         fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
 
         # if full timeseries is missing properties but not type, set 4
-        missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag == 3))
-                        | cloud_type.isin(CLEAR_TYPES))
+        missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag > 0))
+                        | (cloud_type.isin(CLEAR_TYPES) | (sza >= SZA_LIM)))
         if missing_full.all(axis=0).any():
-            all_missing_ctype = (fill_flag == 2).all(axis=0)
-            mask = (missing_full.all(axis=0) & ~all_missing_ctype)
-            fill_flag[:, mask] = 4
+            mask = (fill_flag == 3) & missing_full.values.all(axis=0)
+            fill_flag[mask] = 4
 
         return fill_flag
 
