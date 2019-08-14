@@ -366,7 +366,7 @@ class Spatial:
     def _fmt_title(kwargs, og_title, ti, ts, fname, dset, file_ext):
         """Format the figure title with timestamp."""
 
-        if 'title' in kwargs:
+        if 'title' in kwargs and kwargs['title']:
             if og_title is None:
                 og_title = kwargs['title']
             if '{}' in og_title:
@@ -601,6 +601,10 @@ class Spatial:
                 xlim = (-127, -100)
                 ylim = (29, 50)
                 figsize = (8, 6)
+            elif extent.lower() == 'south_america':
+                xlim = (-85, -32)
+                ylim = (-59, 16)
+                figsize = (7, 9)
 
         try:
             fig = plt.figure(figsize=figsize)
