@@ -202,6 +202,8 @@ class CloudVarSingleH5(CloudVarSingle):
             Boolean series; the mask to extract sparse data.
         """
 
+        mask = (grid['latitude'] == -90) & (grid['longitude'] == -180)
+        grid.loc[mask, :] = np.nan
         mask = ~(pd.isna(grid['latitude']) | pd.isna(grid['longitude']))
         grid = grid[mask]
         return grid, mask
