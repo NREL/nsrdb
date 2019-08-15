@@ -331,8 +331,8 @@ class NSRDB:
             Single day to extract ancillary data for.
             str in YYYYMMDD format.
         """
-        date = (datetime.datetime(int(year), 1, 1) +
-                datetime.timedelta(int(doy) - 1))
+        date = (datetime.datetime(int(year), 1, 1)
+                + datetime.timedelta(int(doy) - 1))
         datestr = '{}{}{}'.format(date.year,
                                   str(date.month).zfill(2),
                                   str(date.day).zfill(2))
@@ -344,15 +344,44 @@ class NSRDB:
 
         Parameters
         ----------
-        date : datetime.date
-            Date object.
+        date : datetime.date | str | int
+            Single day to extract ancillary data for.
+            Can be str or int in YYYYMMDD format.
 
         Returns
         -------
         doy : int
             Day of year.
         """
-        return date.timetuple().tm_yday
+        return NSRDB.to_datetime(date).timetuple().tm_yday
+
+    @staticmethod
+    def to_datetime(date):
+        """Convert a date string or integer to datetime object.
+
+        Parameters
+        ----------
+        date : datetime.date | str | int
+            Single day to extract ancillary data for.
+            Can be str or int in YYYYMMDD format.
+
+        Returns
+        -------
+        date : datetime.date
+            Date object.
+        """
+
+        if isinstance(date, (int, float)):
+            date = str(int(date))
+        if isinstance(date, str):
+            if len(date) == 8:
+                date = datetime.date(year=int(date[0:4]),
+                                     month=int(date[4:6]),
+                                     day=int(date[6:]))
+            else:
+                raise ValueError('Could not parse date: {}'.format(date))
+
+        return date
 
     @staticmethod
     def get_dset_attrs(dsets):
@@ -416,15 +445,7 @@ class NSRDB:
             File to log to. Will be put in output directory.
         """
 
-        if isinstance(date, (int, float)):
-            date = str(int(date))
-        if isinstance(date, str):
-            if len(date) == 8:
-                date = datetime.date(year=int(date[0:4]),
-                                     month=int(date[4:6]),
-                                     day=int(date[6:]))
-            else:
-                raise ValueError('Could not parse date: {}'.format(date))
+        date = cls.to_datetime(date)
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq,
                     cloud_extent=cloud_extent)
@@ -597,8 +618,8 @@ class NSRDB:
                 f_out = os.path.join(out_dir, fname)
 
             flist = [fn for fn in os.listdir(collect_dir)
-                     if fn.endswith('.h5') and
-                     fname.replace('.h5', '') in fn]
+                     if fn.endswith('.h5')
+                     and fname.replace('.h5', '') in fn]
             flist = sorted(flist, key=lambda x: float(
                 x.replace('.h5', '').split('_')[-1]))
             fids = [int(fn.replace('.h5', '').split('_')[-1]) for fn in flist]
