@@ -332,6 +332,29 @@ class Temporal:
 class Spatial:
     """Framework to perform NSRDB spatial QA via map plots."""
 
+    EXTENTS = {'conus': {'xlim': (-127, -65),
+                         'ylim': (24, 50),
+                         'figsize': (10, 5)},
+               'nsrdb': {'xlim': (-190, -20),
+                         'ylim': (-62, 65),
+                         'figsize': (10, 8)},
+               'canada': {'xlim': (-140, -50),
+                          'ylim': (43, 68),
+                          'figsize': (12, 7)},
+               'east': {'xlim': (-130, -20),
+                        'ylim': (-62, 62),
+                        'figsize': (7, 8)},
+               'west': {'xlim': (-180, -100),
+                        'ylim': (-60, 62),
+                        'figsize': (7, 8)},
+               'wecc': {'xlim': (-127, -100),
+                        'ylim': (29, 50),
+                        'figsize': (8, 6)},
+               'south_america': {'xlim': (-85, -32),
+                                 'ylim': (-59, 16),
+                                 'figsize': (7, 9)},
+               }
+
     @staticmethod
     def multi_year(year_range, out_dir, dsets,
                    nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
@@ -581,30 +604,10 @@ class Spatial:
         """
 
         if isinstance(extent, str):
-            if extent.lower() == 'conus':
-                xlim = (-127, -65)
-                ylim = (24, 50)
-                figsize = (10, 5)
-            elif extent.lower() == 'nsrdb':
-                xlim = (-190, -20)
-                ylim = (-62, 65)
-                figsize = (10, 8)
-            elif extent.lower() == 'canada':
-                xlim = (-140, -50)
-                ylim = (43, 68)
-                figsize = (12, 7)
-            elif extent.lower() == 'east':
-                xlim = (-130, -20)
-                ylim = (-62, 62)
-                figsize = (7, 8)
-            elif extent.lower() == 'wecc':
-                xlim = (-127, -100)
-                ylim = (29, 50)
-                figsize = (8, 6)
-            elif extent.lower() == 'south_america':
-                xlim = (-85, -32)
-                ylim = (-59, 16)
-                figsize = (7, 9)
+            if extent.lower() in Spatial.EXTENTS:
+                xlim = Spatial.EXTENTS[extent.lower()]['xlim']
+                ylim = Spatial.EXTENTS[extent.lower()]['ylim']
+                figsize = Spatial.EXTENTS[extent.lower()]['figsize']
 
         try:
             fig = plt.figure(figsize=figsize)
