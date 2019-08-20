@@ -68,7 +68,7 @@ class VarFactory:
 
             # kwarg reduction for non-cloud vars
             elif 'cld' not in var_name and 'cloud' not in var_name:
-                del_list = ('extent', 'path', 'dsets')
+                del_list = ('extent', 'cloud_dir', 'dsets')
                 kwargs = {k: v for k, v in kwargs.items() if k not in del_list}
 
             # single creational statement to init handler

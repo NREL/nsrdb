@@ -58,8 +58,7 @@ class NSRDB:
                                         'clearsky_ghi',
                                         'fill_flag')}
 
-    def __init__(self, out_dir, year, grid, freq='5min', cloud_extent='east',
-                 var_meta=None):
+    def __init__(self, out_dir, year, grid, freq='5min', var_meta=None):
         """
         Parameters
         ----------
@@ -73,9 +72,6 @@ class NSRDB:
             must be the NSRDB site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
-        cloud_extent : str
-            Regional (satellite) extent to process for cloud data processing,
-            used to form file paths to cloud data files.
         var_meta : str | None
             File path to NSRDB variables meta data. None will use the default
             file from the github repo.
@@ -86,7 +82,6 @@ class NSRDB:
         self._year = int(year)
         self._grid = grid
         self._freq = freq
-        self._cloud_extent = cloud_extent
         self._var_meta = var_meta
         self._ti = None
 
@@ -146,8 +141,8 @@ class NSRDB:
             logger.warning('Running 32-bit python, sys.maxsize: {}'
                            .format(sys.maxsize))
 
-    def _exe_daily_data_model(self, month, day, var_list=None, parallel=True,
-                              fpath_out=None):
+    def _exe_daily_data_model(self, month, day, cloud_dir, var_list=None,
+                              parallel=True, fpath_out=None):
         """Execute the data model for a single day.
 
         Parameters
@@ -156,6 +151,9 @@ class NSRDB:
             Month to run data model for.
         day : int | str
             Day to run data model for.
+        cloud_dir : str
+            Cloud data directory containing nested daily directories with
+            h5 or nc files from UW.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             variables.
@@ -181,10 +179,9 @@ class NSRDB:
 
         # run data model
         data_model = DataModel.run_multiple(
-            var_list, date, self._grid, nsrdb_freq=self._freq,
+            var_list, date, cloud_dir, self._grid, nsrdb_freq=self._freq,
             var_meta=self._var_meta, parallel=parallel,
-            cloud_extent=self._cloud_extent, return_obj=True,
-            fpath_out=fpath_out)
+            return_obj=True, fpath_out=fpath_out)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
                     .format(month, day, self._year))
@@ -415,8 +412,8 @@ class NSRDB:
         return attrs, chunks, dtypes
 
     @classmethod
-    def run_data_model(cls, out_dir, date, grid, freq='5min',
-                       cloud_extent='east', parallel=True, log_level='DEBUG',
+    def run_data_model(cls, out_dir, date, cloud_dir, grid, freq='5min',
+                       parallel=True, log_level='DEBUG',
                        log_file='data_model.log'):
         """Run daily data model, and save output files.
 
@@ -427,15 +424,15 @@ class NSRDB:
         date : datetime.date | str | int
             Single day to extract ancillary data for.
             Can be str or int in YYYYMMDD format.
+        cloud_dir : str
+            Cloud data directory containing nested daily directories with
+            h5 or nc files from UW.
         grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
             must be the NSRDB site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
-        cloud_extent : str
-            Regional (satellite) extent to process for cloud data processing,
-            used to form file paths to cloud data files.
         parallel : bool
             Flag to perform data model processing in parallel.
         log_level : str | None
@@ -447,14 +444,13 @@ class NSRDB:
 
         date = cls.to_datetime(date)
 
-        nsrdb = cls(out_dir, date.year, grid, freq=freq,
-                    cloud_extent=cloud_extent)
+        nsrdb = cls(out_dir, date.year, grid, freq=freq)
         nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
 
         fpath_out = nsrdb._get_fpath_out(date)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
-                                                 parallel=parallel,
+                                                 cloud_dir, parallel=parallel,
                                                  fpath_out=fpath_out)
 
         if fpath_out is None:
@@ -485,7 +481,7 @@ class NSRDB:
             File to log to. Will be put in output directory.
         """
 
-        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
@@ -536,7 +532,7 @@ class NSRDB:
             workers to use (number of parallel reads).
         """
 
-        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
@@ -601,7 +597,7 @@ class NSRDB:
             scratch on eagle.
         """
 
-        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         fnames = sorted(list(cls.OUTS.keys()))
@@ -714,7 +710,7 @@ class NSRDB:
             Enumerated file index if running on site chunk.
         """
 
-        nsrdb = cls(out_dir, year, grid, freq=freq, cloud_extent=None)
+        nsrdb = cls(out_dir, year, grid, freq=freq)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():

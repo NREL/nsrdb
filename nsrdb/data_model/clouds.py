@@ -399,7 +399,7 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, extent='east', path=None,
+    def __init__(self, name, var_meta, date, cloud_dir,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
@@ -412,20 +412,17 @@ class CloudVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        extent : str
-            Regional (satellite) extent to process, used to form file paths.
-        path : str | NoneType
-            Optional path string to force a cloud data directory. If this is
-            None, the file path will be infered from the extent, year, and day
-            of year.
+        cloud_dir : str
+            Cloud data directory containing nested daily directories with
+            h5 or nc files from UW.
         dsets : tuple | list
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
         """
 
-        self._extent = extent
-        self._path = path
+        self._path = None
+        self._cloud_dir = cloud_dir
         self._flist = None
         self._file_df = None
         self._dsets = dsets
@@ -496,9 +493,9 @@ class CloudVar(AncillaryVarHandler):
     def path(self):
         """Final path containing cloud data files.
 
-        The path is searched in source_dir based on the analysis date.
+        The path is searched in _cloud_dir based on the analysis date.
 
-        Where source_dir is defined in the nsrdb_vars.csv meta/config file.
+        Where _cloud_dir is defined in the nsrdb_vars.csv meta/config file.
         """
 
         if self._path is None:
@@ -510,7 +507,7 @@ class CloudVar(AncillaryVarHandler):
             fsearch2 = '{}_{}'.format(self._date.year, doy)
 
             # walk through current directory looking for day directory
-            for dirpath, _, _ in os.walk(self.source_dir):
+            for dirpath, _, _ in os.walk(self._cloud_dir):
                 if not dirpath.endswith('/'):
                     dirpath += '/'
                 if dirsearch in dirpath:
@@ -523,20 +520,14 @@ class CloudVar(AncillaryVarHandler):
 
             if self._path is None:
                 msg = ('Could not find cloud data dir for date {} in '
-                       'source_dir {}. Looked for {}, {}, and {}'
-                       .format(self._date, self.source_dir, dirsearch,
+                       'cloud_dir {}. Looked for {}, {}, and {}'
+                       .format(self._date, self._cloud_dir, dirsearch,
                                fsearch1, fsearch2))
                 logger.exception(msg)
                 raise IOError(msg)
             else:
                 logger.info('Cloud data dir for date {} found at: {}'
                             .format(self._date, self._path))
-
-            if self._extent not in self._path:
-                msg = ('Cloud extent "{}" not found in cloud path: {}'
-                       .format(self._extent, self._path))
-                warn(msg)
-                logger.warning(msg)
 
         return self._path
 
@@ -550,9 +541,15 @@ class CloudVar(AncillaryVarHandler):
             If nothing is missing, return an empty string.
         """
 
+        if self._cloud_dir is None:
+            raise IOError('No cloud dir input for cloud var handler!')
+
         missing = ''
-        if not os.path.exists(self.path):
+        if not os.path.exists(self._cloud_dir):
+            missing = self._cloud_dir
+        elif not os.path.exists(self.path):
             missing = self.path
+
         return missing
 
     @staticmethod
