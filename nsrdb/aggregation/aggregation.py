@@ -995,13 +995,15 @@ class Manager:
 
         return args
 
-    def _agg_var_serial(self, var):
+    def _agg_var_serial(self, var, method):
         """Aggregate one var for all sites in this chunk in parallel.
 
         Parameters
         ----------
         var : str
             Variable name being aggregated.
+        method : function
+            Aggregation method.
 
         Returns
         -------
@@ -1011,7 +1013,6 @@ class Manager:
         """
 
         arr = self._init_arr(var)
-        method = self._get_agg_method(var)
 
         for i in range(len(self.meta_chunk)):
             args = self._get_args(var, i)
@@ -1019,13 +1020,15 @@ class Manager:
 
         return arr
 
-    def _agg_var_parallel(self, var):
+    def _agg_var_parallel(self, var, method):
         """Aggregate one var for all sites in this chunk in parallel.
 
         Parameters
         ----------
         var : str
             Variable name being aggregated.
+        method : function
+            Aggregation method.
 
         Returns
         -------
@@ -1036,7 +1039,6 @@ class Manager:
 
         futures = {}
         arr = self._init_arr(var)
-        method = self._get_agg_method(var)
 
         with ProcessPoolExecutor() as exe:
             for i in range(len(self.meta_chunk)):
@@ -1103,14 +1105,15 @@ class Manager:
             i_var = 0
             for dsets in [datasets, delayed_datasets]:
                 for var in dsets:
+                    method = m._get_agg_method(var)
                     i_var += 1
-                    logger.info('Working on aggregating variable "{}" '
-                                '({} out of {}).'
-                                .format(var, i_var, n_var))
+                    logger.info('Aggregating variable "{}" '
+                                '({} out of {}). Using method: {}'
+                                .format(var, i_var, n_var, method))
                     if parallel:
-                        arr = m._agg_var_parallel(var)
+                        arr = m._agg_var_parallel(var, method)
                     else:
-                        arr = m._agg_var_serial(var)
+                        arr = m._agg_var_serial(var, method)
 
                     m.write_output(arr, var)
 
