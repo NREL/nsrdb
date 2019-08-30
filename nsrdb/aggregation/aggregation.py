@@ -19,6 +19,54 @@ from nsrdb.utilities.plots import Spatial
 logger = logging.getLogger(__name__)
 
 
+# Standard configs.
+NSRDB_4km_30min = {'east': {'data_sub_dir': 'east',
+                            'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                            'meta_file': 'nsrdb_meta_2km_east.csv',
+                            'spatial': '2km',
+                            'temporal': '15min'},
+                   'west': {'data_sub_dir': 'west',
+                            'tree_file': 'kdtree_west_psm_extent.pkl',
+                            'meta_file': 'west_psm_extent.csv',
+                            'spatial': '4km',
+                            'temporal': '30min'},
+                   'conus': {'data_sub_dir': 'conus',
+                             'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                             'meta_file': 'nsrdb_meta_2km_conus.csv',
+                             'spatial': '2km',
+                             'temporal': '5min'},
+                   'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                             'fout': 'nsrdb_2018.h5',
+                             'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+                             'meta_file': 'nsrdb_meta_4km.csv',
+                             'spatial': '4km',
+                             'temporal': '30min'},
+                   }
+
+SURFRAD = {'east': {'data_sub_dir': 'east',
+                    'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                    'meta_file': 'nsrdb_meta_2km_east.csv',
+                    'spatial': '2km',
+                    'temporal': '15min'},
+           'west': {'data_sub_dir': 'west',
+                    'tree_file': 'kdtree_west_psm_extent.pkl',
+                    'meta_file': 'west_psm_extent.csv',
+                    'spatial': '4km',
+                    'temporal': '30min'},
+           'conus': {'data_sub_dir': 'conus',
+                     'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                     'meta_file': 'nsrdb_meta_2km_conus.csv',
+                     'spatial': '2km',
+                     'temporal': '5min'},
+           'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                     'fout': 'nsrdb_surfrad_2018.h5',
+                     'tree_file': 'kdtree_surfrad_meta.pkl',
+                     'meta_file': 'surfrad_meta.csv',
+                     'spatial': '4km',
+                     'temporal': '30min'},
+           }
+
+
 class MetaManager:
     """Framework to parse the final meta data for contributing sources."""
 
@@ -241,6 +289,9 @@ class Aggregation:
 
 class Manager:
     """Framework for aggregation to a final NSRDB spatiotemporal resolution."""
+
+    DEFAULT_METHOD = Aggregation.mean
+    AGG_METHODS = {'dni': Aggregation.mean}
 
     def __init__(self, data, data_dir, meta_dir, year=2018,
                  n_chunks=4, i_chunk=0):
@@ -590,6 +641,27 @@ class Manager:
             i = i.reshape((len(i), 1))
         return d, i
 
+    def _get_agg_method(self, var):
+        """Get the aggregation method for a given variable.
+
+        Parameters
+        ----------
+        var : str
+            Variable name
+
+        Returns
+        -------
+        method : function
+            Aggregation method for the input var from the Aggregation class
+            above.
+        """
+
+        if var in self.AGG_METHODS:
+            method = self.AGG_METHODS[var]
+        else:
+            method = self.DEFAULT_METHOD
+        return method
+
     def _agg_var_serial(self, var):
         """Aggregate one var for all sites in this chunk in parallel.
 
@@ -606,6 +678,7 @@ class Manager:
         """
 
         arr = self._init_arr(var)
+        method = self._get_agg_method(var)
 
         for i in range(len(self.meta_chunk)):
 
@@ -619,8 +692,7 @@ class Manager:
             logger.debug('Working on site gid {} with source {}'
                          .format(gid, source))
 
-            arr[:, i] = Aggregation.mean(var, data_fpath, nn, w,
-                                         self.time_index)
+            arr[:, i] = method(var, data_fpath, nn, w, self.time_index)
 
         return arr
 
@@ -641,6 +713,7 @@ class Manager:
 
         futures = {}
         arr = self._init_arr(var)
+        method = self._get_agg_method(var)
 
         with ProcessPoolExecutor() as exe:
             for i in range(len(self.meta_chunk)):
@@ -652,8 +725,7 @@ class Manager:
                 w = self.data[source]['window']
                 data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
 
-                f = exe.submit(Aggregation.mean, var, data_fpath, nn, w,
-                               self.time_index)
+                f = exe.submit(method, var, data_fpath, nn, w, self.time_index)
                 futures[f] = i
 
             for j, f in enumerate(as_completed(futures)):
@@ -721,54 +793,11 @@ class Manager:
 if __name__ == '__main__':
     data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
     meta_dir = '/projects/pxs/reference_grids/'
-    data = {'east': {'data_sub_dir': 'east',
-                     'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                     'meta_file': 'nsrdb_meta_2km_east.csv',
-                     'spatial': '2km',
-                     'temporal': '15min'},
-            'west': {'data_sub_dir': 'west',
-                     'tree_file': 'kdtree_west_psm_extent.pkl',
-                     'meta_file': 'west_psm_extent.csv',
-                     'spatial': '4km',
-                     'temporal': '30min'},
-            'conus': {'data_sub_dir': 'conus',
-                      'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                      'meta_file': 'nsrdb_meta_2km_conus.csv',
-                      'spatial': '2km',
-                      'temporal': '5min'},
-            'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                      'fout': 'nsrdb_2018.h5',
-                      'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
-                      'meta_file': 'nsrdb_meta_4km.csv',
-                      'spatial': '4km',
-                      'temporal': '30min'},
-            }
 
-    data = {'east': {'data_sub_dir': 'east',
-                     'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                     'meta_file': 'nsrdb_meta_2km_east.csv',
-                     'spatial': '2km',
-                     'temporal': '15min'},
-            'west': {'data_sub_dir': 'west',
-                     'tree_file': 'kdtree_west_psm_extent.pkl',
-                     'meta_file': 'west_psm_extent.csv',
-                     'spatial': '4km',
-                     'temporal': '30min'},
-            'conus': {'data_sub_dir': 'conus',
-                      'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                      'meta_file': 'nsrdb_meta_2km_conus.csv',
-                      'spatial': '2km',
-                      'temporal': '5min'},
-            'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                      'fout': 'nsrdb_surfrad_2018.h5',
-                      'tree_file': 'kdtree_surfrad_meta.pkl',
-                      'meta_file': 'surfrad_meta.csv',
-                      'spatial': '4km',
-                      'temporal': '30min'},
-            }
     from nsrdb.utilities.loggers import init_logger
     log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-                'nsrdb_4km_30min/agg.log')
+                'nsrdb_4km_30min/agg_surfrad.log')
     init_logger(__name__, log_level='INFO', log_file=log_file)
-    Manager.run(data, data_dir, meta_dir, year=2018, n_chunks=1,
+
+    Manager.run(SURFRAD, data_dir, meta_dir, year=2018, n_chunks=1,
                 parallel=True)
