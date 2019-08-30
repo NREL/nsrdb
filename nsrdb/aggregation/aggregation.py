@@ -112,7 +112,7 @@ class Aggregation:
         """
         self.var = var
         self.data_fpath = data_fpath
-        self.nn = nn
+        self.nn = sorted(list(nn))
         self.w = w
         self.final_ti = final_ti
 
@@ -201,6 +201,11 @@ class Aggregation:
 
         return out
 
+    @staticmethod
+    def format_out_arr(arr):
+        """Format the output array (round and flatten)."""
+        return np.round(arr).flatten()
+
     @classmethod
     def mean(cls, var, data_fpath, nn, w, final_ti):
         """Run agg using a spatial average and temporal moving window average.
@@ -222,7 +227,7 @@ class Aggregation:
         Returns
         -------
         data : np.ndarray
-            (n, 1) array unscaled and rounded data from the nn with time
+            (n, ) array unscaled and rounded data from the nn with time
             series matching final_ti.
         """
 
@@ -230,7 +235,8 @@ class Aggregation:
         data = a.spatial_avg()
         data = a.time_avg(data)
         data = a.reduce_timeseries(data)
-        return np.round(data)
+        data = a.format_out_arr(data)
+        return data
 
 
 class Manager:
@@ -270,6 +276,7 @@ class Manager:
         self.parse_data()
         self.preflight()
         self.run_nn()
+        self.add_temporal()
         self._init_fout()
 
     def parse_data(self):
@@ -280,6 +287,8 @@ class Manager:
                                  self.data['final']['data_sub_dir'] + '/',
                                  self.data['final']['fout'])
         self.data_sources = self.meta.source.unique()
+
+        logger.info('Data sources: {}'.format(self.data_sources))
 
         out_dir = os.path.join(self.data_dir,
                                self.data['final']['data_sub_dir'] + '/')
@@ -357,12 +366,12 @@ class Manager:
         return self._meta_chunk
 
     @staticmethod
-    def get_dset_attrs(data_dir):
+    def get_dset_attrs(h5dir):
         """Get output file dataset attributes for a set of datasets.
 
         Parameters
         ----------
-        data_dir : str
+        h5dir : str
             Path to directory containing multiple h5 files with all available
             dsets.
 
@@ -383,10 +392,10 @@ class Manager:
         chunks = {}
         dtypes = {}
 
-        h5_files = [fn for fn in os.listdir(data_dir) if fn.endswith('.h5')]
+        h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
 
         for fn in h5_files:
-            with Outputs(os.path.join(data_dir, fn)) as out:
+            with Outputs(os.path.join(h5dir, fn)) as out:
                 for d in out.dsets:
                     if d not in ['time_index', 'meta'] and d not in attrs:
                         attrs[d] = out.get_attrs(dset=d)
@@ -400,8 +409,10 @@ class Manager:
         """Initialize the output file with all datasets and final
         time index and meta"""
 
+        data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir'] + '/'
+        logger.debug(os.path.join(self.data_dir, data_sub_dir))
         self.dsets, self.attrs, self.chunks, self.dtypes = \
-            self.get_dset_attrs(self.data_dir)
+            self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
 
         if not os.path.exists(self.fout):
             logger.info('Initializing output file: {}'.format(self.fout))
@@ -491,6 +502,7 @@ class Manager:
 
         return w
 
+    @staticmethod
     def _get_fpath(var, data_dir, data_sub_dir):
         """Get the h5 filepath in data_dir/data_sub_dir/ containing var.
 
@@ -511,8 +523,7 @@ class Manager:
 
         if not data_sub_dir.endswith('/'):
             data_sub_dir += '/'
-
-        for fn in os.path.join(data_dir, data_sub_dir):
+        for fn in os.listdir(os.path.join(data_dir, data_sub_dir)):
             if fn.endswith('.h5'):
                 fpath = os.path.join(data_dir, data_sub_dir, fn)
                 with Outputs(fpath) as out:
@@ -530,7 +541,7 @@ class Manager:
             w = self._get_temporal_w(self.data[source]['temporal'],
                                      self.final_tres)
             self.data[source]['window'] = w
-            logger.info('Data source {} as a window size of {}'
+            logger.info('Data source {} has a window size of {}'
                         .format(source, w))
 
     def run_nn(self):
@@ -541,8 +552,9 @@ class Manager:
                                     self.final_sres)
             logger.info('Data source {} will use {} neighbors'
                         .format(source, k))
-
-            d, i = self.knn(self.meta, self.data[source]['tree_file'], k=k)
+            tree_fpath = os.path.join(self.meta_dir,
+                                      self.data[source]['tree_file'])
+            d, i = self.knn(self.meta, tree_fpath, k=k)
 
             if d.max() > 1:
                 warn('Max distance between "final" and "{}" is {}'
@@ -604,7 +616,8 @@ class Manager:
             w = self.data[source]['window']
             data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
 
-            logger.debug('Working on site gid {} from {}'.format(gid, source))
+            logger.debug('Working on site gid {} with source {}'
+                         .format(gid, source))
 
             arr[:, i] = Aggregation.mean(var, data_fpath, nn, w,
                                          self.time_index)
@@ -639,15 +652,12 @@ class Manager:
                 w = self.data[source]['window']
                 data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
 
-                logger.debug('Kicking off future for site gid {} from {}'
-                             .format(gid, source))
-
                 f = exe.submit(Aggregation.mean, var, data_fpath, nn, w,
                                self.time_index)
                 futures[f] = i
 
             for j, f in enumerate(as_completed(futures)):
-                if j % 100 == 0:
+                if (j + 1) % 100 == 0:
                     logger.info('Futures completed: {} out of {}.'
                                 .format(j + 1, len(futures)))
                 i = futures[f]
@@ -666,9 +676,9 @@ class Manager:
         var : str
             Variable (dataset) name to write to.
         """
-        logger.info('Writing data for "{}" with shape {} to site slice {}'
-                    .format(var, arr.shape, self.site_slice))
-        with Outputs(self.fout) as out:
+        logger.debug('Writing data for "{}" to sites: {}'
+                     .format(var, self.site_slice))
+        with Outputs(self.fout, mode='a') as out:
             out[var, :, self.site_slice] = arr
 
     @classmethod
@@ -696,14 +706,16 @@ class Manager:
                         .format(i_chunk + 1, n_chunks))
             m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
                     i_chunk=i_chunk)
-            for var in m.dsets:
-                logger.info('Working on aggregating "{}".'.format(var))
+            for i, var in enumerate(m.dsets):
+                logger.info('Working on aggregating variable "{}" '
+                            '({} out of {}).'.format(var, i + 1, len(m.dsets)))
                 if parallel:
                     arr = m._agg_var_parallel(var)
                 else:
                     arr = m._agg_var_serial(var)
 
                 m.write_output(arr, var)
+        logger.info('NSRDB aggregation complete!')
 
 
 if __name__ == '__main__':
@@ -754,6 +766,9 @@ if __name__ == '__main__':
                       'spatial': '4km',
                       'temporal': '30min'},
             }
-
+    from nsrdb.utilities.loggers import init_logger
+    log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
+                'nsrdb_4km_30min/agg.log')
+    init_logger(__name__, log_level='INFO', log_file=log_file)
     Manager.run(data, data_dir, meta_dir, year=2018, n_chunks=1,
-                parallel=False)
+                parallel=True)
