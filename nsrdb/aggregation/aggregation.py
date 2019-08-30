@@ -4,83 +4,91 @@
  - 2km 15min East -> 4km 30min NSRDB PSM v3 Meta
  - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import h5py
 import os
 import pickle
+import logging
 import numpy as np
 import pandas as pd
 from warnings import warn
 
-from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.plots import Spatial
 
-
-def meta_source_2018(fpath_4km):
-    """Make 2018 4km meta data with data source column (west/east/conus).
-
-    WARNING: This is a script very specific to the 2018 GOES data arrangement,
-    with the 4km 30min GOES West satellite, the 2km 15min GOES East satellite,
-    and the 2km 5min CONUS data from GOES East. This only works with the psm v3
-    4km meta data (accessed on 8/28/2019).
-
-    Parameters
-    ----------
-    fpath_4km : str
-        File path to full 4km meta data.
-
-    Returns
-    -------
-    meta : pd.DataFrame
-        DataFrame based on fpath_4km but with a "source" column containing
-        the data source string.
-    """
-
-    meta = pd.read_csv(fpath_4km, index_col=0)
-    meta['source'] = 'west'
-
-    # east 2km longitude boundary is at -125 lon (just west of CONUS)
-    east_mask = (meta.longitude > -125.0)
-    meta.loc[east_mask, 'source'] = 'east'
-
-    # conus includes all of US except for Alaska and Hawaii
-    conus_mask = ((meta.country == 'United States')
-                  & ~meta.state.isin(['Alaska', 'Hawaii']))
-    meta.loc[conus_mask, 'source'] = 'conus'
-
-    # made a line specific to the observed 2018 GOES East extreme angle
-    # boundary, above which no cloud properties are returned for the East data.
-    lat_boundary = 0.6 * (meta.longitude.values + 125) + 42.7
-    angle_mask = ((meta.latitude > lat_boundary)
-                  & (meta.source != 'west')
-                  & (meta.longitude < -104.5))
-    meta.loc[angle_mask, 'source'] = 'west'
-
-    return meta
+logger = logging.getLogger(__name__)
 
 
-def plot_meta_source(fpath_4km, fname, out_dir, **kwargs):
-    """Make a map plot of the NSRDB Meta source data (west/east/conus).
+class MetaManager:
+    """Framework to parse the final meta data for contributing sources."""
 
-    Parameters
-    ----------
-    fpath_4km : str
-        File path to full 4km meta data.
-    fname : str
-        Filename for output map image file.
-    out_dir : str
-        Directory path to save map plot file.
-    **kwargs : dict
-        Keyword args for spatial plotting utility.
-    """
+    @staticmethod
+    def meta_sources_2018(fpath_4km):
+        """Make 2018 4km meta data with data source column (west/east/conus).
 
-    meta = meta_source_2018(fpath_4km)
-    sources = list(set(meta.source.unique()))
-    meta['isource'] = np.nan
-    for i, source in enumerate(sources):
-        meta.loc[(meta.source == source), 'isource'] = i
+        WARNING: This is a script very specific to the 2018 GOES data
+        arrangement, with the 4km 30min GOES West satellite, the 2km 15min GOES
+        East satellite, and the 2km 5min CONUS data from GOES East. This only
+        works with the psm v3 4km meta data (accessed on 8/28/2019).
 
-    meta = meta[['latitude', 'longitude', 'isource']]
-    Spatial.plot_geo_df(meta, fname, out_dir, **kwargs)
+        Parameters
+        ----------
+        fpath_4km : str
+            File path to full 4km meta data.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            DataFrame based on fpath_4km but with a "source" column containing
+            the data source string.
+        """
+
+        meta = pd.read_csv(fpath_4km, index_col=0)
+        meta['source'] = 'west'
+
+        # east 2km longitude boundary is at -125 lon (just west of CONUS)
+        east_mask = (meta.longitude > -125.0)
+        meta.loc[east_mask, 'source'] = 'east'
+
+        # conus includes all of US except for Alaska and Hawaii
+        conus_mask = ((meta.country == 'United States')
+                      & ~meta.state.isin(['Alaska', 'Hawaii']))
+        meta.loc[conus_mask, 'source'] = 'conus'
+
+        # made a line specific to the observed 2018 GOES East extreme angle
+        # boundary, above which no cloud properties are returned for the East.
+        lat_boundary = 0.6 * (meta.longitude.values + 125) + 42.7
+        angle_mask = ((meta.latitude > lat_boundary)
+                      & (meta.source != 'west')
+                      & (meta.longitude < -104.5))
+        meta.loc[angle_mask, 'source'] = 'west'
+
+        return meta
+
+    @staticmethod
+    def plot_meta_source(fpath_4km, fname, out_dir, **kwargs):
+        """Make a map plot of the NSRDB Meta source data (west/east/conus).
+
+        Parameters
+        ----------
+        fpath_4km : str
+            File path to full 4km meta data.
+        fname : str
+            Filename for output map image file.
+        out_dir : str
+            Directory path to save map plot file.
+        **kwargs : dict
+            Keyword args for spatial plotting utility.
+        """
+
+        meta = MetaManager.meta_sources_2018(fpath_4km)
+        sources = list(set(meta.source.unique()))
+        meta['isource'] = np.nan
+        for i, source in enumerate(sources):
+            meta.loc[(meta.source == source), 'isource'] = i
+
+        meta = meta[['latitude', 'longitude', 'isource']]
+        Spatial.plot_geo_df(meta, fname, out_dir, **kwargs)
 
 
 class Aggregation:
@@ -120,8 +128,8 @@ class Aggregation:
             the self.nn attr.
         """
 
-        with Resource(self.data_fpath) as res:
-            _data = res[self.var, :, self.nn]
+        with h5py.File(self.data_fpath, 'r') as f:
+            _data = f[self.var][:, self.nn].astype(np.float32)
         return _data
 
     def spatial_avg(self):
@@ -137,16 +145,42 @@ class Aggregation:
 
         return self.data.mean(axis=1)
 
-    @staticmethod
-    def time_avg(inp, window=7):
+    def reduce_timeseries(self, arr):
+        """Reduce a high res timeseries to a coarse timeseries.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            2D numpy array
+
+        Returns
+        -------
+        arr : np.ndarray
+            Shortened 2D numpy array with length equal to the final ti.
+        """
+
+        m = len(arr) / len(self.final_ti)
+        if m % 1 != 0:
+            raise ValueError('Cannot reduce timeseries! Final ti has shape '
+                             '{} and working array has shape {}.'
+                             .format(self.final_ti.shape, arr.shape))
+        m = int(m)
+        arr = arr[::m, :]
+
+        if len(arr) != len(self.final_ti):
+            raise ValueError('Timeseries length reduction failed! Final ti '
+                             'has shape {} and reduced array has shape {}.'
+                             .format(self.final_ti.shape, arr.shape))
+
+        return arr
+
+    def time_avg(self, inp):
         """Calculate the rolling time average for an input array or df.
 
         Parameters
         ----------
         inp : np.ndarray | pd.DataFrame
             Input array/df with data to average.
-        window : int
-            Window over which to calculate the average.
 
         Returns
         -------
@@ -160,40 +194,91 @@ class Aggregation:
             array = True
             inp = pd.DataFrame(inp)
 
-        out = inp.rolling(window, center=True, min_periods=1).mean()
+        out = inp.rolling(self.w, center=True, min_periods=1).mean()
 
         if array:
             out = out.values
 
         return out
 
+    @classmethod
+    def mean(cls, var, data_fpath, nn, w, final_ti):
+        """Run agg using a spatial average and temporal moving window average.
+
+        Parameters
+        ----------
+        var : str
+            Variable (dataset) name being aggregated.
+        data_fpath : str
+            Filepath to h5 file containing var data.
+        nn : np.ndarray
+            1D array of site (column) indices in data_fpath to aggregate.
+        w : int
+            Window size for temporal aggregation.
+        final_ti : pd.DateTimeIndex
+            Final datetime index (used to ensure the aggregated profile has
+            correct length).
+
+        Returns
+        -------
+        data : np.ndarray
+            (n, 1) array unscaled and rounded data from the nn with time
+            series matching final_ti.
+        """
+
+        a = cls(var, data_fpath, nn, w, final_ti)
+        data = a.spatial_avg()
+        data = a.time_avg(data)
+        data = a.reduce_timeseries(data)
+        return np.round(data)
+
 
 class Manager:
     """Framework for aggregation to a final NSRDB spatiotemporal resolution."""
 
-    def __init__(self, data, data_dir, meta_dir):
+    def __init__(self, data, data_dir, meta_dir, year=2018,
+                 n_chunks=4, i_chunk=0):
         """
         Parameters
         ----------
         data : dict
+            Nested dictionary containing data on all NSRDB data sources
+            (east, west, conus) and the final aggregated output.
         data_dir : str
+            Root directory containing sub dirs with all data sources.
         meta_dir : str
+            Directory containing meta and ckdtree files for each data source
+            and the final aggregated output.
+        year : int
+            Year being analyzed.
+        n_chunks : int
+            Number of chunks to process the meta data in.
+        i_chunk : int
+            Meta data chunk index currently being processed.
         """
+
         self.data = data
         self.data_dir = data_dir
         self.meta_dir = meta_dir
-
-        meta_path = os.path.join(meta_dir, self.data['final']['meta_file'])
-        self.meta = meta_source_2018(meta_path)
+        self.year = year
+        self.n_chunks = n_chunks
+        self.i_chunk = i_chunk
+        self._meta = None
+        self._meta_chunk = None
+        self.site_slice = slice(None)
 
         self.parse_data()
         self.preflight()
         self.run_nn()
+        self._init_fout()
 
     def parse_data(self):
         """Parse the data input for several useful attributes."""
         self.final_sres = self.data['final']['spatial']
         self.final_tres = self.data['final']['temporal']
+        self.fout = os.path.join(self.data_dir,
+                                 self.data['final']['data_sub_dir'] + '/',
+                                 self.data['final']['fout'])
         self.data_sources = self.meta.source.unique()
 
     def preflight(self, reqs=('data_sub_dir', 'tree_file', 'meta_file',
@@ -214,6 +299,127 @@ class Manager:
                 if r not in self.data[source]:
                     warn('Data input source "{}" needs field "{}"!'
                          .format(source, r))
+
+    @property
+    def time_index(self):
+        """Get the final time index.
+
+        Returns
+        -------
+        ti : pd.DatetimeIndex
+            Time index for the intended year at the final (aggregated) time
+            resolution.
+        """
+
+        ti = pd.date_range('1-1-{}'.format(self.year),
+                           '1-1-{}'.format(self.year + 1),
+                           freq=self.final_tres)[:-1]
+        return ti
+
+    @property
+    def meta(self):
+        """Get the final meta data with sources.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            Meta data for the final (aggregated) datasets with data source col.
+        """
+
+        if self._meta is None:
+            meta_path = os.path.join(meta_dir, self.data['final']['meta_file'])
+            self._meta = MetaManager.meta_sources_2018(meta_path)
+        return self._meta
+
+    @property
+    def meta_chunk(self):
+        """Get the meta data for just this chunk of sites based on
+        n_chunks and i_chunk.
+
+        Returns
+        -------
+        meta_chunk : pd.DataFrame
+            Meta data reduced to a chunk of sites based on n_chunks and i_chunk
+        """
+
+        if self._meta_chunk is None:
+            gids_full = np.arange(len(self.meta))
+            gid_chunk = np.array_split(gids_full, self.n_chunks)[self.i_chunk]
+            self._meta_chunk = self._meta.iloc[gid_chunk, :]
+            self.site_slice = slice(np.min(gid_chunk), np.max(gid_chunk) + 1)
+            logger.info('Working on meta chunk with GIDs {} through {}'
+                        .format(np.min(gid_chunk), np.max(gid_chunk)))
+        return self._meta_chunk
+
+    @staticmethod
+    def get_dset_attrs(data_dir):
+        """Get output file dataset attributes for a set of datasets.
+
+        Parameters
+        ----------
+        data_dir : str
+            Path to directory containing multiple h5 files with all available
+            dsets.
+
+        Returns
+        -------
+        dsets : list
+            List of datasets.
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
+        """
+
+        dsets = []
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+
+        h5_files = [fn for fn in os.listdir(data_dir) if fn.endswith('.h5')]
+
+        for fn in h5_files:
+            with Outputs(os.path.join(data_dir, fn)) as out:
+                for d in out.dsets:
+                    if d not in ['time_index', 'meta'] and d not in attrs:
+                        attrs[d] = out.get_attrs(dset=d)
+                        _, dtypes[d], chunks[d] = out.get_dset_properties(d)
+
+        dsets = list(attrs.keys())
+
+        return dsets, attrs, chunks, dtypes
+
+    def _init_fout(self):
+        """Initialize the output file with all datasets and final
+        time index and meta"""
+
+        self.dsets, self.attrs, self.chunks, self.dtypes = \
+            self.get_dset_attrs(self.data_dir)
+
+        if not os.path.exists(self.fout):
+            logger.info('Initializing output file: {}'.format(self.fout))
+            Outputs.init_h5(self.fout, self.dsets, self.attrs, self.chunks,
+                            self.dtypes, self.time_index, self.meta)
+        else:
+            logger.info('Output file exists: {}'.format(self.fout))
+
+    def _init_arr(self, var):
+        """Initialize a numpy array for a given var for current chunk of sites.
+
+        Returns
+        -------
+        arr : np.ndarray
+            Numpy array for var with final disk dtype and shape (t, n) where
+            t is the final time index and n is the number of sites in this
+            meta chunk.
+        """
+        arr = np.zeros((len(self.time_index), len(self.meta_chunk)),
+                       self.dtypes[var])
+        logger.debug('Initializing array for "{}" with shape {}'
+                     .format(var, arr.shape))
+        return arr
 
     @staticmethod
     def _get_spatial_k(sres, final_sres):
@@ -305,9 +511,20 @@ class Manager:
             if fn.endswith('.h5'):
                 fpath = os.path.join(data_dir, data_sub_dir, fn)
                 with Outputs(fpath) as out:
-                    if var in out.dsets:
+
+                    if (var == 'fill_flag' and var in out.dsets
+                            and 'irradiance' in fn):
+                        break
+                    elif var != 'fill_flag' and var in out.dsets:
                         break
         return fpath
+
+    def add_temporal(self):
+        """Get the temporal window sizes for all data sources."""
+        for source in self.data_sources:
+            w = self._get_temporal_w(self.data[source]['temporal'],
+                                     self.final_tres)
+            self.data[source]['window'] = w
 
     def run_nn(self):
         """Run nearest neighbor for all data sources against the final meta."""
@@ -323,13 +540,6 @@ class Manager:
                      .format(source, d.max()))
 
             self.data[source]['nn'] = i
-
-    def add_temporal(self):
-        """Get the temporal window sizes for all data sources."""
-        for source in self.data_sources:
-            w = self._get_temporal_w(self.data[source]['temporal'],
-                                     self.final_tres)
-            self.data[source]['window'] = w
 
     @staticmethod
     def knn(meta, tree_fpath, k=1):
@@ -359,6 +569,122 @@ class Manager:
             i = i.reshape((len(i), 1))
         return d, i
 
+    def _agg_var_serial(self, var):
+        """Aggregate one var for all sites in this chunk in parallel.
+
+        Parameters
+        ----------
+        var : str
+            Variable name being aggregated.
+
+        Returns
+        -------
+        arr : np.ndarray
+            Aggregated data with shape (t, n) where t is the final time index
+            length and n is the number of sites in the current meta chunk.
+        """
+
+        arr = self._init_arr(var)
+
+        for i in range(len(self.meta_chunk)):
+
+            gid = self.meta_chunk.iloc[i, :].name
+            source = self.meta_chunk.iloc[i, :]['source']
+            data_sub_dir = self.data[source]['data_sub_dir']
+            nn = self.data[source]['nn'][gid, :].flatten()
+            w = self.data[source]['window']
+            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
+
+            arr[:, i] = Aggregation.mean(var, data_fpath, nn, w,
+                                         self.time_index)
+
+        return arr
+
+    def _agg_var_parallel(self, var):
+        """Aggregate one var for all sites in this chunk in parallel.
+
+        Parameters
+        ----------
+        var : str
+            Variable name being aggregated.
+
+        Returns
+        -------
+        arr : np.ndarray
+            Aggregated data with shape (t, n) where t is the final time index
+            length and n is the number of sites in the current meta chunk.
+        """
+
+        futures = {}
+        arr = self._init_arr(var)
+
+        with ProcessPoolExecutor() as exe:
+            for i in range(len(self.meta_chunk)):
+
+                gid = self.meta_chunk.iloc[i, :].name
+                source = self.meta_chunk.iloc[i, :]['source']
+                data_sub_dir = self.data[source]['data_sub_dir']
+                nn = self.data[source]['nn'][gid, :].flatten()
+                w = self.data[source]['window']
+                data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
+
+                f = exe.submit(Aggregation.mean, var, data_fpath, nn, w,
+                               self.time_index)
+                futures[f] = i
+
+            for f in as_completed(futures):
+                i = futures[f]
+                arr[:, i] = f.result()
+
+        return arr
+
+    def write_output(self, arr, var):
+        """Write aggregated output data to the final output file.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            Aggregated data with shape (t, n) where t is the final time index
+            length and n is the number of sites in the current meta chunk.
+        var : str
+            Variable (dataset) name to write to.
+        """
+        logger.info('Writing data for "{}" with shape {} to site slice {}'
+                    .format(var, arr.shape, self.site_slice))
+        with Outputs(self.fout) as out:
+            out[var, :, self.site_slice] = arr
+
+    @classmethod
+    def run(cls, data, data_dir, meta_dir, year=2018, n_chunks=4,
+            parallel=True):
+        """
+        Parameters
+        ----------
+        data : dict
+            Nested dictionary containing data on all NSRDB data sources
+            (east, west, conus) and the final aggregated output.
+        data_dir : str
+            Root directory containing sub dirs with all data sources.
+        meta_dir : str
+            Directory containing meta and ckdtree files for each data source
+            and the final aggregated output.
+        year : int
+            Year being analyzed.
+        n_chunks : int
+            Number of chunks to process the meta data in.
+        """
+
+        for i_chunk in range(n_chunks):
+            m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
+                    i_chunk=i_chunk)
+            for var in m.dsets:
+                if parallel:
+                    arr = m._agg_var_parallel(var)
+                else:
+                    arr = m._agg_var_serial(var)
+
+                m.write_output(arr, var)
+
 
 if __name__ == '__main__':
     data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
@@ -379,6 +705,7 @@ if __name__ == '__main__':
                       'spatial': '2km',
                       'temporal': '5min'},
             'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                      'fout': 'nsrdb_2018.h5',
                       'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
                       'meta_file': 'nsrdb_meta_4km.csv',
                       'spatial': '4km',
