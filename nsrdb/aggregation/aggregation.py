@@ -281,6 +281,11 @@ class Manager:
                                  self.data['final']['fout'])
         self.data_sources = self.meta.source.unique()
 
+        out_dir = os.path.join(self.data_dir,
+                               self.data['final']['data_sub_dir'] + '/')
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
     def preflight(self, reqs=('data_sub_dir', 'tree_file', 'meta_file',
                               'spatial', 'temporal')):
         """Run validity checks on input data.
@@ -525,6 +530,8 @@ class Manager:
             w = self._get_temporal_w(self.data[source]['temporal'],
                                      self.final_tres)
             self.data[source]['window'] = w
+            logger.info('Data source {} as a window size of {}'
+                        .format(source, w))
 
     def run_nn(self):
         """Run nearest neighbor for all data sources against the final meta."""
@@ -532,6 +539,8 @@ class Manager:
 
             k = self._get_spatial_k(self.data[source]['spatial'],
                                     self.final_sres)
+            logger.info('Data source {} will use {} neighbors'
+                        .format(source, k))
 
             d, i = self.knn(self.meta, self.data[source]['tree_file'], k=k)
 
@@ -595,6 +604,8 @@ class Manager:
             w = self.data[source]['window']
             data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
 
+            logger.debug('Working on site gid {} from {}'.format(gid, source))
+
             arr[:, i] = Aggregation.mean(var, data_fpath, nn, w,
                                          self.time_index)
 
@@ -628,11 +639,17 @@ class Manager:
                 w = self.data[source]['window']
                 data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
 
+                logger.debug('Kicking off future for site gid {} from {}'
+                             .format(gid, source))
+
                 f = exe.submit(Aggregation.mean, var, data_fpath, nn, w,
                                self.time_index)
                 futures[f] = i
 
-            for f in as_completed(futures):
+            for j, f in enumerate(as_completed(futures)):
+                if j % 100 == 0:
+                    logger.info('Futures completed: {} out of {}.'
+                                .format(j + 1, len(futures)))
                 i = futures[f]
                 arr[:, i] = f.result()
 
@@ -675,9 +692,12 @@ class Manager:
         """
 
         for i_chunk in range(n_chunks):
+            logger.info('Working on site chunk {} out of {}'
+                        .format(i_chunk + 1, n_chunks))
             m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
                     i_chunk=i_chunk)
             for var in m.dsets:
+                logger.info('Working on aggregating "{}".'.format(var))
                 if parallel:
                     arr = m._agg_var_parallel(var)
                 else:
@@ -711,3 +731,29 @@ if __name__ == '__main__':
                       'spatial': '4km',
                       'temporal': '30min'},
             }
+
+    data = {'east': {'data_sub_dir': 'east',
+                     'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                     'meta_file': 'nsrdb_meta_2km_east.csv',
+                     'spatial': '2km',
+                     'temporal': '15min'},
+            'west': {'data_sub_dir': 'west',
+                     'tree_file': 'kdtree_west_psm_extent.pkl',
+                     'meta_file': 'west_psm_extent.csv',
+                     'spatial': '4km',
+                     'temporal': '30min'},
+            'conus': {'data_sub_dir': 'conus',
+                      'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                      'meta_file': 'nsrdb_meta_2km_conus.csv',
+                      'spatial': '2km',
+                      'temporal': '5min'},
+            'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                      'fout': 'nsrdb_surfrad_2018.h5',
+                      'tree_file': 'kdtree_surfrad_meta.pkl',
+                      'meta_file': 'surfrad_meta.csv',
+                      'spatial': '4km',
+                      'temporal': '30min'},
+            }
+
+    Manager.run(data, data_dir, meta_dir, year=2018, n_chunks=1,
+                parallel=False)
