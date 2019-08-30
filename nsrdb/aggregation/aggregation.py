@@ -11,10 +11,13 @@ import pickle
 import logging
 import numpy as np
 import pandas as pd
+from scipy.stats import mode
 from warnings import warn
 
+from nsrdb.all_sky.utilities import calc_dhi
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.plots import Spatial
+from nsrdb.utilities.interpolation import temporal_step
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +152,7 @@ class Aggregation:
         var : str
             Variable (dataset) name being aggregated.
         data_fpath : str
-            Filepath to h5 file containing var data.
+            Filepath to h5 file containing source var data.
         nn : np.ndarray
             1D array of site (column) indices in data_fpath to aggregate.
         w : int
@@ -180,18 +183,128 @@ class Aggregation:
             _data = f[self.var][:, self.nn].astype(np.float32)
         return _data
 
-    def spatial_avg(self):
+    @staticmethod
+    def spatial_avg(data):
         """Average the source data across the spatial extent.
 
         Returns
         -------
         data : np.ndarray
-            Unscaled float data array with shape (ti, 1) where ti is the
+            Unscaled float data array with shape (ti, ) where ti is the
             native time index length the data was averaged accross all
             nn neighbors.
         """
 
-        return self.data.mean(axis=1)
+        return np.nanmean(data, axis=1)
+
+    @staticmethod
+    def spatial_sum(data):
+        """Sum the source data across the spatial extent.
+
+        Returns
+        -------
+        data : np.ndarray
+            Unscaled float data array with shape (ti, ) where ti is the
+            native time index length the data was summed accross all
+            nn neighbors.
+        """
+
+        return data.sum(axis=1)
+
+    @staticmethod
+    def spatial_mode(data):
+        """Get the mode of the source data across the spatial extent.
+
+        Returns
+        -------
+        data : np.ndarray
+            Unscaled float data array with shape (ti, ) where ti is the
+            native time index length, and the data is the mode across axis 1.
+        """
+
+        return mode(data, axis=1)[0].flatten()
+
+    def time_avg(self, inp):
+        """Calculate the rolling time average for an input array or df.
+
+        Parameters
+        ----------
+        inp : np.ndarray | pd.DataFrame
+            Input array/df with data to average.
+
+        Returns
+        -------
+        out : np.ndarray | pd.DataFrame
+            Array or dataframe with same size as input and each value is a
+            moving average.
+        """
+
+        array = False
+        if isinstance(inp, np.ndarray):
+            array = True
+            inp = pd.DataFrame(inp)
+
+        out = inp.rolling(self.w, center=True, min_periods=1).mean()
+
+        if array:
+            out = out.values
+
+        return out
+
+    def time_sum(self, inp):
+        """Calculate the rolling sum for an input array or df.
+
+        Parameters
+        ----------
+        inp : np.ndarray | pd.DataFrame
+            Input array/df with data to sum.
+
+        Returns
+        -------
+        out : np.ndarray | pd.DataFrame
+            Array or dataframe with same size as input and each value is a
+            moving sum.
+        """
+
+        array = False
+        if isinstance(inp, np.ndarray):
+            array = True
+            inp = pd.DataFrame(inp)
+
+        out = inp.rolling(self.w, center=True, min_periods=1).sum()
+
+        if array:
+            out = out.values
+
+        return out
+
+    def time_mode(self, inp):
+        """Calculate the rolling mode for an input array or df.
+
+        Parameters
+        ----------
+        inp : np.ndarray | pd.DataFrame
+            Input array/df with data to sum.
+
+        Returns
+        -------
+        out : np.ndarray | pd.DataFrame
+            Array or dataframe with same size as input and each value is a
+            moving mode.
+        """
+
+        array = False
+        if isinstance(inp, np.ndarray):
+            array = True
+            inp = pd.DataFrame(inp)
+
+        out = inp.rolling(self.w, center=True, min_periods=1).apply(
+            lambda x: mode(x)[0])
+
+        if array:
+            out = out.values
+
+        return out
 
     def reduce_timeseries(self, arr):
         """Reduce a high res timeseries to a coarse timeseries.
@@ -222,37 +335,193 @@ class Aggregation:
 
         return arr
 
-    def time_avg(self, inp):
-        """Calculate the rolling time average for an input array or df.
-
-        Parameters
-        ----------
-        inp : np.ndarray | pd.DataFrame
-            Input array/df with data to average.
-
-        Returns
-        -------
-        out : np.ndarray | pd.DataFrame
-            Array or dataframe with same size as input and each value is a
-            moving average.
-        """
-
-        array = False
-        if isinstance(inp, np.ndarray):
-            array = True
-            inp = pd.DataFrame(inp)
-
-        out = inp.rolling(self.w, center=True, min_periods=1).mean()
-
-        if array:
-            out = out.values
-
-        return out
-
     @staticmethod
     def format_out_arr(arr):
         """Format the output array (round and flatten)."""
         return np.round(arr).flatten()
+
+    @classmethod
+    def point(cls, var, data_fpath, nn, w, final_ti):
+        """Run agg by selecting just the closest site and timestep.
+
+        Parameters
+        ----------
+        var : str
+            Variable (dataset) name being aggregated.
+        data_fpath : str
+            Filepath to h5 file containing source var data.
+        nn : np.ndarray
+            1D array of site (column) indices in data_fpath to aggregate.
+        w : int
+            Window size for temporal aggregation.
+        final_ti : pd.DateTimeIndex
+            Final datetime index (used to ensure the aggregated profile has
+            correct length).
+
+        Returns
+        -------
+        data : np.ndarray
+            (n, ) array unscaled and rounded data from the nn with time
+            series matching final_ti.
+        """
+        nn = [list(nn)[0]]
+        a = cls(var, data_fpath, nn, w, final_ti)
+        data = a.reduce_timeseries(a.data)
+        data = a.format_out_arr(data)
+        return data
+
+    @classmethod
+    def dhi(cls, var, i, fout):
+        """Calculate the aggregated DHI from an aggregated output file.
+
+        Parameters
+        ----------
+        var : str
+            Variable name, either "dhi" or "clearsky_dhi".
+        i : int
+            Site index in fout.
+        fout : str
+            Filepath to the output file containing aggregated GHI, DNI, and
+            SZA to calculate aggregated DHI.
+
+        Returns
+        -------
+        dhi : np.ndarray
+            DHI calcualted from vars in fout.
+        """
+
+        var_ghi = var.replace('dhi', 'ghi')
+        var_dni = var.replace('dhi', 'dni')
+
+        with Outputs(fout) as out:
+            attrs = out.get_attrs(dset=var)
+            ghi = out[var_ghi, :, i]
+            dni = out[var_dni, :, i]
+            sza = out['solar_zenith_angle', :, i]
+
+        dhi = calc_dhi(dni, ghi, sza)
+        dhi *= attrs.get('scale_factor', 1)
+        dhi = cls.format_out_arr(dhi)
+        return dhi
+
+    @classmethod
+    def fill_flag(cls, var, data_fpath, nn, w, final_ti):
+        """Run fill flag aggregation, returning the percentage of timesteps
+        that were filled.
+
+        Parameters
+        ----------
+        var : str
+            Variable (dataset) name being aggregated (fill_flag).
+        data_fpath : str
+            Filepath to h5 file containing source var data.
+        nn : np.ndarray
+            1D array of site (column) indices in data_fpath to aggregate.
+        w : int
+            Window size for temporal aggregation.
+        final_ti : pd.DateTimeIndex
+            Final datetime index (used to ensure the aggregated profile has
+            correct length).
+
+        Returns
+        -------
+        data : np.ndarray
+            (n, ) array unscaled and rounded data from the nn with time
+            series matching final_ti.
+        """
+        a = cls(var, data_fpath, nn, w, final_ti)
+        data = a.data
+        data[(data > 0)] = 1
+        data = a.spatial_sum(data)
+        data = a.time_sum(data)
+        data = a.reduce_timeseries(data)
+        data /= (len(nn) * w / 100)
+        data = a.format_out_arr(data)
+        return data
+
+    @classmethod
+    def cloud_type(cls, var, data_fpath, nn, w, final_ti):
+        """Run cloud type aggregation, returning the most common cloud type.
+
+        Parameters
+        ----------
+        var : str
+            Variable (dataset) name being aggregated (cloud_type).
+        data_fpath : str
+            Filepath to h5 file containing source var data.
+        nn : np.ndarray
+            1D array of site (column) indices in data_fpath to aggregate.
+        w : int
+            Window size for temporal aggregation.
+        final_ti : pd.DateTimeIndex
+            Final datetime index (used to ensure the aggregated profile has
+            correct length).
+
+        Returns
+        -------
+        data : np.ndarray
+            (n, ) array unscaled and rounded data from the nn with time
+            series matching final_ti.
+        """
+        a = cls(var, data_fpath, nn, w, final_ti)
+        data = a.data
+        data[(data == 1)] = 0
+        data = a.spatial_mode(data)
+        data = a.time_mode(data)
+        data = a.reduce_timeseries(data)
+        data = a.format_out_arr(data)
+        return data
+
+    @classmethod
+    def cloud_property(cls, var, data_fpath, nn, w, final_ti, i, fout):
+        """Run cloud type aggregation, returning the most common cloud type.
+
+        Parameters
+        ----------
+        var : str
+            Variable (dataset) name being aggregated (cloud_type).
+        data_fpath : str
+            Filepath to h5 file containing source var data.
+        nn : np.ndarray
+            1D array of site (column) indices in data_fpath to aggregate.
+        w : int
+            Window size for temporal aggregation.
+        final_ti : pd.DateTimeIndex
+            Final datetime index (used to ensure the aggregated profile has
+            correct length).
+        i : int
+            Site index in fout.
+        fout : str
+            Filepath to the output file containing aggregated cloud type.
+
+        Returns
+        -------
+        data : np.ndarray
+            (n, ) array unscaled and rounded data from the nn with time
+            series matching final_ti.
+        """
+
+        with Outputs(fout) as out:
+            ctype_out = out['cloud_type', :, i]
+            ti = out.time_index
+            ctype_out = temporal_step(ctype_out, ti, final_ti)
+
+        a = cls('cloud_type', data_fpath, nn, w, final_ti)
+        ctype_source = a.data
+        ctype_mask = (ctype_source == ctype_out)
+
+        a = cls(var, data_fpath, nn, w, final_ti)
+        cprop = a.data
+        cprop = np.where(ctype_mask, cprop, np.nan)
+
+        cprop = a.spatial_avg(cprop)
+        cprop = a.time_avg(cprop)
+        cprop = a.reduce_timeseries(cprop)
+        cprop = a.format_out_arr(cprop)
+        if np.isnan(cprop).sum():
+            raise ValueError('Aggregation of "{}" failed for site {}, '
+                             'NaN values persisted.'.format(var, i))
+        return cprop
 
     @classmethod
     def mean(cls, var, data_fpath, nn, w, final_ti):
@@ -263,7 +532,7 @@ class Aggregation:
         var : str
             Variable (dataset) name being aggregated.
         data_fpath : str
-            Filepath to h5 file containing var data.
+            Filepath to h5 file containing source var data.
         nn : np.ndarray
             1D array of site (column) indices in data_fpath to aggregate.
         w : int
@@ -280,7 +549,7 @@ class Aggregation:
         """
 
         a = cls(var, data_fpath, nn, w, final_ti)
-        data = a.spatial_avg()
+        data = a.spatial_avg(a.data)
         data = a.time_avg(data)
         data = a.reduce_timeseries(data)
         data = a.format_out_arr(data)
@@ -291,7 +560,33 @@ class Manager:
     """Framework for aggregation to a final NSRDB spatiotemporal resolution."""
 
     DEFAULT_METHOD = Aggregation.mean
-    AGG_METHODS = {'dni': Aggregation.mean}
+
+    AGG_METHODS = {'alpha': Aggregation.point,
+                   'aod': Aggregation.point,
+                   'asymmetry': Aggregation.point,
+                   'ozone': Aggregation.point,
+                   'ssa': Aggregation.point,
+                   'surface_albedo': Aggregation.point,
+                   'surface_pressure': Aggregation.point,
+                   'total_precipitable_water': Aggregation.point,
+                   'dew_point': Aggregation.point,
+                   'relative_humidity': Aggregation.point,
+                   'air_temperature': Aggregation.point,
+                   'wind_direction': Aggregation.point,
+                   'wind_speed': Aggregation.point,
+                   'cloud_type': Aggregation.cloud_type,
+                   'cld_opd_dcomp': Aggregation.cloud_property,
+                   'cld_reff_dcomp': Aggregation.cloud_property,
+                   'cld_press_acha': Aggregation.cloud_property,
+                   'solar_zenith_angle': Aggregation.point,
+                   'dhi': Aggregation.dhi,
+                   'dni': Aggregation.mean,
+                   'ghi': Aggregation.mean,
+                   'clearsky_dhi': Aggregation.dhi,
+                   'clearsky_dni': Aggregation.mean,
+                   'clearsky_ghi': Aggregation.mean,
+                   'fill_flag': Aggregation.fill_flag,
+                   }
 
     def __init__(self, data, data_dir, meta_dir, year=2018,
                  n_chunks=4, i_chunk=0):
@@ -451,6 +746,9 @@ class Manager:
                     if d not in ['time_index', 'meta'] and d not in attrs:
                         attrs[d] = out.get_attrs(dset=d)
                         _, dtypes[d], chunks[d] = out.get_dset_properties(d)
+
+                        if 'dhi' in d:
+                            attrs[d]['units'] = 'percent of filled timesteps'
 
         dsets = list(attrs.keys())
 
@@ -662,6 +960,41 @@ class Manager:
             method = self.DEFAULT_METHOD
         return method
 
+    def _get_args(self, var, i):
+        """Get an argument list for a given variable and site.
+
+        Parameters
+        ----------
+        var : str
+            Variable name.
+        i : int
+            Site index number in current meta chunk.
+
+        Returns
+        -------
+        args : list
+            List of arguments
+        """
+
+        if 'dhi' in var:
+            args = [var, i, self.fout]
+
+        else:
+            gid = self.meta_chunk.iloc[i, :].name
+            source = self.meta_chunk.iloc[i, :]['source']
+            data_sub_dir = self.data[source]['data_sub_dir']
+            nn = self.data[source]['nn'][gid, :].flatten()
+            w = self.data[source]['window']
+            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
+
+            args = [var, data_fpath, nn, w, self.time_index]
+
+        if 'cld_' in var:
+            args.append(i)
+            args.append(self.fout)
+
+        return args
+
     def _agg_var_serial(self, var):
         """Aggregate one var for all sites in this chunk in parallel.
 
@@ -681,18 +1014,8 @@ class Manager:
         method = self._get_agg_method(var)
 
         for i in range(len(self.meta_chunk)):
-
-            gid = self.meta_chunk.iloc[i, :].name
-            source = self.meta_chunk.iloc[i, :]['source']
-            data_sub_dir = self.data[source]['data_sub_dir']
-            nn = self.data[source]['nn'][gid, :].flatten()
-            w = self.data[source]['window']
-            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
-
-            logger.debug('Working on site gid {} with source {}'
-                         .format(gid, source))
-
-            arr[:, i] = method(var, data_fpath, nn, w, self.time_index)
+            args = self._get_args(var, i)
+            arr[:, i] = method(*args)
 
         return arr
 
@@ -717,15 +1040,8 @@ class Manager:
 
         with ProcessPoolExecutor() as exe:
             for i in range(len(self.meta_chunk)):
-
-                gid = self.meta_chunk.iloc[i, :].name
-                source = self.meta_chunk.iloc[i, :]['source']
-                data_sub_dir = self.data[source]['data_sub_dir']
-                nn = self.data[source]['nn'][gid, :].flatten()
-                w = self.data[source]['window']
-                data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
-
-                f = exe.submit(method, var, data_fpath, nn, w, self.time_index)
+                args = self._get_args(var, i)
+                f = exe.submit(method, *args)
                 futures[f] = i
 
             for j, f in enumerate(as_completed(futures)):
@@ -778,15 +1094,26 @@ class Manager:
                         .format(i_chunk + 1, n_chunks))
             m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
                     i_chunk=i_chunk)
-            for i, var in enumerate(m.dsets):
-                logger.info('Working on aggregating variable "{}" '
-                            '({} out of {}).'.format(var, i + 1, len(m.dsets)))
-                if parallel:
-                    arr = m._agg_var_parallel(var)
-                else:
-                    arr = m._agg_var_serial(var)
 
-                m.write_output(arr, var)
+            datasets = [d for d in m.dsets if 'dhi' not in d
+                        and 'cld_' not in d]
+            delayed_datasets = [d for d in m.dsets if 'dhi' in d
+                                or 'cld_' in d]
+            n_var = len(datasets) + len(delayed_datasets)
+            i_var = 0
+            for dsets in [datasets, delayed_datasets]:
+                for var in dsets:
+                    i_var += 1
+                    logger.info('Working on aggregating variable "{}" '
+                                '({} out of {}).'
+                                .format(var, i_var, n_var))
+                    if parallel:
+                        arr = m._agg_var_parallel(var)
+                    else:
+                        arr = m._agg_var_serial(var)
+
+                    m.write_output(arr, var)
+
         logger.info('NSRDB aggregation complete!')
 
 
