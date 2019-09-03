@@ -168,6 +168,20 @@ class Aggregation:
         self.final_ti = final_ti
 
     @property
+    def source_time_index(self):
+        """Get the time index of the source data.
+
+        Returns
+        -------
+        time_index : pd.Datetimeindex
+            Datetimeindex of the source dataset.
+        """
+
+        with Outputs(self.data_fpath) as out:
+            ti = out.time_index
+        return ti
+
+    @property
     def data(self):
         """Get the timeseries data for the specified var and sites.
 
@@ -195,7 +209,16 @@ class Aggregation:
             nn neighbors.
         """
 
-        return np.nanmean(data, axis=1)
+        bad_rows = np.isnan(data).all(axis=1)
+
+        if any(bad_rows):
+            data[bad_rows, :] = 0
+            m = np.nanmean(data, axis=1)
+            m[bad_rows] = np.nan
+        else:
+            m = np.mean(data, axis=1)
+
+        return m
 
     @staticmethod
     def spatial_sum(data):
@@ -210,19 +233,6 @@ class Aggregation:
         """
 
         return data.sum(axis=1)
-
-    @staticmethod
-    def spatial_mode(data):
-        """Get the mode of the source data across the spatial extent.
-
-        Returns
-        -------
-        data : np.ndarray
-            Unscaled float data array with shape (ti, ) where ti is the
-            native time index length, and the data is the mode across axis 1.
-        """
-
-        return mode(data, axis=1)[0].flatten()
 
     def time_avg(self, inp):
         """Calculate the rolling time average for an input array or df.
@@ -278,33 +288,55 @@ class Aggregation:
 
         return out
 
-    def time_mode(self, inp):
-        """Calculate the rolling mode for an input array or df.
+    @staticmethod
+    def _get_rolling_window_index(L, w):
+        """Get an indexing array to index a 2D array on a rolling window.
 
         Parameters
         ----------
-        inp : np.ndarray | pd.DataFrame
-            Input array/df with data to sum.
+        L : int
+            Length of the 2D array to apply a rolling window over
+        w : int
+            Window size.
 
         Returns
         -------
-        out : np.ndarray | pd.DataFrame
-            Array or dataframe with same size as input and each value is a
-            moving mode.
+        iarr : np.ndarray
+            Array of index arrays.
+        """
+        iarr = np.zeros((L, w), dtype=np.uint32)
+        for i in range(L):
+            sub = [i + n for n in range(w)]
+            sub -= (np.round(w / 2) - 1)
+            sub = np.maximum(sub, 0)
+            sub = np.minimum(sub, L - 1)
+            iarr[i, :] = sub
+        return iarr
+
+    @staticmethod
+    def cloud_type_mode(data, w):
+        """Get the mode of a 2D cloud type array using a rolling time window.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            2D array of integer cloud types.
+        w : int
+            Temporal window over which to take the mode.
+
+        Returns
+        -------
+        data : np.ndarray
+            Mode of cloud type.
         """
 
-        array = False
-        if isinstance(inp, np.ndarray):
-            array = True
-            inp = pd.DataFrame(inp)
+        iarr = Aggregation._get_rolling_window_index(len(data), w)
 
-        out = inp.rolling(self.w, center=True, min_periods=1).apply(
-            lambda x: mode(x)[0])
+        cloud_mode = np.ndarray((len(data), ), dtype=data.dtype)
+        for i, x in enumerate(data[iarr]):
+            cloud_mode[i] = mode(x.flatten())[0]
 
-        if array:
-            out = out.values
-
-        return out
+        return cloud_mode
 
     def reduce_timeseries(self, arr):
         """Reduce a high res timeseries to a coarse timeseries.
@@ -326,7 +358,11 @@ class Aggregation:
                              '{} and working array has shape {}.'
                              .format(self.final_ti.shape, arr.shape))
         m = int(m)
-        arr = arr[::m, :]
+
+        if len(arr.shape) == 1:
+            arr = arr[::m]
+        else:
+            arr = arr[::m, :]
 
         if len(arr) != len(self.final_ti):
             raise ValueError('Timeseries length reduction failed! Final ti '
@@ -399,8 +435,8 @@ class Aggregation:
             dni = out[var_dni, :, i]
             sza = out['solar_zenith_angle', :, i]
 
-        dhi = calc_dhi(dni, ghi, sza)
-        dhi *= attrs.get('scale_factor', 1)
+        dhi = calc_dhi(dni, ghi, sza)[0]
+        dhi *= float(attrs.get('scale_factor', 1))
         dhi = cls.format_out_arr(dhi)
         return dhi
 
@@ -466,11 +502,50 @@ class Aggregation:
         a = cls(var, data_fpath, nn, w, final_ti)
         data = a.data
         data[(data == 1)] = 0
-        data = a.spatial_mode(data)
-        data = a.time_mode(data)
+        data = a.cloud_type_mode(data, w)
         data = a.reduce_timeseries(data)
         data = a.format_out_arr(data)
         return data
+
+    @staticmethod
+    def cloud_property_avg(cprop_source, ctype_source, ctype_out_full, w):
+        """Run cloud property aggregation based on output cloud type.
+
+        Parameters
+        ----------
+        cprop_source : np.ndarray
+            Source (full resolution) cloud property data.
+        ctype_source : np.ndarray
+            Source (full resolution) cloud type data.
+        ctype_out_full : np.ndarray
+            Output (reduced resolution) cloud type data, interpolated to the
+            same length as the source resolution.
+        w : int
+            Window size.
+
+        Returns
+        -------
+        cprop_out : np.ndarray
+            Average cloud property data in the window surrounding each
+            timestep masked by cloud type output == cloud type source.
+            Shape is same as ctype_out_full.
+        """
+
+        iarr = Aggregation._get_rolling_window_index(len(ctype_source), w)
+
+        cprop_out = np.ndarray((len(cprop_source), ),
+                               dtype=cprop_source.dtype)
+
+        for i, j in enumerate(iarr):
+            mask = (ctype_source[j] == ctype_out_full[i])
+            if mask.any():
+                cprop_out[i] = np.mean(cprop_source[j][mask])
+            else:
+                cprop_out[i] = np.nan
+
+        cprop_out[(ctype_out_full[:, 0] == 0)] = 0
+
+        return cprop_out
 
     @classmethod
     def cloud_property(cls, var, data_fpath, nn, w, final_ti, i, fout):
@@ -502,26 +577,30 @@ class Aggregation:
         """
 
         with Outputs(fout) as out:
-            ctype_out = out['cloud_type', :, i]
-            ti = out.time_index
-            ctype_out = temporal_step(ctype_out, ti, final_ti)
+            ctype_out_final = out['cloud_type', :, i]
 
         a = cls('cloud_type', data_fpath, nn, w, final_ti)
         ctype_source = a.data
-        ctype_mask = (ctype_source == ctype_out)
+        ctype_source[(ctype_source == 1)] = 0
+
+        ctype_out_full = temporal_step(ctype_out_final, final_ti,
+                                       a.source_time_index)
 
         a = cls(var, data_fpath, nn, w, final_ti)
-        cprop = a.data
-        cprop = np.where(ctype_mask, cprop, np.nan)
+        cprop_source = a.data
 
-        cprop = a.spatial_avg(cprop)
-        cprop = a.time_avg(cprop)
-        cprop = a.reduce_timeseries(cprop)
-        cprop = a.format_out_arr(cprop)
-        if np.isnan(cprop).sum():
-            raise ValueError('Aggregation of "{}" failed for site {}, '
-                             'NaN values persisted.'.format(var, i))
-        return cprop
+        cprop_out = a.cloud_property_avg(cprop_source, ctype_source,
+                                         ctype_out_full, w)
+
+        cprop_out = a.reduce_timeseries(cprop_out)
+        cprop_out = a.format_out_arr(cprop_out)
+
+        if np.isnan(cprop_out).sum():
+            raise ValueError('Aggregation of cloud property failed for site '
+                             '{}, {} NaN values persisted.'
+                             .format(i, np.isnan(cprop_out).sum()))
+
+        return cprop_out
 
     @classmethod
     def mean(cls, var, data_fpath, nn, w, final_ti):
