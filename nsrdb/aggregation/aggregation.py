@@ -685,7 +685,7 @@ class Manager:
         n_chunks : int
             Number of chunks to process the meta data in.
         i_chunk : int
-            Meta data chunk index currently being processed.
+            Meta data chunk index currently being processed (zero indexed).
         """
 
         self.data = data
@@ -786,8 +786,10 @@ class Manager:
             gid_chunk = np.array_split(gids_full, self.n_chunks)[self.i_chunk]
             self._meta_chunk = self._meta.iloc[gid_chunk, :]
             self.site_slice = slice(np.min(gid_chunk), np.max(gid_chunk) + 1)
-            logger.info('Working on meta chunk with GIDs {} through {}'
-                        .format(np.min(gid_chunk), np.max(gid_chunk)))
+            logger.info('Working on meta chunk {} out of {} '
+                        'with GIDs {} through {}'
+                        .format(self.i_chunk + 1, self.n_chunks,
+                                np.min(gid_chunk), np.max(gid_chunk)))
         return self._meta_chunk
 
     @staticmethod
