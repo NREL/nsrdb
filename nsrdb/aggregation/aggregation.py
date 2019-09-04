@@ -7,6 +7,7 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import h5py
 import os
+import json
 import pickle
 import logging
 import numpy as np
@@ -18,6 +19,8 @@ from nsrdb.all_sky.utilities import calc_dhi
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.plots import Spatial
 from nsrdb.utilities.interpolation import temporal_step
+from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.execution import SLURM
 
 logger = logging.getLogger(__name__)
 
@@ -691,7 +694,7 @@ class Manager:
                    }
 
     def __init__(self, data, data_dir, meta_dir, year=2018,
-                 n_chunks=4, i_chunk=0):
+                 i_chunk=0, n_chunks=1):
         """
         Parameters
         ----------
@@ -705,10 +708,10 @@ class Manager:
             and the final aggregated output.
         year : int
             Year being analyzed.
-        n_chunks : int
-            Number of chunks to process the meta data in.
         i_chunk : int
             Meta data chunk index currently being processed (zero indexed).
+        n_chunks : int
+            Number of chunks to process the meta data in.
         """
 
         self.data = data
@@ -719,7 +722,6 @@ class Manager:
         self.i_chunk = i_chunk
         self._meta = None
         self._meta_chunk = None
-        self.site_slice = slice(None)
 
         self.parse_data()
         self.preflight()
@@ -734,6 +736,7 @@ class Manager:
         self.fout = os.path.join(self.data_dir,
                                  self.data['final']['data_sub_dir'] + '/',
                                  self.data['final']['fout'])
+        self.fout = self.fout.replace('.h5', '_{}.h5'.format(self.i_chunk))
         self.data_sources = self.meta.source.unique()
 
         logger.info('Data sources: {}'.format(self.data_sources))
@@ -789,7 +792,8 @@ class Manager:
         """
 
         if self._meta is None:
-            meta_path = os.path.join(meta_dir, self.data['final']['meta_file'])
+            meta_path = os.path.join(self.meta_dir,
+                                     self.data['final']['meta_file'])
             self._meta = MetaManager.meta_sources_2018(meta_path)
         return self._meta
 
@@ -808,7 +812,7 @@ class Manager:
             gids_full = np.arange(len(self.meta))
             gid_chunk = np.array_split(gids_full, self.n_chunks)[self.i_chunk]
             self._meta_chunk = self._meta.iloc[gid_chunk, :]
-            self.site_slice = slice(np.min(gid_chunk), np.max(gid_chunk) + 1)
+            self._meta_chunk['gid'] = self._meta_chunk.index.values
             logger.info('Working on meta chunk {} out of {} '
                         'with GIDs {} through {}'
                         .format(self.i_chunk + 1, self.n_chunks,
@@ -870,7 +874,7 @@ class Manager:
         if not os.path.exists(self.fout):
             logger.info('Initializing output file: {}'.format(self.fout))
             Outputs.init_h5(self.fout, self.dsets, self.attrs, self.chunks,
-                            self.dtypes, self.time_index, self.meta)
+                            self.dtypes, self.time_index, self.meta_chunk)
         else:
             logger.info('Output file exists: {}'.format(self.fout))
 
@@ -1156,7 +1160,7 @@ class Manager:
             logger.debug('Finished submitting futures')
 
             for j, f in enumerate(as_completed(futures)):
-                if (j + 1) % 10000 == 0:
+                if (j + 1) % 1000 == 0:
                     logger.info('Futures completed: {} out of {}.'
                                 .format(j + 1, len(futures)))
                 i = futures[f]
@@ -1175,15 +1179,76 @@ class Manager:
         var : str
             Variable (dataset) name to write to.
         """
-        logger.debug('Writing data for "{}" to sites: {}'
-                     .format(var, self.site_slice))
+        logger.debug('Writing data for "{}".'.format(var))
         with Outputs(self.fout, mode='a') as out:
-            out[var, :, self.site_slice] = arr
+            out[var] = arr
 
     @classmethod
-    def run(cls, data, data_dir, meta_dir, year=2018, n_chunks=4, i_chunk=None,
-            parallel=True):
+    def run_chunk(cls, data, data_dir, meta_dir, i_chunk, n_chunks,
+                  year=2018, parallel=True, chunk_log=False):
         """
+        Parameters
+        ----------
+        data : dict
+            Nested dictionary containing data on all NSRDB data sources
+            (east, west, conus) and the final aggregated output.
+        data_dir : str
+            Root directory containing sub dirs with all data sources.
+        meta_dir : str
+            Directory containing meta and ckdtree files for each data source
+            and the final aggregated output.
+        i_chunk : int
+            Single chunk index to process.
+        n_chunks : int
+            Number of chunks to process the meta data in.
+        year : int
+            Year being analyzed.
+        parallel : bool
+            Flag to use parallel compute.
+        chunk_log : bool
+            Flag to start a logger for this agg chunk.
+        """
+
+        if chunk_log:
+            log_file = os.path.join(data_dir,
+                                    data['final']['data_sub_dir'] + '/',
+                                    'agg_{}.log'.format(i_chunk))
+            init_logger(__name__, log_level='INFO', log_file=log_file)
+
+        logger.info('Working on site chunk {} out of {}'
+                    .format(i_chunk + 1, n_chunks))
+
+        m = cls(data, data_dir, meta_dir, year=year, i_chunk=i_chunk,
+                n_chunks=n_chunks)
+
+        datasets = [d for d in m.dsets if 'dhi' not in d
+                    and 'cld_' not in d]
+        delayed_datasets = [d for d in m.dsets if 'dhi' in d
+                            or 'cld_' in d]
+        n_var = len(datasets) + len(delayed_datasets)
+        i_var = 0
+        for dsets in [datasets, delayed_datasets]:
+            for var in dsets:
+                method = m._get_agg_method(var)
+                i_var += 1
+                logger.info('Aggregating variable "{}" '
+                            '({} out of {}). Using method: {}'
+                            .format(var, i_var, n_var, method))
+                if parallel:
+                    arr = m._agg_var_parallel(var, method)
+                else:
+                    arr = m._agg_var_serial(var, method)
+
+                m.write_output(arr, var)
+
+        logger.info('NSRDB aggregation complete!')
+
+    @classmethod
+    def eagle(cls, data, data_dir, meta_dir, year, n_chunks, alloc='pxs',
+              memory=90, walltime=4, feature='--qos=normal', node_name='agg',
+              stdout_path=None):
+        """Run NSRDB aggregation on Eagle with each agg chunk on a node.
+
         Parameters
         ----------
         data : dict
@@ -1197,55 +1262,59 @@ class Manager:
         year : int
             Year being analyzed.
         n_chunks : int
-            Number of chunks to process the meta data in.
-        i_chunk : int | None
-            Single chunk index to process or None for all n_chunks.
-        parallel : bool
-            Flag to use parallel compute.
+            Number of chunks to process the meta data in (each chunk will be
+            a node).
+        alloc : str
+            SLURM project allocation.
+        memory : int
+            Node memory request in GB.
+        walltime : int
+            Node walltime request in hours.
+        feature : str
+            Additional flags for SLURM job. Format is "--qos=high"
+            or "--depend=[state:job_id]". Default is None.
+        node_name : str
+            Name for the SLURM job.
+        stdout_path : str
+            Path to dump the stdout/stderr files.
         """
 
-        if i_chunk is None:
-            i_chunks = range(n_chunks)
-        else:
-            i_chunks = [i_chunk]
+        if stdout_path is None:
+            stdout_path = os.getcwd()
 
-        for i_chunk in i_chunks:
-            logger.info('Working on site chunk {} out of {}'
-                        .format(i_chunk + 1, n_chunks))
-            m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
-                    i_chunk=i_chunk)
+        cmd = ("python -c \'from nsrdb.aggregation.aggregation import Manager;"
+               "Manager.run_chunk({})\'")
 
-            datasets = [d for d in m.dsets if 'dhi' not in d
-                        and 'cld_' not in d]
-            delayed_datasets = [d for d in m.dsets if 'dhi' in d
-                                or 'cld_' in d]
-            n_var = len(datasets) + len(delayed_datasets)
-            i_var = 0
-            for dsets in [datasets, delayed_datasets]:
-                for var in dsets:
-                    method = m._get_agg_method(var)
-                    i_var += 1
-                    logger.info('Aggregating variable "{}" '
-                                '({} out of {}). Using method: {}'
-                                .format(var, i_var, n_var, method))
-                    if parallel:
-                        arr = m._agg_var_parallel(var, method)
-                    else:
-                        arr = m._agg_var_serial(var, method)
+        for i_chunk in range(n_chunks):
+            i_node_name = node_name + '_{}'.format(i_chunk)
+            a = ('{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
+                 'parallel=True, chunk_log=True'
+                 .format(json.dumps(data), data_dir, meta_dir,
+                         i_chunk, n_chunks, year))
+            icmd = cmd.format(a)
 
-                    m.write_output(arr, var)
+            slurm = SLURM(icmd, alloc=alloc, memory=memory, walltime=walltime,
+                          feature=feature, name=i_node_name,
+                          stdout_path=stdout_path)
 
-        logger.info('NSRDB aggregation complete!')
+            print('\ncmd:\n{}\n'.format(icmd))
+
+            if slurm.id:
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                       'Eagle.'.format(i_node_name, slurm.id))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(i_node_name))
+            print(msg)
 
 
 if __name__ == '__main__':
     data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
     meta_dir = '/projects/pxs/reference_grids/'
-
-    from nsrdb.utilities.loggers import init_logger
-    log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-                'nsrdb_4km_30min/agg_nsrdb.log')
-    init_logger(__name__, log_level='INFO', log_file=log_file)
-
-    Manager.run(NSRDB_4km_30min, data_dir, meta_dir, year=2018, n_chunks=1000,
-                parallel=True)
+    n_chunks = 100
+    year = 2018
+    Manager.eagle(NSRDB_4km_30min, data_dir, meta_dir, year, n_chunks,
+                  alloc='pxs', memory=90, walltime=4, feature='--qos=high',
+                  node_name='agg',
+                  stdout_path=os.path.join(data_dir, 'stdout/'))
