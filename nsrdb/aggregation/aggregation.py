@@ -304,13 +304,16 @@ class Aggregation:
         iarr : np.ndarray
             Array of index arrays.
         """
+
         iarr = np.zeros((L, w), dtype=np.uint32)
         for i in range(L):
             sub = [i + n for n in range(w)]
             sub -= (np.round(w / 2) - 1)
-            sub = np.maximum(sub, 0)
-            sub = np.minimum(sub, L - 1)
             iarr[i, :] = sub
+
+        iarr = np.maximum(iarr, 0)
+        iarr = np.minimum(iarr, L - 1)
+
         return iarr
 
     @staticmethod
@@ -334,7 +337,15 @@ class Aggregation:
 
         cloud_mode = np.ndarray((len(data), ), dtype=data.dtype)
         for i, x in enumerate(data[iarr]):
-            cloud_mode[i] = mode(x.flatten())[0]
+            m = mode(x.flatten())[0]
+            if np.isnan(m):
+                emsg = ('Bad cloud type mode from ctype array: \n\t{}'
+                        .format(x))
+                logger.info('Bad ctype mode at i {}'.format(i))
+                logger.exception(emsg)
+                raise ValueError(emsg)
+            else:
+                cloud_mode[i] = m
 
         return cloud_mode
 
@@ -548,7 +559,7 @@ class Aggregation:
         return cprop_out
 
     @classmethod
-    def cloud_property(cls, var, data_fpath, nn, w, final_ti, i, fout):
+    def cloud_property(cls, var, data_fpath, nn, w, final_ti, gid, fout):
         """Run cloud type aggregation, returning the most common cloud type.
 
         Parameters
@@ -564,7 +575,7 @@ class Aggregation:
         final_ti : pd.DateTimeIndex
             Final datetime index (used to ensure the aggregated profile has
             correct length).
-        i : int
+        gid : int
             Site index in fout.
         fout : str
             Filepath to the output file containing aggregated cloud type.
@@ -577,7 +588,8 @@ class Aggregation:
         """
 
         with Outputs(fout) as out:
-            ctype_out_final = out['cloud_type', :, i]
+            ctype_out_final = out['cloud_type', :, gid]
+            sza = out['solar_zenith_angle', :, gid]
 
         a = cls('cloud_type', data_fpath, nn, w, final_ti)
         ctype_source = a.data
@@ -596,9 +608,20 @@ class Aggregation:
         cprop_out = a.format_out_arr(cprop_out)
 
         if np.isnan(cprop_out).sum():
-            raise ValueError('Aggregation of cloud property failed for site '
-                             '{}, {} NaN values persisted.'
-                             .format(i, np.isnan(cprop_out).sum()))
+            emsg = ('Aggregation of cloud property failed for site '
+                    '{}, {} NaN values persisted.'
+                    .format(gid, np.isnan(cprop_out).sum()))
+            bad_locs = np.where(np.isnan(cprop_out))[0]
+            logger.info('Bad locs: {}'.format(bad_locs))
+            logger.info('Bad time index: {}'.format(final_ti[bad_locs]))
+            logger.info('Ctypes: {}'.format(ctype_out_final[bad_locs]))
+            logger.info('SZA: {}'.format(sza[bad_locs]))
+            i0 = np.max(bad_locs[0], 0) - 5
+            i1 = i0 + 10
+            logger.info('Cprop from {} to {}: {}'
+                        .format(i0, i1, cprop_out[i0:i1]))
+            logger.exception(emsg)
+            raise ValueError(emsg)
 
         return cprop_out
 
@@ -840,7 +863,7 @@ class Manager:
         time index and meta"""
 
         data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir'] + '/'
-        logger.debug(os.path.join(self.data_dir, data_sub_dir))
+
         self.dsets, self.attrs, self.chunks, self.dtypes = \
             self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
 
@@ -932,8 +955,7 @@ class Manager:
 
         return w
 
-    @staticmethod
-    def _get_fpath(var, data_dir, data_sub_dir):
+    def _get_fpath(self, var, data_dir, data_sub_dir, source):
         """Get the h5 filepath in data_dir/data_sub_dir/ containing var.
 
         Parameters
@@ -944,6 +966,8 @@ class Manager:
             Root data directory.
         data_sub_dir : str
             Sub directory in data_dir containing h5 files.
+        source : str
+            Data source (conus, east, west).
 
         Returns
         -------
@@ -951,18 +975,22 @@ class Manager:
             File path to h5 file in data_sub_dir containing var dataset.
         """
 
-        if not data_sub_dir.endswith('/'):
-            data_sub_dir += '/'
-        for fn in os.listdir(os.path.join(data_dir, data_sub_dir)):
-            if fn.endswith('.h5'):
-                fpath = os.path.join(data_dir, data_sub_dir, fn)
-                with Outputs(fpath) as out:
+        if var in self.data[source]:
+            fpath = self.data[source][var]
+        else:
+            if not data_sub_dir.endswith('/'):
+                data_sub_dir += '/'
+            for fn in os.listdir(os.path.join(data_dir, data_sub_dir)):
+                if fn.endswith('.h5'):
+                    fpath = os.path.join(data_dir, data_sub_dir, fn)
+                    with Outputs(fpath) as out:
 
-                    if (var == 'fill_flag' and var in out.dsets
-                            and 'irradiance' in fn):
-                        break
-                    elif var != 'fill_flag' and var in out.dsets:
-                        break
+                        if (var == 'fill_flag' and var in out.dsets
+                                and 'irradiance' in fn):
+                            break
+                        elif var != 'fill_flag' and var in out.dsets:
+                            break
+            self.data[source][var] = fpath
         return fpath
 
     def add_temporal(self):
@@ -984,11 +1012,7 @@ class Manager:
                         .format(source, k))
             tree_fpath = os.path.join(self.meta_dir,
                                       self.data[source]['tree_file'])
-            d, i = self.knn(self.meta, tree_fpath, k=k)
-
-            if d.max() > 1:
-                warn('Max distance between "final" and "{}" is {}'
-                     .format(source, d.max()))
+            _, i = self.knn(self.meta, tree_fpath, k=k)
 
             self.data[source]['nn'] = i
 
@@ -1061,17 +1085,18 @@ class Manager:
             args = [var, i, self.fout]
 
         else:
-            gid = self.meta_chunk.iloc[i, :].name
+            gid = self.meta_chunk.index.values[i]
             source = self.meta_chunk.iloc[i, :]['source']
             data_sub_dir = self.data[source]['data_sub_dir']
-            nn = self.data[source]['nn'][gid, :].flatten()
+            nn = self.data[source]['nn'][gid, :]
             w = self.data[source]['window']
-            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir)
+            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
+                                         source)
 
             args = [var, data_fpath, nn, w, self.time_index]
 
         if 'cld_' in var:
-            args.append(i)
+            args.append(gid)
             args.append(self.fout)
 
         return args
@@ -1096,6 +1121,7 @@ class Manager:
         arr = self._init_arr(var)
 
         for i in range(len(self.meta_chunk)):
+            logger.debug('Kicking off site index #{}'.format(i))
             args = self._get_args(var, i)
             arr[:, i] = method(*args)
 
@@ -1122,13 +1148,15 @@ class Manager:
         arr = self._init_arr(var)
 
         with ProcessPoolExecutor() as exe:
+            logger.debug('Submitting futures...')
             for i in range(len(self.meta_chunk)):
                 args = self._get_args(var, i)
                 f = exe.submit(method, *args)
                 futures[f] = i
+            logger.debug('Finished submitting futures')
 
             for j, f in enumerate(as_completed(futures)):
-                if (j + 1) % 100 == 0:
+                if (j + 1) % 10000 == 0:
                     logger.info('Futures completed: {} out of {}.'
                                 .format(j + 1, len(futures)))
                 i = futures[f]
@@ -1153,7 +1181,7 @@ class Manager:
             out[var, :, self.site_slice] = arr
 
     @classmethod
-    def run(cls, data, data_dir, meta_dir, year=2018, n_chunks=4,
+    def run(cls, data, data_dir, meta_dir, year=2018, n_chunks=4, i_chunk=None,
             parallel=True):
         """
         Parameters
@@ -1170,9 +1198,18 @@ class Manager:
             Year being analyzed.
         n_chunks : int
             Number of chunks to process the meta data in.
+        i_chunk : int | None
+            Single chunk index to process or None for all n_chunks.
+        parallel : bool
+            Flag to use parallel compute.
         """
 
-        for i_chunk in range(n_chunks):
+        if i_chunk is None:
+            i_chunks = range(n_chunks)
+        else:
+            i_chunks = [i_chunk]
+
+        for i_chunk in i_chunks:
             logger.info('Working on site chunk {} out of {}'
                         .format(i_chunk + 1, n_chunks))
             m = cls(data, data_dir, meta_dir, year=year, n_chunks=n_chunks,
@@ -1207,8 +1244,8 @@ if __name__ == '__main__':
 
     from nsrdb.utilities.loggers import init_logger
     log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-                'nsrdb_4km_30min/agg_surfrad.log')
+                'nsrdb_4km_30min/agg_nsrdb.log')
     init_logger(__name__, log_level='INFO', log_file=log_file)
 
-    Manager.run(SURFRAD, data_dir, meta_dir, year=2018, n_chunks=1,
+    Manager.run(NSRDB_4km_30min, data_dir, meta_dir, year=2018, n_chunks=1000,
                 parallel=True)
