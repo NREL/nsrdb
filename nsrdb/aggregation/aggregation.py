@@ -591,8 +591,9 @@ class Aggregation:
         """
 
         with Outputs(fout) as out:
-            ctype_out_final = out['cloud_type', :, gid]
-            sza = out['solar_zenith_angle', :, gid]
+            i = np.where(out.meta.gid == gid)[0][0]
+            ctype_out_final = out['cloud_type', :, i]
+            sza = out['solar_zenith_angle', :, i]
 
         a = cls('cloud_type', data_fpath, nn, w, final_ti)
         ctype_source = a.data
@@ -611,7 +612,7 @@ class Aggregation:
         cprop_out = a.format_out_arr(cprop_out)
 
         if np.isnan(cprop_out).sum():
-            emsg = ('Aggregation of cloud property failed for site '
+            emsg = ('Aggregation of cloud property failed for site gid '
                     '{}, {} NaN values persisted.'
                     .format(gid, np.isnan(cprop_out).sum()))
             bad_locs = np.where(np.isnan(cprop_out))[0]
@@ -1312,9 +1313,9 @@ class Manager:
 if __name__ == '__main__':
     data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
     meta_dir = '/projects/pxs/reference_grids/'
-    n_chunks = 100
+    n_chunks = 32
     year = 2018
     Manager.eagle(NSRDB_4km_30min, data_dir, meta_dir, year, n_chunks,
-                  alloc='pxs', memory=90, walltime=4, feature='--qos=high',
+                  alloc='pxs', memory=90, walltime=40, feature='--qos=high',
                   node_name='agg',
                   stdout_path=os.path.join(data_dir, 'stdout/'))
