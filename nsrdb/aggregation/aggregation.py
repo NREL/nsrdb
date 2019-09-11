@@ -17,6 +17,7 @@ from warnings import warn
 
 from nsrdb.all_sky.utilities import calc_dhi
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.plots import Spatial
 from nsrdb.utilities.interpolation import temporal_step
 from nsrdb.utilities.loggers import init_logger
@@ -840,6 +841,8 @@ class Manager:
             Dictionary of chunk tuples keyed by dset name.
         dtypes : dict
             dictionary of numpy datatypes keyed by dset name.
+        ti : pd.Datetimeindex
+            Time index of source files in h5dir.
         """
 
         dsets = []
@@ -851,6 +854,7 @@ class Manager:
 
         for fn in h5_files:
             with Outputs(os.path.join(h5dir, fn)) as out:
+                ti = out.time_index
                 for d in out.dsets:
                     if d not in ['time_index', 'meta'] and d not in attrs:
                         attrs[d] = out.get_attrs(dset=d)
@@ -861,7 +865,7 @@ class Manager:
 
         dsets = list(attrs.keys())
 
-        return dsets, attrs, chunks, dtypes
+        return dsets, attrs, chunks, dtypes, ti
 
     def _init_fout(self):
         """Initialize the output file with all datasets and final
@@ -869,7 +873,7 @@ class Manager:
 
         data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir'] + '/'
 
-        self.dsets, self.attrs, self.chunks, self.dtypes = \
+        self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
             self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
 
         if not os.path.exists(self.fout):
@@ -1309,8 +1313,46 @@ class Manager:
                        .format(i_node_name))
             print(msg)
 
+    @classmethod
+    def collect(cls, meta_final, collect_dir, collect_tag, fout,
+                parallel=False):
+        """Perform final collection of chunk-aggregated files.
 
-if __name__ == '__main__':
+        Parameters
+        ----------
+        meta_final : str | pd.DataFrame
+            Final meta data with index = gid.
+        collect_dir : str
+            Directory path containing chunked h5 files to collect.
+        collect_tag : str
+            String to be found in files that are being collected
+        fout : str
+            File path to the output collected file (will be initialized by
+            this method).
+        """
+
+        if isinstance(meta_final, str):
+            meta_final = pd.read_csv(meta_final, index_col=0)
+
+        fns = os.listdir(collect_dir)
+        flist = [fn for fn in fns if fn.endswith('.h5')
+                 and collect_tag in fn
+                 and os.path.join(collect_dir, fn) != fout]
+
+        logger.info('Collecting aggregation chunks from {} files to: {}'
+                    .format(len(flist), fout))
+
+        dsets, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
+        Outputs.init_h5(fout, dsets, attrs, chunks, dtypes,
+                        ti, meta_final)
+
+        for dset in dsets:
+            Collector.collect_flist(flist, collect_dir, fout, dset,
+                                    parallel=parallel)
+
+
+def run():
+    """2018 aggregation run script"""
     data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
     meta_dir = '/projects/pxs/reference_grids/'
     n_chunks = 32
@@ -1319,3 +1361,18 @@ if __name__ == '__main__':
                   alloc='pxs', memory=90, walltime=40, feature='--qos=high',
                   node_name='agg',
                   stdout_path=os.path.join(data_dir, 'stdout/'))
+
+
+def collect():
+    """2018 collection run script"""
+    log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
+                'nsrdb_4km_30min/nsrdb_2018.log')
+    init_logger(__name__, log_level='DEBUG', log_file=log_file)
+    init_logger('nsrdb.file_handlers', log_level='DEBUG', log_file=log_file)
+    meta_final = '/projects/pxs/reference_grids/nsrdb_meta_4km.csv'
+    collect_dir = ('/projects/pxs/processing/2018/nsrdb_output_final/'
+                   'nsrdb_4km_30min/chunks')
+    collect_tag = 'nsrdb_2018_'
+    fout = ('/projects/pxs/processing/2018/nsrdb_output_final/'
+            'nsrdb_4km_30min/nsrdb_2018.h5')
+    Manager.collect(meta_final, collect_dir, collect_tag, fout)
