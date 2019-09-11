@@ -822,6 +822,35 @@ class Manager:
         return self._meta_chunk
 
     @staticmethod
+    def _special_attrs(dset, dset_attrs):
+        """Enforce any special dataset attributes.
+
+        Parameters
+        ----------
+        dset : str
+            Name of dataset
+        dset_attrs : dict
+            Attribute key-value pair dictionary for dset.
+
+        Returns
+        -------
+        dset_attrs : dict
+            Attributes for dset with any special formatting.
+        """
+
+        if 'fill_flag' in dset:
+            dset_attrs['units'] = 'percent of filled timesteps'
+
+        if ('scale_factor' in dset_attrs
+                and 'psm_scale_factor' not in dset_attrs):
+            dset_attrs['psm_scale_factor'] = dset_attrs['scale_factor']
+
+        if 'units' in dset_attrs and 'psm_units' not in dset_attrs:
+            dset_attrs['psm_units'] = dset_attrs['units']
+
+        return dset_attrs
+
+    @staticmethod
     def get_dset_attrs(h5dir):
         """Get output file dataset attributes for a set of datasets.
 
@@ -857,11 +886,11 @@ class Manager:
                 ti = out.time_index
                 for d in out.dsets:
                     if d not in ['time_index', 'meta'] and d not in attrs:
-                        attrs[d] = out.get_attrs(dset=d)
-                        _, dtypes[d], chunks[d] = out.get_dset_properties(d)
 
-                        if 'dhi' in d:
-                            attrs[d]['units'] = 'percent of filled timesteps'
+                        attrs[d] = Manager._special_attrs(
+                            d, out.get_attrs(dset=d))
+
+                        _, dtypes[d], chunks[d] = out.get_dset_properties(d)
 
         dsets = list(attrs.keys())
 

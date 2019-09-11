@@ -143,7 +143,10 @@ class AncillaryVarHandler:
             Whether or not to use elevation correction for the current var.
         """
         temp = self.var_meta.loc[self.mask, 'elevation_correct']
-        return bool(temp.values[0])
+        ec = bool(temp.values[0])
+        if np.isnan(temp.values[0]):
+            ec = False
+        return ec
 
     @property
     def spatial_method(self):
