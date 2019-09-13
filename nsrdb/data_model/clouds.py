@@ -508,10 +508,14 @@ class CloudVar(AncillaryVarHandler):
 
             # walk through current directory looking for day directory
             for dirpath, _, _ in os.walk(self._cloud_dir):
+                dirpath = dirpath.replace('\\', '/')
+                print(dirpath)
                 if not dirpath.endswith('/'):
                     dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in os.listdir(dirpath):
+                        print(dirpath)
+                        print(fn)
                         if fsearch1 in fn or fsearch2 in fn:
                             self._path = dirpath
                             break

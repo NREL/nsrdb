@@ -105,6 +105,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
 
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary/')
     date = datetime.date(year=2017, month=1, day=1)
+    cloud_dir = './'
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
     # set test directory
@@ -112,8 +113,8 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.run_multiple(var_list, date, grid, var_meta=var_meta,
-                                  parallel=True)
+    data = DataModel.run_multiple(var_list, date, cloud_dir, grid,
+                                  var_meta=var_meta, parallel=True)
 
     for key, value in data.items():
         if key != 'time_index':
