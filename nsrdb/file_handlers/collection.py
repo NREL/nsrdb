@@ -230,7 +230,9 @@ class Collector:
                             mem.used / 1e9, mem.total / 1e9))
 
         if not parallel:
-            for fname in flist:
+            for i, fname in enumerate(flist):
+                logger.debug('Collecting data from file {} out of {}.'
+                             .format(i + 1, len(flist)))
                 fpath = os.path.join(collect_dir, fname)
                 f_data, row_slice, col_slice = Collector.get_data(fpath, dset,
                                                                   time_index,

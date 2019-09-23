@@ -36,7 +36,7 @@ def cloud_data():
     """Return cloud data for a single timestep."""
 
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
-    fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data',
+    fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data/016/',
                          'goes12_2007_016_1915.level2.h5')
     c = CloudVarSingleH5(fpath)
     grid = c.grid
@@ -82,13 +82,13 @@ def test_regrid():
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2007, month=1, day=16)
-    path = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
+    cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
 
-    data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
-                                nsrdb_freq='1d', path=path, var_meta=var_meta)
+    data = DataModel.run_clouds(cloud_vars, date, cloud_dir, nsrdb_grid,
+                                nsrdb_freq='1d', var_meta=var_meta)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 
