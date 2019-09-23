@@ -355,94 +355,113 @@ def update_dset(source_f, target_f, dsets, start=0):
                 .format(source_f, target_f, min_elapsed, dsets))
 
 
+def rename_dset(h5_fpath, dset, new_dset):
+    """Rename a dataset in an h5 file.
+
+    Parameters
+    ----------
+    h5_fpath : str
+        Filepath to h5 file with dataset to rename.
+    dset : str
+        Original (current) dataset name.
+    new_dset : str
+        Desired dataset name.
+    """
+
+    with h5py.File(h5_fpath, 'a') as f:
+        if dset in list(f):
+            f[new_dset] = f[dset]
+            del f[dset]
+
+
 def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
               node_name='mover', stdout_path='/scratch/gbuster/stdout/'):
-        """Kick off a peregrine job to execute a mover function.
+    """Kick off a peregrine job to execute a mover function.
 
-        Parameters
-        ----------
-        fun_str : str
-            Name of the function in movers.py to execute in the pbs job.
-        arg_str : str
-            Arguments passed to the target function in the command line call.
-            Care must be taken to use proper quotations for string args.
-            Example:
-                arg_str = ('source_f="source.h5", target_f="target.h5", '
-                           'dsets=["dset1"]')
-        alloc : str
-            PBS project allocation.
-        queue: str
-            PBS job queue.
-        node_name : str
-            Name for the PBS job.
-        stdout_path : str
-            Path to dump the stdout/stderr files.
-        """
+    Parameters
+    ----------
+    fun_str : str
+        Name of the function in movers.py to execute in the pbs job.
+    arg_str : str
+        Arguments passed to the target function in the command line call.
+        Care must be taken to use proper quotations for string args.
+        Example:
+            arg_str = ('source_f="source.h5", target_f="target.h5", '
+                       'dsets=["dset1"]')
+    alloc : str
+        PBS project allocation.
+    queue: str
+        PBS job queue.
+    node_name : str
+        Name for the PBS job.
+    stdout_path : str
+        Path to dump the stdout/stderr files.
+    """
 
-        cmd = ('python -c '
-               '\'from nsrdb.utilities.movers import {fun}; '
-               '{fun}({args})\'')
+    cmd = ('python -c '
+           '\'from nsrdb.utilities.movers import {fun}; '
+           '{fun}({args})\'')
 
-        cmd = cmd.format(fun=fun_str, args=arg_str)
+    cmd = cmd.format(fun=fun_str, args=arg_str)
 
-        pbs = PBS(cmd, alloc=alloc, queue=queue, name=node_name,
-                  stdout_path=stdout_path, feature=None)
+    pbs = PBS(cmd, alloc=alloc, queue=queue, name=node_name,
+              stdout_path=stdout_path, feature=None)
 
-        print('\ncmd:\n{}\n'.format(cmd))
+    print('\ncmd:\n{}\n'.format(cmd))
 
-        if pbs.id:
-            msg = ('Kicked off job "{}" (PBS jobid #{}) on '
-                   'Peregrine.'.format(node_name, pbs.id))
-        else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(node_name))
-        print(msg)
+    if pbs.id:
+        msg = ('Kicked off job "{}" (PBS jobid #{}) on '
+               'Peregrine.'.format(node_name, pbs.id))
+    else:
+        msg = ('Was unable to kick off job "{}". '
+               'Please see the stdout error messages'
+               .format(node_name))
+    print(msg)
 
 
 def eagle(fun_str, arg_str, alloc='pxs', memory=96,
           walltime=10, node_name='mover',
           stdout_path='/lustre/eaglefs/scratch/gbuster/data_movers/'):
-        """Kick off an eagle job to execute a mover function.
+    """Kick off an eagle job to execute a mover function.
 
-        Parameters
-        ----------
-        fun_str : str
-            Name of the function in movers.py to execute in the SLURM job.
-        arg_str : str
-            Arguments passed to the target function in the command line call.
-            Care must be taken to use proper quotations for string args.
-            Example:
-                arg_str = ('source_f="source.h5", target_f="target.h5", '
-                           'dsets=["dset1"]')
-        alloc : str
-            SLURM project allocation.
-        memory : int
-            Node memory request in GB.
-        walltime : int
-            Node walltime request in hours.
-        node_name : str
-            Name for the SLURM job.
-        stdout_path : str
-            Path to dump the stdout/stderr files.
-        """
+    Parameters
+    ----------
+    fun_str : str
+        Name of the function in movers.py to execute in the SLURM job.
+    arg_str : str
+        Arguments passed to the target function in the command line call.
+        Care must be taken to use proper quotations for string args.
+        Example:
+            arg_str = ('source_f="source.h5", target_f="target.h5", '
+                       'dsets=["dset1"]')
+    alloc : str
+        SLURM project allocation.
+    memory : int
+        Node memory request in GB.
+    walltime : int
+        Node walltime request in hours.
+    node_name : str
+        Name for the SLURM job.
+    stdout_path : str
+        Path to dump the stdout/stderr files.
+    """
 
-        cmd = ('python -c '
-               '\'from nsrdb.utilities.movers import {fun}; '
-               '{fun}({args})\'')
+    cmd = ('python -c '
+           '\'from nsrdb.utilities.movers import {fun}; '
+           '{fun}({args})\'')
 
-        cmd = cmd.format(fun=fun_str, args=arg_str)
+    cmd = cmd.format(fun=fun_str, args=arg_str)
 
-        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      name=node_name, stdout_path=stdout_path)
+    slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
+                  name=node_name, stdout_path=stdout_path)
 
-        print('\ncmd:\n{}\n'.format(cmd))
+    print('\ncmd:\n{}\n'.format(cmd))
 
-        if slurm.id:
-            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'Eagle.'.format(node_name, slurm.id))
-        else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(node_name))
-        print(msg)
+    if slurm.id:
+        msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+               'Eagle.'.format(node_name, slurm.id))
+    else:
+        msg = ('Was unable to kick off job "{}". '
+               'Please see the stdout error messages'
+               .format(node_name))
+    print(msg)
