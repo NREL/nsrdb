@@ -26,22 +26,16 @@ TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
 
 
-def repack_h5(f_orig, f_new, dir_orig, dir_new=None, inplace=True):
+def repack_h5(fpath, f_new=None, inplace=True):
     """Repack an h5 file potentially decreasing its memory footprint.
 
     Parameters
     ----------
-    f_orig : str
-        Source/target h5 file (without path) to repack.
+    fpath : str
+        Source/target h5 file (with path) to repack.
     f_new : str
         Intended destination h5 file. If inplace is specified, this can be
-        "temp.h5".
-    dir_orig : str
-        Source directory containing f_orig.
-    dir_new : str | NoneType
-        Target directory that the newly repacked file will be located in.
-        If this is None or inplace is requested, this will be the same as
-        dir_orig.
+        None.
     inplace : bool
         If repacking inplace is requested, the final h5 file will have the same
         name and location as the original file. The original file will be
@@ -51,20 +45,14 @@ def repack_h5(f_orig, f_new, dir_orig, dir_new=None, inplace=True):
     # initialize a logger to the stdout
     init_logger(__name__, log_file=None, log_level='INFO')
 
-    if dir_new is None or inplace is True:
-        dir_new = dir_orig
-
-    if dir_orig == dir_new and f_new == f_orig:
+    if f_new is None:
         # protect against repacking to the same location
         # (might cause error, unsure)
-        f_new = f_new.replace('.h5', '_repacked.h5')
-
-    f_orig = os.path.join(dir_orig, f_orig)
-    f_new = os.path.join(dir_new, f_new)
+        f_new = fpath.replace('.h5', '_repacked.h5')
 
     # Repack to new file and rename
     t1 = time.time()
-    cmd = 'h5repack -i {i} -o {o}'.format(i=f_orig, o=f_new)
+    cmd = 'h5repack -i {i} -o {o}'.format(i=fpath, o=f_new)
     cmd = shlex.split(cmd)
     logger.info('Submitting the following cmd as a subprocess:\n\t{}'
                 .format(cmd))
@@ -75,12 +63,12 @@ def repack_h5(f_orig, f_new, dir_orig, dir_new=None, inplace=True):
 
     if inplace:
         # remove the original file and rename the newly packed file
-        os.remove(f_orig)
-        os.rename(f_new, f_orig)
+        os.remove(fpath)
+        os.rename(f_new, fpath)
 
     min_elapsed = (time.time() - t1) / 60
     logger.info('Finished repacking {0} to {1}. Time elapsed: {2:.2f} minutes.'
-                .format(f_orig, f_new, min_elapsed))
+                .format(fpath, f_new, min_elapsed))
 
 
 def unzip_gz(target_path):
