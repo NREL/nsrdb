@@ -14,6 +14,7 @@ import os
 import logging
 import sys
 import shutil
+import time
 
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
@@ -21,6 +22,7 @@ from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
+from nsrdb.pipeline.status import Status
 
 
 logger = logging.getLogger(__name__)
@@ -411,7 +413,7 @@ class NSRDB:
     @classmethod
     def run_data_model(cls, out_dir, date, cloud_dir, grid, freq='5min',
                        parallel=True, log_level='DEBUG',
-                       log_file='data_model.log'):
+                       log_file='data_model.log', job_name=None):
         """Run daily data model, and save output files.
 
         Parameters
@@ -437,8 +439,11 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
+        job_name : str
+            Optional name for pipeline and status identification.
         """
 
+        t0 = time.time()
         date = cls.to_datetime(date)
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq)
@@ -452,6 +457,17 @@ class NSRDB:
 
         if fpath_out is None:
             nsrdb._exe_fout(data_model)
+
+        runtime = (time.time() - t0) / 60
+        status = {'out_dir': nsrdb._out_dir,
+                  'fout': fpath_out,
+                  'job_status': 'successful',
+                  'runtime': runtime,
+                  'grid': grid,
+                  'freq': freq,
+                  'cloud_dir': cloud_dir,
+                  'data_model_date': date}
+        Status.make_job_file(nsrdb._out_dir, 'data-model', job_name, status)
 
     @classmethod
     def collect_data_model(cls, daily_dir, out_dir, year, grid, freq='5min',

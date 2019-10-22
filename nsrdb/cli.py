@@ -153,6 +153,7 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
 def data_model(ctx, doy, cloud_dir):
     """Run the data model for a single day."""
 
+    name = ctx.obj['NAME']
     year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
@@ -161,9 +162,10 @@ def data_model(ctx, doy, cloud_dir):
 
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'run_data_model'
-    arg_str = ('"{}", "{}", "{}", "{}", freq="{}", log_level="{}"'
+    arg_str = ('"{}", "{}", "{}", "{}", freq="{}", '
+               'log_level="{}", job_name="{}"'
                .format(out_dir, date, cloud_dir, nsrdb_grid, nsrdb_freq,
-                       log_level))
+                       log_level, name))
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'data-model'
@@ -184,6 +186,7 @@ def data_model(ctx, doy, cloud_dir):
 def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
     """Collect data model results into cohesive timseries file chunks."""
 
+    name = ctx.obj['NAME']
     year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
@@ -195,10 +198,10 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
     fun_str = 'collect_data_model_chunk'
     arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
                'i_fname={}, freq="{}", parallel={}, '
-               'log_file="{}", log_level="{}"'
+               'log_file="{}", log_level="{}", job_name="{}"'
                .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
                        i_chunk, i_fname, nsrdb_freq, n_workers,
-                       log_file, log_level))
+                       log_file, log_level, name))
 
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
@@ -216,6 +219,7 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
 def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
     """Gap fill a cloud data file."""
 
+    name = ctx.obj['NAME']
     log_level = ctx.obj['LOG_LEVEL']
     log_file = 'cloud_fill_{}.log'.format(i_chunk)
 
@@ -223,8 +227,9 @@ def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
         f_cloud = f_cloud.format(i_chunk)
 
     fun_str = 'gap_fill_clouds'
-    arg_str = ('"{}", col_chunk={}, log_file="{}", log_level="{}"'
-               .format(f_cloud, col_chunk, log_file, log_level))
+    arg_str = ('"{}", col_chunk={}, log_file="{}", '
+               'log_level="{}", job_name="{}"'
+               .format(f_cloud, col_chunk, log_file, log_level, name))
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'cloud-fill'
@@ -237,6 +242,7 @@ def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
 def all_sky(ctx, i_chunk):
     """Run allsky for a single chunked file"""
 
+    name = ctx.obj['NAME']
     year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
@@ -246,9 +252,9 @@ def all_sky(ctx, i_chunk):
     log_file = 'all_sky_{}.log'.format(i_chunk)
     fun_str = 'run_all_sky'
     arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
-               'log_file="{}", log_level="{}"'
+               'log_file="{}", log_level="{}", job_name="{}"'
                .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
-                       log_file, log_level))
+                       log_file, log_level, name))
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'all-sky'
@@ -264,6 +270,7 @@ def all_sky(ctx, i_chunk):
 def collect_final(ctx, collect_dir, i_fname):
     """Collect chunked files with final data into final full files."""
 
+    name = ctx.obj['NAME']
     year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
@@ -274,9 +281,10 @@ def collect_final(ctx, collect_dir, i_fname):
 
     fun_str = 'collect_final'
     arg_str = ('"{}", "{}", {}, "{}", freq="{}", '
-               'i_fname={}, log_file="{}", log_level="{}", tmp=False'
+               'i_fname={}, log_file="{}", log_level="{}", '
+               'tmp=False, job_name="{}"'
                .format(collect_dir, out_dir, year, nsrdb_grid, nsrdb_freq,
-                       i_fname, log_file, log_level))
+                       i_fname, log_file, log_level, name))
 
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
