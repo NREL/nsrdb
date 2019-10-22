@@ -779,7 +779,7 @@ class NSRDB:
         if stdout_path is None:
             stdout_path = os.getcwd()
 
-        cmd = "python -c 'from nsrdb.nsrdb import NSRDB;NSRDB.{f}({a})'"
+        cmd = "python -c 'from nsrdb.main import NSRDB;NSRDB.{f}({a})'"
 
         cmd = cmd.format(f=fun_str, a=arg_str)
 

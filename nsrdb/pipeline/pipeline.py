@@ -307,7 +307,7 @@ class Pipeline:
             raise KeyError('Could not recongize command "{}". '
                            'Available commands are: {}'
                            .format(command, Pipeline.COMMANDS))
-        cmd = ('python -m nsrdb.cli -c {} -cmd {}'
+        cmd = ('python -m nsrdb.cli config -c {} -cmd {}'
                .format(f_config, command))
         return cmd
 

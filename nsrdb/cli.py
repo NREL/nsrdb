@@ -19,12 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 @click.group()
+@click.pass_context
 def main(ctx):
     """NSRDB processing CLI."""
     ctx.ensure_object(dict)
 
 
-@main.group()
+@main.command()
 @click.option('--config_file', '-c', required=True,
               type=click.Path(exists=True),
               help='NSRDB pipeline configuration json file.')
@@ -34,8 +35,8 @@ def main(ctx):
               help='Flag to monitor pipeline jobs continuously. '
               'Default is not to monitor (kick off jobs and exit).')
 @click.pass_context
-def from_config(ctx, config_file, cancel, monitor):
-    """Run reV pipeline from a config file."""
+def pipeline(ctx, config_file, cancel, monitor):
+    """NSRDB pipeline from a pipeline config file."""
 
     ctx.ensure_object(dict)
     if cancel:
@@ -44,14 +45,15 @@ def from_config(ctx, config_file, cancel, monitor):
         Pipeline.run(config_file, monitor=monitor)
 
 
-@main.group()
-@click.option('--config_file', '-c', type=str, required=True,
-              help='Job and node name.')
+@main.command()
+@click.option('--config_file', '-c', required=True,
+              type=click.Path(exists=True),
+              help='Filepath to config file.')
 @click.option('--command', '-cmd', type=str, required=True,
               help='NSRDB CLI command string.')
 @click.pass_context
 def config(ctx, config_file, command):
-    """NSRDB processing CLI with config."""
+    """NSRDB processing CLI from config json file."""
 
     config = safe_json_load(config_file)
 
@@ -59,7 +61,7 @@ def config(ctx, config_file, command):
     eagle_args = config.pop('eagle')
     cmd_args = config.pop(command)
 
-    ctx.obj['NAME'] = direct_args['name']
+    name = direct_args['name']
     ctx.obj['YEAR'] = direct_args['year']
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
     ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
@@ -67,36 +69,45 @@ def config(ctx, config_file, command):
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
 
     if command == 'data-model':
-        doy_range = cmd_args.pop('doy_range')
+        doy_range = cmd_args['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
-            ctx.invoke(data_model, doy, cmd_args.pop('cloud_dir'))
+            ctx.obj['NAME'] = name + '_{}'.format(doy)
+            ctx.invoke(data_model, doy=doy,
+                       cloud_dir=cmd_args['cloud_dir'])
             ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-data-model':
-        n_chunks = cmd_args.pop('n_chunks')
+        n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
             for i_fname in range(3):
-                ctx.invoke(collect_data_model, cmd_args.pop('daily_dir'),
-                           n_chunks, i_chunk, i_fname,
-                           cmd_args.pop('n_workers'))
+                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
+                ctx.invoke(collect_data_model,
+                           daily_dir=cmd_args['daily_dir'],
+                           n_chunks=n_chunks, i_chunk=i_chunk, f_fname=i_fname,
+                           n_workers=cmd_args['n_workers'])
                 ctx.invoke(eagle, **eagle_args)
 
     elif command == 'cloud-fill':
-        n_chunks = cmd_args.pop('n_chunks')
+        n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
-            ctx.invoke(cloud_fill, cmd_args.pop('f_cloud'), i_chunk,
-                       cmd_args.pop('col_chunk'))
+            ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
+            ctx.invoke(cloud_fill, f_cloud=cmd_args['f_cloud'],
+                       i_chunk=i_chunk,
+                       col_chunk=cmd_args['col_chunk'])
             ctx.invoke(eagle, **eagle_args)
 
     elif command == 'all-sky':
-        n_chunks = cmd_args.pop('n_chunks')
+        n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
-            ctx.invoke(cloud_fill, i_chunk)
+            ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
+            ctx.invoke(all_sky, i_chunk=i_chunk)
             ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-final':
         for i_fname in range(4):
-            ctx.invoke(collect_final, cmd_args.pop('collect_dir'), i_fname)
+            ctx.obj['NAME'] = name + '_{}'.format(i_fname)
+            ctx.invoke(collect_final, collect_dir=cmd_args['collect_dir'],
+                       i_fname=i_fname)
             ctx.invoke(eagle, **eagle_args)
 
     else:
@@ -104,7 +115,7 @@ def config(ctx, config_file, command):
 
 
 @main.group()
-@click.option('--name', '-n', type=str, required=True,
+@click.option('--name', '-n', default='NSRDB', type=str,
               help='Job and node name.')
 @click.option('--year', '-y', default=None, type=INT,
               help='Year of analysis.')
@@ -118,7 +129,7 @@ def config(ctx, config_file, command):
               help='Flag to turn on debug logging. Default is not verbose.')
 @click.pass_context
 def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
-    """NSRDB direct processing CLI."""
+    """NSRDB direct processing CLI (no config file)."""
 
     ctx.obj['NAME'] = name
     ctx.obj['YEAR'] = year
@@ -141,11 +152,11 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
 def data_model(ctx, doy, cloud_dir):
     """Run the data model for a single day."""
 
-    year = ctx['YEAR']
-    out_dir = ctx['OUT_DIR']
-    nsrdb_grid = ctx['NSRDB_GRID']
-    nsrdb_freq = ctx['NSRDB_FREQ']
-    log_level = ctx['LOG_LEVEL']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    log_level = ctx.obj['LOG_LEVEL']
 
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'run_data_model'
@@ -172,11 +183,11 @@ def data_model(ctx, doy, cloud_dir):
 def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
     """Collect data model results into cohesive timseries file chunks."""
 
-    year = ctx['YEAR']
-    out_dir = ctx['OUT_DIR']
-    nsrdb_grid = ctx['NSRDB_GRID']
-    nsrdb_freq = ctx['NSRDB_FREQ']
-    log_level = ctx['LOG_LEVEL']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    log_level = ctx.obj['LOG_LEVEL']
 
     log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
 
@@ -204,7 +215,7 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
 def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
     """Gap fill a cloud data file."""
 
-    log_level = ctx['LOG_LEVEL']
+    log_level = ctx.obj['LOG_LEVEL']
     log_file = 'cloud_fill_{}.log'.format(i_chunk)
 
     if '{}' in f_cloud:
@@ -222,14 +233,14 @@ def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
 @click.option('--i_chunk', '-i', type=int, required=True,
               help='Chunked file index in out_dir to run allsky for.')
 @click.pass_context
-def allsky(ctx, i_chunk):
+def all_sky(ctx, i_chunk):
     """Run allsky for a single chunked file"""
 
-    year = ctx['YEAR']
-    out_dir = ctx['OUT_DIR']
-    nsrdb_grid = ctx['NSRDB_GRID']
-    nsrdb_freq = ctx['NSRDB_FREQ']
-    log_level = ctx['LOG_LEVEL']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    log_level = ctx.obj['LOG_LEVEL']
 
     log_file = 'all_sky_{}.log'.format(i_chunk)
     fun_str = 'run_all_sky'
@@ -252,11 +263,11 @@ def allsky(ctx, i_chunk):
 def collect_final(ctx, collect_dir, i_fname):
     """Collect chunked files with final data into final full files."""
 
-    year = ctx['YEAR']
-    out_dir = ctx['OUT_DIR']
-    nsrdb_grid = ctx['NSRDB_GRID']
-    nsrdb_freq = ctx['NSRDB_FREQ']
-    log_level = ctx['LOG_LEVEL']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    log_level = ctx.obj['LOG_LEVEL']
 
     log_file = 'final_collection_{}.log'.format(i_fname)
 
@@ -313,7 +324,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
 
 collect_data_model.add_command(eagle)
 cloud_fill.add_command(eagle)
-allsky.add_command(eagle)
+all_sky.add_command(eagle)
 collect_final.add_command(eagle)
 
 
@@ -321,5 +332,5 @@ if __name__ == '__main__':
     try:
         main(obj={})
     except Exception:
-        logger.error('Error running reV SC aggregation CLI.')
+        logger.error('Error running NSRDB CLI.')
         raise
