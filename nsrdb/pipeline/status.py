@@ -9,8 +9,8 @@ import logging
 import time
 from warnings import warn
 
-from NSRDB.utilities import safe_json_load
-from NSRDB.utilities.execution import SLURM, PBS
+from nsrdb.utilities.file_utils import safe_json_load
+from nsrdb.utilities.execution import SLURM, PBS
 
 
 logger = logging.getLogger(__name__)

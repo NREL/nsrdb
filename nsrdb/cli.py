@@ -8,7 +8,7 @@ Created on Mon Oct 21 15:39:01 2019
 import os
 import click
 import logging
-from nsrdb.nsrdb import NSRDB
+from nsrdb.main import NSRDB
 from nsrdb.utilities.cli_dtypes import STR, INT
 from nsrdb.utilities.file_utils import safe_json_load
 from nsrdb.pipeline.status import Status
