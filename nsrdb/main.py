@@ -20,7 +20,6 @@ from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
-from nsrdb.utilities.execution import SLURM
 from nsrdb.utilities.loggers import init_logger
 
 
@@ -63,7 +62,7 @@ class NSRDB:
         Parameters
         ----------
         out_dir : str
-            Target directory to dump all-sky-ready data files.
+            Project directory.
         year : int | str
             Processing year.
         grid : str | pd.DataFrame
@@ -78,24 +77,21 @@ class NSRDB:
         """
 
         self._out_dir = out_dir
-        self.make_out_dir(self._out_dir)
+        self._log_dir = os.path.join(out_dir, 'logs/')
+        self._data_dir = os.path.join(out_dir, 'data/')
+        self._final_dir = os.path.join(out_dir, 'final/')
+        self.make_out_dir()
         self._year = int(year)
         self._grid = grid
         self._freq = freq
         self._var_meta = var_meta
         self._ti = None
 
-    @staticmethod
-    def make_out_dir(out_dir):
-        """Ensure that out_dir exists.
-
-        Parameters
-        ----------
-        out_dir : str
-            Directory to put output files
-        """
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
+    def make_out_dir(self):
+        """Ensure that out_dir exists."""
+        for d in [self._out_dir, self._log_dir, self._data_dir]:
+            if not os.path.exists(d):
+                os.makedirs(d)
 
     @property
     def time_index_year(self):
@@ -227,7 +223,8 @@ class NSRDB:
                     .format(self._out_dir))
 
     def _get_fpath_out(self, date):
-        """Get the file output path based on a date. Will have {var} and {i}.
+        """Get the data model file output path based on a date.
+        Will have {var} and {i}.
 
         Parameters
         ----------
@@ -244,7 +241,7 @@ class NSRDB:
                                  str(date.month).zfill(2),
                                  str(date.day).zfill(2)))
         fname += '_{var}_{i}.h5'
-        fpath_out = os.path.join(self._out_dir, fname)
+        fpath_out = os.path.join(self._data_dir, fname)
         return fpath_out
 
     def _init_loggers(self, loggers=None, log_file='nsrdb.log',
@@ -272,7 +269,7 @@ class NSRDB:
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
-            log_file = os.path.join(self._out_dir, log_file)
+            log_file = os.path.join(self._log_dir, log_file)
 
             if isinstance(date, datetime.date):
                 date_str = ('{}{}{}'.format(date.year,
@@ -420,7 +417,7 @@ class NSRDB:
         Parameters
         ----------
         out_dir : str
-            Target directory to dump data model output files.
+            Project directory.
         date : datetime.date | str | int
             Single day to extract ancillary data for.
             Can be str or int in YYYYMMDD format.
@@ -466,7 +463,7 @@ class NSRDB:
         daily_dir : str
             Directory with daily files to be collected.
         out_dir : str
-            Directory to put final output files.
+            Project directory.
         year : int | str
             Year of analysis
         grid : str
@@ -486,7 +483,7 @@ class NSRDB:
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' not in fname:
-                f_out = os.path.join(out_dir, fname.format(y=year))
+                f_out = os.path.join(nsrdb._data_dir, fname.format(y=year))
                 nsrdb._init_final_out(f_out, dsets, nsrdb.time_index_year,
                                       nsrdb.meta)
                 Collector.collect(daily_dir, f_out, dsets)
@@ -505,7 +502,7 @@ class NSRDB:
         daily_dir : str
             Directory with daily files to be collected.
         out_dir : str
-            Directory to put final output files.
+            Project directory.
         year : int | str
             Year of analysis
         grid : str
@@ -575,7 +572,7 @@ class NSRDB:
         collect_dir : str
             Directory with chunked files to be collected.
         out_dir : str
-            Directory to put final output files.
+            Project directory.
         year : int | str
             Year of analysis
         grid : str
@@ -611,7 +608,7 @@ class NSRDB:
             if tmp:
                 f_out = os.path.join('/tmp/scratch/', fname)
             else:
-                f_out = os.path.join(out_dir, fname)
+                f_out = os.path.join(nsrdb._final_dir, fname)
 
             flist = [fn for fn in os.listdir(collect_dir)
                      if fn.endswith('.h5')
@@ -688,8 +685,7 @@ class NSRDB:
         Parameters
         ----------
         out_dir : str
-            Directory containing ancillary and cloud output files, also where
-            all-sky output files will go.
+            Project directory.
         year : int | str
             Year of analysis
         grid : str
@@ -715,12 +711,15 @@ class NSRDB:
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
-                f_out = os.path.join(out_dir, fname.format(y=year))
+                f_out = os.path.join(nsrdb._data_dir,
+                                     fname.format(y=year))
                 irrad_dsets = dsets
             elif 'ancil' in fname:
-                f_ancillary = os.path.join(out_dir, fname.format(y=year))
+                f_ancillary = os.path.join(nsrdb._data_dir,
+                                           fname.format(y=year))
             elif 'cloud' in fname:
-                f_cloud = os.path.join(out_dir, fname.format(y=year))
+                f_cloud = os.path.join(nsrdb._data_dir,
+                                       fname.format(y=year))
 
         if i_chunk is not None:
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
@@ -746,53 +745,3 @@ class NSRDB:
                 f[dset, rows, cols] = arr
 
         logger.info('Finished writing results to: {}'.format(f_out))
-
-    @staticmethod
-    def eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=2,
-              feature='--qos=normal', node_name='nsrdb', stdout_path=None):
-        """Run an NSRDB class or static method on an Eagle node.
-
-        Format: NSRDB.fun_str(arg_str)
-
-        Parameters
-        ----------
-        fun_str : str
-            Name of the class or static method belonging to the NSRDB class
-            to execute in the SLURM job.
-        arg_str : str
-            Arguments passed to the target method.
-        alloc : str
-            SLURM project allocation.
-        memory : int
-            Node memory request in GB.
-        walltime : int
-            Node walltime request in hours.
-        feature : str
-            Additional flags for SLURM job. Format is "--qos=high"
-            or "--depend=[state:job_id]". Default is None.
-        node_name : str
-            Name for the SLURM job.
-        stdout_path : str
-            Path to dump the stdout/stderr files.
-        """
-
-        if stdout_path is None:
-            stdout_path = os.getcwd()
-
-        cmd = "python -c 'from nsrdb.main import NSRDB;NSRDB.{f}({a})'"
-
-        cmd = cmd.format(f=fun_str, a=arg_str)
-
-        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      feature=feature, name=node_name, stdout_path=stdout_path)
-
-        print('\ncmd:\n{}\n'.format(cmd))
-
-        if slurm.id:
-            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'Eagle.'.format(node_name, slurm.id))
-        else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(node_name))
-        print(msg)

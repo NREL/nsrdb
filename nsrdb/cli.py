@@ -11,6 +11,7 @@ import logging
 from nsrdb.main import NSRDB
 from nsrdb.utilities.cli_dtypes import STR, INT
 from nsrdb.utilities.file_utils import safe_json_load
+from nsrdb.utilities.execution import SLURM
 from nsrdb.pipeline.status import Status
 from nsrdb.pipeline.pipeline import Pipeline
 
@@ -314,12 +315,24 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
         click.echo(msg)
         logger.info(msg)
     else:
-        logger.info('Running reV SC aggregation on Eagle with '
-                    'node name "{}"'.format(name))
+        cmd = ("python -c 'from nsrdb.main import NSRDB;NSRDB.{f}({a})'"
+               .format(f=fun_str, a=arg_str))
+        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
+                      feature=feature, name=name, stdout_path=stdout_path)
 
-        NSRDB.eagle(fun_str, arg_str, alloc=alloc, memory=memory,
-                    walltime=walltime, feature=feature, node_name=name,
-                    stdout_path=stdout_path)
+        if slurm.id:
+            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                   'Eagle.'.format(name, slurm.id))
+            Status.add_job(
+                out_dir, command, name, replace=True,
+                job_attrs={'job_id': slurm.id,
+                           'hardware': 'eagle',
+                           'out_dir': out_dir})
+        else:
+            msg = ('Was unable to kick off job "{}". '
+                   'Please see the stdout error messages'
+                   .format(name))
+        print(msg)
 
 
 collect_data_model.add_command(eagle)
