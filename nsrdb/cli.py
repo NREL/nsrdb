@@ -84,7 +84,7 @@ def config(ctx, config_file, command):
                 ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
                 ctx.invoke(collect_data_model,
                            daily_dir=cmd_args['daily_dir'],
-                           n_chunks=n_chunks, i_chunk=i_chunk, f_fname=i_fname,
+                           n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
                            n_workers=cmd_args['n_workers'])
                 ctx.invoke(eagle, **eagle_args)
 
@@ -174,7 +174,7 @@ def data_model(ctx, doy, cloud_dir):
 @direct.group()
 @click.option('--daily_dir', '-d', type=str, required=True,
               help='Data model output directory to collect to out_dir.')
-@click.option('--n_chunk', '-n', type=int, required=True,
+@click.option('--n_chunks', '-n', type=int, required=True,
               help='Number of chunks to collect into.')
 @click.option('--i_chunk', '-ic', type=int, required=True,
               help='Chunk index.')
@@ -195,7 +195,7 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
 
     log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
 
-    fun_str = 'collect_data_model_chunk'
+    fun_str = 'collect_data_model'
     arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
                'i_fname={}, freq="{}", parallel={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
