@@ -23,7 +23,7 @@ class Pipeline:
     COMMANDS = ('data-model',
                 'collect-data-model',
                 'cloud-fill',
-                'allsky',
+                'all-sky',
                 'collect-final')
 
     RETURN_CODES = {0: 'successful',
@@ -42,7 +42,7 @@ class Pipeline:
         """
         self.monitor = monitor
         self._config = safe_json_load(pipeline)
-        self._run_list = self._config['pipeline_steps']
+        self._run_list = self._config['pipeline']
         self._init_status()
 
         # init logger for pipeline module if requested in input config

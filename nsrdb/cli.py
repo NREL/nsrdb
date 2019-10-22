@@ -64,7 +64,7 @@ def config(ctx, config_file, command):
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
     ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
-    ctx.obj['LOG_LEVEL'] = direct_args['LOG_LEVEL']
+    ctx.obj['LOG_LEVEL'] = direct_args['log_level']
 
     if command == 'data-model':
         doy_range = cmd_args.pop('doy_range')
