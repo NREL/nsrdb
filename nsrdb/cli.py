@@ -62,6 +62,14 @@ def config(ctx, config_file, command):
     eagle_args = config.pop('eagle')
     cmd_args = config.pop(command)
 
+    # replace any args with higher priority entries in command dict
+    for k in eagle_args.keys():
+        if k in cmd_args:
+            eagle_args[k] = cmd_args[k]
+    for k in direct_args.keys():
+        if k in cmd_args:
+            direct_args[k] = cmd_args[k]
+
     name = direct_args['name']
     ctx.obj['YEAR'] = direct_args['year']
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
@@ -92,8 +100,7 @@ def config(ctx, config_file, command):
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
-            ctx.invoke(cloud_fill, f_cloud=cmd_args['f_cloud'],
-                       i_chunk=i_chunk,
+            ctx.invoke(cloud_fill, i_chunk=i_chunk,
                        col_chunk=cmd_args['col_chunk'])
             ctx.invoke(eagle, **eagle_args)
 
@@ -209,27 +216,25 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
 
 
 @direct.group()
-@click.option('--f_cloud', '-f', type=str, required=True,
-              help='Cloud file to fill. Can have {} to insert i_chunk.')
 @click.option('--i_chunk', '-i', type=int, required=True,
               help='Chunked file index in out_dir to run cloud fill for.')
 @click.option('--col_chunk', '-ch', type=int, required=True, default=10000,
               help='Column chunk to process at one time.')
 @click.pass_context
-def cloud_fill(ctx, f_cloud, i_chunk, col_chunk):
+def cloud_fill(ctx, i_chunk, col_chunk):
     """Gap fill a cloud data file."""
 
     name = ctx.obj['NAME']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
     log_level = ctx.obj['LOG_LEVEL']
     log_file = 'cloud_fill_{}.log'.format(i_chunk)
 
-    if '{}' in f_cloud:
-        f_cloud = f_cloud.format(i_chunk)
-
     fun_str = 'gap_fill_clouds'
-    arg_str = ('"{}", col_chunk={}, log_file="{}", '
+    arg_str = ('"{}", {}, {}, col_chunk={}, log_file="{}", '
                'log_level="{}", job_name="{}"'
-               .format(f_cloud, col_chunk, log_file, log_level, name))
+               .format(out_dir, year, i_chunk, col_chunk,
+                       log_file, log_level, name))
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'cloud-fill'
@@ -329,8 +334,8 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
                       feature=feature, name=name, stdout_path=stdout_path)
 
         if slurm.id:
-            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'Eagle.'.format(name, slurm.id))
+            msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
+                   .format(name, slurm.id))
             Status.add_job(
                 out_dir, command, name, replace=True,
                 job_attrs={'job_id': slurm.id,
