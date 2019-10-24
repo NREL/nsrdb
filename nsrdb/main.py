@@ -269,7 +269,7 @@ class NSRDB:
         if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
 
             if loggers is None:
-                loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
+                loggers = ('nsrdb.main', 'nsrdb.data_model',
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
@@ -828,5 +828,5 @@ class NSRDB:
                       'grid': grid,
                       'freq': freq,
                       }
-            Status.make_job_file(nsrdb._out_dir, 'collect-final',
+            Status.make_job_file(nsrdb._out_dir, 'all-sky',
                                  job_name, status)
