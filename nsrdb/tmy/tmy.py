@@ -393,6 +393,8 @@ class Tmy:
         self._my_time_index = None
         self._time_index = None
         self._meta = None
+        self._d_total_ghi = None
+        self._d_mean_temp = None
 
         self._fpaths = self._parse_dir(self._dir, self._years)
         self._check_weights(self._fpaths, self._weights)
@@ -478,6 +480,42 @@ class Tmy:
                 arr[iloc, :] = temp
 
         return arr
+
+    @property
+    def daily_total_ghi(self):
+        """Daily GHI multi-year timeseries.
+
+        Returns
+        -------
+        _d_total_ghi  : np.ndarray
+            Multi-year timeseries of daily total GHI.
+        """
+
+        if self._d_total_ghi is None:
+            ghi = self._get_my_arr('ghi', unscale=True)
+            ghi = pd.DataFrame(ghi, index=self.my_time_index)
+            ghi = ghi.resample('1D').sum()
+            self._d_total_ghi = ghi.values
+
+        return self._d_total_ghi
+
+    @property
+    def daily_mean_temp(self):
+        """Daily mean temperature multi-year timeseries.
+
+        Returns
+        -------
+        _d_mean_temp  : np.ndarray
+            Multi-year timeseries of daily mean temperature.
+        """
+
+        if self._d_mean_temp is None:
+            mu_t = self._get_my_arr('air_temperature', unscale=True)
+            mu_t = pd.DataFrame(mu_t, index=self.my_time_index)
+            mu_t = mu_t.resample('1D').mean()
+            self._d_mean_temp = mu_t.values
+
+        return self._d_mean_temp
 
     @property
     def my_time_index(self):
@@ -645,27 +683,30 @@ class Tmy:
             monthly mean and median GHI values.
         """
 
-        ghi = self._get_my_arr('ghi')
-        lt_mean = np.zeros((12, ghi.shape[1]), dtype=np.float32)
-        lt_median = np.zeros((12, ghi.shape[1]), dtype=np.float32)
+        lt_mean = np.zeros((12, self.daily_total_ghi.shape[1]),
+                           dtype=np.float32)
+        lt_median = np.zeros((12, self.daily_total_ghi.shape[1]),
+                             dtype=np.float32)
 
         for m in range(1, 13):
             mask = (self.my_time_index.month == m)
-            lt_mean[(m - 1), :] = np.mean(ghi[mask, :], axis=0)
-            lt_median[(m - 1), :] = np.median(ghi[mask, :], axis=0)
+            lt_mean[(m - 1), :] = np.mean(self.daily_total_ghi[mask, :],
+                                          axis=0)
+            lt_median[(m - 1), :] = np.median(self.daily_total_ghi[mask, :],
+                                              axis=0)
 
-        diffs = {m: np.zeros((len(self.years), ghi.shape[1]), dtype=np.float32)
+        shape = (len(self.years), self.daily_total_ghi.shape[1])
+        diffs = {m: np.zeros(shape, dtype=np.float32)
                  for m in range(1, 13)}
-        sorted_years = {m: np.zeros((len(self.years), ghi.shape[1]),
-                                    dtype=np.float32)
+        sorted_years = {m: np.zeros(shape, dtype=np.float32)
                         for m in range(1, 13)}
 
         for i, y in enumerate(self.years):
             for m in range(1, 13):
                 mask = ((self.my_time_index.month == m)
                         & (self.my_time_index.year == y))
-                this_mean = np.mean(ghi[mask, :], axis=0)
-                this_median = np.median(ghi[mask, :], axis=0)
+                this_mean = np.mean(self.daily_total_ghi[mask, :], axis=0)
+                this_median = np.median(self.daily_total_ghi[mask, :], axis=0)
 
                 im = m - 1
                 diffs[m][i, :] = (np.abs(lt_mean[im, :] - this_mean)
@@ -674,7 +715,7 @@ class Tmy:
         for m in range(1, 13):
             sorted_years[m] = np.argsort(diffs[m], axis=0) + self.years[0]
 
-        for site in range(ghi.shape[1]):
+        for site in range(self.daily_total_ghi.shape[1]):
             for m in range(1, 13):
                 temp = [y for y in sorted_years[m][:, site]
                         if y in tmy_years_5[m][:, site]]
