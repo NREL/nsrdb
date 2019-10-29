@@ -49,9 +49,6 @@ class Cdf:
 
         self._fs_all = self._fs_stat()
 
-        self._tmy_years, self._fs = Tmy.select_years(
-            self._fs_all, self._years[0])
-
     @property
     def time_index(self):
         """Get the multi-year daily non-leap time index.
@@ -99,30 +96,6 @@ class Cdf:
             List of years included in this cdf analysis.
         """
         return self._years
-
-    @property
-    def tmy_years(self):
-        """Get the selected best TMY years for every month for every site.
-
-        Returns
-        -------
-        tmy_years : np.ndarray
-            Array of best TMY years for every month for every site.
-            Shape is (months, sites).
-        """
-        return self._tmy_years
-
-    @property
-    def fs(self):
-        """Get the min FS statistic corresponding to the tmy_years chosen.
-
-        Returns
-        -------
-        fs : np.ndarray
-            Array of min FS statistic for each month for every site
-            corresponding to the year selected. Shape is (months, sites).
-        """
-        return self._fs
 
     @property
     def fs_all(self):
@@ -296,6 +269,42 @@ class Cdf:
 
         return fs
 
+    @staticmethod
+    def _best_fs_year(fs_all, year0):
+        """Select single best TMY year for each month based on the FS statistic
+
+        Parameters
+        ----------
+        fs_all : dict
+            Dictionary with month keys. Each dict value is a (y, n) array where
+            y is years and n is sites. Each array entry is the FS metric.
+        year0 : int | str
+            Initial year of the TMY.
+
+        Returns
+        -------
+        years : np.ndarray
+            Array of best TMY years for every month for every site.
+            Shape is (months, sites).
+        fs : np.ndarray
+            Array of min FS statistic for each month for every site
+            corresponding to the year selected. Shape is (months, sites).
+        """
+
+        years = None
+        fs = None
+
+        for m, ranks in fs_all.items():
+            if years is None:
+                years = np.zeros((12, ranks.shape[1]), dtype=np.uint16)
+                fs = np.zeros((12, ranks.shape[1]))
+
+            i = m - 1
+            years[i, :] = int(year0) + np.argmin(ranks, axis=0)
+            fs[i, :] = np.min(ranks, axis=0)
+
+        return years, fs
+
     def plot_tmy_selection(self, month=1, site=0, fig_size=(12, 9), fout=None,
                            xlabel='Cumulative Value', ylabel='CDF',
                            plot_years=None):
@@ -319,6 +328,9 @@ class Cdf:
             Optional set of years to plot (makes the plot less busy)
         """
 
+        tmy_years, _ = self._best_fs_year(
+            self._fs_all, self._years[0])
+
         import matplotlib.pyplot as plt
         fig = plt.figure(figsize=fig_size)
         ax = fig.add_subplot(111)
@@ -334,13 +346,13 @@ class Cdf:
         ax.plot(self.mean_cdf[my_mask, site], self._annual_frac[my_mask, site],
                 'b-o')
 
-        tmy_year = self.tmy_years[(month - 1), site]
+        tmy_year = tmy_years[(month - 1), site]
         mask = self._time_masks[tmy_year] & self._time_masks[month]
         ax.plot(self.cdf[mask, site], self._lt_frac[mask, site], 'rx')
         ax.plot(self.cdf[mask, site], self._annual_frac[mask, site], 'r-x')
 
         legend = plot_years + ['Mean', 'Mean Interp',
-                               'TMY ({})'.format(tmy_year)]
+                               'Best FS ({})'.format(tmy_year)]
         plt.legend(legend)
         ax.set_title('TMY CDFs for Month {} and Site {}'.format(month, site))
         ax.set_xlabel(xlabel)
@@ -467,6 +479,58 @@ class Tmy:
 
         return arr
 
+    @property
+    def my_time_index(self):
+        """Full multi-year time index.
+
+        Returns
+        -------
+        my_time_index : pd.Datetimeindex
+            Multi-year datetime index corresponding to multi-year data arrays.
+        """
+        if self._my_time_index is None:
+            start = '1-1-{}'.format(self.years[0])
+            end = '1-1-{}'.format(self.years[-1] + 1)
+            self._my_time_index = pd.date_range(start=start, end=end,
+                                                freq=self.source_freq,
+                                                closed='left')
+        return self._my_time_index
+
+    @property
+    def time_index(self):
+        """Time index for first TMY year without leap day.
+
+        Returns
+        -------
+        time_index : pd.Datetimeindex
+            Single-year datetime index corresponding to TMY output.
+        """
+        if self._time_index is None:
+            start = '1-1-{}'.format(self.years[0])
+            end = '1-1-{}'.format(self.years[0] + 1)
+            self._time_index = pd.date_range(start=start, end=end,
+                                             freq='1h', closed='left')
+            self._time_index += datetime.timedelta(minutes=30)
+            if len(self._time_index) != 8760:
+                _, self._time_index = self.drop_leap(
+                    np.zeros((len(self._time_index), 1)), self._time_index)
+        return self._time_index
+
+    @property
+    def meta(self):
+        """Get the meta data from the current site slice.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            Meta data from the current site slice.
+        """
+        if self._meta is None:
+            with Resource(self._fpaths[0]) as res:
+                meta = res.meta
+            self._meta = meta.iloc[self._site_slice, :]
+        return self._meta
+
     @staticmethod
     def drop_leap(arr, time_index):
         """Make 365-day timeseries (TMY does not have leap days).
@@ -525,8 +589,8 @@ class Tmy:
         return freq
 
     @staticmethod
-    def select_years(fs_all, year0):
-        """Select the best TMY years for each month based on the FS statistic.
+    def select_fs_years(fs_all, year0, n=5):
+        """Select 5 best TMY years for each month based on the FS statistic
 
         Parameters
         ----------
@@ -535,15 +599,18 @@ class Tmy:
             y is years and n is sites. Each array entry is the FS metric.
         year0 : int | str
             Initial year of the TMY.
+        n : int
+            Number of years to select.
 
         Returns
         -------
-        years : np.ndarray
-            Array of best TMY years for every month for every site.
-            Shape is (months, sites).
-        fs : np.ndarray
-            Array of min FS statistic for each month for every site
-            corresponding to the year selected. Shape is (months, sites).
+        years : dict
+            Month-keyed dictionary of arrays of best TMY years for every month
+            for every site. Shape is (n, sites).
+        fs : dict
+            Month-keyed dictionary of arrays of min FS statistic for each month
+            for every site corresponding to the 5 years selected.
+            Shape is (n, sites).
         """
 
         years = None
@@ -551,78 +618,78 @@ class Tmy:
 
         for m, ranks in fs_all.items():
             if years is None:
-                years = np.zeros((12, ranks.shape[1]), dtype=np.uint16)
-                fs = np.zeros((12, ranks.shape[1]))
+                years = {m: np.zeros((n, ranks.shape[1]), dtype=np.uint16)
+                         for m in range(1, 13)}
+                fs = {m: np.zeros((n, ranks.shape[1])) for m in range(1, 13)}
 
-            i = m - 1
-            years[i, :] = int(year0) + np.argmin(ranks, axis=0)
-            fs[i, :] = np.min(ranks, axis=0)
+            years[m] = int(year0) + np.argsort(ranks, axis=0)[:n, :]
+            fs[m] = np.sort(ranks, axis=0)[:n, :]
 
         return years, fs
 
-    @property
-    def my_time_index(self):
-        """Full multi-year time index.
+    def sort_years_mm(self, tmy_years_5):
+        """Sort candidate TMY months/years based on deviation from the
+        multi-year mean and median GHI.
+
+        Parameters
+        ----------
+        tmy_years_5 : dict
+            Month-keyed dictionary of arrays of best 5 TMY years for every
+            month for every site. Shape is (5, sites).
 
         Returns
         -------
-        my_time_index : pd.Datetimeindex
-            Multi-year datetime index corresponding to multi-year data arrays.
+        tmy_years_5 : dict
+            Month-keyed dictionary of arrays of best 5 TMY years for every
+            month for every site SORTED BY deviation from the multi-year
+            monthly mean and median GHI values.
         """
-        if self._my_time_index is None:
-            start = '1-1-{}'.format(self.years[0])
-            end = '1-1-{}'.format(self.years[-1] + 1)
-            self._my_time_index = pd.date_range(start=start, end=end,
-                                                freq=self.source_freq,
-                                                closed='left')
-        return self._my_time_index
 
-    @property
-    def time_index(self):
-        """Time index for first TMY year without leap day.
+        ghi = self._get_my_arr('ghi')
+        lt_mean = np.zeros((12, ghi.shape[1]), dtype=np.float32)
+        lt_median = np.zeros((12, ghi.shape[1]), dtype=np.float32)
 
-        Returns
-        -------
-        time_index : pd.Datetimeindex
-            Single-year datetime index corresponding to TMY output.
-        """
-        if self._time_index is None:
-            start = '1-1-{}'.format(self.years[0])
-            end = '1-1-{}'.format(self.years[0] + 1)
-            self._time_index = pd.date_range(start=start, end=end,
-                                             freq='1h', closed='left')
-            self._time_index += datetime.timedelta(minutes=30)
-            if len(self._time_index) != 8760:
-                _, self._time_index = self.drop_leap(
-                    np.zeros((len(self._time_index), 1)), self._time_index)
-        return self._time_index
+        for m in range(1, 13):
+            mask = (self.my_time_index.month == m)
+            lt_mean[(m - 1), :] = np.mean(ghi[mask, :], axis=0)
+            lt_median[(m - 1), :] = np.median(ghi[mask, :], axis=0)
 
-    @property
-    def meta(self):
-        """Get the meta data from the current site slice.
+        diffs = {m: np.zeros((len(self.years), ghi.shape[1]), dtype=np.float32)
+                 for m in range(1, 13)}
+        sorted_years = {m: np.zeros((len(self.years), ghi.shape[1]),
+                                    dtype=np.float32)
+                        for m in range(1, 13)}
 
-        Returns
-        -------
-        meta : pd.DataFrame
-            Meta data from the current site slice.
-        """
-        if self._meta is None:
-            with Resource(self._fpaths[0]) as res:
-                meta = res.meta
-            self._meta = meta.iloc[self._site_slice, :]
-        return self._meta
+        for i, y in enumerate(self.years):
+            for m in range(1, 13):
+                mask = ((self.my_time_index.month == m)
+                        & (self.my_time_index.year == y))
+                this_mean = np.mean(ghi[mask, :], axis=0)
+                this_median = np.median(ghi[mask, :], axis=0)
+
+                im = m - 1
+                diffs[m][i, :] = (np.abs(lt_mean[im, :] - this_mean)
+                                  + np.abs(lt_median[im, :] - this_median))
+
+        for m in range(1, 13):
+            sorted_years[m] = np.argsort(diffs[m], axis=0) + self.years[0]
+
+        for site in range(ghi.shape[1]):
+            for m in range(1, 13):
+                temp = [y for y in sorted_years[m][:, site]
+                        if y in tmy_years_5[m][:, site]]
+                tmy_years_5[m][:, site] = temp
+
+        return tmy_years_5
 
     def calculate_tmy(self):
         """Calculate the TMY based on the multiple-dataset weights.
 
         Returns
         -------
-        years : np.ndarray
+        tmy_years : np.ndarray
             Array of best TMY years for every month for every site.
             Shape is (months, sites).
-        fs : np.ndarray
-            Array of min FS statistic for each month for every site
-            corresponding to the year selected. Shape is (months, sites).
         """
 
         ws = {}
@@ -635,8 +702,14 @@ class Tmy:
                 for m, fs in cdf.fs_all.items():
                     ws[m] += weight * fs
 
-        tmy_years, tmy_fs = self.select_years(ws, self.years[0])
-        return tmy_years, tmy_fs
+        tmy_years_5, _ = self.select_fs_years(ws, self.years[0], n=5)
+        tmy_years_5 = self.sort_years_mm(tmy_years_5)
+
+        tmy_years = np.zeros((12, tmy_years_5[1].shape[1]), dtype=np.uint16)
+        for m in range(1, 13):
+            tmy_years[(m - 1), :] = tmy_years_5[m][0, :]
+
+        return tmy_years
 
     def _make_tmy_timeseries(self, dset, tmy_years, unscale=False):
         """Make the TMY 8760 timeseries from the selected TMY years.

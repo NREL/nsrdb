@@ -32,8 +32,8 @@ def test_tmy():
     """Test TMY and validate against baseline data."""
     years = list(range(1998, 2018))
     weights = {'ghi': 1}
-    tgy = Tmy(NSRDB_DIR, years, weights)
-    tgy_years, _ = tgy.calculate_tmy()
+    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
+    tgy_years = tgy.calculate_tmy()
     ghi = tgy._make_tmy_timeseries('ghi', tgy_years)
 
     for i, fn in BASELINES_FILES.items():
@@ -65,7 +65,7 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 if __name__ == '__main__':
     # execute_pytest()
-    baseline, ghi, tgy_years, tgy_fs = test_tmy()
+    test_tmy()
 
     years = list(range(1998, 2018))
     weights = {'ghi': 1}
@@ -74,7 +74,6 @@ if __name__ == '__main__':
     meta = tgy.meta
 
     cdf = Cdf(arr, tgy.my_time_index)
-    fs = cdf._fs
     fs_all = cdf._fs_all
     long_term_frac = cdf._lt_frac
     annaul_frac = cdf._annual_frac
