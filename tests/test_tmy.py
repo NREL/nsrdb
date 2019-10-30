@@ -6,7 +6,7 @@ Created on Feb 13th 2019
 
 @author: gbuster
 """
-
+from copy import deepcopy
 import os
 import pytest
 import pandas as pd
@@ -28,23 +28,169 @@ BASELINES_FILES = {0: 'DRA_36.62_-116.02_tgy.csv',
                    8: 'PSU_40.72_-77.93_tgy.csv'}
 
 
-def test_tmy():
-    """Test TMY and validate against baseline data."""
+def test_cdf_cum_sum():
+    """Test the array cumulative summation function."""
+
+    my_arr = [np.arange(17520, dtype=np.float32).tolist() for i in range(3)]
+    my_arr = np.array(my_arr).flatten()
+    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
+                               freq='30min', closed='left')
+    cdf = Cdf(my_arr, time_index).cdf
+    cdf_test = np.cumsum(my_arr)
+
+    assert cdf_test[47] == cdf[0]
+    assert cdf_test[95] == cdf[1]
+
+
+@pytest.mark.parametrize(('mults', 'best_year'), (((1.0, 1.1, 1.2), 2014),
+                                                  ((0.5, 1.1, 0.6), 2015),
+                                                  ((0.8, 1.1, 0.6), 2013)))
+def test_cdf_best_year(mults, best_year):
+    """Test the CDF year selection using an arbitrary input array"""
+
+    my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
+              for i in range(3)]
+    my_arr = np.array(my_arr).flatten()
+    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
+                               freq='30min', closed='left')
+    cdf = Cdf(my_arr, time_index)
+    years, _ = cdf._best_fs_year()
+
+    assert all(years == best_year)
+
+
+def test_cdf_fs():
+    """Test the FS metric against baseline values."""
+    baseline = {1: np.array([0.195933, 3.11879e-09, 0.107683]),
+                2: np.array([0.290723, 4.87245e-09, 0.168612]),
+                3: np.array([0.299666, 5.7334e-09, 0.176618]),
+                4: np.array([0.306686, 4.94159e-09, 0.182132]),
+                5: np.array([0.3088, 6.43965e-09, 0.184315]),
+                }
+
+    mults = [0.4, 1.0, 1.6]
+    my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
+              for i in range(3)]
+    my_arr = np.array(my_arr).flatten()
+    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
+                               freq='30min', closed='left')
+    cdf = Cdf(my_arr, time_index)
+    fs_all = cdf._fs_all
+    for k, v in baseline.items():
+        assert np.allclose(fs_all[k].flatten(), v)
+
+
+def test_fw_weighting():
+    """Test the combination of different FS weightings."""
+    dw = 0.3
+    gw = 0.7
+    years = list(range(1998, 2005))
+    g_weights = {'ghi': 1}
+    d_weights = {'dni': 1}
+    m_weights = {'dni': dw, 'ghi': gw}
+    tgy = Tmy(NSRDB_DIR, years, g_weights, site_slice=slice(0, 1))
+    tdy = Tmy(NSRDB_DIR, years, d_weights, site_slice=slice(0, 1))
+    tmy = Tmy(NSRDB_DIR, years, m_weights, site_slice=slice(0, 1))
+    g_ws = tgy.get_weighted_fs()
+    d_ws = tdy.get_weighted_fs()
+    m_ws = tmy.get_weighted_fs()
+
+    for k, v in m_ws.items():
+        assert np.allclose((gw * g_ws[k] + dw * d_ws[k]), v)
+
+
+def test_arr_sampling():
+    """Test the array retrieval and daily sampling methods."""
+    years = list(range(1998, 2005))
+    weights = {'sum_air_temperature': 1.0}
+    tmy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 1))
+    subhourly_temp = tmy._get_my_arr('air_temperature')
+    sum_temp = tmy._get_my_arr('sum_air_temperature')
+    mean_temp = tmy._get_my_arr('mean_air_temperature')
+    min_temp = tmy._get_my_arr('min_air_temperature')
+    max_temp = tmy._get_my_arr('max_air_temperature')
+    tmy.my_daily_time_index
+    ws = tmy.get_weighted_fs()
+
+    assert len(tmy.my_time_index) == len(subhourly_temp)
+    assert len(tmy.my_daily_time_index) == len(sum_temp)
+    assert len(tmy.my_daily_time_index) == len(mean_temp)
+    assert len(tmy.my_daily_time_index) == len(max_temp)
+    assert len(tmy.my_daily_time_index) == len(min_temp)
+
+    assert (sum_temp[(mean_temp > 0)] > mean_temp[(mean_temp > 0)]).all()
+    assert (max_temp > mean_temp).all()
+    assert (mean_temp > min_temp).all()
+
+    cdf = Cdf(subhourly_temp, tmy.my_time_index)
+    fs = cdf._fs_all
+
+    for k, v in fs.items():
+        assert np.allclose(ws[k], v, rtol=0.02)
+
+
+def test_run_counting():
+    """Test the persistence run counter."""
+    arr = np.array([0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])
+    m, n = Tmy._count_runs(arr)
+    assert m == 3
+    assert n == 5
+
+    arr = np.array([0, 0, 0, 0])
+    m, n = Tmy._count_runs(arr)
+    assert m == 0
+    assert n == 0
+
+
+def test_tmy_steps():
+    """Test each step of the TMY."""
+
     years = list(range(1998, 2018))
     weights = {'ghi': 1}
     tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
-    tgy_years = tgy.calculate_tmy()
-    ghi = tgy._make_tmy_timeseries('ghi', tgy_years)
 
-    for i, fn in BASELINES_FILES.items():
-        df = pd.read_csv(os.path.join(BASELINE_DIR, fn))
-        cols = [c.strip(' ').lower() for c in df.columns]
-        df.columns = cols
-        check = np.allclose(df['ghi'].values, ghi[:, i])
-        print(fn)
-        print(check)
-        if not check:
-            break
+    emsg = ('STEP1: TMY year selection based on FS metric failed! '
+            'Low FS metrics do not correspond to selected years.')
+    ws = tgy.get_weighted_fs()
+    tmy_years_5_init, _ = tgy.select_fs_years(ws)
+    for j in range(len(tgy.meta)):
+        for m in range(1, 13):
+            good_years = int(tgy.years[0]) + np.argsort(ws[m], axis=0)
+            for yi in range(5):
+                assert tmy_years_5_init[m][yi, j] == good_years[yi, j], emsg
+                assert tmy_years_5_init[m][yi, j] == good_years[yi, j], emsg
+
+    emsg = ('STEP2: Sorting based on multi-year ghi mean and median failed! '
+            'TMY years do not appear to be sorted correctly.')
+    tmy_years_5_sorted, diffs = tgy.sort_years_mm(deepcopy(tmy_years_5_init))
+    for j in range(len(tgy.meta)):
+        for m in range(1, 13):
+            diffs_sub = []
+            for yi in range(5):
+                ii = tmy_years_5_sorted[m][yi, j] - tgy.years[0]
+                diffs_sub.append(diffs[m][ii, j])
+            assert diffs_sub == sorted(deepcopy(diffs_sub)), emsg
+
+    emsg = ('STEP3: Persistence filter failed! TMY year was chosen with {}')
+    emsg2 = 'Selected TMY year not found in 5 candidate years!'
+    tmy_years, max_run_len, n_runs = tgy.persistence_filter(tmy_years_5_sorted)
+    for im, m in enumerate(range(1, 13)):
+        for j in range(len(tgy.meta)):
+            year = tmy_years[im, j]
+            tmy_year_index = np.where(tmy_years_5_sorted[m][:, j] == year)[0]
+
+            assert tmy_year_index.size, emsg2
+            tmy_year_index = tmy_year_index[0]
+
+            max_run = max_run_len[m][j][tmy_year_index]
+            n_run = n_runs[m][j][tmy_year_index]
+
+            emsg1 = emsg.format('a max length run')
+            assert max_run != max(max_run_len[m][j]), emsg1
+            emsg1 = emsg.format('a max number of runs')
+            assert n_run != max(n_runs[m][j])
+            emsg1 = emsg.format('zero runs')
+            assert n_run != 0
 
 
 def execute_pytest(capture='all', flags='-rapP'):
@@ -64,19 +210,4 @@ def execute_pytest(capture='all', flags='-rapP'):
 
 
 if __name__ == '__main__':
-    # execute_pytest()
-    test_tmy()
-
-    years = list(range(1998, 2018))
-    weights = {'ghi': 1}
-    tgy = Tmy(NSRDB_DIR, years, weights)
-    arr = tgy._get_my_arr('ghi')
-    meta = tgy.meta
-
-    cdf = Cdf(arr, tgy.my_time_index)
-    fs_all = cdf._fs_all
-    long_term_frac = cdf._lt_frac
-    annaul_frac = cdf._annual_frac
-
-    cdf.plot_tmy_selection(month=2, site=0,
-                           plot_years=[1999, 2000, 2007, 2017])
+    execute_pytest()

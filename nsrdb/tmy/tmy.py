@@ -11,6 +11,7 @@ import os
 import pandas as pd
 import numpy as np
 import datetime
+from itertools import groupby
 from nsrdb.file_handlers.resource import Resource
 
 
@@ -27,8 +28,8 @@ class Cdf:
             Datetime index corresponding to the rows in my_arr
         """
 
-        self._my_arr = my_arr
-        self._my_time_index = my_time_index
+        self._my_arr = deepcopy(my_arr)
+        self._my_time_index = deepcopy(my_time_index)
         self._years = sorted(self._my_time_index.year.unique())
 
         self._my_cdf = self._cumulative_sum_monthly(
@@ -40,7 +41,7 @@ class Cdf:
         self._my_cdf, self._my_time_index = Tmy.drop_leap(
             self._my_cdf, self._my_time_index)
 
-        self._time_masks = self._make_time_masks(self._my_time_index)
+        self._time_masks = Tmy._make_time_masks(self._my_time_index)
 
         self._mean_cdf = self._make_my_mean_cdf(
             self._my_cdf, self._my_time_index, self._time_masks)
@@ -110,29 +111,6 @@ class Cdf:
         return self._fs_all
 
     @staticmethod
-    def _make_time_masks(time_index):
-        """Make a time index mask lookup dict.
-
-        Parameters
-        ----------
-        time_index : pd.datetimeindex
-            Time index to mask.
-
-        Returns
-        -------
-        masks : dict
-            Lookup of boolean masks keyed by month and year integer.
-        """
-        masks = {}
-        years = time_index.year.unique()
-        months = time_index.month.unique()
-        for y in years:
-            masks[y] = (time_index.year == y)
-        for m in months:
-            masks[m] = (time_index.month == m)
-        return masks
-
-    @staticmethod
     def _cumulative_sum_monthly(arr, time_index):
         """Calculate the montly CDF of the data array.
 
@@ -161,14 +139,12 @@ class Cdf:
     @staticmethod
     def _resample_daily_max(arr, time_index):
         """Convert a timeseries array to daily maximum data points.
-
         Parameters
         ----------
         arr : np.ndarray
             Timeseries array (time, sites) for one variable.
         time_index : pd.datetimeindex
             Datetime index corresponding to the rows in arr.
-
         Returns
         -------
         arr : np.ndarray
@@ -269,17 +245,8 @@ class Cdf:
 
         return fs
 
-    @staticmethod
-    def _best_fs_year(fs_all, year0):
+    def _best_fs_year(self):
         """Select single best TMY year for each month based on the FS statistic
-
-        Parameters
-        ----------
-        fs_all : dict
-            Dictionary with month keys. Each dict value is a (y, n) array where
-            y is years and n is sites. Each array entry is the FS metric.
-        year0 : int | str
-            Initial year of the TMY.
 
         Returns
         -------
@@ -294,13 +261,13 @@ class Cdf:
         years = None
         fs = None
 
-        for m, ranks in fs_all.items():
+        for m, ranks in self._fs_all.items():
             if years is None:
                 years = np.zeros((12, ranks.shape[1]), dtype=np.uint16)
                 fs = np.zeros((12, ranks.shape[1]))
 
             i = m - 1
-            years[i, :] = int(year0) + np.argmin(ranks, axis=0)
+            years[i, :] = int(self.years[0]) + np.argmin(ranks, axis=0)
             fs[i, :] = np.min(ranks, axis=0)
 
         return years, fs
@@ -328,8 +295,7 @@ class Cdf:
             Optional set of years to plot (makes the plot less busy)
         """
 
-        tmy_years, _ = self._best_fs_year(
-            self._fs_all, self._years[0])
+        tmy_years, _ = self._best_fs_year()
 
         import matplotlib.pyplot as plt
         fig = plt.figure(figsize=fig_size)
@@ -392,9 +358,12 @@ class Tmy:
         self._site_slice = site_slice
         self._my_time_index = None
         self._time_index = None
+        self._my_daily_time_index = None
         self._meta = None
         self._d_total_ghi = None
         self._d_mean_temp = None
+        self._time_masks = None
+        self._daily_time_masks = None
 
         self._fpaths = self._parse_dir(self._dir, self._years)
         self._check_weights(self._fpaths, self._weights)
@@ -437,6 +406,7 @@ class Tmy:
         if sum(list(weights.values())) != 1.0:
             raise ValueError('Weights do not sum to 1.0!')
         for dset in weights.keys():
+            dset, _ = Tmy._strip_dset_fun(dset)
             for fpath in fpaths:
                 with h5py.File(fpath, 'r') as f:
                     if dset not in list(f):
@@ -444,16 +414,76 @@ class Tmy:
                              .format(dset, os.path.basename(fpath)))
                         raise KeyError(e)
 
-    def _get_my_arr(self, dset, unscale=False):
+    @staticmethod
+    def _strip_dset_fun(dset):
+        """Retrieve a resampling method from dset name prefix.
+
+        Parameters
+        ----------
+        dset : str
+            Dataset / variable name with optional min_ max_ mean_ sum_ prefix.
+
+        Returns
+        -------
+        dset : str
+            Dataset / variable name with the optional function prefix
+            stripped off.
+        fun : str | NoneType
+            Function string from the prefix of dset
+        """
+        fun = None
+        if dset.startswith('min_'):
+            fun = 'min_'
+        elif dset.startswith('max_'):
+            fun = 'max_'
+        elif dset.startswith('mean_'):
+            fun = 'mean_'
+        elif dset.startswith('sum_'):
+            fun = 'sum_'
+        if fun is not None:
+            dset = dset.replace(fun, '')
+        return dset, fun
+
+    @staticmethod
+    def _resample_arr_daily(arr, time_index, fun):
+        """Resample an array to daily using a specified function.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            Array of timeseries data corresponding to time_index.
+        time_index : pd.Datetimeindex
+            Datetimeindex corresponding to arr.
+        fun : str | None
+            Resampling method.
+
+        Returns
+        -------
+        arr : np.ndarray
+            Array of daily timeseries data if fun is not None.
+        """
+        if fun is not None:
+            df = pd.DataFrame(arr, index=time_index)
+            if 'min' in fun.lower():
+                df = df.resample('1D').min()
+            elif 'max' in fun.lower():
+                df = df.resample('1D').max()
+            elif 'mean' in fun.lower():
+                df = df.resample('1D').mean()
+            elif 'sum' in fun.lower():
+                df = df.resample('1D').sum()
+            arr = df.values
+        return arr
+
+    def _get_my_arr(self, dset, unscale=True):
         """Get a multi-year 2D numpy array for a given dataset
 
         Parameters
         ----------
         dset : str
-            Dataset / variable name.
+            Dataset / variable name with optional min_ max_ mean_ sum_ prefix.
         unscale : bool
             Flag to unscale data from h5 disk storage precision to float.
-            Unscaling shouldn't be necessary for TMY calculation.
 
         Returns
         -------
@@ -467,6 +497,8 @@ class Tmy:
         else:
             dtype = np.int32
 
+        dset, fun = self._strip_dset_fun(dset)
+
         for fpath in self._fpaths:
             with Resource(fpath, unscale=unscale) as res:
                 ti = res.time_index
@@ -479,7 +511,32 @@ class Tmy:
                 iloc = self.my_time_index.isin(ti)
                 arr[iloc, :] = temp
 
+        arr = self._resample_arr_daily(arr, self.my_time_index, fun)
+
         return arr
+
+    @staticmethod
+    def _make_time_masks(time_index):
+        """Make a time index mask lookup dict.
+
+        Parameters
+        ----------
+        time_index : pd.datetimeindex
+            Time index to mask.
+
+        Returns
+        -------
+        masks : dict
+            Lookup of boolean masks keyed by month and year integer.
+        """
+        masks = {}
+        years = time_index.year.unique()
+        months = time_index.month.unique()
+        for y in years:
+            masks[y] = (time_index.year == y)
+        for m in months:
+            masks[m] = (time_index.month == m)
+        return masks
 
     @property
     def daily_total_ghi(self):
@@ -492,11 +549,7 @@ class Tmy:
         """
 
         if self._d_total_ghi is None:
-            ghi = self._get_my_arr('ghi', unscale=True)
-            ghi = pd.DataFrame(ghi, index=self.my_time_index)
-            ghi = ghi.resample('1D').sum()
-            self._d_total_ghi = ghi.values
-
+            self._d_total_ghi = self._get_my_arr('sum_ghi')
         return self._d_total_ghi
 
     @property
@@ -510,11 +563,7 @@ class Tmy:
         """
 
         if self._d_mean_temp is None:
-            mu_t = self._get_my_arr('air_temperature', unscale=True)
-            mu_t = pd.DataFrame(mu_t, index=self.my_time_index)
-            mu_t = mu_t.resample('1D').mean()
-            self._d_mean_temp = mu_t.values
-
+            self._d_mean_temp = self._get_my_arr('mean_air_temperature')
         return self._d_mean_temp
 
     @property
@@ -535,6 +584,22 @@ class Tmy:
         return self._my_time_index
 
     @property
+    def my_daily_time_index(self):
+        """Full multi-year time index.
+
+        Returns
+        -------
+        my_time_index : pd.Datetimeindex
+            Multi-year datetime index corresponding to multi-year data arrays.
+        """
+        if self._my_daily_time_index is None:
+            df = pd.DataFrame(np.arange(len(self.my_time_index)),
+                              index=self.my_time_index)
+            df = df.resample('1D').sum()
+            self._my_daily_time_index = df.index
+        return self._my_daily_time_index
+
+    @property
     def time_index(self):
         """Time index for first TMY year without leap day.
 
@@ -553,6 +618,34 @@ class Tmy:
                 _, self._time_index = self.drop_leap(
                     np.zeros((len(self._time_index), 1)), self._time_index)
         return self._time_index
+
+    @property
+    def time_masks(self):
+        """Get a time index mask lookup dict.
+
+        Returns
+        -------
+        masks : dict
+            Lookup of boolean masks keyed by month and year integer.
+        """
+        if not self._time_masks:
+            self._time_masks = self._make_time_masks(self.my_time_index)
+        return self._time_masks
+
+    @property
+    def daily_time_masks(self):
+        """Get a daily time index mask lookup dict.
+
+        Returns
+        -------
+        masks : dict
+            Lookup of boolean masks for a daily timeseries keyed by month and
+            year integer.
+        """
+        if not self._daily_time_masks:
+            self._daily_time_masks = self._make_time_masks(
+                self.my_daily_time_index)
+        return self._daily_time_masks
 
     @property
     def meta(self):
@@ -626,9 +719,43 @@ class Tmy:
                              'from time index length {}'.format(ti_len))
         return freq
 
-    @staticmethod
-    def select_fs_years(fs_all, year0, n=5):
+    def get_weighted_fs(self):
+        """Get the FS metric for all datasets and weight and combine.
+
+        This is part of STEP #1 of the NSRDB TMY.
+
+        Returns
+        -------
+        ws : dict
+            Dictionary with month keys. Each dict value is a (y, n) array where
+            y is years and n is sites. Each array entry is the summed and
+            weighted FS metric for all datasets in self._weights.
+        """
+        ws = {}
+        for dset, weight in self._weights.items():
+            arr = self._get_my_arr(dset)
+            if len(arr) == len(self.my_time_index):
+                ti = self.my_time_index
+            elif len(arr) == len(self.my_daily_time_index):
+                ti = self.my_daily_time_index
+            else:
+                raise ValueError('Bad array length of {} when ti is {} and '
+                                 'daily ti is {}'
+                                 .format(len(arr), len(self.my_time_index),
+                                         len(self.my_daily_time_index)))
+            cdf = Cdf(arr, ti)
+            if not ws:
+                for m, fs in cdf.fs_all.items():
+                    ws[m] = weight * fs
+            else:
+                for m, fs in cdf.fs_all.items():
+                    ws[m] += weight * fs
+        return ws
+
+    def select_fs_years(self, fs_all, n=5):
         """Select 5 best TMY years for each month based on the FS statistic
+
+        This is part of STEP #1 of the NSRDB TMY.
 
         Parameters
         ----------
@@ -651,23 +778,85 @@ class Tmy:
             Shape is (n, sites).
         """
 
-        years = None
-        fs = None
+        years = {m: np.zeros((n, len(self.meta)), dtype=np.uint16)
+                 for m in range(1, 13)}
+        fs = {m: np.zeros((n, len(self.meta))) for m in range(1, 13)}
 
         for m, ranks in fs_all.items():
-            if years is None:
-                years = {m: np.zeros((n, ranks.shape[1]), dtype=np.uint16)
-                         for m in range(1, 13)}
-                fs = {m: np.zeros((n, ranks.shape[1])) for m in range(1, 13)}
-
-            years[m] = int(year0) + np.argsort(ranks, axis=0)[:n, :]
+            years[m] = int(self.years[0]) + np.argsort(ranks, axis=0)[:n, :]
             fs[m] = np.sort(ranks, axis=0)[:n, :]
 
         return years, fs
 
+    def _get_lt_mean_ghi(self):
+        """Get the monthly long term (multi-year) mean daily total GHI.
+
+        This is STEP #4 of the NSRDB TMY.
+
+        Returns
+        -------
+        lt_mean : np.ndarray
+            Array of monthly mean daily total GHI values.
+            Shape is (12, n_sites). Each value is the mean for that
+            month across all TMY years.
+        """
+        lt_mean = np.zeros((12, len(self.meta)), dtype=np.float32)
+        for m in range(1, 13):
+            mask = self.daily_time_masks[m]
+            lt_mean[(m - 1), :] = np.mean(self.daily_total_ghi[mask, :],
+                                          axis=0)
+        return lt_mean
+
+    def _get_lt_median_ghi(self):
+        """Get the monthly long term (multi-year) median daily total GHI.
+
+        Returns
+        -------
+        lt_median : np.ndarray
+            Array of monthly median daily total GHI values.
+            Shape is (12, n_sites). Each value is the median for that
+            month across all TMY years.
+        """
+        lt_median = np.zeros((12, len(self.meta)), dtype=np.float32)
+        for m in range(1, 13):
+            mask = self.daily_time_masks[m]
+            lt_median[(m - 1), :] = np.median(self.daily_total_ghi[mask, :],
+                                              axis=0)
+        return lt_median
+
+    def _lt_mm_diffs(self):
+        """Calculate the difference from the long term mean and median GHI.
+
+        Returns
+        -------
+        diffs : dict
+            Month-keyed dictionary of arrays of shape (n_tmy_years, n_sites)
+            differences for every year
+        """
+
+        lt_mean = self._get_lt_mean_ghi()
+        lt_median = self._get_lt_median_ghi()
+
+        shape = (len(self.years), len(self.meta))
+        diffs = {m: np.zeros(shape, dtype=np.float32)
+                 for m in range(1, 13)}
+
+        for i, y in enumerate(self.years):
+            for m in range(1, 13):
+                mask = (self.daily_time_masks[m] & self.daily_time_masks[y])
+                this_mean = np.mean(self.daily_total_ghi[mask, :], axis=0)
+                this_median = np.median(self.daily_total_ghi[mask, :], axis=0)
+
+                im = m - 1
+                diffs[m][i, :] = (np.abs(lt_mean[im, :] - this_mean)
+                                  + np.abs(lt_median[im, :] - this_median))
+        return diffs
+
     def sort_years_mm(self, tmy_years_5):
         """Sort candidate TMY months/years based on deviation from the
         multi-year mean and median GHI.
+
+        This is STEP #2 of the NSRDB TMY.
 
         Parameters
         ----------
@@ -681,47 +870,116 @@ class Tmy:
             Month-keyed dictionary of arrays of best 5 TMY years for every
             month for every site SORTED BY deviation from the multi-year
             monthly mean and median GHI values.
+        diffs : dict
+            Month-keyed dictionary of arrays of shape (n_tmy_years, n_sites)
+            differences for every year
         """
 
-        lt_mean = np.zeros((12, self.daily_total_ghi.shape[1]),
-                           dtype=np.float32)
-        lt_median = np.zeros((12, self.daily_total_ghi.shape[1]),
-                             dtype=np.float32)
-
-        for m in range(1, 13):
-            mask = (self.my_time_index.month == m)
-            lt_mean[(m - 1), :] = np.mean(self.daily_total_ghi[mask, :],
-                                          axis=0)
-            lt_median[(m - 1), :] = np.median(self.daily_total_ghi[mask, :],
-                                              axis=0)
-
-        shape = (len(self.years), self.daily_total_ghi.shape[1])
-        diffs = {m: np.zeros(shape, dtype=np.float32)
-                 for m in range(1, 13)}
+        shape = (len(self.years), len(self.meta))
         sorted_years = {m: np.zeros(shape, dtype=np.float32)
                         for m in range(1, 13)}
-
-        for i, y in enumerate(self.years):
-            for m in range(1, 13):
-                mask = ((self.my_time_index.month == m)
-                        & (self.my_time_index.year == y))
-                this_mean = np.mean(self.daily_total_ghi[mask, :], axis=0)
-                this_median = np.median(self.daily_total_ghi[mask, :], axis=0)
-
-                im = m - 1
-                diffs[m][i, :] = (np.abs(lt_mean[im, :] - this_mean)
-                                  + np.abs(lt_median[im, :] - this_median))
+        diffs = self._lt_mm_diffs()
 
         for m in range(1, 13):
             sorted_years[m] = np.argsort(diffs[m], axis=0) + self.years[0]
 
-        for site in range(self.daily_total_ghi.shape[1]):
+        for site in range(len(self.meta)):
             for m in range(1, 13):
                 temp = [y for y in sorted_years[m][:, site]
                         if y in tmy_years_5[m][:, site]]
                 tmy_years_5[m][:, site] = temp
+        return tmy_years_5, diffs
 
-        return tmy_years_5
+    @staticmethod
+    def _count_runs(arr):
+        """Count the run length and number in a boolean array.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            1D array of boolean values.
+
+        Returns
+        -------
+        max_run_len : int
+            Maximum length of a consecutive True run in arr.
+        n_runs : int
+            Number of consecutive True runs in arr.
+        """
+
+        max_run_len = 0
+        n_runs = 0
+
+        for k, g in groupby(arr):
+            if k:
+                max_run_len = np.max((max_run_len, len(list(g))))
+                n_runs += 1
+
+        return max_run_len, n_runs
+
+    def persistence_filter(self, tmy_years_5):
+        """Use persistence of extreme mean temp and daily ghi to filter tmy.
+
+        This is STEP #3 of the NSRDB TMY.
+
+        Parameters
+        ----------
+        tmy_years_5 : dict
+            Month-keyed dictionary of arrays of sorted best 5 TMY years for
+            every month for every site. Shape is (5, sites).
+
+        Returns
+        -------
+        tmy_years : np.ndarray
+            Array of best TMY years for every month for every site.
+            Shape is (months, sites).
+        max_run_len : dict
+            Nested dictionary (max_run_len[month][site][tmy_year_index])
+            of maximum length of a consecutive run.
+        n_runs : dict
+            Nested dictionary (max_run_len[month][site][tmy_year_index])
+            Number of consecutive runs.
+        """
+        tmy_years = np.zeros((12, len(self.meta)), dtype=np.uint16)
+        max_run_len = {}
+        n_runs = {}
+        for m in range(1, 13):
+            max_run_len[m] = {}
+            n_runs[m] = {}
+            m_mask = self.daily_time_masks[m]
+            t33 = np.percentile(self.daily_mean_temp[m_mask, :], 33, axis=0)
+            t67 = np.percentile(self.daily_mean_temp[m_mask, :], 67, axis=0)
+            g33 = np.percentile(self.daily_total_ghi[m_mask, :], 33, axis=0)
+
+            t_low = (self.daily_mean_temp < t33)
+            t_high = (self.daily_mean_temp > t67)
+            g_low = (self.daily_total_ghi < g33)
+
+            for j in range(len(self.meta)):
+                max_run_len[m][j] = [0] * tmy_years_5[m].shape[0]
+                n_runs[m][j] = [0] * tmy_years_5[m].shape[0]
+
+                for i, y in enumerate(tmy_years_5[m][:, j]):
+                    y_mask = self.daily_time_masks[y]
+                    mask = y_mask & m_mask
+
+                    for arr in [t_low, t_high, g_low]:
+                        m_temp, n_temp = self._count_runs(arr[mask, j])
+                        max_run_len[m][j][i] = np.max((max_run_len[m][j][i],
+                                                       m_temp))
+                        n_runs[m][j][i] += n_temp
+
+                tmy_years[(m - 1), j] = tmy_years_5[m][0, j]
+                for i, y in enumerate(tmy_years_5[m][:, j]):
+                    screen_out = ((max(max_run_len[m][j])
+                                   == max_run_len[m][j][i])
+                                  | (max(n_runs[m][j]) == n_runs[m][j][i])
+                                  | (n_runs == 0))
+                    if not screen_out:
+                        tmy_years[(m - 1), j] = y
+                        break
+
+        return tmy_years, max_run_len, n_runs
 
     def calculate_tmy(self):
         """Calculate the TMY based on the multiple-dataset weights.
@@ -733,22 +991,10 @@ class Tmy:
             Shape is (months, sites).
         """
 
-        ws = {}
-        for dset, weight in self._weights.items():
-            cdf = Cdf(self._get_my_arr(dset), self.my_time_index)
-            if not ws:
-                for m, fs in cdf.fs_all.items():
-                    ws[m] = weight * fs
-            else:
-                for m, fs in cdf.fs_all.items():
-                    ws[m] += weight * fs
-
-        tmy_years_5, _ = self.select_fs_years(ws, self.years[0], n=5)
-        tmy_years_5 = self.sort_years_mm(tmy_years_5)
-
-        tmy_years = np.zeros((12, tmy_years_5[1].shape[1]), dtype=np.uint16)
-        for m in range(1, 13):
-            tmy_years[(m - 1), :] = tmy_years_5[m][0, :]
+        ws = self.get_weighted_fs()
+        tmy_years_5, _ = self.select_fs_years(ws)
+        tmy_years_5, _ = self.sort_years_mm(tmy_years_5)
+        tmy_years, _, _ = self.persistence_filter(tmy_years_5)
 
         return tmy_years
 
