@@ -5,7 +5,7 @@ from nsrdb.solar_position.spa import SPA
 
 
 class SolarZenithAngle:
-    """Class to derive the dew point from other MERRA2 vars."""
+    """Class to derive the solar zenith angle."""
 
     @staticmethod
     def derive(time_index, lat_lon, elev, pressure, temperature):

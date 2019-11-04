@@ -1214,7 +1214,7 @@ class SPA:
         return e, theta
 
     @classmethod
-    def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=10130.25,
+    def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                            temperature=12, atmospheric_refraction=0.5667,
                            delta_t=69.3032):
         """
