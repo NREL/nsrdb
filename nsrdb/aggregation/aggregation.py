@@ -73,6 +73,19 @@ SURFRAD = {'east': {'data_sub_dir': 'east',
                      'temporal': '30min'},
            }
 
+SIMPLE = {'source': {'data_sub_dir': 'east',
+                     'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                     'meta_file': 'nsrdb_meta_2km_east.csv',
+                     'spatial': '2km',
+                     'temporal': '15min'},
+          'final': {'data_sub_dir': 'wrf_9km',
+                    'fout': 'wrf_9km_2018.h5',
+                    'tree_file': 'kdtree_wrf_meta_9km.pkl',
+                    'meta_file': 'wrf_meta_9km.csv',
+                    'spatial': '9km',
+                    'temporal': '15min'},
+          }
+
 
 class MetaManager:
     """Framework to parse the final meta data for contributing sources."""
@@ -118,6 +131,26 @@ class MetaManager:
                       & (meta.longitude < -104.5))
         meta.loc[angle_mask, 'source'] = 'west'
 
+        return meta
+
+    @staticmethod
+    def simple(fpath_meta):
+        """Make a meta dataframe with source column == 'source' for simple agg
+
+        Parameters
+        ----------
+        fpath_meta : str
+            File path to final meta data.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            DataFrame based on fpath_meta but with a "source" column containing
+            the data source string 'source'.
+        """
+
+        meta = pd.read_csv(fpath_meta, index_col=0)
+        meta['source'] = 'source'
         return meta
 
     @staticmethod
@@ -253,17 +286,21 @@ class Aggregation:
             moving average.
         """
 
-        array = False
-        if isinstance(inp, np.ndarray):
-            array = True
-            inp = pd.DataFrame(inp)
+        if self.w > 1:
+            array = False
+            if isinstance(inp, np.ndarray):
+                array = True
+                inp = pd.DataFrame(inp)
 
-        out = inp.rolling(self.w, center=True, min_periods=1).mean()
+            out = inp.rolling(self.w, center=True, min_periods=1).mean()
 
-        if array:
-            out = out.values
+            if array:
+                out = out.values
 
-        return out
+            return out
+
+        else:
+            return inp
 
     def time_sum(self, inp):
         """Calculate the rolling sum for an input array or df.
@@ -280,17 +317,21 @@ class Aggregation:
             moving sum.
         """
 
-        array = False
-        if isinstance(inp, np.ndarray):
-            array = True
-            inp = pd.DataFrame(inp)
+        if self.w > 1:
+            array = False
+            if isinstance(inp, np.ndarray):
+                array = True
+                inp = pd.DataFrame(inp)
 
-        out = inp.rolling(self.w, center=True, min_periods=1).sum()
+            out = inp.rolling(self.w, center=True, min_periods=1).sum()
 
-        if array:
-            out = out.values
+            if array:
+                out = out.values
 
-        return out
+            return out
+
+        else:
+            return inp
 
     @staticmethod
     def _get_rolling_window_index(L, w):
@@ -796,7 +837,12 @@ class Manager:
         if self._meta is None:
             meta_path = os.path.join(self.meta_dir,
                                      self.data['final']['meta_file'])
-            self._meta = MetaManager.meta_sources_2018(meta_path)
+
+            if self.data['final']['fout'] == 'nsrdb_2018.h5':
+                self._meta = MetaManager.meta_sources_2018(meta_path)
+            else:
+                self._meta = MetaManager.simple(meta_path)
+
         return self._meta
 
     @property
@@ -945,18 +991,22 @@ class Manager:
             Number of neighbors in the source data to aggregate to a final
             dataset site.
         """
+        if final_sres == sres:
+            k = 1
 
-        if final_sres == '4km':
-            if sres == '4km':
-                k = 1
-            elif sres == '2km':
-                k = 4
-            else:
-                raise ValueError('Did not recognize spatial resolution {}'
-                                 .format(sres))
         else:
-            raise ValueError('Did not recognize final spatial resolution: '
-                             '{}'.format(final_sres))
+            try:
+                s1 = int(sres.replace('km', ''))
+                s2 = int(final_sres.replace('km', ''))
+                k = (s2 ** 2) / (s1 ** 2)
+            except Exception:
+                msg = ('Could not parse spatial resolution from: '
+                       '"{}", "{}"'.format(sres, final_sres))
+                logger.error(msg)
+                raise ValueError(msg)
+            else:
+                k = int(np.ceil(k))
+
         return k
 
     @staticmethod
@@ -976,11 +1026,11 @@ class Manager:
             Window size to consider for the temporal aggregation to the
             final_tres.
         """
+        if final_tres == tres:
+            w = 1
 
-        if final_tres == '30min':
-            if tres == '30min':
-                w = 1
-            elif tres == '15min':
+        elif final_tres == '30min':
+            if tres == '15min':
                 w = 3
             elif tres == '5min':
                 w = 7
