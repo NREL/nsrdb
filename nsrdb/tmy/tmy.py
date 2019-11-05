@@ -32,21 +32,16 @@ class Cdf:
         self._my_time_index = deepcopy(my_time_index)
         self._years = sorted(self._my_time_index.year.unique())
 
-        self._my_cdf = self._cumulative_sum_monthly(
-            self._my_arr, self._my_time_index)
-
-        self._my_cdf, self._my_time_index = self._resample_daily_max(
-            self._my_cdf, self._my_time_index)
-
-        self._my_cdf, self._my_time_index = Tmy.drop_leap(
-            self._my_cdf, self._my_time_index)
+        self._my_arr, self._my_time_index = Tmy.drop_leap(self._my_arr,
+                                                          self._my_time_index)
 
         self._time_masks = Tmy._make_time_masks(self._my_time_index)
 
-        self._mean_cdf = self._make_my_mean_cdf(
-            self._my_cdf, self._my_time_index, self._time_masks)
+        self._cdf = self._sort_monthly(self._my_arr)
 
-        self._lt_frac, self._annual_frac = self._make_cdf_frac()
+        self._lt_cdf = self._make_lt_cdf(self._cdf)
+
+        self._cdf_frac, self._lt_frac, self._interp_frac = self._cdf_fracs()
 
         self._fs_all = self._fs_stat()
 
@@ -63,29 +58,29 @@ class Cdf:
 
     @property
     def cdf(self):
-        """Get the multi-year cumulative array.
+        """Get the multi-year cdf array with daily values sorted within each
+        year and month.
 
         Returns
         -------
-        my_cdf : np.ndarray
-            Multi-year daily timeseries array with cumulative values
+        cdf : np.ndarray
+            Multi-year daily timeseries array with sorted values
             resetting each month.
         """
-        return self._my_cdf
+        return self._cdf
 
     @property
-    def mean_cdf(self):
-        """Get the multi-year mean cumulative array.
+    def lt_cdf(self):
+        """Get the multi-year long term sorted array (values are sorted within
+        monthly masks across all years).
 
         Returns
         -------
-        mean_cdf : np.ndarray
-            Timeseries array with the same shape as cdf, but the annual series
-            is a multi-year mean for all years in the input time_index. The
-            multi-year mean is repeated for the number of years to get the
-            same shape as the input CDF.
+        lt_cdf : np.ndarray
+            Array with the same shape as arr but with monthly values sorted
+            across all years.
         """
-        return self._mean_cdf
+        return self._lt_cdf
 
     @property
     def years(self):
@@ -136,6 +131,29 @@ class Cdf:
 
         return arr
 
+    def _sort_monthly(self, arr):
+        """Sort daily values within each month within each year.
+
+        Parameters
+        ----------
+        arr : np.ndarray
+            Timeseries array (time, sites) for one variable
+            (instantaneous or daily values).
+
+        Returns
+        -------
+        arr : np.ndarray
+            Timeseries array with sorted values resetting each month.
+        """
+
+        for y in self._years:
+            year_mask = self._time_masks[y]
+            for m in range(1, 13):
+                mask = (year_mask & self._time_masks[m])
+                arr[mask] = np.sort(arr[mask], axis=0)
+
+        return arr
+
     @staticmethod
     def _resample_daily_max(arr, time_index):
         """Convert a timeseries array to daily maximum data points.
@@ -158,71 +176,68 @@ class Cdf:
 
         return df.values, df.index
 
-    @staticmethod
-    def _make_my_mean_cdf(cdf, time_index, masks):
-        """Make a multi-year (my) mean CDF corresponding to the my CDF input.
+    def _make_lt_cdf(self, arr):
+        """Make a long term value sorted array where values within month masks
+        are sorted across multi-years.
 
         Parameters
         ----------
-        cdf : np.ndarray
+        arr : np.ndarray
             Timeseries array with cumulative values.
-        time_index : pd.datetimeindex
-            Datetime index corresponding to the rows in cdf.
-        masks : dict
-            Lookup of boolean masks keyed by month and year integer.
 
         Returns
         -------
-        mean_cdf : np.ndarray
-            Timeseries array with the same shape as cdf, but the annual series
-            is a multi-year mean for all years in the input time_index. The
-            multi-year mean is repeated for the number of years to get the
-            same shape as the input CDF.
+        lt_cdf : np.ndarray
+            Array with the same shape as arr but with monthly values sorted
+            across all years.
         """
-        mean_cdf = None
-        years = time_index.year.unique()
-        for y in years:
-            mask = masks[y]
-            if mean_cdf is None:
-                shape = (mask.sum(), cdf.shape[1])
-                mean_cdf = np.zeros(shape, dtype=np.float64)
-            mean_cdf += cdf[mask]
-        mean_cdf /= len(years)
-        mean_cdf = np.tile(mean_cdf, (len(years), 1))
-        return mean_cdf
+        lt_cdf = np.zeros_like(arr)
+        for m in range(1, 13):
+            mask = self._time_masks[m]
+            lt_cdf[mask, :] = np.sort(arr[mask], axis=0)
+        return lt_cdf
 
-    def _make_cdf_frac(self):
+    def _cdf_fracs(self):
         """Make the fractional arrays for the y-axis of a CDF.
 
         Returns
         -------
-        long_term_frac : np.ndarray
-            (t, n) array of the cumulative summation fraction (0 to 1)
-            corresponding to the long term multi-year mean CDF. This is
-            basically the annual fraction y-projected onto the multi-year
-            mean CDF so that a broadcasted subtraction can be performed.
-        annual_frac : np.ndarray
+        cdf_frac : np.ndarray
             (t, ) array of the cumulative summation fraction (0 to 1)
-            corresponding to the individual year CDFs.
+            corresponding to the individual month and year for CDFs.
+        lt_frac : np.ndarray
+            (t, ) array of the cumulative summation fraction (0 to 1)
+            corresponding to months over multiple years in the long term cdf.
+        interp_frac : np.ndarray
+            (t, n) array of the cumulative summation fraction (0 to 1)
+            corresponding to the long term multi-year CDF. This is
+            the cdf fraction y-projected onto the long term CDF so that a
+            broadcasted subtraction can be performed.
         """
 
-        annual_frac = np.zeros((len(self._my_cdf), self._my_cdf.shape[1]))
+        cdf_frac = np.zeros((len(self._cdf), self._cdf.shape[1]))
+        lt_frac = np.zeros((len(self._lt_cdf), self._lt_cdf.shape[1]))
         for m in range(1, 13):
+            mask = self._time_masks[m]
+            lt_frac[mask, :] = np.expand_dims(
+                np.linspace(0, 1, mask.sum()), axis=1)
             for y in self._years:
                 mask = self._time_masks[y] & self._time_masks[m]
-                annual_frac[mask, :] = np.expand_dims(
+                cdf_frac[mask, :] = np.expand_dims(
                     np.linspace(0, 1, mask.sum()), axis=1)
 
-        long_term_frac = np.zeros(self._my_cdf.shape)
-        for n in range(self._my_cdf.shape[1]):
+        interp_frac = np.zeros(self._cdf.shape)
+        for n in range(self._cdf.shape[1]):
             for m in range(1, 13):
                 for y in self._years:
+                    lt_mask = self._time_masks[m]
                     mask = self._time_masks[y] & self._time_masks[m]
-                    long_term_frac[mask, n] = np.interp(
-                        self._my_cdf[mask, n], self._mean_cdf[mask, n],
-                        annual_frac[mask, n])
 
-        return long_term_frac, annual_frac
+                    interp_frac[mask, n] = np.interp(self._cdf[mask, n],
+                                                     self._lt_cdf[lt_mask, n],
+                                                     lt_frac[lt_mask, n])
+
+        return cdf_frac, lt_frac, interp_frac
 
     def _fs_stat(self):
         """Finkelstein-Schafer metric comparing the test cdf to a baseline
@@ -234,9 +249,9 @@ class Cdf:
             y is years and n is sites. Each array entry is the FS metric.
         """
 
-        diff_cdf = np.abs(self._lt_frac - self._annual_frac)
+        diff_cdf = np.abs(self._cdf_frac - self._interp_frac)
 
-        fs_arr = np.zeros((len(self._years), self._my_cdf.shape[1]))
+        fs_arr = np.zeros((len(self._years), self._cdf.shape[1]))
         fs = {m: deepcopy(fs_arr) for m in range(1, 13)}
         for i, y in enumerate(self._years):
             for m in range(1, 13):
@@ -305,19 +320,17 @@ class Cdf:
             plot_years = self.years
         for y in plot_years:
             mask = self._time_masks[y] & self._time_masks[month]
-            ax.plot(self.cdf[mask, site], self._annual_frac[mask, site], '--')
+            ax.plot(self.cdf[mask, site], self._cdf_frac[mask, site], '--')
 
-        my_mask = ((self.time_index.year == self.years[0])
-                   & self._time_masks[month])
-        ax.plot(self.mean_cdf[my_mask, site], self._annual_frac[my_mask, site],
-                'b-o')
+        lt_mask = self._time_masks[month]
+        ax.plot(self.lt_cdf[lt_mask, site], self._lt_frac[lt_mask, site], 'b-')
 
         tmy_year = tmy_years[(month - 1), site]
         mask = self._time_masks[tmy_year] & self._time_masks[month]
-        ax.plot(self.cdf[mask, site], self._lt_frac[mask, site], 'rx')
-        ax.plot(self.cdf[mask, site], self._annual_frac[mask, site], 'r-x')
+        ax.plot(self.cdf[mask, site], self._interp_frac[mask, site], 'rx')
+        ax.plot(self.cdf[mask, site], self._cdf_frac[mask, site], 'r-x')
 
-        legend = plot_years + ['Mean', 'Mean Interp',
+        legend = plot_years + ['Long Term CDF', 'Interpolated',
                                'Best FS ({})'.format(tmy_year)]
         plt.legend(legend)
         ax.set_title('TMY CDFs for Month {} and Site {}'.format(month, site))
@@ -734,15 +747,10 @@ class Tmy:
         ws = {}
         for dset, weight in self._weights.items():
             arr = self._get_my_arr(dset)
-            if len(arr) == len(self.my_time_index):
-                ti = self.my_time_index
-            elif len(arr) == len(self.my_daily_time_index):
-                ti = self.my_daily_time_index
-            else:
-                raise ValueError('Bad array length of {} when ti is {} and '
-                                 'daily ti is {}'
-                                 .format(len(arr), len(self.my_time_index),
-                                         len(self.my_daily_time_index)))
+            ti = self.my_daily_time_index
+            if len(arr) != len(ti):
+                raise ValueError('Bad array length of {} when daily ti is {}'
+                                 .format(len(arr), len(ti)))
             cdf = Cdf(arr, ti)
             if not ws:
                 for m, fs in cdf.fs_all.items():
