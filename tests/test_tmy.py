@@ -28,31 +28,17 @@ BASELINES_FILES = {0: 'DRA_36.62_-116.02_tgy.csv',
                    8: 'PSU_40.72_-77.93_tgy.csv'}
 
 
-def test_cdf_cum_sum():
-    """Test the array cumulative summation function."""
-
-    my_arr = [np.arange(17520, dtype=np.float32).tolist() for i in range(3)]
-    my_arr = np.array(my_arr).flatten()
-    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
-                               freq='30min', closed='left')
-    cdf = Cdf(my_arr, time_index).cdf
-    cdf_test = np.cumsum(my_arr)
-
-    assert cdf_test[47] == cdf[0]
-    assert cdf_test[95] == cdf[1]
-
-
 @pytest.mark.parametrize(('mults', 'best_year'), (((1.0, 1.1, 1.2), 2014),
                                                   ((0.5, 1.1, 0.6), 2015),
                                                   ((0.8, 1.1, 0.6), 2013)))
 def test_cdf_best_year(mults, best_year):
     """Test the CDF year selection using an arbitrary input array"""
 
-    my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
+    my_arr = [(mults[i] * np.arange(365, dtype=np.float32)).tolist()
               for i in range(3)]
-    my_arr = np.array(my_arr).flatten()
+    my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
     time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
-                               freq='30min', closed='left')
+                               freq='1D', closed='left')
     cdf = Cdf(my_arr, time_index)
     years, _ = cdf._best_fs_year()
 
@@ -61,17 +47,17 @@ def test_cdf_best_year(mults, best_year):
 
 def test_cdf_fs():
     """Test the FS metric against baseline values."""
-    baseline = {1: np.array([0.195933, 3.11879e-09, 0.107683]),
-                2: np.array([0.290723, 4.87245e-09, 0.168612]),
-                3: np.array([0.299666, 5.7334e-09, 0.176618]),
-                4: np.array([0.306686, 4.94159e-09, 0.182132]),
-                5: np.array([0.3088, 6.43965e-09, 0.184315]),
+    baseline = {1: np.array([0.22484936, 0.07167668, 0.18745799]),
+                2: np.array([0.33341603, 0.1550684, 0.32166262]),
+                3: np.array([0.33340802, 0.16681612, 0.33340802]),
+                4: np.array([0.33341051, 0.1668211, 0.33341051]),
+                5: np.array([0.33340802, 0.16681612, 0.33340802]),
                 }
 
     mults = [0.4, 1.0, 1.6]
     my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
               for i in range(3)]
-    my_arr = np.array(my_arr).flatten()
+    my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
     time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
                                freq='30min', closed='left')
     cdf = Cdf(my_arr, time_index)
@@ -85,9 +71,9 @@ def test_fw_weighting():
     dw = 0.3
     gw = 0.7
     years = list(range(1998, 2005))
-    g_weights = {'ghi': 1}
-    d_weights = {'dni': 1}
-    m_weights = {'dni': dw, 'ghi': gw}
+    g_weights = {'sum_ghi': 1}
+    d_weights = {'sum_dni': 1}
+    m_weights = {'sum_dni': dw, 'sum_ghi': gw}
     tgy = Tmy(NSRDB_DIR, years, g_weights, site_slice=slice(0, 1))
     tdy = Tmy(NSRDB_DIR, years, d_weights, site_slice=slice(0, 1))
     tmy = Tmy(NSRDB_DIR, years, m_weights, site_slice=slice(0, 1))
@@ -122,11 +108,12 @@ def test_arr_sampling():
     assert (max_temp > mean_temp).all()
     assert (mean_temp > min_temp).all()
 
-    cdf = Cdf(subhourly_temp, tmy.my_time_index)
+    cdf = Cdf(sum_temp, tmy.my_daily_time_index)
     fs = cdf._fs_all
 
     for k, v in fs.items():
-        assert np.allclose(ws[k], v, rtol=0.02)
+        msg = 'Array sampling failed in the FS metric for site {}'.format(k)
+        assert np.allclose(ws[k], v, rtol=0.02), msg
 
 
 def test_run_counting():
@@ -146,7 +133,7 @@ def test_tmy_steps():
     """Test each step of the TMY."""
 
     years = list(range(1998, 2018))
-    weights = {'ghi': 1}
+    weights = {'sum_ghi': 1}
     tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
 
     emsg = ('STEP1: TMY year selection based on FS metric failed! '
@@ -191,6 +178,16 @@ def test_tmy_steps():
             assert n_run != max(n_runs[m][j])
             emsg1 = emsg.format('zero runs')
             assert n_run != 0
+
+
+def plot_cdf():
+    """Plot the CDF graph emulating the plot from the TMY users guide."""
+    years = list(range(1998, 2018))
+    weights = {'sum_ghi': 1}
+    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 1))
+    arr = tgy._get_my_arr('sum_ghi')
+    cdf = Cdf(arr, tgy.my_daily_time_index)
+    cdf.plot_tmy_selection()
 
 
 def execute_pytest(capture='all', flags='-rapP'):

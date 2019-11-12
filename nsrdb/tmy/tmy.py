@@ -23,10 +23,14 @@ class Cdf:
         Parameters
         ----------
         my_arr : np.ndarray
-            Multi-year (my) timeseries array (time, sites) for one variable.
+            Multi-year (my) daily timeseries 2D array (time, sites) for one
+            variable (daily total GHI, daily mean temp, etc...).
         my_time_index : pd.datetimeindex
-            Datetime index corresponding to the rows in my_arr
+            Daily datetime index corresponding to the rows in my_arr
         """
+
+        if len(my_arr.shape) < 2:
+            raise TypeError('Input array is 1D, needs to be 2D (time, sites).')
 
         self._my_arr = deepcopy(my_arr)
         self._my_time_index = deepcopy(my_time_index)
