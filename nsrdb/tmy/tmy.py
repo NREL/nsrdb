@@ -18,7 +18,7 @@ from nsrdb.file_handlers.resource import Resource
 class Cdf:
     """Class for handling cumulative distribution function methods for TMY."""
 
-    def __init__(self, my_arr, my_time_index):
+    def __init__(self, my_arr, my_time_index, time_masks=None):
         """
         Parameters
         ----------
@@ -27,6 +27,9 @@ class Cdf:
             variable (daily total GHI, daily mean temp, etc...).
         my_time_index : pd.datetimeindex
             Daily datetime index corresponding to the rows in my_arr
+        time_masks : dict
+            Lookup of boolean masks for a daily timeseries keyed by month and
+            year integer.
         """
 
         if len(my_arr.shape) < 2:
@@ -39,7 +42,14 @@ class Cdf:
         self._my_arr, self._my_time_index = Tmy.drop_leap(self._my_arr,
                                                           self._my_time_index)
 
-        self._time_masks = Tmy._make_time_masks(self._my_time_index)
+        if time_masks is None:
+            self._time_masks = Tmy._make_time_masks(self._my_time_index)
+        else:
+            masks = deepcopy(time_masks)
+            ti_temp = deepcopy(my_time_index)
+            for k, v in masks.items():
+                masks[k], _ = Tmy.drop_leap(v, ti_temp)
+            self._time_masks = masks
 
         self._cdf = self._sort_monthly(self._my_arr)
 
@@ -382,8 +392,10 @@ class Tmy:
         self._time_masks = None
         self._daily_time_masks = None
 
-        self._fpaths = self._parse_dir(self._dir, self._years)
+        self._fpaths, self._fpaths_years = self._parse_dir(self._dir,
+                                                           self._years)
         self._check_weights(self._fpaths, self._weights)
+        self._init_daily_ghi_temp()
 
     @staticmethod
     def _parse_dir(nsrdb_dir, years):
@@ -401,13 +413,19 @@ class Tmy:
         -------
         fpaths : list
             List of full filepaths to nsrdb .h5 files to include in the tmy.
+            Sorted by years.
+        fpath_years : list
+            List of years corresponding to fpaths.
         """
-        fpaths = [fn for fn in os.listdir(nsrdb_dir)
-                  if any([str(y) in fn for y in years])
-                  and fn.endswith('.h5') and 'nsrdb' in fn]
-        fpaths = sorted(fpaths)
-        fpaths = [os.path.join(nsrdb_dir, fn) for fn in fpaths]
-        return fpaths
+        fpath_years = []
+        fpaths = []
+        for year in years:
+            for fn in sorted(os.listdir(nsrdb_dir)):
+                if str(year) in fn and fn.endswith('.h5') and 'nsrdb' in fn:
+                    fpaths.append(os.path.join(nsrdb_dir, fn))
+                    fpath_years.append(year)
+                    break
+        return fpaths, fpath_years
 
     @staticmethod
     def _check_weights(fpaths, weights):
@@ -509,6 +527,10 @@ class Tmy:
         arr : np.ndarray
             Multi-year multi-site array of dset data.
         """
+        if dset == 'sum_ghi' and self._d_total_ghi is not None:
+            return self.daily_total_ghi
+        elif dset == 'mean_air_temperature' and self._d_mean_temp is not None:
+            return self.daily_mean_temp
 
         arr = None
         if unscale:
@@ -518,17 +540,18 @@ class Tmy:
 
         dset, fun = self._strip_dset_fun(dset)
 
-        for fpath in self._fpaths:
+        for i, fpath in enumerate(self._fpaths):
+            fpath_year = self._fpaths_years[i]
+
             with Resource(fpath, unscale=unscale) as res:
-                ti = res.time_index
                 temp = res[dset, :, self._site_slice]
 
-                if arr is None:
-                    shape = (len(self.my_time_index), temp.shape[1])
-                    arr = np.zeros(shape, dtype=dtype)
+            if arr is None:
+                shape = (len(self.my_time_index), temp.shape[1])
+                arr = np.zeros(shape, dtype=dtype)
 
-                iloc = self.my_time_index.isin(ti)
-                arr[iloc, :] = temp
+            mask = self.time_masks[fpath_year]
+            arr[mask, :] = temp
 
         arr = self._resample_arr_daily(arr, self.my_time_index, fun)
 
@@ -556,6 +579,12 @@ class Tmy:
         for m in months:
             masks[m] = (time_index.month == m)
         return masks
+
+    def _init_daily_ghi_temp(self):
+        """Initialize daily total ghi and daily mean air temperature
+        (used multiple times)"""
+        self._d_total_ghi = self._get_my_arr('sum_ghi')
+        self._d_mean_temp = self._get_my_arr('mean_air_temperature')
 
     @property
     def daily_total_ghi(self):
@@ -647,7 +676,7 @@ class Tmy:
         masks : dict
             Lookup of boolean masks keyed by month and year integer.
         """
-        if not self._time_masks:
+        if self._time_masks is None:
             self._time_masks = self._make_time_masks(self.my_time_index)
         return self._time_masks
 
@@ -661,7 +690,7 @@ class Tmy:
             Lookup of boolean masks for a daily timeseries keyed by month and
             year integer.
         """
-        if not self._daily_time_masks:
+        if self._daily_time_masks is None:
             self._daily_time_masks = self._make_time_masks(
                 self.my_daily_time_index)
         return self._daily_time_masks
@@ -757,7 +786,7 @@ class Tmy:
             if len(arr) != len(ti):
                 raise ValueError('Bad array length of {} when daily ti is {}'
                                  .format(len(arr), len(ti)))
-            cdf = Cdf(arr, ti)
+            cdf = Cdf(arr, ti, time_masks=self.daily_time_masks)
             if not ws:
                 for m, fs in cdf.fs_all.items():
                     ws[m] = weight * fs
