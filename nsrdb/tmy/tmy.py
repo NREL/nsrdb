@@ -13,10 +13,14 @@ import pandas as pd
 import numpy as np
 import datetime
 from itertools import groupby
+import logging
 
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
+
+
+logger = logging.getLogger(__name__)
 
 
 class Cdf:
@@ -382,6 +386,9 @@ class Tmy:
         site_slice : slice
             Sites to consider in this TMY.
         """
+
+        logger.debug('Initializing TMY algorithm for site slice {}...'
+                     .format(site_slice))
 
         self._dir = nsrdb_dir
         self._years = sorted([int(y) for y in years])
@@ -1181,6 +1188,9 @@ class TmyRunner:
             Directory to dump temporary output files.
         """
 
+        logger.info('Initializing TMY runner for years: {}'.format(years))
+        logger.info('TMY weights: {}'.format(weights))
+
         self._nsrdb_dir = nsrdb_dir
         self._years = years
         self._weights = weights
@@ -1317,7 +1327,7 @@ class TmyRunner:
         """Run parallel tmy futures and save temp chunks to disk."""
         futures = {}
         with ProcessPoolExecutor() as exe:
-            for i, site_slice in self.site_chunks:
+            for i, site_slice in enumerate(self.site_chunks):
                 f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
                 future = exe.submit(self.run_single, self._nsrdb_dir,
                                     self._years, self._weights, site_slice,
@@ -1326,5 +1336,5 @@ class TmyRunner:
 
             for future in as_completed(futures):
                 i = futures[future]
-                print('{} out of {} futures completed.'
-                      .format(i + 1, len(futures)))
+                logger.info('{} out of {} futures completed.'
+                            .format(i + 1, len(futures)))
