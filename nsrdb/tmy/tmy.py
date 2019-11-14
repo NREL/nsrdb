@@ -402,9 +402,11 @@ class Tmy:
         fpaths : list
             List of full filepaths to nsrdb .h5 files to include in the tmy.
         """
-        fpaths = [os.path.join(nsrdb_dir, fn) for fn in os.listdir(nsrdb_dir)
+        fpaths = [fn for fn in os.listdir(nsrdb_dir)
                   if any([str(y) in fn for y in years])
                   and fn.endswith('.h5') and 'nsrdb' in fn]
+        fpaths = sorted(fpaths)
+        fpaths = [os.path.join(nsrdb_dir, fn) for fn in fpaths]
         return fpaths
 
     @staticmethod
@@ -993,7 +995,75 @@ class Tmy:
 
         return tmy_years, max_run_len, n_runs
 
-    def calculate_tmy(self):
+    def _make_tmy_timeseries(self, dset, tmy_years, unscale=True):
+        """Make the TMY 8760 timeseries from the selected TMY years.
+
+        Parameters
+        ----------
+        dset : str
+            Dataset name to make timeseries for.
+        tmy_years : np.ndarray
+            Array of best TMY years for every month for every site.
+            Shape is (months, sites).
+        unscale : bool
+            Flag to unscale data from dset storage dtype to physical dtype.
+            As of 2018, the NSRDB has inconsistent scale factors so unscaling
+            to physical units is onorous but necessary.
+
+        Returns
+        -------
+        ti : pd.datetimeindex
+            (8760, ) datetimeindex from the last year in fpaths.
+        data : np.ndarray
+            (8760 x n_sites) timeseries array of dset with data in each month
+            taken from the selected tmy_year.
+        tmy_years_long : np.ndarray
+            (8760 x n_sites) timeseries array of years that the tmy data is
+            taken from at each timestep and site.
+        """
+
+        year_set = sorted(list(set(list(tmy_years.flatten()))))
+        data = None
+        tmy_years_long = None
+        masks = None
+
+        for year in year_set:
+            fpath = [f for f in self._fpaths if str(year) in f][0]
+            with Resource(fpath, unscale=unscale) as res:
+                ti = res.time_index
+                temp = res[dset, :, self._site_slice]
+                temp, ti = self.drop_leap(temp, ti)
+
+            if masks is None:
+                masks = {m: (ti.month == m) for m in range(1, 13)}
+            if data is None:
+                data = np.zeros(temp.shape, dtype=temp.dtype)
+            if tmy_years_long is None:
+                tmy_years_long = np.zeros(temp.shape, dtype=np.uint16)
+
+            mask = (tmy_years == year)
+            locs = np.where(mask)
+            months = locs[0] + 1
+            sites = locs[1]
+
+            for month, site in zip(months, sites):
+                data[masks[month], site] = temp[masks[month], site]
+                tmy_years_long[masks[month], site] = tmy_years[(month - 1),
+                                                               site]
+        with Resource(self._fpaths[-1]) as res:
+            final_ti = res.time_index
+
+        if len(data) > 8760:
+            final_ti = final_ti[1::2]
+            data = data[1::2, :]
+            tmy_years_long = tmy_years_long[1::2, :]
+        if len(data) != 8760:
+            raise ValueError('TMY timeseries was not evaluated as an 8760! '
+                             'Instead had final length {}.'.format(len(data)))
+
+        return final_ti, data, tmy_years_long
+
+    def calculate_tmy_years(self):
         """Calculate the TMY based on the multiple-dataset weights.
 
         Returns
@@ -1010,54 +1080,30 @@ class Tmy:
 
         return tmy_years
 
-    def _make_tmy_timeseries(self, dset, tmy_years, unscale=False):
-        """Make the TMY 8760 timeseries from the selected TMY years.
+    def get_tmy_timeseries(self, dset, unscale=True):
+        """Get a complete TMY timeseries of data for dset.
 
         Parameters
         ----------
         dset : str
-            Dataset name to make timeseries for.
-        tmy_years : np.ndarray
-            Array of best TMY years for every month for every site.
-            Shape is (months, sites).
+            Name of the dataset to get data for.
         unscale : bool
             Flag to unscale data from dset storage dtype to physical dtype.
+            As of 2018, the NSRDB has inconsistent scale factors so unscaling
+            to physical units is onorous but necessary.
 
         Returns
         -------
+        ti : pd.datetimeindex
+            (8760, ) datetimeindex from the last year in fpaths.
         data : np.ndarray
-            8760 x n_sites timeseries array of dset with data in each month
+            (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
+        tmy_years_long : np.ndarray
+            (8760 x n_sites) timeseries array of years that the tmy data is
+            taken from at each timestep and site.
         """
-
-        year_set = sorted(list(set(list(tmy_years.flatten()))))
-        data = None
-        masks = None
-
-        for year in year_set:
-            fpath = [f for f in self._fpaths if str(year) in f][0]
-            with Resource(fpath, unscale=unscale) as res:
-                ti = res.time_index
-                temp = res[dset, :, self._site_slice]
-                temp, ti = self.drop_leap(temp, ti)
-
-            if masks is None:
-                masks = {m: (ti.month == m) for m in range(1, 13)}
-            if data is None:
-                data = np.zeros(temp.shape, dtype=temp.dtype)
-
-            mask = (tmy_years == year)
-            locs = np.where(mask)
-            months = locs[0] + 1
-            sites = locs[1]
-
-            for month, site in zip(months, sites):
-                data[masks[month], site] = temp[masks[month], site]
-
-        if len(data) > 8760:
-            data = data[1::2, :]
-        if len(data) != 8760:
-            raise ValueError('TMY timeseries was not evaluated as an 8760! '
-                             'Instead had final length {}.'.format(len(data)))
-
-        return data
+        tmy_years = self.calculate_tmy_years()
+        out = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
+        time_index, data, tmy_years_long = out
+        return time_index, data, tmy_years_long

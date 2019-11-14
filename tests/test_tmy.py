@@ -180,6 +180,37 @@ def test_tmy_steps():
             assert n_run != 0
 
 
+def test_baseline_timeseries():
+    """Calculate the TMY timeseries and validate against a baseline file."""
+
+    f_baseline = os.path.join(TESTDATADIR, 'tmy_baseline/tgy_1998_2017.csv')
+    years = list(range(1998, 2018))
+    weights = {'sum_ghi': 1}
+    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
+    time_index, data, tmy_years_long = tgy.get_tmy_timeseries('ghi')
+
+    df_data = pd.DataFrame(data, index=time_index)
+    df_tmy_years = pd.DataFrame(tmy_years_long, index=time_index)
+
+    assert len(time_index) == 8760
+
+    assert df_tmy_years.iloc[0, 0] == 1999
+    assert df_tmy_years.iloc[720, 0] == 1999
+    assert df_tmy_years.iloc[1080, 0] == 2007
+    assert df_tmy_years.iloc[8759, 0] == 2001
+
+    assert df_tmy_years.iloc[0, 1] == 2011
+    assert df_tmy_years.iloc[720, 1] == 2011
+    assert df_tmy_years.iloc[1080, 1] == 2007
+    assert df_tmy_years.iloc[8759, 1] == 2000
+
+    if not os.path.exists(f_baseline):
+        df_data.to_csv(f_baseline)
+    else:
+        df_baseline = pd.read_csv(f_baseline, index_col=0)
+        assert np.allclose(df_data.values, df_baseline.values)
+
+
 def plot_cdf():
     """Plot the CDF graph emulating the plot from the TMY users guide."""
     years = list(range(1998, 2018))
