@@ -5,6 +5,7 @@ Created on Wed Oct 23 10:55:23 2019
 
 @author: gbuster
 """
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 import h5py
 import os
@@ -12,7 +13,10 @@ import pandas as pd
 import numpy as np
 import datetime
 from itertools import groupby
+
+from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.outputs import Outputs
 
 
 class Cdf:
@@ -392,6 +396,9 @@ class Tmy:
         self._time_masks = None
         self._daily_time_masks = None
 
+        self._tmy_years_short = None
+        self._tmy_years_long = None
+
         self._fpaths, self._fpaths_years = self._parse_dir(self._dir,
                                                            self._years)
         self._check_weights(self._fpaths, self._weights)
@@ -666,6 +673,30 @@ class Tmy:
                 _, self._time_index = self.drop_leap(
                     np.zeros((len(self._time_index), 1)), self._time_index)
         return self._time_index
+
+    @property
+    def tmy_years_short(self):
+        """Get a short montly array of selected TMY years.
+
+        Returns
+        -------
+        tmy_years_short : np.ndarray
+            Array of best TMY years for every month for every site.
+            Shape is (months, sites).
+        """
+        return self._tmy_years_short
+
+    @property
+    def tmy_years_long(self):
+        """Get a long 8760 array of selected TMY years.
+
+        Returns
+        -------
+        tmy_years_long : np.ndarray
+            Array of best TMY years for every month for every site.
+            Shape is (8760, sites).
+        """
+        return self._tmy_years_long
 
     @property
     def time_masks(self):
@@ -1041,19 +1072,13 @@ class Tmy:
 
         Returns
         -------
-        ti : pd.datetimeindex
-            (8760, ) datetimeindex from the last year in fpaths.
         data : np.ndarray
             (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
-        tmy_years_long : np.ndarray
-            (8760 x n_sites) timeseries array of years that the tmy data is
-            taken from at each timestep and site.
         """
 
         year_set = sorted(list(set(list(tmy_years.flatten()))))
         data = None
-        tmy_years_long = None
         masks = None
 
         for year in year_set:
@@ -1067,8 +1092,8 @@ class Tmy:
                 masks = {m: (ti.month == m) for m in range(1, 13)}
             if data is None:
                 data = np.zeros(temp.shape, dtype=temp.dtype)
-            if tmy_years_long is None:
-                tmy_years_long = np.zeros(temp.shape, dtype=np.uint16)
+            if self._tmy_years_long is None:
+                self._tmy_years_long = np.zeros(temp.shape, dtype=np.uint16)
 
             mask = (tmy_years == year)
             locs = np.where(mask)
@@ -1077,20 +1102,19 @@ class Tmy:
 
             for month, site in zip(months, sites):
                 data[masks[month], site] = temp[masks[month], site]
-                tmy_years_long[masks[month], site] = tmy_years[(month - 1),
-                                                               site]
-        with Resource(self._fpaths[-1]) as res:
-            final_ti = res.time_index
+                self._tmy_years_long[masks[month], site] = \
+                    tmy_years[(month - 1), site]
+
+        if len(self._tmy_years_long) > 8760:
+            self._tmy_years_long = self._tmy_years_long[1::2, :]
 
         if len(data) > 8760:
-            final_ti = final_ti[1::2]
             data = data[1::2, :]
-            tmy_years_long = tmy_years_long[1::2, :]
         if len(data) != 8760:
             raise ValueError('TMY timeseries was not evaluated as an 8760! '
                              'Instead had final length {}.'.format(len(data)))
 
-        return final_ti, data, tmy_years_long
+        return data
 
     def calculate_tmy_years(self):
         """Calculate the TMY based on the multiple-dataset weights.
@@ -1106,7 +1130,7 @@ class Tmy:
         tmy_years_5, _ = self.select_fs_years(ws)
         tmy_years_5, _ = self.sort_years_mm(tmy_years_5)
         tmy_years, _, _ = self.persistence_filter(tmy_years_5)
-
+        self._tmy_years_short = tmy_years
         return tmy_years
 
     def get_tmy_timeseries(self, dset, unscale=True):
@@ -1123,16 +1147,184 @@ class Tmy:
 
         Returns
         -------
-        ti : pd.datetimeindex
-            (8760, ) datetimeindex from the last year in fpaths.
         data : np.ndarray
             (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
-        tmy_years_long : np.ndarray
-            (8760 x n_sites) timeseries array of years that the tmy data is
-            taken from at each timestep and site.
         """
         tmy_years = self.calculate_tmy_years()
-        out = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
-        time_index, data, tmy_years_long = out
-        return time_index, data, tmy_years_long
+        data = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
+        return data
+
+
+class TmyRunner:
+    """Class to handle running TMY, collecting outs, and writing to files."""
+
+    def __init__(self, nsrdb_dir, years, weights, site_chunk=100,
+                 out_dir='/tmp/scratch/tmy/'):
+        """
+        Parameters
+        ----------
+        nsrdb_dir : str
+            Directory containing annual NSRDB files. All .h5 files with year
+            strings in their names will be used.
+        years : iterable
+            Iterable of years to include in the TMY calculation.
+        weights : dict
+            Lookup of {dset: weight} where dset is a variable h5 dset name
+            and weight is a fractional TMY weighting. All weights must
+            sum to 1.0
+        site_slice : slice
+            Sites to consider in this TMY.
+        site_chunk : int
+            Number of sites to run at once.
+        out_dir : str
+            Directory to dump temporary output files.
+        """
+
+        self._nsrdb_dir = nsrdb_dir
+        self._years = years
+        self._weights = weights
+        self._site_chunk = site_chunk
+        self._site_chunks = None
+        self._meta = None
+        self._dsets = None
+
+        self._out_dir = out_dir
+        if not os.path.exists(self._out_dir):
+            os.makedirs(self._out_dir)
+
+        self._tmy_obj = Tmy(self._nsrdb_dir, self._years, self._weights,
+                            site_slice=slice(0, 1))
+
+    @property
+    def meta(self):
+        """Get the full NSRDB meta data."""
+        if self._meta is None:
+            with Resource(self._tmy_obj._fpaths[0]) as res:
+                self._meta = res.meta
+        return self._meta
+
+    @property
+    def dsets(self):
+        """Get the NSRDB datasets."""
+        if self._dsets is None:
+            with Resource(self._tmy_obj._fpaths[0]) as res:
+                self._dsets = res.dsets
+        return self._dsets
+
+    @property
+    def site_chunks(self):
+        """Get a list of site chunk slices to parallelize across"""
+        if self._site_chunks is None:
+            arr = np.arange(len(self.meta))
+            tmp = np.array_split(arr, (len(arr) / self._site_chunk))
+            self._site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
+        return self._site_chunks
+
+    @staticmethod
+    def get_dset_attrs(dsets):
+        """Get output file dataset attributes for a set of datasets.
+
+        Parameters
+        ----------
+        dsets : list
+            List of dataset / variable names.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
+        """
+
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+
+        for dset in dsets:
+            var_obj = VarFactory.get_base_handler(dset)
+            attrs[dset] = var_obj.attrs
+            chunks[dset] = var_obj.chunks
+            dtypes[dset] = var_obj.final_dtype
+
+        return attrs, chunks, dtypes
+
+    @staticmethod
+    def _write_output(f_out, data_dict, time_index, meta):
+        """Initialize the final output file.
+
+        Parameters
+        ----------
+        f_out : str
+            File path to final .h5 file.
+        data_dict : dict
+            {Dset: data_arr} dictionary
+        time_index : pd.datetimeindex
+            Time index to init to file.
+        meta : pd.DataFrame
+            Meta data to init to file.
+        """
+
+        if not os.path.isfile(f_out):
+            dsets = list(data_dict.keys())
+            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets)
+
+            Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
+                            time_index, meta)
+
+        with Outputs(f_out, mode='a') as f:
+            for dset, arr in data_dict.items():
+                f[dset] = arr
+
+    @staticmethod
+    def run_single(nsrdb_dir, years, weights, site_slice, dsets, f_out):
+        """Run TMY for a single site chunk (slice) and save to disk.
+
+        Parameters
+        ----------
+        nsrdb_dir : str
+            Directory containing annual NSRDB files. All .h5 files with year
+            strings in their names will be used.
+        years : iterable
+            Iterable of years to include in the TMY calculation.
+        weights : dict
+            Lookup of {dset: weight} where dset is a variable h5 dset name
+            and weight is a fractional TMY weighting. All weights must
+            sum to 1.0
+        site_slice : slice
+            Sites to consider in this TMY chunk.
+        dsets : list
+            List of TMY datasets to make.
+        f_out : str
+            Filepath to save file for this chunk.
+
+        Returns
+        -------
+        True
+        """
+
+        data_dict = {}
+        tmy = Tmy(nsrdb_dir, years, weights, site_slice)
+        for dset in dsets:
+            data_dict[dset] = tmy.get_tmy_timeseries(dset)
+        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta)
+        return True
+
+    def _run_parallel(self):
+        """Run parallel tmy futures and save temp chunks to disk."""
+        futures = {}
+        with ProcessPoolExecutor() as exe:
+            for i, site_slice in self.site_chunks:
+                f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+                future = exe.submit(self.run_single, self._nsrdb_dir,
+                                    self._years, self._weights, site_slice,
+                                    self.dsets, f_out)
+                futures[future] = i
+
+            for future in as_completed(futures):
+                i = futures[future]
+                print('{} out of {} futures completed.'
+                      .format(i + 1, len(futures)))

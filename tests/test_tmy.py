@@ -187,12 +187,10 @@ def test_baseline_timeseries():
     years = list(range(1998, 2018))
     weights = {'sum_ghi': 1}
     tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
-    time_index, data, tmy_years_long = tgy.get_tmy_timeseries('ghi')
+    data = tgy.get_tmy_timeseries('ghi')
 
-    df_data = pd.DataFrame(data, index=time_index)
-    df_tmy_years = pd.DataFrame(tmy_years_long, index=time_index)
-
-    assert len(time_index) == 8760
+    df_data = pd.DataFrame(data, index=tgy.time_index)
+    df_tmy_years = pd.DataFrame(tgy.tmy_years_long, index=tgy.time_index)
 
     assert df_tmy_years.iloc[0, 0] == 1999
     assert df_tmy_years.iloc[720, 0] == 1999
