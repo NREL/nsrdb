@@ -83,7 +83,10 @@ class AncillaryVarHandler:
                       'temporal_interp_method': self.temporal_method,
                       'spatial_interp_method': self.spatial_method,
                       'data_source': self.data_source,
-                      'source_dir': self.source_dir})
+                      'source_dir': self.source_dir,
+                      'psm_units': self.units,
+                      'psm_scale_factor': self.scale_factor,
+                      })
         return attrs
 
     @property
@@ -120,6 +123,9 @@ class AncillaryVarHandler:
         if self._mask is None:
             if self._name in self.var_meta['var'].values:
                 self._mask = self.var_meta['var'] == self._name
+            else:
+                raise KeyError('Variable "{}" not found in NSRDB meta.'
+                               .format(self._name))
         return self._mask
 
     @property

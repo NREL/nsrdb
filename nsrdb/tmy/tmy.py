@@ -387,7 +387,7 @@ class Tmy:
             Sites to consider in this TMY.
         """
 
-        logger.debug('Initializing TMY algorithm for site slice {}...'
+        logger.debug('Initializing TMY algorithm for sites {}...'
                      .format(site_slice))
 
         self._dir = nsrdb_dir
@@ -439,6 +439,7 @@ class Tmy:
                     fpaths.append(os.path.join(nsrdb_dir, fn))
                     fpath_years.append(year)
                     break
+        logger.debug('Found the following fpaths: {}'.format(fpaths))
         return fpaths, fpath_years
 
     @staticmethod
@@ -1083,10 +1084,10 @@ class Tmy:
             (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
         """
-
         year_set = sorted(list(set(list(tmy_years.flatten()))))
         data = None
         masks = None
+        self._tmy_years_long = None
 
         for year in year_set:
             fpath = [f for f in self._fpaths if str(year) in f][0]
@@ -1112,11 +1113,9 @@ class Tmy:
                 self._tmy_years_long[masks[month], site] = \
                     tmy_years[(month - 1), site]
 
-        if len(self._tmy_years_long) > 8760:
-            self._tmy_years_long = self._tmy_years_long[1::2, :]
-
         if len(data) > 8760:
             data = data[1::2, :]
+            self._tmy_years_long = self._tmy_years_long[1::2, :]
         if len(data) != 8760:
             raise ValueError('TMY timeseries was not evaluated as an 8760! '
                              'Instead had final length {}.'.format(len(data)))
@@ -1216,10 +1215,14 @@ class TmyRunner:
 
     @property
     def dsets(self):
-        """Get the NSRDB datasets."""
+        """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             with Resource(self._tmy_obj._fpaths[0]) as res:
-                self._dsets = res.dsets
+                self._dsets = []
+                for d in res.dsets:
+                    if hasattr(res._h5[d], 'shape'):
+                        if res._h5[d].shape == res.shape:
+                            self._dsets.append(d)
         return self._dsets
 
     @property
@@ -1260,10 +1263,14 @@ class TmyRunner:
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype
 
+            attrs[dset]['psm_units'] = attrs[dset]['units']
+            attrs[dset]['psm_scale_factor'] = attrs[dset]['scale_factor']
+
         return attrs, chunks, dtypes
 
     @staticmethod
-    def _write_output(f_out, data_dict, time_index, meta):
+    def _write_output(f_out, data_dict, time_index, meta, tmy_years_short,
+                      tmy_years_long):
         """Initialize the final output file.
 
         Parameters
@@ -1276,7 +1283,13 @@ class TmyRunner:
             Time index to init to file.
         meta : pd.DataFrame
             Meta data to init to file.
+        tmy_years_short : np.ndarray
+            (12, n_sites) array of selected TMY years.
+        tmy_years_long
+            (8760, n_sites) array of selected TMY years.
         """
+
+        logger.debug('Saving TMY results to: {}'.format(f_out))
 
         if not os.path.isfile(f_out):
             dsets = list(data_dict.keys())
@@ -1288,6 +1301,11 @@ class TmyRunner:
         with Outputs(f_out, mode='a') as f:
             for dset, arr in data_dict.items():
                 f[dset] = arr
+
+            f._create_dset('tmy_year_short', tmy_years_short.shape, np.uint16,
+                           data=tmy_years_short)
+            f._create_dset('tmy_year', tmy_years_long.shape, np.uint16,
+                           data=tmy_years_long)
 
     @staticmethod
     def run_single(nsrdb_dir, years, weights, site_slice, dsets, f_out):
@@ -1320,21 +1338,38 @@ class TmyRunner:
         tmy = Tmy(nsrdb_dir, years, weights, site_slice)
         for dset in dsets:
             data_dict[dset] = tmy.get_tmy_timeseries(dset)
-        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta)
+        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
+                                tmy.tmy_years_short, tmy.tmy_years_long)
         return True
+
+    def _run_serial(self):
+        """Run serial tmy futures and save temp chunks to disk."""
+        for i, site_slice in enumerate(self.site_chunks):
+            f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+            self.run_single(self._nsrdb_dir, self._years, self._weights,
+                            site_slice, self.dsets, f_out)
+            logger.info('{} out of {} TMY chunks completed.'
+                        .format(i + 1, len(self.site_chunks)))
 
     def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
         futures = {}
         with ProcessPoolExecutor() as exe:
+            logger.info('Kicking off {} futures.'
+                        .format(len(self.site_chunks)))
             for i, site_slice in enumerate(self.site_chunks):
                 f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
                 future = exe.submit(self.run_single, self._nsrdb_dir,
                                     self._years, self._weights, site_slice,
                                     self.dsets, f_out)
                 futures[future] = i
+            logger.info('Finished kicking off {} futures.'
+                        .format(len(self.site_chunks)))
 
             for future in as_completed(futures):
                 i = futures[future]
-                logger.info('{} out of {} futures completed.'
-                            .format(i + 1, len(futures)))
+                if future.result():
+                    logger.info('{} out of {} futures completed.'
+                                .format(i + 1, len(futures)))
+                else:
+                    logger.warning('Future #{} failed!'.format(i + 1))
