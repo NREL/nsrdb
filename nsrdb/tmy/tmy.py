@@ -1157,16 +1157,21 @@ class Tmy:
             (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
         """
-        tmy_years = self.calculate_tmy_years()
-        data = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
-        return data
+        if dset == 'tmy_year_short':
+            return self.tmy_years_short
+        elif dset == 'tmy_year_long' or dset == 'tmy_year':
+            return self.tmy_years_long
+        else:
+            tmy_years = self.calculate_tmy_years()
+            data = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
+            return data
 
 
 class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
     def __init__(self, nsrdb_dir, years, weights, site_chunk=100,
-                 out_dir='/tmp/scratch/tmy/'):
+                 out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5'):
         """
         Parameters
         ----------
@@ -1185,6 +1190,8 @@ class TmyRunner:
             Number of sites to run at once.
         out_dir : str
             Directory to dump temporary output files.
+        fn_out : str
+            Final output filename.
         """
 
         logger.info('Initializing TMY runner for years: {}'.format(years))
@@ -1199,6 +1206,10 @@ class TmyRunner:
         self._dsets = None
 
         self._out_dir = out_dir
+        self._fn_out = fn_out
+        self._final_fpath = os.path.join(self._out_dir, self._fn_out)
+        self._f_out_chunks = {}
+
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
 
@@ -1223,6 +1234,8 @@ class TmyRunner:
                     if hasattr(res._h5[d], 'shape'):
                         if res._h5[d].shape == res.shape:
                             self._dsets.append(d)
+            self._dsets.append('tmy_year')
+            self._dsets.append('tmy_year_short')
         return self._dsets
 
     @property
@@ -1268,10 +1281,57 @@ class TmyRunner:
 
         return attrs, chunks, dtypes
 
+    def _collect(self):
+        """Collect all chunked files into the final fout."""
+        self._init_final_fout()
+        with Outputs(self._final_fpath, mode='a', unscale=False) as out:
+            for i, f_out_chunk in self._f_out_chunks.items():
+                site_slice = self.site_chunks[i]
+                if os.path.exists(f_out_chunk):
+                    with Resource(f_out_chunk, unscale=False) as chunk:
+                        for dset in self.dsets:
+                            out[dset, :, site_slice] = chunk[dset]
+                    logger.info('Finished collecting #{} out of {}: {}'
+                                .format(i + 1, len(self._f_out_chunks),
+                                        f_out_chunk))
+                    os.remove(f_out_chunk)
+
+    def _init_final_fout(self):
+        """Initialize the final output file."""
+        self._init_file(self._final_fpath, self.dsets,
+                        self._tmy_obj.time_index, self.meta)
+
     @staticmethod
-    def _write_output(f_out, data_dict, time_index, meta, tmy_years_short,
-                      tmy_years_long):
-        """Initialize the final output file.
+    def _init_file(f_out, dsets, time_index, meta):
+        """Initialize an output file.
+
+        Parameters
+        ----------
+        f_out : str
+            File path to final .h5 file.
+        dsets : list
+            List of dataset names to initialize
+        time_index : pd.datetimeindex
+            Time index to init to file.
+        meta : pd.DataFrame
+            Meta data to init to file.
+        """
+
+        if not os.path.isfile(f_out):
+            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets)
+
+            attrs['tmy_year'] = {'units': 'selected_year'}
+            attrs['tmy_year_short'] = {'units': 'selected_year'}
+            chunks['tmy_year'] = chunks['dni']
+            dtypes['tmy_year'] = np.uint16
+            dtypes['tmy_year_short'] = np.uint16
+
+            Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
+                            time_index, meta)
+
+    @staticmethod
+    def _write_output(f_out, data_dict, time_index, meta):
+        """Initialize and write an output file chunk.
 
         Parameters
         ----------
@@ -1283,29 +1343,15 @@ class TmyRunner:
             Time index to init to file.
         meta : pd.DataFrame
             Meta data to init to file.
-        tmy_years_short : np.ndarray
-            (12, n_sites) array of selected TMY years.
-        tmy_years_long
-            (8760, n_sites) array of selected TMY years.
         """
 
         logger.debug('Saving TMY results to: {}'.format(f_out))
 
-        if not os.path.isfile(f_out):
-            dsets = list(data_dict.keys())
-            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets)
-
-            Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
-                            time_index, meta)
+        TmyRunner._init_file(f_out, list(data_dict.keys()), time_index, meta)
 
         with Outputs(f_out, mode='a') as f:
             for dset, arr in data_dict.items():
                 f[dset] = arr
-
-            f._create_dset('tmy_year_short', tmy_years_short.shape, np.uint16,
-                           data=tmy_years_short)
-            f._create_dset('tmy_year', tmy_years_long.shape, np.uint16,
-                           data=tmy_years_long)
 
     @staticmethod
     def run_single(nsrdb_dir, years, weights, site_slice, dsets, f_out):
@@ -1338,14 +1384,14 @@ class TmyRunner:
         tmy = Tmy(nsrdb_dir, years, weights, site_slice)
         for dset in dsets:
             data_dict[dset] = tmy.get_tmy_timeseries(dset)
-        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
-                                tmy.tmy_years_short, tmy.tmy_years_long)
+        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta)
         return True
 
     def _run_serial(self):
         """Run serial tmy futures and save temp chunks to disk."""
         for i, site_slice in enumerate(self.site_chunks):
             f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+            self._f_out_chunks[i] = f_out
             self.run_single(self._nsrdb_dir, self._years, self._weights,
                             site_slice, self.dsets, f_out)
             logger.info('{} out of {} TMY chunks completed.'
@@ -1359,6 +1405,7 @@ class TmyRunner:
                         .format(len(self.site_chunks)))
             for i, site_slice in enumerate(self.site_chunks):
                 f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+                self._f_out_chunks[i] = f_out
                 future = exe.submit(self.run_single, self._nsrdb_dir,
                                     self._years, self._weights, site_slice,
                                     self.dsets, f_out)
@@ -1373,3 +1420,16 @@ class TmyRunner:
                                 .format(i + 1, len(futures)))
                 else:
                     logger.warning('Future #{} failed!'.format(i + 1))
+
+    @classmethod
+    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+            log_level='INFO', log_file=None):
+        """Run the TGY."""
+        if log:
+            from nsrdb.utilities.loggers import init_logger
+            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
+        weights = {'sum_ghi': 1.0}
+        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+                  fn_out=fn_out)
+        tgy._run_parallel()
+        tgy._collect()
