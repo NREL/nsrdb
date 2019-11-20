@@ -404,7 +404,7 @@ class Spatial:
         return fname_out, kwargs, og_title
 
     @staticmethod
-    def dsets(h5, dsets, out_dir, timesteps=(0,), file_ext='.png',
+    def dsets(h5, dsets, out_dir, timesteps=(0,), fname=None, file_ext='.png',
               sites=None, interval=None, parallel=False, **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
@@ -419,6 +419,8 @@ class Spatial:
         timesteps : iterable | slice
             Timesteps (time indices) to make plots for. Slice will have faster
             data extraction and will be later converted to an iterable.
+        fname : str
+            Filename without extension.
         file_ext : str
             File extension
         sites : None | List | Slice
@@ -435,9 +437,10 @@ class Spatial:
             dsets = [dsets]
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
+        if fname is None:
+            fname = os.path.basename(h5).replace('.h5', '')
 
         for dset in dsets:
-            fname = os.path.basename(h5).replace('.h5', '')
             with h5py.File(h5, 'r') as f:
                 logger.info('Plotting "{}" from {}.'.format(dset, h5))
                 attrs = dict(f[dset].attrs)
