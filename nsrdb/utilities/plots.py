@@ -392,12 +392,15 @@ class Spatial:
         if 'title' in kwargs and kwargs['title']:
             if og_title is None:
                 og_title = kwargs['title']
+
+            s = ('{}-{}-{} {}:{}'.format(
+                ti[ts].month, ti[ts].day, ti[ts].year,
+                str(ti[ts].hour).zfill(2),
+                str(ti[ts].minute).zfill(2)))
             if '{}' in og_title:
-                s = ('{}-{}-{} {}:{}'.format(
-                    ti[ts].month, ti[ts].day, ti[ts].year,
-                    str(ti[ts].hour).zfill(2),
-                    str(ti[ts].minute).zfill(2)))
                 kwargs['title'] = og_title.format(s)
+            if '{}' in fname:
+                fname = fname.format(s.replace(':', '-'))
 
         fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
                                         file_ext)
@@ -570,7 +573,7 @@ class Spatial:
     @staticmethod
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
                     xlabel='Longitude', ylabel='Latitude', title=None,
-                    cbar_label=None, marker_size=0.1,
+                    cbar_label=None, marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
                     extent=None, axis=None):
@@ -606,6 +609,8 @@ class Spatial:
             Image file extension (.png, .jpeg).
         """
 
+        df = df.sort_values(by=list(labels))
+
         if isinstance(extent, str):
             if extent.lower() in Spatial.EXTENTS:
                 xlim = Spatial.EXTENTS[extent.lower()]['xlim']
@@ -627,7 +632,7 @@ class Spatial:
 
                 c = ax.scatter(df.loc[:, labels[1]],
                                df.loc[:, labels[0]],
-                               marker='s',
+                               marker=marker,
                                s=marker_size,
                                c=df.iloc[:, 2],
                                cmap=cmap,
@@ -636,7 +641,8 @@ class Spatial:
 
             else:
                 custom_cmap = True
-                cmap_name, nbins = cmap.split('_')
+                nbins = cmap.split('_')[-1]
+                cmap_name = cmap.replace('_' + nbins, '')
                 cmap = plt.get_cmap(cmap_name)
                 cmaplist = [cmap(i) for i in range(cmap.N)]
                 bounds = np.linspace(cbar_range[0], cbar_range[1], int(nbins))
@@ -646,7 +652,7 @@ class Spatial:
 
                 c = ax.scatter(df.loc[:, labels[1]],
                                df.loc[:, labels[0]],
-                               marker='s',
+                               marker=marker,
                                s=marker_size,
                                c=df.iloc[:, 2],
                                cmap=cmap,
@@ -674,7 +680,7 @@ class Spatial:
                 fig.colorbar(c, ax=ax, label=cbar_label)
             else:
                 fmt = '%.2f'
-                int_bar = any([b % 1 == 0.0 for b in bounds])
+                int_bar = all([b % 1 == 0.0 for b in bounds])
                 if int_bar:
                     fmt = '%.0f'
                 fig.colorbar(c, ax=ax, label=cbar_label, cmap=cmap, norm=norm,
