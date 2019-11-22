@@ -436,7 +436,12 @@ class Tmy:
         fpaths = []
         for year in years:
             for fn in sorted(os.listdir(nsrdb_dir)):
-                if str(year) in fn and fn.endswith('.h5') and 'nsrdb' in fn:
+                if (str(year) in fn
+                        and fn.endswith('.h5')
+                        and 'nsrdb' in fn.lower()
+                        and 'tmy' not in fn.lower()
+                        and 'tdy' not in fn.lower()
+                        and 'tgy' not in fn.lower()):
                     fpaths.append(os.path.join(nsrdb_dir, fn))
                     fpath_years.append(year)
                     break
@@ -1390,8 +1395,11 @@ class TmyRunner:
 
     def _run_serial(self):
         """Run serial tmy futures and save temp chunks to disk."""
+        chunk_dir = os.path.join(self._out_dir, 'chunks/')
+        if not os.path.exists(chunk_dir):
+            os.makedirs(chunk_dir)
         for i, site_slice in enumerate(self.site_chunks):
-            f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+            f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'.format(i))
             self._f_out_chunks[i] = f_out
             self.run_single(self._nsrdb_dir, self._years, self._weights,
                             site_slice, self.dsets, f_out)
@@ -1534,3 +1542,12 @@ class TmyRunner:
         kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         kwargs['node_name'] = fun_str
         cls._eagle(fun_str, arg_str, **kwargs)
+
+    @classmethod
+    def eagle_all(nsrdb_dir, years, out_dir, site_chunk=100, **kwargs):
+        """Submit three eagle jobs for TMY, TGY, and TDY."""
+        for fun_str in ('tmy', 'tgy', 'tdy'):
+            fun_out_dir = os.path.join(out_dir, '{}/'.format(fun_str))
+            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, list(years)[-1])
+            TmyRunner.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
+                                fun_fn_out, site_chunk=site_chunk, **kwargs)
