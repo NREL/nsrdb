@@ -1282,8 +1282,10 @@ class TmyRunner:
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype
 
-            attrs[dset]['psm_units'] = attrs[dset]['units']
-            attrs[dset]['psm_scale_factor'] = attrs[dset]['scale_factor']
+            if 'units' in attrs[dset]:
+                attrs[dset]['psm_units'] = attrs[dset]['units']
+            if 'scale_factor' in attrs[dset]:
+                attrs[dset]['psm_scale_factor'] = attrs[dset]['scale_factor']
 
         return attrs, chunks, dtypes
 
@@ -1324,16 +1326,19 @@ class TmyRunner:
         """
 
         if not os.path.isfile(f_out):
-            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets)
-
+            dsets_mod = [d for d in dsets if 'tmy_year' not in d]
+            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets_mod)
+            dsets_mod.append('tmy_year')
             attrs['tmy_year'] = {'units': 'selected_year'}
-            attrs['tmy_year_short'] = {'units': 'selected_year'}
             chunks['tmy_year'] = chunks['dni']
             dtypes['tmy_year'] = np.uint16
-            dtypes['tmy_year_short'] = np.uint16
-
-            Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
+            Outputs.init_h5(f_out, dsets_mod, attrs, chunks, dtypes,
                             time_index, meta)
+
+            with h5py.File(f_out, mode='a') as f:
+                d = 'tmy_year_short'
+                f.create_dataset(d, shape=(12, len(meta)), dtype=np.uint16)
+                f[d].attrs['units'] = 'selected_year'
 
     @staticmethod
     def _write_output(f_out, data_dict, time_index, meta):
@@ -1454,10 +1459,10 @@ class TmyRunner:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_dni': 1.0}
-        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+        tdy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
                   fn_out=fn_out)
-        tgy._run_parallel()
-        tgy._collect()
+        tdy._run_parallel()
+        tdy._collect()
 
     @classmethod
     def tmy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
@@ -1476,10 +1481,10 @@ class TmyRunner:
                    'mean_wind_speed': 0.05,
                    'sum_dni': 0.25,
                    'sum_ghi': 0.25}
-        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+        tmy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
                   fn_out=fn_out)
-        tgy._run_parallel()
-        tgy._collect()
+        tmy._run_parallel()
+        tmy._collect()
 
     @staticmethod
     def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=240,
