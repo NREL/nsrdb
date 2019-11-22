@@ -18,6 +18,7 @@ import logging
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.utilities.execution import SLURM
 
 
 logger = logging.getLogger(__name__)
@@ -1433,3 +1434,103 @@ class TmyRunner:
                   fn_out=fn_out)
         tgy._run_parallel()
         tgy._collect()
+
+    @classmethod
+    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+            log_level='INFO', log_file=None):
+        """Run the TDY."""
+        if log:
+            from nsrdb.utilities.loggers import init_logger
+            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
+        weights = {'sum_dni': 1.0}
+        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+                  fn_out=fn_out)
+        tgy._run_parallel()
+        tgy._collect()
+
+    @classmethod
+    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+            log_level='INFO', log_file=None):
+        """Run the TMY."""
+        if log:
+            from nsrdb.utilities.loggers import init_logger
+            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
+        weights = {'max_air_temperature': 0.05,
+                   'min_air_temperature': 0.05,
+                   'mean_air_temperature': 0.1,
+                   'max_dew_point': 0.05,
+                   'min_dew_point': 0.05,
+                   'mean_dew_point': 0.1,
+                   'max_wind_speed': 0.05,
+                   'mean_wind_speed': 0.05,
+                   'sum_dni': 0.25,
+                   'sum_ghi': 0.25}
+        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+                  fn_out=fn_out)
+        tgy._run_parallel()
+        tgy._collect()
+
+    @staticmethod
+    def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=240,
+               feature='--qos=high', node_name='tmy', stdout_path=None):
+        """Run a TmyRunner method on an Eagle node.
+
+        Format: TmyRunner.fun_str(arg_str)
+
+        Parameters
+        ----------
+        fun_str : str
+            Name of the class or static method belonging to the TmyRunner class
+            to execute in the SLURM job.
+        arg_str : str
+            Arguments passed to the target method.
+        alloc : str
+            SLURM project allocation.
+        memory : int
+            Node memory request in GB.
+        walltime : int
+            Node walltime request in hours.
+        feature : str
+            Additional flags for SLURM job. Format is "--qos=high"
+            or "--depend=[state:job_id]".
+        node_name : str
+            Name for the SLURM job.
+        stdout_path : str
+            Path to dump the stdout/stderr files.
+        """
+
+        if stdout_path is None:
+            stdout_path = os.getcwd()
+
+        cmd = ("python -c 'from nsrdb.tmy.tmy import TmyRunner;"
+               "TmyRunner.{f}({a})'")
+
+        cmd = cmd.format(f=fun_str, a=arg_str)
+
+        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
+                      feature=feature, name=node_name, stdout_path=stdout_path)
+
+        print('\ncmd:\n{}\n'.format(cmd))
+
+        if slurm.id:
+            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                   'Eagle.'.format(node_name, slurm.id))
+        else:
+            msg = ('Was unable to kick off job "{}". '
+                   'Please see the stdout error messages'
+                   .format(node_name))
+        print(msg)
+
+    @classmethod
+    def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out,
+                  site_chunk=100, **kwargs):
+        """Run a TMY/TDY/TGY job on an Eagle node."""
+
+        arg_str = ('"{nsrdb_dir}", "{years}", "{out_dir}", "{fn_out}", '
+                   'site_chunk={site_chunk}')
+        arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
+                                 out_dir=out_dir, fn_out=fn_out,
+                                 site_chunk=site_chunk)
+        kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
+        kwargs['node_name'] = fun_str
+        cls._eagle(fun_str, arg_str, **kwargs)
