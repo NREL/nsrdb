@@ -1408,12 +1408,15 @@ class TmyRunner:
 
     def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
+        chunk_dir = os.path.join(self._out_dir, 'chunks/')
+        if not os.path.exists(chunk_dir):
+            os.makedirs(chunk_dir)
         futures = {}
         with ProcessPoolExecutor() as exe:
             logger.info('Kicking off {} futures.'
                         .format(len(self.site_chunks)))
             for i, site_slice in enumerate(self.site_chunks):
-                f_out = os.path.join(self._out_dir, 'temp_out_{}.h5'.format(i))
+                f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'.format(i))
                 self._f_out_chunks[i] = f_out
                 future = exe.submit(self.run_single, self._nsrdb_dir,
                                     self._years, self._weights, site_slice,
