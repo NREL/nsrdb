@@ -1534,7 +1534,7 @@ class TmyRunner:
                   site_chunk=100, **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
-        arg_str = ('"{nsrdb_dir}", "{years}", "{out_dir}", "{fn_out}", '
+        arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
                    'site_chunk={site_chunk}')
         arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                  out_dir=out_dir, fn_out=fn_out,
@@ -1544,10 +1544,10 @@ class TmyRunner:
         cls._eagle(fun_str, arg_str, **kwargs)
 
     @classmethod
-    def eagle_all(nsrdb_dir, years, out_dir, site_chunk=100, **kwargs):
+    def eagle_all(cls, nsrdb_dir, years, out_dir, site_chunk=100, **kwargs):
         """Submit three eagle jobs for TMY, TGY, and TDY."""
         for fun_str in ('tmy', 'tgy', 'tdy'):
             fun_out_dir = os.path.join(out_dir, '{}/'.format(fun_str))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, list(years)[-1])
-            TmyRunner.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
-                                fun_fn_out, site_chunk=site_chunk, **kwargs)
+            cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
+                          fun_fn_out, site_chunk=site_chunk, **kwargs)
