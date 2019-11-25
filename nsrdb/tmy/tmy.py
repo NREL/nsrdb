@@ -670,7 +670,7 @@ class Tmy:
 
     @property
     def time_index(self):
-        """Time index for first TMY year without leap day.
+        """Time index for last TMY year without leap day.
 
         Returns
         -------
@@ -678,8 +678,8 @@ class Tmy:
             Single-year datetime index corresponding to TMY output.
         """
         if self._time_index is None:
-            start = '1-1-{}'.format(self.years[0])
-            end = '1-1-{}'.format(self.years[0] + 1)
+            start = '1-1-{}'.format(self.years[-1])
+            end = '1-1-{}'.format(self.years[-1] + 1)
             self._time_index = pd.date_range(start=start, end=end,
                                              freq='1h', closed='left')
             self._time_index += datetime.timedelta(minutes=30)
