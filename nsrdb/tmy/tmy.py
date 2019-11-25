@@ -1296,8 +1296,7 @@ class TmyRunner:
         if not os.path.exists(chunk_dir):
             os.makedirs(chunk_dir)
         for ichunk in site_chunks_index:
-            f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'
-                                 .format(site_chunks_index))
+            f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'.format(ichunk))
             f_out_chunks[ichunk] = f_out
 
         return site_chunks, site_chunks_index, f_out_chunks
