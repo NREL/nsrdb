@@ -9,6 +9,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 import h5py
 import os
+import shutil
 import pandas as pd
 import numpy as np
 import datetime
@@ -404,6 +405,8 @@ class Tmy:
         self._time_masks = None
         self._daily_time_masks = None
 
+        self._raw_data_cache = {}
+
         self._tmy_years_short = None
         self._tmy_years_long = None
 
@@ -521,7 +524,7 @@ class Tmy:
             Array of daily timeseries data if fun is not None.
         """
         if fun is not None:
-            df = pd.DataFrame(arr, index=time_index)
+            df = pd.DataFrame(deepcopy(arr), index=time_index)
             if 'min' in fun.lower():
                 df = df.resample('1D').min()
             elif 'max' in fun.lower():
@@ -533,8 +536,9 @@ class Tmy:
             arr = df.values
         return arr
 
-    def _get_my_arr(self, dset, unscale=True):
-        """Get a multi-year 2D numpy array for a given dataset
+    def _get_my_arr_raw(self, dset, unscale=True):
+        """Get a multi-year 2D numpy array for a given dataset at source
+        temporal resolution.
 
         Parameters
         ----------
@@ -546,20 +550,15 @@ class Tmy:
         Returns
         -------
         arr : np.ndarray
-            Multi-year multi-site array of dset data.
+            Multi-year multi-site array of dset data at source
+            temporal resolution.
         """
-        if dset == 'sum_ghi' and self._d_total_ghi is not None:
-            return self.daily_total_ghi
-        elif dset == 'mean_air_temperature' and self._d_mean_temp is not None:
-            return self.daily_mean_temp
-
         arr = None
+
         if unscale:
             dtype = np.float32
         else:
             dtype = np.int32
-
-        dset, fun = self._strip_dset_fun(dset)
 
         for i, fpath in enumerate(self._fpaths):
             fpath_year = self._fpaths_years[i]
@@ -573,6 +572,38 @@ class Tmy:
 
             mask = self.time_masks[fpath_year]
             arr[mask, :] = temp
+        return arr
+
+    def _get_my_arr(self, dset, unscale=True):
+        """Get a multi-year 2D numpy array for a given dataset possibly
+        resampled to daily values.
+
+        Parameters
+        ----------
+        dset : str
+            Dataset / variable name with optional min_ max_ mean_ sum_ prefix.
+        unscale : bool
+            Flag to unscale data from h5 disk storage precision to float.
+
+        Returns
+        -------
+        arr : np.ndarray
+            Multi-year multi-site array of dset data (possibly resampled
+            daily values).
+        """
+
+        if dset == 'sum_ghi' and self._d_total_ghi is not None:
+            return self.daily_total_ghi
+        elif dset == 'mean_air_temperature' and self._d_mean_temp is not None:
+            return self.daily_mean_temp
+
+        dset, fun = self._strip_dset_fun(dset)
+
+        if dset in self._raw_data_cache:
+            arr = self._raw_data_cache[dset]
+        else:
+            arr = self._get_my_arr_raw(dset, unscale=unscale)
+            self._raw_data_cache[dset] = arr
 
         arr = self._resample_arr_daily(arr, self.my_time_index, fun)
 
@@ -1364,7 +1395,7 @@ class TmyRunner:
 
         return attrs, chunks, dtypes
 
-    def _collect(self):
+    def _collect(self, purge_chunks=True):
         """Collect all chunked files into the final fout."""
         self._init_final_fout()
         with Outputs(self._final_fpath, mode='a', unscale=False) as out:
@@ -1378,7 +1409,9 @@ class TmyRunner:
                                 '{} from file {}'
                                 .format(i + 1, len(self._f_out_chunks),
                                         site_slice, f_out_chunk))
-                    os.remove(f_out_chunk)
+        if purge_chunks:
+            shutil.rmtree(os.path.dirname(
+                list(self._f_out_chunks.values())[0]))
 
     def _init_final_fout(self):
         """Initialize the final output file."""
