@@ -1176,8 +1176,9 @@ class Tmy:
 class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
-    def __init__(self, nsrdb_dir, years, weights, site_chunk=100,
-                 out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5'):
+    def __init__(self, nsrdb_dir, years, weights, sites_per_worker=100,
+                 n_nodes=1, node_index=0, out_dir='/tmp/scratch/tmy/',
+                 fn_out='tmy.h5'):
         """
         Parameters
         ----------
@@ -1192,8 +1193,12 @@ class TmyRunner:
             sum to 1.0
         site_slice : slice
             Sites to consider in this TMY.
-        site_chunk : int
-            Number of sites to run at once.
+        sites_per_worker : int
+            Number of sites to run at once (sites per core/worker).
+        n_nodes : int
+            Number of nodes being run.
+        node_index : int
+            Index of this node job.
         out_dir : str
             Directory to dump temporary output files.
         fn_out : str
@@ -1206,21 +1211,80 @@ class TmyRunner:
         self._nsrdb_dir = nsrdb_dir
         self._years = years
         self._weights = weights
-        self._site_chunk = site_chunk
+
+        self._sites_per_worker = sites_per_worker
+        self._n_nodes = n_nodes
+        self._node_index = node_index
         self._site_chunks = None
+        self._site_chunks_index = None
+
         self._meta = None
         self._dsets = None
 
         self._out_dir = out_dir
         self._fn_out = fn_out
         self._final_fpath = os.path.join(self._out_dir, self._fn_out)
-        self._f_out_chunks = {}
 
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
 
         self._tmy_obj = Tmy(self._nsrdb_dir, self._years, self._weights,
                             site_slice=slice(0, 1))
+
+        out = self._setup_job_chunks(self.meta, self._sites_per_worker,
+                                     self._n_nodes, self._node_index,
+                                     self._out_dir)
+        self._site_chunks, self._site_chunks_index, self._f_out_chunks = out
+
+    @staticmethod
+    def _setup_job_chunks(meta, sites_per_worker, n_nodes, node_index,
+                          out_dir):
+        """Setup chunks and file names for a multi-chunk multi-node job.
+
+        Parameters
+        ----------
+        meta : pd.DataFrame
+            FULL NSRDB meta data.
+        sites_per_worker : int
+            Number of sites to run at once (sites per core/worker).
+        n_nodes : int
+            Number of nodes being run.
+        node_index : int
+            Index of this node job (if a multi node job is being run).
+        out_dir : str
+            Directory to dump temporary output files.
+
+        Returns
+        -------
+        site_chunks : list
+             List of slices setting the site chunks to be run by this job.
+        site_chunks_index : list
+            List of integers setting the site chunk indices to be run by
+            this job.
+        f_out_chunks : dict
+            Dictionary of file output paths keyed by the site chunk indices.
+        """
+
+        arr = np.arange(len(meta))
+        tmp = np.array_split(arr, (len(arr) / sites_per_worker))
+        site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
+        site_chunks_index = list(range(len(site_chunks)))
+
+        site_chunks = np.array_split(np.array(site_chunks),
+                                     n_nodes)[node_index].tolist()
+        site_chunks_index = np.array_split(np.array(site_chunks_index),
+                                           n_nodes)[node_index].tolist()
+
+        f_out_chunks = {}
+        chunk_dir = os.path.join(out_dir, 'chunks/')
+        if not os.path.exists(chunk_dir):
+            os.makedirs(chunk_dir)
+        for ichunk in site_chunks_index:
+            f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'
+                                 .format(site_chunks_index))
+            f_out_chunks[ichunk] = f_out
+
+        return site_chunks, site_chunks_index, f_out_chunks
 
     @property
     def meta(self):
@@ -1247,10 +1311,6 @@ class TmyRunner:
     @property
     def site_chunks(self):
         """Get a list of site chunk slices to parallelize across"""
-        if self._site_chunks is None:
-            arr = np.arange(len(self.meta))
-            tmp = np.array_split(arr, (len(arr) / self._site_chunk))
-            self._site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
         return self._site_chunks
 
     @staticmethod
@@ -1299,9 +1359,10 @@ class TmyRunner:
                     with Resource(f_out_chunk, unscale=False) as chunk:
                         for dset in self.dsets:
                             out[dset, :, site_slice] = chunk[dset]
-                    logger.info('Finished collecting #{} out of {}: {}'
+                    logger.info('Finished collecting #{} out of {} for sites '
+                                '{} from file {}'
                                 .format(i + 1, len(self._f_out_chunks),
-                                        f_out_chunk))
+                                        site_slice, f_out_chunk))
                     os.remove(f_out_chunk)
 
     def _init_final_fout(self):
@@ -1400,12 +1461,10 @@ class TmyRunner:
 
     def _run_serial(self):
         """Run serial tmy futures and save temp chunks to disk."""
-        chunk_dir = os.path.join(self._out_dir, 'chunks/')
-        if not os.path.exists(chunk_dir):
-            os.makedirs(chunk_dir)
+
         for i, site_slice in enumerate(self.site_chunks):
-            f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'.format(i))
-            self._f_out_chunks[i] = f_out
+            fi = self._site_chunks_index[i]
+            f_out = self._f_out_chunks[fi]
             self.run_single(self._nsrdb_dir, self._years, self._weights,
                             site_slice, self.dsets, f_out)
             logger.info('{} out of {} TMY chunks completed.'
@@ -1413,16 +1472,13 @@ class TmyRunner:
 
     def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
-        chunk_dir = os.path.join(self._out_dir, 'chunks/')
-        if not os.path.exists(chunk_dir):
-            os.makedirs(chunk_dir)
         futures = {}
         with ProcessPoolExecutor() as exe:
             logger.info('Kicking off {} futures.'
                         .format(len(self.site_chunks)))
             for i, site_slice in enumerate(self.site_chunks):
-                f_out = os.path.join(chunk_dir, 'temp_out_{}.h5'.format(i))
-                self._f_out_chunks[i] = f_out
+                fi = self._site_chunks_index[i]
+                f_out = self._f_out_chunks[fi]
                 future = exe.submit(self.run_single, self._nsrdb_dir,
                                     self._years, self._weights, site_slice,
                                     self.dsets, f_out)
@@ -1439,33 +1495,33 @@ class TmyRunner:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
-    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
             log_level='INFO', log_file=None):
         """Run the TGY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
-        tgy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+        tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out)
         tgy._run_parallel()
         tgy._collect()
 
     @classmethod
-    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
             log_level='INFO', log_file=None):
         """Run the TDY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_dni': 1.0}
-        tdy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+        tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out)
         tdy._run_parallel()
         tdy._collect()
 
     @classmethod
-    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, site_chunk=100, log=True,
+    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
             log_level='INFO', log_file=None):
         """Run the TMY."""
         if log:
@@ -1481,7 +1537,7 @@ class TmyRunner:
                    'mean_wind_speed': 0.05,
                    'sum_dni': 0.25,
                    'sum_ghi': 0.25}
-        tmy = cls(nsrdb_dir, years, weights, site_chunk, out_dir=out_dir,
+        tmy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out)
         tmy._run_parallel()
         tmy._collect()
@@ -1538,24 +1594,27 @@ class TmyRunner:
         print(msg)
 
     @classmethod
-    def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out,
-                  site_chunk=100, **kwargs):
+    def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out, n_nodes=1,
+                  **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
-        arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
-                   'site_chunk={site_chunk}')
-        arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
-                                 out_dir=out_dir, fn_out=fn_out,
-                                 site_chunk=site_chunk)
-        kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
-        kwargs['node_name'] = fun_str
-        cls._eagle(fun_str, arg_str, **kwargs)
+        for node_index in range(n_nodes):
+            arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
+                       'n_nodes={n_nodes}, node_index={node_index}')
+            arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
+                                     out_dir=out_dir, fn_out=fn_out,
+                                     n_nodes=n_nodes, node_index=node_index)
+            kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
+            kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
+            cls._eagle(fun_str, arg_str, **kwargs)
 
     @classmethod
-    def eagle_all(cls, nsrdb_dir, years, out_dir, site_chunk=100, **kwargs):
+    def eagle_all(cls, nsrdb_dir, years, out_dir, n_nodes=1, **kwargs):
         """Submit three eagle jobs for TMY, TGY, and TDY."""
+
         for fun_str in ('tmy', 'tgy', 'tdy'):
-            fun_out_dir = os.path.join(out_dir, '{}/'.format(fun_str))
-            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, list(years)[-1])
+            y = sorted(list(years))[-1]
+            fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
+            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
-                          fun_fn_out, site_chunk=site_chunk, **kwargs)
+                          fun_fn_out, n_nodes=n_nodes, **kwargs)
