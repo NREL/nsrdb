@@ -1502,34 +1502,32 @@ class TmyRunner:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
-    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
-            log_level='INFO', log_file=None):
+    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
+            log=True, log_level='INFO', log_file=None):
         """Run the TGY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
-                  fn_out=fn_out)
+                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index)
         tgy._run_parallel()
-        tgy._collect()
 
     @classmethod
-    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
-            log_level='INFO', log_file=None):
+    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
+            log=True, log_level='INFO', log_file=None):
         """Run the TDY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_dni': 1.0}
         tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
-                  fn_out=fn_out)
+                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index)
         tdy._run_parallel()
-        tdy._collect()
 
     @classmethod
-    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
-            log_level='INFO', log_file=None):
+    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
+            log=True, log_level='INFO', log_file=None):
         """Run the TMY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1545,9 +1543,8 @@ class TmyRunner:
                    'sum_dni': 0.25,
                    'sum_ghi': 0.25}
         tmy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
-                  fn_out=fn_out)
+                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index)
         tmy._run_parallel()
-        tmy._collect()
 
     @staticmethod
     def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=240,
