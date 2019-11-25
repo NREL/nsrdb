@@ -1236,6 +1236,13 @@ class TmyRunner:
                                      self._out_dir)
         self._site_chunks, self._site_chunks_index, self._f_out_chunks = out
 
+        logger.info('Node index {} with n_nodes {} running site chunks: {}'
+                    .format(node_index, n_nodes, self._site_chunks))
+        logger.info('Node index {} with n_nodes {} running site chunks ind: {}'
+                    .format(node_index, n_nodes, self._site_chunks_index))
+        logger.info('Node index {} with n_nodes {} running fout chunks: {}'
+                    .format(node_index, n_nodes, self._f_out_chunks))
+
     @staticmethod
     def _setup_job_chunks(meta, sites_per_worker, n_nodes, node_index,
                           out_dir):
