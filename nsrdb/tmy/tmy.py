@@ -1395,7 +1395,7 @@ class TmyRunner:
 
         return attrs, chunks, dtypes
 
-    def _collect(self, purge_chunks=True):
+    def _collect(self, purge_chunks=False):
         """Collect all chunked files into the final fout."""
         self._pre_collect()
         self._init_final_fout()
@@ -1410,8 +1410,9 @@ class TmyRunner:
                             .format(i + 1, len(self._f_out_chunks),
                                     site_slice, f_out_chunk))
         if purge_chunks:
-            shutil.rmtree(os.path.dirname(
-                list(self._f_out_chunks.values())[0]))
+            chunk_dir = os.path.dirname(list(self._f_out_chunks.values())[0])
+            logger.info('Purging chunk directory: {}'.format(chunk_dir))
+            shutil.rmtree(chunk_dir)
 
     def _pre_collect(self):
         """Check to see if all chunked files exist before running collect"""
@@ -1421,6 +1422,9 @@ class TmyRunner:
             emsg = 'Chunked file outputs are missing: {}'.format(missing)
             logger.error(emsg)
             raise FileNotFoundError(emsg)
+        else:
+            msg = 'All chunked files found. Running collection.'
+            logger.info(msg)
 
     def _init_final_fout(self):
         """Initialize the final output file."""
