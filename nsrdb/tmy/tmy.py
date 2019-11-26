@@ -1397,21 +1397,30 @@ class TmyRunner:
 
     def _collect(self, purge_chunks=True):
         """Collect all chunked files into the final fout."""
+        self._pre_collect()
         self._init_final_fout()
         with Outputs(self._final_fpath, mode='a', unscale=False) as out:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
-                if os.path.exists(f_out_chunk):
-                    with Resource(f_out_chunk, unscale=False) as chunk:
-                        for dset in self.dsets:
-                            out[dset, :, site_slice] = chunk[dset]
-                    logger.info('Finished collecting #{} out of {} for sites '
-                                '{} from file {}'
-                                .format(i + 1, len(self._f_out_chunks),
-                                        site_slice, f_out_chunk))
+                with Resource(f_out_chunk, unscale=False) as chunk:
+                    for dset in self.dsets:
+                        out[dset, :, site_slice] = chunk[dset]
+                logger.info('Finished collecting #{} out of {} for sites '
+                            '{} from file {}'
+                            .format(i + 1, len(self._f_out_chunks),
+                                    site_slice, f_out_chunk))
         if purge_chunks:
             shutil.rmtree(os.path.dirname(
                 list(self._f_out_chunks.values())[0]))
+
+    def _pre_collect(self):
+        """Check to see if all chunked files exist before running collect"""
+        missing = [fp for fp in self._f_out_chunks.values()
+                   if not os.path.exists(fp)]
+        if any(missing):
+            emsg = 'Chunked file outputs are missing: {}'.format(missing)
+            logger.error(emsg)
+            raise FileNotFoundError(emsg)
 
     def _init_final_fout(self):
         """Initialize the final output file."""
@@ -1592,6 +1601,18 @@ class TmyRunner:
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index)
         tmy._run_parallel()
 
+    @classmethod
+    def collect(cls, nsrdb_dir, years, out_dir, fn_out, log=True,
+                log_level='INFO', log_file=None):
+        """Run TMY collection."""
+        if log:
+            from nsrdb.utilities.loggers import init_logger
+            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
+        weights = {'sum_ghi': 1.0}
+        tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
+                  fn_out=fn_out, n_nodes=1, node_index=0)
+        tgy._collect()
+
     @staticmethod
     def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=240,
                feature='--qos=high', node_name='tmy', stdout_path=None):
@@ -1668,3 +1689,27 @@ class TmyRunner:
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
                           fun_fn_out, n_nodes=n_nodes, **kwargs)
+
+    @classmethod
+    def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out, **kwargs):
+        """Run a TMY/TDY/TGY file collection job on an Eagle node."""
+
+        arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}"')
+        arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
+                                 out_dir=out_dir, fn_out=fn_out)
+        kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
+        kwargs['node_name'] = '{}_{}'.format(
+            'collect', os.path.basename(fn_out).strip('.h5'))
+        cls._eagle('collect', arg_str, **kwargs)
+
+    @classmethod
+    def eagle_collect_all(cls, nsrdb_dir, years, out_dir, **kwargs):
+        """Submit three eagle jobs to collect TMY, TGY, and TDY
+        (directory setup depends on having run eagle_all() first)."""
+
+        for fun_str in ('tmy', 'tgy', 'tdy'):
+            y = sorted(list(years))[-1]
+            fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
+            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
+            cls.eagle_collect(nsrdb_dir, years, fun_out_dir,
+                              fun_fn_out, **kwargs)
