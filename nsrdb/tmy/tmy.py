@@ -1513,8 +1513,11 @@ class TmyRunner:
         for i, site_slice in enumerate(self.site_chunks):
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
-            self.run_single(self._nsrdb_dir, self._years, self._weights,
-                            site_slice, self.dsets, f_out)
+            if not os.path.exists(f_out):
+                self.run_single(self._nsrdb_dir, self._years, self._weights,
+                                site_slice, self.dsets, f_out)
+            else:
+                logger.info('Skipping, already exists: {}'.format(f_out))
             logger.info('{} out of {} TMY chunks completed.'
                         .format(i + 1, len(self.site_chunks)))
 
@@ -1527,15 +1530,17 @@ class TmyRunner:
             for i, site_slice in enumerate(self.site_chunks):
                 fi = self._site_chunks_index[i]
                 f_out = self._f_out_chunks[fi]
-                future = exe.submit(self.run_single, self._nsrdb_dir,
-                                    self._years, self._weights, site_slice,
-                                    self.dsets, f_out)
-                futures[future] = i
+                if not os.path.exists(f_out):
+                    future = exe.submit(self.run_single, self._nsrdb_dir,
+                                        self._years, self._weights, site_slice,
+                                        self.dsets, f_out)
+                    futures[future] = i
+                else:
+                    logger.info('Skipping, already exists: {}'.format(f_out))
             logger.info('Finished kicking off {} futures.'
-                        .format(len(self.site_chunks)))
+                        .format(len(futures)))
 
-            for future in as_completed(futures):
-                i = futures[future]
+            for i, future in enumerate(as_completed(futures)):
                 if future.result():
                     logger.info('{} out of {} futures completed.'
                                 .format(i + 1, len(futures)))
