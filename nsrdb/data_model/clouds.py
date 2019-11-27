@@ -518,6 +518,7 @@ class CloudVar(AncillaryVarHandler):
 
         elif os.path.exists(os.path.dirname(cloud_dir)):
             fbase = os.path.basename(cloud_dir)
+            cloud_dir = os.path.dirname(cloud_dir)
             if '*' in fbase:
                 prefix, suffix = fbase.split('*')
                 return cloud_dir, prefix, suffix

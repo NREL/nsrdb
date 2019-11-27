@@ -115,7 +115,11 @@ class Pipeline:
         logger.info('NSRDB pipeline submitting: "{}"'.format(command))
         logger.debug('NSRDB pipeline submitting subprocess call:\n\t"{}"'
                      .format(cmd))
-        SubprocessManager.submit(cmd)
+        stdout, stderr = SubprocessManager.submit(cmd)
+        if stdout:
+            logger.debug('\t- stdout: {}'.format(stdout))
+        if stderr:
+            logger.debug('\t- stderr: {}'.format(stderr))
 
     def _check_step_completed(self, i):
         """Check if a pipeline step has been completed.
