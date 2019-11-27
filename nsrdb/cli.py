@@ -155,7 +155,9 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
 @click.option('--doy', '-d', type=int, required=True,
               help='Integer day-of-year to run data model for.')
 @click.option('--cloud_dir', '-cd', type=str, required=True,
-              help='Top level cloud data directory.')
+              help='Top level cloud data directory. Can be a normal directory '
+              'path or /directory/prefix*suffix where /directory/ can have '
+              'more sub dirs.')
 @click.pass_context
 def data_model(ctx, doy, cloud_dir):
     """Run the data model for a single day."""

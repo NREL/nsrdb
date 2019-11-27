@@ -153,7 +153,8 @@ class NSRDB:
             Day to run data model for.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             variables.
@@ -456,7 +457,8 @@ class NSRDB:
             Can be str or int in YYYYMMDD format.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
