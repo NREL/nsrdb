@@ -1397,25 +1397,45 @@ class TmyRunner:
 
     def _collect(self, purge_chunks=False):
         """Collect all chunked files into the final fout."""
-        self._pre_collect()
+
+        status_file = os.path.join(self._out_dir, 'collect_status.txt')
+        status = self._pre_collect(status_file)
         self._init_final_fout()
+
         with Outputs(self._final_fpath, mode='a', unscale=False) as out:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
-                with Resource(f_out_chunk, unscale=False) as chunk:
-                    for dset in self.dsets:
-                        out[dset, :, site_slice] = chunk[dset]
-                logger.info('Finished collecting #{} out of {} for sites '
-                            '{} from file {}'
-                            .format(i + 1, len(self._f_out_chunks),
-                                    site_slice, f_out_chunk))
+
+                if os.path.basename(f_out_chunk) not in status:
+                    with Resource(f_out_chunk, unscale=False) as chunk:
+                        for dset in self.dsets:
+                            out[dset, :, site_slice] = chunk[dset]
+                    logger.info('Finished collecting #{} out of {} for sites '
+                                '{} from file {}'
+                                .format(i + 1, len(self._f_out_chunks),
+                                        site_slice, f_out_chunk))
+                    with open(status_file, 'a') as f:
+                        f.write('{}\n'.format(os.path.basename(f_out_chunk)))
+
         if purge_chunks:
             chunk_dir = os.path.dirname(list(self._f_out_chunks.values())[0])
             logger.info('Purging chunk directory: {}'.format(chunk_dir))
             shutil.rmtree(chunk_dir)
 
-    def _pre_collect(self):
-        """Check to see if all chunked files exist before running collect"""
+    def _pre_collect(self, status_file):
+        """Check to see if all chunked files exist before running collect
+
+        Parameters
+        ----------
+        status_file : str
+            Filepath to status file with a line for each file that has been
+            collected.
+
+        Returns
+        -------
+        status : list
+            List of filenames that have already been collected.
+        """
         missing = [fp for fp in self._f_out_chunks.values()
                    if not os.path.exists(fp)]
         if any(missing):
@@ -1425,6 +1445,12 @@ class TmyRunner:
         else:
             msg = 'All chunked files found. Running collection.'
             logger.info(msg)
+
+        status = []
+        if os.path.exists(status_file):
+            with open(status_file, 'r') as f:
+                status = f.readlines()
+        return status
 
     def _init_final_fout(self):
         """Initialize the final output file."""
