@@ -576,7 +576,7 @@ class Spatial:
                     cbar_label=None, marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
-                    extent=None, axis=None):
+                    extent=None, axis=None, shape=None):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -607,6 +607,8 @@ class Spatial:
             Figure size inches (width, height).
         file_ext : str
             Image file extension (.png, .jpeg).
+        shape : str
+            Filepath to a shape file to plot on top of df data.
         """
 
         df = df.sort_values(by=list(labels))
@@ -657,6 +659,14 @@ class Spatial:
                                c=df.iloc[:, 2],
                                cmap=cmap,
                                norm=norm)
+
+            if shape is not None:
+                import geopandas as gpd
+                conus = gpd.GeoDataFrame.from_file(shape)
+                conus = conus.to_crs({'init': 'epsg:4326'})
+                conus.plot(ax=ax, facecolor=None,
+                           edgecolor=(0.5, 0.5, 0.5),
+                           linewidths=2)
 
             if xlabel is None:
                 xlabel = labels[1]
