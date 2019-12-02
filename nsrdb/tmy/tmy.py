@@ -1406,14 +1406,18 @@ class TmyRunner:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
 
-                if os.path.basename(f_out_chunk) not in status:
+                if os.path.basename(f_out_chunk) in status:
+                    logger.info('Skipping file, already collected: {}'
+                                .format(os.path.basename(f_out_chunk)))
+                else:
                     with Resource(f_out_chunk, unscale=False) as chunk:
                         for dset in self.dsets:
                             out[dset, :, site_slice] = chunk[dset]
                     logger.info('Finished collecting #{} out of {} for sites '
                                 '{} from file {}'
                                 .format(i + 1, len(self._f_out_chunks),
-                                        site_slice, f_out_chunk))
+                                        site_slice,
+                                        os.path.basename(f_out_chunk)))
                     with open(status_file, 'a') as f:
                         f.write('{}\n'.format(os.path.basename(f_out_chunk)))
 
@@ -1450,6 +1454,7 @@ class TmyRunner:
         if os.path.exists(status_file):
             with open(status_file, 'r') as f:
                 status = f.readlines()
+                status = [s.strip('\n') for s in status]
         return status
 
     def _init_final_fout(self):
