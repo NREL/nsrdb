@@ -662,11 +662,12 @@ class Spatial:
 
             if shape is not None:
                 import geopandas as gpd
-                conus = gpd.GeoDataFrame.from_file(shape)
-                conus = conus.to_crs({'init': 'epsg:4326'})
-                conus.plot(ax=ax, facecolor=None,
-                           edgecolor=(0.5, 0.5, 0.5),
-                           linewidths=2)
+                gdf = gpd.GeoDataFrame.from_file(shape)
+                gdf = gdf.to_crs({'init': 'epsg:4326'})
+                gdf.geometry.boundary.plot(ax=ax, color=None,
+                                           edgecolor=(0.2, 0.2, 0.2),
+                                           linewidth=1)
+                ax.set_aspect(1.3)
 
             if xlabel is None:
                 xlabel = labels[1]
