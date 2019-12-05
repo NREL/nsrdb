@@ -1412,7 +1412,20 @@ class TmyRunner:
                 else:
                     with Resource(f_out_chunk, unscale=False) as chunk:
                         for dset in self.dsets:
-                            out[dset, :, site_slice] = chunk[dset]
+
+                            try:
+                                data = chunk[dset]
+                            except Exception as e:
+                                m = ('Could not read file dataset "{}" from '
+                                     'file "{}". Received the following '
+                                     'exception: \n{}'
+                                     .format(dset,
+                                             os.path.basename(f_out_chunk), e))
+                                logger.exception(m)
+                                raise e
+                            else:
+                                out[dset, :, site_slice] = data
+
                     logger.info('Finished collecting #{} out of {} for sites '
                                 '{} from file {}'
                                 .format(i + 1, len(self._f_out_chunks),
