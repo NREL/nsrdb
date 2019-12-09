@@ -1495,7 +1495,10 @@ class TmyRunner:
             dsets_mod = [d for d in dsets if 'tmy_year' not in d]
             attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets_mod)
             dsets_mod.append('tmy_year')
-            attrs['tmy_year'] = {'units': 'selected_year'}
+            attrs['tmy_year'] = {'units': 'selected_year',
+                                 'scale_factor': 1,
+                                 'psm_units': 'selected_year',
+                                 'psm_scale_factor': 1}
             chunks['tmy_year'] = chunks['dni']
             dtypes['tmy_year'] = np.uint16
             Outputs.init_h5(f_out, dsets_mod, attrs, chunks, dtypes,
@@ -1505,6 +1508,9 @@ class TmyRunner:
                 d = 'tmy_year_short'
                 f.create_dataset(d, shape=(12, len(meta)), dtype=np.uint16)
                 f[d].attrs['units'] = 'selected_year'
+                f[d].attrs['scale_factor'] = 1
+                f[d].attrs['psm_units'] = 'selected_year'
+                f[d].attrs['psm_scale_factor'] = 1
 
     @staticmethod
     def _write_output(f_out, data_dict, time_index, meta):
