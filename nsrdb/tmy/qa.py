@@ -35,6 +35,24 @@ def run_checks(fp, i0, iend, step=1000):
     i0_static = i0
 
     with Resource(fp) as res:
+
+        ti = res.time_index
+        meta = res.meta
+
+        assert all(ti.minute == 30), 'Time_index must be at 30min!'
+        assert len(ti) == 8760, 'Time_index must be an 8760!'
+
+        assert 'tmy_year' in res.dsets, 'Could not find "tmy_year"'
+        assert 'tmy_year_short' in res.dsets, 'Could not find "tmy_year_short"'
+
+        shape, _, _ = res.get_dset_properties('tmy_year')
+        m = 'tmy_year shape is bad: {}'.format(shape)
+        assert shape == (len(ti), len(meta)), m
+
+        shape, _, _ = res.get_dset_properties('tmy_year_short')
+        m = 'tmy_year_short shape is bad: {}'.format(shape)
+        assert shape == (12, len(meta)), m
+
         dsets = [d for d in res.dsets if d not in ['meta', 'time_index']]
 
         for dset in dsets:
