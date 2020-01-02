@@ -7,6 +7,7 @@ import numpy as np
 import os
 import re
 import logging
+from concurrent.futures import ProcessPoolExecutor
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class MyMean:
     """Class to calculate multi-year mean data"""
 
-    def __init__(self, flist, fout, dset, process_chunk=100000):
+    def __init__(self, flist, fout, dset, process_chunk=10000, parallel=True):
         """
         Parameters
         ----------
@@ -29,12 +30,18 @@ class MyMean:
             Dataset name to calculate mean values for.
         process_chunk : int
             Number of sites to keep in memory and read at one time.
+        parallel : bool
+            Flag to run in parallel.
         """
+
+        logger.info('Initializing Multi Year Mean calculation for "{}" with '
+                    'output file: {}'.format(dset, fout))
 
         self._flist = flist
         self._fout = fout
         self._dset = dset
         self._process_chunk = process_chunk
+        self._parallel = parallel
 
         self._units, self._shape, self._scale, self._dtype = self._preflight()
         self._years = self._parse_years()
@@ -46,6 +53,11 @@ class MyMean:
                        'years': self._years}
 
         self._data = np.zeros((len(self),), dtype=np.float32)
+
+        sites = np.arange(len(self))
+        split = int(len(self) / self._process_chunk)
+        site_slices = np.array_split(sites, split)
+        self._site_slices = [slice(a[0], a[-1] + 1) for a in site_slices]
 
     def __len__(self):
         """Get the number of sites."""
@@ -141,23 +153,72 @@ class MyMean:
         return base_units, base_shape, base_scale, base_dtype
 
     def _run(self):
-        """Run the MY Mean calculation."""
-        sites = np.arange(len(self))
-        split = int(len(self) / self._process_chunk)
-        site_slices = np.array_split(sites, split)
-        site_slices = [slice(a[0], a[-1] + 1) for a in site_slices]
+        """Run MY Mean calculation in serial or parallel"""
+        if self._parallel:
+            self._run_parallel()
+        else:
+            self._run_serial()
+
+    def _run_serial(self):
+        """Run the MY Mean calculation in serial."""
 
         for i, f in enumerate(self._flist):
             logger.info('Processing file {} out of {}: {}'
                         .format(i + 1, len(self._flist), f))
             with Resource(f) as res:
-                for j, site_slice in enumerate(site_slices):
-                    logger.info('Processing site slice {} out of {}'
-                                .format(j + 1, len(site_slices)))
+                for j, site_slice in enumerate(self._site_slices):
                     new_data = res[self._dset, :, site_slice].mean(axis=0)
                     self._data[site_slice] += new_data
+                    logger.info('Finished site slice {} out of {}'
+                                .format(j + 1, len(self._site_slices)))
 
         self._data /= len(self._flist)
+
+    def _run_parallel(self):
+        """Run the MY Mean calculation in a parallel process pool."""
+
+        logger.info('Running MY Mean calculation in parallel.')
+        for i, f in enumerate(self._flist):
+            logger.info('Processing file {} out of {}: {}'
+                        .format(i + 1, len(self._flist), f))
+            futures = []
+            with ProcessPoolExecutor() as exe:
+                for site_slice in self._site_slices:
+                    future = exe.submit(self._retrieve_data, f, self._dset,
+                                        site_slice)
+                    futures.append(future)
+
+                for j, future in enumerate(futures):
+                    site_slice = self._site_slices[j]
+                    new_data = future.result()
+                    self._data[site_slice] += new_data
+                    if (j + 1) % 10 == 0:
+                        logger.info('Finished site slice {} out of {}'
+                                    .format(j + 1, len(self._site_slices)))
+
+        self._data /= len(self._flist)
+
+    @staticmethod
+    def _retrieve_data(fpath, dset, site_slice):
+        """Retrieve mean data.
+
+        Parameters
+        ----------
+        fpath : str
+            Filepath to nsrdb data.
+        dset : str
+            Dataset of interest.
+        site_slice : slice
+            Sites to retrieve data for.
+
+        Returns
+        -------
+        data : np.ndarray
+            1D data averaged along axis 0 (time axis).
+        """
+        with Resource(fpath) as res:
+            data = res[dset, :, site_slice].mean(axis=0)
+        return data
 
     def _write(self):
         """Write MY Mean data to disk"""
@@ -170,7 +231,7 @@ class MyMean:
                     .format(self._dset, self._fout))
 
     @classmethod
-    def run(cls, flist, fout, dset, process_chunk=100000):
+    def run(cls, flist, fout, dset, process_chunk=10000, parallel=True):
         """Run the MY mean calculation and write to disk.
 
         Parameters
@@ -183,8 +244,11 @@ class MyMean:
             Dataset name to calculate mean values for.
         process_chunk : int
             Number of sites to keep in memory and read at one time.
+        parallel : bool
+            Flag to run in parallel.
         """
-        mymean = cls(flist, fout, dset, process_chunk=process_chunk)
+        mymean = cls(flist, fout, dset, process_chunk=process_chunk,
+                     parallel=parallel)
         mymean._run()
         mymean._write()
         logger.info('MY Mean compute complete for "{}".'.format(dset))
