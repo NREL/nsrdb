@@ -42,6 +42,7 @@ class Resource:
     ADD_ATTR = 'add_offset'
 
     OLD_SCALE_ATTR = 'psm_scale_factor'
+    OLD_UNIT_ATTR = 'psm_units'
     OLD_ADD_ATTR = 'psm_add_offset'
 
     def __init__(self, h5_file, unscale=True, hsds=False):
@@ -231,7 +232,14 @@ class Resource:
         float
             Dataset scale factor, used to unscale int values to floats
         """
-        return self._h5[dset].attrs.get(self.SCALE_ATTR, 1)
+        attrs = dict(self._h5[dset].attrs)
+        if self.SCALE_ATTR in attrs:
+            scale = attrs[self.SCALE_ATTR]
+        elif self.OLD_SCALE_ATTR in attrs:
+            scale = attrs[self.OLD_SCALE_ATTR]
+        else:
+            scale = 1
+        return scale
 
     def get_units(self, dset):
         """
@@ -247,7 +255,11 @@ class Resource:
         str
             Dataset units, None if not defined
         """
-        return self._h5[dset].attrs.get(self.UNIT_ATTR, None)
+        attrs = dict(self._h5[dset].attrs)
+        units = attrs.get(self.UNIT_ATTR, None)
+        if units is None:
+            units = attrs.get(self.OLD_UNIT_ATTR, None)
+        return units
 
     def _get_time_index(self, *ds_slice):
         """
