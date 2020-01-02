@@ -42,6 +42,7 @@ class MyMean:
         self._dset = dset
         self._process_chunk = process_chunk
         self._parallel = parallel
+        self._meta = None
 
         self._units, self._shape, self._scale, self._dtype = self._preflight()
         self._years = self._parse_years()
@@ -152,6 +153,14 @@ class MyMean:
 
         return base_units, base_shape, base_scale, base_dtype
 
+    @property
+    def meta(self):
+        """Get the meta dataframe."""
+        if self._meta is None:
+            with Resource(self._flist[-1]) as res:
+                self._meta = res.meta
+        return self._meta
+
     def _run(self):
         """Run MY Mean calculation in serial or parallel"""
         if self._parallel:
@@ -225,6 +234,7 @@ class MyMean:
         logger.info('Writing "{}" data to disk: {}'
                     .format(self._dset, self._fout))
         with Outputs(self._fout, mode='a') as out:
+            out['meta'] = self.meta
             out._create_dset(self._dset, self._data.shape, self._dtype,
                              attrs=self._attrs, data=self._data)
         logger.info('Finished writing "{}" data to disk: {}'
