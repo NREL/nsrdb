@@ -4,6 +4,8 @@
 """
 from warnings import warn
 import numpy as np
+import os
+import re
 import logging
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
@@ -35,16 +37,45 @@ class MyMean:
         self._process_chunk = process_chunk
 
         self._units, self._shape, self._scale, self._dtype = self._preflight()
+        self._years = self._parse_years()
+
         self._attrs = {'scale_factor': self._scale,
                        'psm_scale_factor': self._scale,
                        'units': self._units,
-                       'psm_units': self._units}
+                       'psm_units': self._units,
+                       'years': self._years}
 
         self._data = np.zeros((len(self),), dtype=np.float32)
 
     def __len__(self):
         """Get the number of sites."""
         return self._shape[1]
+
+    def _parse_years(self):
+        """Parse the years from the filepaths.
+
+        Returns
+        -------
+        years : list
+            Sorted list of years.
+        """
+        years = []
+        for f in self._flist:
+            fname = os.path.basename(f)
+            regex = r".*[^0-9]([1-2][0-9]{3})($|[^0-9])"
+            match = re.match(regex, fname)
+
+            if match:
+                year = int(match.group(1))
+                years.append(year)
+            else:
+                e = 'Cannot parse year from file: {}'.format(fname)
+                logger.error(e)
+                raise ValueError(e)
+        years = sorted(years)
+        logger.info('Running multi year mean over {} years: {}'
+                    .format(len(years), years))
+        return years
 
     def _preflight(self):
         """Run pre-flight checks.
@@ -61,12 +92,15 @@ class MyMean:
             Dataset array dtype
         """
 
+        logger.info('Running preflight on {} files.'.format(len(self._flist)))
+
         base_units = None
         base_shape = None
         base_scale = None
         base_dtype = None
 
         for fpath in self._flist:
+            logger.debug('Checking file: {}'.format(fpath))
             with Resource(fpath) as res:
                 shape, base_dtype, _ = res.get_dset_properties(self._dset)
                 units = res.get_units(self._dset)
@@ -101,6 +135,8 @@ class MyMean:
                          .format(self._dset, base_scale, scale))
                     logger.warning(w)
                     warn(w)
+
+        logger.info('Preflight passed.')
 
         return base_units, base_shape, base_scale, base_dtype
 
