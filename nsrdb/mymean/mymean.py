@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MyMean:
     """Class to calculate multi-year mean data"""
 
-    def __init__(self, flist, fout, dset, process_chunk=10000):
+    def __init__(self, flist, fout, dset, process_chunk=100000):
         """
         Parameters
         ----------
@@ -100,16 +100,16 @@ class MyMean:
         base_dtype = None
 
         for fpath in self._flist:
-            logger.debug('Checking file: {}'.format(fpath))
+            logger.debug('\t- Checking file: {}'.format(fpath))
             with Resource(fpath) as res:
                 shape, base_dtype, _ = res.get_dset_properties(self._dset)
                 units = res.get_units(self._dset)
                 scale = res.get_scale(self._dset)
 
-            if base_shape is None:
+            if base_shape is None and shape[0] % 8760 == 0:
                 base_shape = shape
-            else:
-                if base_shape != shape:
+            elif base_shape is not None:
+                if base_shape[1] != shape[1]:
                     e = ('Dataset "{}" has inconsistent shapes! '
                          'Base shape was {}, but found new shape '
                          'of {} in fpath: {}'
@@ -170,7 +170,7 @@ class MyMean:
                     .format(self._dset, self._fout))
 
     @classmethod
-    def run(cls, flist, fout, dset, process_chunk=10000):
+    def run(cls, flist, fout, dset, process_chunk=100000):
         """Run the MY mean calculation and write to disk.
 
         Parameters
