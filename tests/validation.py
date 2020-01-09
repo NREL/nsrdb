@@ -43,7 +43,8 @@ def get_measurement_data(surfrad_file):
     """
 
     with Surfrad(surfrad_file) as f:
-        measurement_df = f.get_df(dt_out='5min', window_minutes=61)
+        # Use 1h so measurements can be compared to nsrdb
+        measurement_df = f.get_df(dt_out='1h', window_minutes=61)
 
     return measurement_df
 
@@ -211,10 +212,7 @@ def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
                         (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
 
             nsrdb_vals = nsrdb[var][mask].values
-            # Mask is hourly, but measurement is every 5 minutes. Create five
-            # minute mask based on measurement index.
-            five_mask = measurement.join(pd.DataFrame(mask))[0].fillna(False)
-            measu_vals = measurement[var][five_mask].values
+            measu_vals = measurement[var][mask].values
             stats[k][var] += method(nsrdb_vals, measu_vals)
 
     return stats
