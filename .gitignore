@@ -1,5 +1,5 @@
 # test plots from pytest
-test_plots/
+tests/data/test_plots/*
 
 # Dask stuff:
 dask-worker-space/
@@ -108,3 +108,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# VIM swap files
+.*.swp

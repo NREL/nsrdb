@@ -19,7 +19,9 @@ from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.utilities.statistics import mae_perc
 
 
-TEST_FILE = './data/validation_nsrdb/nsrdb_surfrad_2000.h5'
+BASE_DIR = os.path.dirname(__file__)
+TEST_FILE = os.path.join(BASE_DIR,
+                         './data/validation_nsrdb/nsrdb_surfrad_2000.h5')
 RTOL = 1e-03
 ATOL = 0.01
 
@@ -193,6 +195,7 @@ def plot_benchmark(sites, y_range=None):
 def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
                  mae_perc_threshold=5):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
+    test_file = os.path.join(BASE_DIR, test_file)
 
     baseline = {}
 
