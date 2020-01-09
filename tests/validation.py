@@ -15,10 +15,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from nsrdb import TESTDATADIR
-from nsrdb.qa.statistics import mbe_perc, rmse_perc
+from nsrdb.utilities.statistics import mbe_perc, rmse_perc
 from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.all_sky import CLEAR_TYPES, CLOUD_TYPES
-from nsrdb.utilities.solar_position import SolarPosition
+from nsrdb.solar_position.solpos import SolPos
 from nsrdb.file_handlers.surfrad import Surfrad
 
 
@@ -81,7 +81,7 @@ def get_source_data(test_file, sites=list(range(9))):
             f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
             f['cld_opd_dcomp'].attrs['psm_add_offset'])
 
-    out['solar_zenith_angle'] = SolarPosition(
+    out['solar_zenith_angle'] = SolPos(
         out['time_index'], meta[['latitude', 'longitude']].values).zenith
 
     return out
@@ -93,7 +93,7 @@ def run_all_sky(test_file, sites=list(range(9)), debug=False):
     source_vars = get_source_data(test_file, sites=sites)
 
     # run all_sky processing
-    all_sky_out = all_sky(**source_vars, debug=debug)
+    all_sky_out = all_sky(**source_vars)
     return all_sky_out, source_vars
 
 
@@ -165,9 +165,9 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
         as_out, source_vars = run_all_sky(res_file, sites=[site], debug=False)
 
         nsrdb = pd.DataFrame(
-            {'dhi': as_out[0].flatten(),
-             'dni': as_out[1].flatten(),
-             'ghi': as_out[2].flatten(),
+            {'dhi': as_out['dhi'].flatten(),
+             'dni': as_out['dni'].flatten(),
+             'ghi': as_out['ghi'].flatten(),
              'cloud_type': source_vars['cloud_type'].flatten(),
              'sza': source_vars['solar_zenith_angle'].flatten()},
             index=source_vars['time_index'])
@@ -211,7 +211,10 @@ def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
                         (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
 
             nsrdb_vals = nsrdb[var][mask].values
-            measu_vals = measurement[var][mask].values
+            # Mask is hourly, but measurement is every 5 minutes. Create five
+            # minute mask based on measurement index.
+            five_mask = measurement.join(pd.DataFrame(mask))[0].fillna(False)
+            measu_vals = measurement[var][five_mask].values
             stats[k][var] += method(nsrdb_vals, measu_vals)
 
     return stats
