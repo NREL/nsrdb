@@ -22,6 +22,8 @@ from nsrdb.utilities.solar_position import SolarPosition
 from nsrdb.file_handlers.surfrad import Surfrad
 
 
+BASE_DIR = os.path.dirname(__file__)
+
 RTOL = 1e-03
 ATOL = 0.001
 
@@ -154,8 +156,8 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
     site_code = SITE_CODES[site]
-    res_file = res.format(y=year)
-    surfrad_file = surfrad.format(s=site_code, y=year)
+    res_file = os.path.join(BASE_DIR, res.format(y=year))
+    surfrad_file = os.path.join(BASE_DIR, surfrad.format(s=site_code, y=year))
 
     if os.path.exists(surfrad_file):
         print('Running against {}'.format(surfrad_file))
