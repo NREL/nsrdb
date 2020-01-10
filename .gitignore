@@ -114,3 +114,6 @@ ENV/
 
 # VIM swap files
 .*.swp
+
+# Temp scratch for mike
+nsrdb/albedo/scratch
