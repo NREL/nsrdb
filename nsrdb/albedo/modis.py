@@ -12,8 +12,7 @@ import matplotlib.pyplot as plt
 nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
 sys.path.append(nsrdb_path)
 
-from nsrdb.utilities.file_utils import url_download
-
+#from nsrdb.utilities.file_utils import url_download
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

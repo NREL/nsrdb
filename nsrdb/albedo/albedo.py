@@ -67,7 +67,7 @@ class CalcCompositeAlbedo:
 
 class CompositeAlbedoDay:
     @classmethod
-    def run(cls, date, modis_path, ims_path, albedo_path, nn_indicies):
+    def run(cls, date, modis_path, ims_path, albedo_path, nn_indicies, res):
         """
         Merge MODIS and IMS data for one day.
 
@@ -84,17 +84,17 @@ class CompositeAlbedoDay:
         nn_indices : numpy array
             Indices mapping IMS data to MODIS data
         """
+        # TODO remove res from parameters or add to docstring
 
         cad = cls(date, modis_path, ims_path, albedo_path, nn_indicies)
         cad.modis = cad.load_modis()
         # cad.modis.plot()
-        cad.ims = cad.load_ims()
+        cad.ims = cad.load_ims(res)
         albedo = cad.calc_albedo()
         cad.write_albedo(albedo)
 
         # TODO delete below
         return cad
-
 
     def __init__(self, date, modis_path, ims_path, albedo_path, nn_indicies):
         """ See parameter definitions for self.run() """
@@ -113,11 +113,11 @@ class CompositeAlbedoDay:
         # ModisDay is responsible for getting the closest day
         return modis.ModisDay(self.date, self.modis_path)
 
-    def load_ims(self):
+    def load_ims(self, res):
         """ Load and return ImsDay instance """
         print(f'loading {self.date} from ims')
         # TODO fix resolution handling
-        return ims.ImsDay(self.date, self.ims_path, '1km')
+        return ims.ImsDay(self.date, self.ims_path, res)
 
     def calc_albedo(self):
         """ Calculate and return composite albedo as Albedo instance"""
@@ -132,8 +132,8 @@ class CompositeAlbedoDay:
         self.snow = self.ims.data[snow_ind]
         self.snow_lat = self.ims.lat[snow_ind_flat]
         self.snow_lon = self.ims.lon[snow_ind_flat]
-        print (f'Out of {self.ims.data.flatten().shape[0]:,} sites, ' + \
-               f'{self.snow.shape[0]:,} have snow')
+        print(f'Out of {self.ims.data.flatten().shape[0]:,} sites, ' +
+              f'{self.snow.shape[0]:,} have snow')
 
     @staticmethod
     def write_albedo(albedo):
