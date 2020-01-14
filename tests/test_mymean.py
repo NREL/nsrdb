@@ -20,7 +20,6 @@ OUT_DIR = os.path.join(TESTDATADIR, 'temp_out/')
 
 def test_mymean():
     """Test multiyear mean"""
-
     flist = [os.path.join(NSRDB_DIR, 'nsrdb_surfrad_{}.h5'.format(y))
              for y in range(1998, 2001)]
     fout = os.path.join(OUT_DIR, 'mymean.h5')
@@ -28,6 +27,7 @@ def test_mymean():
     MyMean.run(flist, fout, dset, process_chunk=2)
 
     with Outputs(fout, mode='r') as out:
+        print(out.get_attrs(dset=dset))
         data = out[dset]
 
     truth = None
@@ -39,8 +39,7 @@ def test_mymean():
         else:
             truth += temp.mean(axis=0)
 
-    truth /= len(flist)
-    truth = np.round(truth)
+    truth = truth / len(flist) / 1000 * 24
 
     assert np.allclose(data, truth, atol=1)
 

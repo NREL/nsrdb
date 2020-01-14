@@ -151,7 +151,30 @@ class MyMean:
 
         logger.info('Preflight passed.')
 
+        if self._dset in ('dni', 'ghi', 'dhi'):
+            base_units = 'kWh/m2/day'
+            base_scale = 1.0
+            base_dtype = np.float32
+
         return base_units, base_shape, base_scale, base_dtype
+
+    @staticmethod
+    def to_kwh_m2_day(arr):
+        """connvert irradiance to mean units (kwh/m2/day).
+
+        Parameters
+        ----------
+        arr : np.ndarray | pd.Series
+            Mean irradiance array in W/m2.
+
+        Returns
+        -------
+        mean : float | np.ndarray
+            Mean irradiance values in kWh/m2/day.
+        """
+
+        arr = arr / 1000 * 24
+        return arr
 
     @property
     def meta(self):
@@ -182,6 +205,7 @@ class MyMean:
                                 .format(j + 1, len(self._site_slices)))
 
         self._data /= len(self._flist)
+        self._data = self.to_kwh_m2_day(self._data)
 
     def _run_parallel(self):
         """Run the MY Mean calculation in a parallel process pool."""
@@ -206,6 +230,7 @@ class MyMean:
                                     .format(j + 1, len(self._site_slices)))
 
         self._data /= len(self._flist)
+        self._data = self.to_kwh_m2_day(self._data)
 
     @staticmethod
     def _retrieve_data(fpath, dset, site_slice):
@@ -237,10 +262,6 @@ class MyMean:
         out_dir = os.path.dirname(self._fout)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-
-        data = self._data * self._attrs.get('scale_factor', 1)
-        data = np.round(data)
-        data = data.astype(self._dtype)
 
         with Outputs(self._fout, mode='a') as out:
             out['meta'] = self.meta
