@@ -353,6 +353,9 @@ class Spatial:
                'south_america': {'xlim': (-85, -32),
                                  'ylim': (-59, 16),
                                  'figsize': (7, 9)},
+               'global': {'xlim': (-180, 180),
+                          'ylim': (-90, 90),
+                          'figsize': (120, 80)},
                }
 
     @staticmethod
@@ -377,13 +380,22 @@ class Spatial:
             keyword.
         timesteps : iterable
             Timesteps (time indices) to make plots for.
+
+        Returns
+        -------
+        fig : matplotlib.pyplot.figure
+            Plotting figure object.
+        ax : matplotlib.axes._subplots.AxesSubplot
+            Plotting axes object.
         """
 
         init_logger(__name__, log_file=None, log_level='INFO')
 
         for year in year_range:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
-            Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps, **kwargs)
+            fig, ax = Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps,
+                                    **kwargs)
+        return fig, ax
 
     @staticmethod
     def _fmt_title(kwargs, og_title, ti, ts, fname, dset, file_ext):
@@ -433,6 +445,13 @@ class Spatial:
             will be plotted.
         parallel : bool
             Flag to generate plots in parallel (for each timestep).
+
+        Returns
+        -------
+        fig : matplotlib.pyplot.figure
+            Plotting figure object (Only returned if not parallel).
+        ax : matplotlib.axes._subplots.AxesSubplot
+            Plotting axes object (Only returned if not parallel).
         """
 
         og_title = None
@@ -497,9 +516,10 @@ class Spatial:
                         fn_out, kwargs, og_title = Spatial._fmt_title(
                             kwargs, og_title, ti, ts, fname, dset,
                             file_ext)
-                        Spatial.plot_geo_df(df, fn_out, out_dir,
-                                            **kwargs)
+                        fig, ax = Spatial.plot_geo_df(df, fn_out, out_dir,
+                                                      **kwargs)
                 else:
+                    fig, ax = None, None
                     with ProcessPoolExecutor() as exe:
                         for i, ts in enumerate(timesteps):
                             df_par = df.copy()
@@ -524,7 +544,9 @@ class Spatial:
                     data = data[slice(None, None, interval)]
                 df[dset] = data
                 fname_out = '{}_{}{}'.format(fname, dset, file_ext)
-                Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
+                fig, ax = Spatial.plot_geo_df(df, fname_out, out_dir, **kwargs)
+
+        return fig, ax
 
     @staticmethod
     def goes_cloud(fpath, dsets, out_dir, nan_fill=-15, sparse_step=10,
@@ -544,6 +566,13 @@ class Spatial:
         sparse_step : int
             Step size to plot sites at a given interval (speeds things up).
             sparse_step=1 will plot all datapoints.
+
+        Returns
+        -------
+        fig : matplotlib.pyplot.figure
+            Plotting figure object.
+        ax : matplotlib.axes._subplots.AxesSubplot
+            Plotting axes object.
         """
         from nsrdb.data_model.clouds import (CloudVarSingleH5,
                                              CloudVarSingleNC,
@@ -568,12 +597,14 @@ class Spatial:
 
             fname = '{}_{}.png'.format(timestamp, dset)
 
-            Spatial.plot_geo_df(df, fname, out_dir, **kwargs)
+            fig, ax = Spatial.plot_geo_df(df, fname, out_dir, **kwargs)
+
+        return fig, ax
 
     @staticmethod
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
                     xlabel='Longitude', ylabel='Latitude', title=None,
-                    cbar_label=None, marker_size=0.1, marker='s',
+                    cbar_label='dset', marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
                     extent=None, axis=None, shape=None):
@@ -609,6 +640,13 @@ class Spatial:
             Image file extension (.png, .jpeg).
         shape : str
             Filepath to a shape file to plot on top of df data.
+
+        Returns
+        -------
+        fig : matplotlib.pyplot.figure
+            Plotting figure object.
+        ax : matplotlib.axes._subplots.AxesSubplot
+            Plotting axes object.
         """
 
         df = df.sort_values(by=list(labels))
@@ -675,21 +713,15 @@ class Spatial:
                 ylabel = labels[0]
             if title is None:
                 title = fname
-            if cbar_label is None:
+            if cbar_label == 'dset':
                 cbar_label = var
-
-            if axis is not None:
-                ax.axis(axis)
-            else:
-                ax.set_xlabel(xlabel)
-                ax.set_ylabel(ylabel)
 
             if title is not False:
                 ax.set_title(title)
 
-            if not custom_cmap:
+            if not custom_cmap and cbar_label is not None:
                 fig.colorbar(c, ax=ax, label=cbar_label)
-            else:
+            elif cbar_label is not None:
                 fmt = '%.2f'
                 int_bar = all([b % 1 == 0.0 for b in bounds])
                 if int_bar:
@@ -700,13 +732,34 @@ class Spatial:
                              boundaries=bounds,
                              format=fmt)
 
-            ax.set_ylim(ylim)
-            ax.set_xlim(xlim)
+            if ylim is not None:
+                ax.set_ylim(ylim)
+            if xlim is not None:
+                ax.set_xlim(xlim)
+
+            if axis is not None:
+                bounds = ax.axis(axis)
+                logger.info('Axes bounds are: {}'.format(bounds))
+            else:
+                ax.set_xlabel(xlabel)
+                ax.set_ylabel(ylabel)
+
             out = os.path.join(out_dir, fname)
-            fig.savefig(out, dpi=dpi, bbox_inches='tight')
-            logger.info('Saved figure: {}.png'.format(title))
+            if fname.endswith('.tiff'):
+                from PIL import Image
+                import io
+                png1 = io.BytesIO()
+                fig.savefig(png1, format='png', dpi=dpi, bbox_inches='tight')
+                png2 = Image.open(png1)
+                png2.save(out)
+                png2.close()
+            else:
+                fig.savefig(out, dpi=dpi, bbox_inches='tight')
+            logger.info('Saved figure: {}'.format(fname))
             plt.close()
         except Exception as e:
             # never break a full data pipeline on failed plots
             logger.warning('Could not plot "{}". Received the following '
                            'exception: {}'.format(title, e))
+
+        return fig, ax
