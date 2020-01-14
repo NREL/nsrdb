@@ -453,7 +453,7 @@ class SLURM(SubprocessManager):
             cmd = shlex.split(cmd)
             call(cmd)
 
-    def sbatch(self, cmd, alloc, memory, walltime, feature='--qos=normal',
+    def sbatch(self, cmd, alloc, walltime, memory=None, feature='--qos=normal',
                name='nsrdb', stdout_path='./stdout', keep_sh=False):
         """Submit a SLURM job via sbatch command and SLURM shell script
 
@@ -463,10 +463,10 @@ class SLURM(SubprocessManager):
             Command to be submitted in SLURM shell script.
         alloc : str
             HPC project (allocation) handle. Example: 'pxs'.
-        memory : int
-            Node memory request in GB.
         walltime : float
             Node walltime request in hours.
+        memory : int
+            Node memory request in GB.
         feature : str
             Additional flags for SLURM job. Format is "--qos=high"
             or "--depend=[state:job_id]". Default is None.
@@ -501,20 +501,24 @@ class SLURM(SubprocessManager):
             if feature is not None:
                 feature_str = '#SBATCH {}  # extra feature\n'.format(feature)
 
+            mem_str = ''
+            if memory is not None:
+                mem_str = ('#SBATCH --mem={}  # node RAM in MB\n'
+                           .format(int(memory * 1000)))
+
             fname = '{}.sh'.format(name)
             script = ('#!/bin/bash\n'
                       '#SBATCH --account={a}  # allocation account\n'
                       '#SBATCH --time={t}  # walltime\n'
                       '#SBATCH --job-name={n}  # job name\n'
                       '#SBATCH --nodes=1  # number of nodes\n'
-                      '#SBATCH --mem={m}  # node RAM in MB\n'
                       '#SBATCH --output={p}/{n}_%j.o\n'
-                      '#SBATCH --error={p}/{n}_%j.e\n{f}'
+                      '#SBATCH --error={p}/{n}_%j.e\n{m}{f}'
                       'echo Running on: $HOSTNAME, Machine Type: $MACHTYPE\n'
                       '{cmd}'
                       .format(a=alloc, t=self.walltime(walltime), n=name,
-                              m=int(memory * 1000), p=stdout_path,
-                              f=feature_str, cmd=cmd))
+                              p=stdout_path, m=mem_str, f=feature_str,
+                              cmd=cmd))
 
             # write the shell script file and submit as qsub job
             self.make_sh(fname, script)

@@ -41,6 +41,10 @@ class Resource:
     UNIT_ATTR = 'units'
     ADD_ATTR = 'add_offset'
 
+    OLD_SCALE_ATTR = 'psm_scale_factor'
+    OLD_UNIT_ATTR = 'psm_units'
+    OLD_ADD_ATTR = 'psm_add_offset'
+
     def __init__(self, h5_file, unscale=True, hsds=False):
         """
         Parameters
@@ -150,8 +154,8 @@ class Resource:
         """
 
         for col in df:
-            if (np.issubdtype(df[col].dtype, np.object_) and
-                    isinstance(df[col].values[0], bytes)):
+            if (np.issubdtype(df[col].dtype, np.object_)
+                    and isinstance(df[col].values[0], bytes)):
                 df[col] = df[col].copy().str.decode('utf-8', 'ignore')
 
         return df
@@ -228,7 +232,14 @@ class Resource:
         float
             Dataset scale factor, used to unscale int values to floats
         """
-        return self._h5[dset].attrs.get(self.SCALE_ATTR, 1)
+        attrs = dict(self._h5[dset].attrs)
+        if self.SCALE_ATTR in attrs:
+            scale = attrs[self.SCALE_ATTR]
+        elif self.OLD_SCALE_ATTR in attrs:
+            scale = attrs[self.OLD_SCALE_ATTR]
+        else:
+            scale = 1
+        return scale
 
     def get_units(self, dset):
         """
@@ -244,7 +255,11 @@ class Resource:
         str
             Dataset units, None if not defined
         """
-        return self._h5[dset].attrs.get(self.UNIT_ATTR, None)
+        attrs = dict(self._h5[dset].attrs)
+        units = attrs.get(self.UNIT_ATTR, None)
+        if units is None:
+            units = attrs.get(self.OLD_UNIT_ATTR, None)
+        return units
 
     def _get_time_index(self, *ds_slice):
         """
@@ -351,8 +366,22 @@ class Resource:
         ds = self._h5[ds_name]
         out = ds[ds_slice]
         if self._unscale:
-            scale_factor = ds.attrs.get(self.SCALE_ATTR, 1)
-            add_factor = ds.attrs.get(self.ADD_ATTR, 0)
+
+            attrs = dict(ds.attrs)
+
+            if self.SCALE_ATTR in attrs:
+                scale_factor = attrs[self.SCALE_ATTR]
+            elif self.OLD_SCALE_ATTR in attrs:
+                scale_factor = attrs[self.OLD_SCALE_ATTR]
+            else:
+                scale_factor = 1
+
+            if self.ADD_ATTR in attrs:
+                add_factor = attrs[self.ADD_ATTR]
+            elif self.OLD_ADD_ATTR in attrs:
+                add_factor = attrs[self.OLD_ADD_ATTR]
+            else:
+                add_factor = 0
 
             if ds_name == 'cloud_type':
                 out = out.astype('int8')

@@ -414,7 +414,8 @@ class CloudVar(AncillaryVarHandler):
             Single day to extract data for.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         dsets : tuple | list
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
@@ -422,7 +423,8 @@ class CloudVar(AncillaryVarHandler):
         """
 
         self._path = None
-        self._cloud_dir = cloud_dir
+        x = self._parse_cloud_dir(cloud_dir)
+        self._cloud_dir, self._prefix, self._suffix = x
         self._flist = None
         self._file_df = None
         self._dsets = dsets
@@ -489,6 +491,40 @@ class CloudVar(AncillaryVarHandler):
         else:
             raise StopIteration
 
+    @staticmethod
+    def _parse_cloud_dir(cloud_dir):
+        """Parse a cloud directory string for cloud dir and prefix/suffix.
+
+        Parameters
+        ----------
+        cloud_dir : str
+            Normal directory path or /directory/prefix*suffix
+
+        Returns
+        -------
+        cloud_dir : str
+            Directory path
+        prefix : str | None
+            File prefix if * in cloud_dir
+        suffix : str | None
+            File suffix if * in cloud_dir
+        """
+
+        prefix = None
+        suffix = None
+
+        if os.path.exists(cloud_dir):
+            return cloud_dir, prefix, suffix
+
+        elif os.path.exists(os.path.dirname(cloud_dir)):
+            fbase = os.path.basename(cloud_dir)
+            cloud_dir = os.path.dirname(cloud_dir)
+            if '*' in fbase:
+                prefix, suffix = fbase.split('*')
+                return cloud_dir, prefix, suffix
+
+        raise ValueError('Could not parse cloud dir: {}'.format(cloud_dir))
+
     @property
     def path(self):
         """Final path containing cloud data files.
@@ -509,13 +545,10 @@ class CloudVar(AncillaryVarHandler):
             # walk through current directory looking for day directory
             for dirpath, _, _ in os.walk(self._cloud_dir):
                 dirpath = dirpath.replace('\\', '/')
-                print(dirpath)
                 if not dirpath.endswith('/'):
                     dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in os.listdir(dirpath):
-                        print(dirpath)
-                        print(fn)
                         if fsearch1 in fn or fsearch2 in fn:
                             self._path = dirpath
                             break
@@ -587,7 +620,7 @@ class CloudVar(AncillaryVarHandler):
         return time
 
     @staticmethod
-    def get_h5_flist(path, date):
+    def get_h5_flist(path, date, prefix=None, suffix=None):
         """Get the .h5 cloud data file path list.
 
         Parameters
@@ -596,6 +629,10 @@ class CloudVar(AncillaryVarHandler):
             Terminal directory containing .h5 files.
         date : datetime.date
             Date of files to look for.
+        prefix : str | None
+            File prefix to look for in filenames or None
+        suffix : str | None
+            File suffix to look for in filenames or None
 
         Returns
         -------
@@ -605,6 +642,10 @@ class CloudVar(AncillaryVarHandler):
         """
 
         fl = os.listdir(path)
+        if prefix is not None:
+            fl = [fn for fn in fl if fn.startswith(prefix)]
+        if suffix is not None:
+            fl = [fn for fn in fl if fn.endswith(suffix)]
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.h5')
                  and str(date.year) in str(CloudVar.get_timestamp(f))]
@@ -615,7 +656,7 @@ class CloudVar(AncillaryVarHandler):
         return flist
 
     @staticmethod
-    def get_nc_flist(path, date):
+    def get_nc_flist(path, date, prefix=None, suffix=None):
         """Get the .nc cloud data file path list.
 
         Parameters
@@ -624,6 +665,10 @@ class CloudVar(AncillaryVarHandler):
             Terminal directory containing .nc files.
         date : datetime.date
             Date of files to look for.
+        prefix : str | None
+            File prefix to look for in filenames or None
+        suffix : str | None
+            File suffix to look for in filenames or None
 
         Returns
         -------
@@ -633,6 +678,10 @@ class CloudVar(AncillaryVarHandler):
         """
 
         fl = os.listdir(path)
+        if prefix is not None:
+            fl = [fn for fn in fl if fn.startswith(prefix)]
+        if suffix is not None:
+            fl = [fn for fn in fl if fn.endswith(suffix)]
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.nc')
                  and str(date.year) in str(CloudVar.get_timestamp(f))]
@@ -654,10 +703,14 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._flist is None:
-            self._flist = self.get_h5_flist(self.path, self._date)
+            self._flist = self.get_h5_flist(self.path, self._date,
+                                            prefix=self._prefix,
+                                            suffix=self._suffix)
             self._ftype = '.h5'
             if not self._flist:
-                self._flist = self.get_nc_flist(self.path, self._date)
+                self._flist = self.get_nc_flist(self.path, self._date,
+                                                prefix=self._prefix,
+                                                suffix=self._suffix)
                 self._ftype = '.nc'
             if not self._flist:
                 raise IOError('Could not find .h5 or .nc files for {} in '

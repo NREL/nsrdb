@@ -67,12 +67,18 @@ class AlbedoVar(AncillaryVarHandler):
         falbedo : str
             NSRDB Albedo file path.
         """
-
+        falbedo = None
         flist = os.listdir(self.source_dir)
         for f in flist:
             if self.date_stamp in f:
                 falbedo = os.path.join(self.source_dir, f)
                 break
+        if falbedo is None:
+            m = ('Could not find albedo file with date stamp "{}" '
+                 'in directory: {}'
+                 .format(self.date_stamp, self.source_dir))
+            logger.error(m)
+            raise FileNotFoundError(m)
         return falbedo
 
     def pre_flight(self):

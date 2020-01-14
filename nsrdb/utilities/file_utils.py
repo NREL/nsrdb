@@ -3,7 +3,7 @@
 
 @author: gbuster
 """
-
+import json
 import logging
 import os
 import shlex
@@ -24,6 +24,42 @@ logger = logging.getLogger(__name__)
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
+
+
+def safe_json_load(fpath):
+    """Perform a json file load with better exception handling.
+
+    Parameters
+    ----------
+    fpath : str
+        Filepath to .json file.
+
+    Returns
+    -------
+    j : dict
+        Loaded json dictionary.
+    """
+
+    if not isinstance(fpath, str):
+        raise TypeError('Filepath must be str to load json: {}'.format(fpath))
+
+    if not fpath.endswith('.json'):
+        raise IOError('Filepath must end in .json to load json: {}'
+                      .format(fpath))
+
+    if not os.path.isfile(fpath):
+        raise FileNotFoundError('Could not find json file to load: {}'
+                                .format(fpath))
+
+    try:
+        with open(fpath, 'r') as f:
+            j = json.load(f)
+    except json.decoder.JSONDecodeError as e:
+        emsg = ('JSON Error:\n{}\nCannot read json file: '
+                '"{}"'.format(e, fpath))
+        raise IOError(emsg)
+
+    return j
 
 
 def repack_h5(fpath, f_new=None, inplace=True):

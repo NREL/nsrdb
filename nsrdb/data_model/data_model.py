@@ -469,7 +469,8 @@ class DataModel:
             List of variable names
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         """
 
         missing_list = []
@@ -546,7 +547,8 @@ class DataModel:
             kdtree is built for each unique coordinate set in each cloud file.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         parallel : bool
             Flag to perform regrid in parallel.
 
@@ -862,7 +864,8 @@ class DataModel:
             Single day to extract ancillary data for.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
@@ -1148,7 +1151,8 @@ class DataModel:
             Single day to extract ancillary data for.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
@@ -1217,7 +1221,8 @@ class DataModel:
             Single day to extract ancillary data for.
         cloud_dir : str
             Cloud data directory containing nested daily directories with
-            h5 or nc files from UW.
+            h5 or nc files from UW. Can be a normal directory path or
+            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column

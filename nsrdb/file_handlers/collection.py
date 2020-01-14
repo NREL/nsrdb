@@ -56,18 +56,23 @@ class Collector:
         """
 
         date_str_list = [f.split('_')[0] for f in flist]
-        date_str = date_str_list[0]
+        date_str_list = sorted(date_str_list, key=int)
+        date_str_start = date_str_list[0]
+        date_str_end = date_str_list[-1]
 
-        if len(date_str) == 8:
-            date = datetime.date(year=int(date_str[0:4]),
-                                 month=int(date_str[4:6]),
-                                 day=int(date_str[6:]))
+        if len(date_str_start) == 8 and len(date_str_end) == 8:
+            date_start = datetime.date(year=int(date_str_start[0:4]),
+                                       month=int(date_str_start[4:6]),
+                                       day=int(date_str_start[6:]))
+            date_end = datetime.date(year=int(date_str_end[0:4]),
+                                     month=int(date_str_end[4:6]),
+                                     day=int(date_str_end[6:]))
         else:
-            raise ValueError('Could not parse date: {}'.format(date))
+            raise ValueError('Could not parse date: {}'.format(date_str_start))
 
-        ti = pd.date_range('1-1-{y}'.format(y=date.year),
-                           '1-1-{y}'.format(y=date.year + 1),
-                           freq='1D')[:-1]
+        date_end += datetime.timedelta(days=1)
+        ti = pd.date_range(start=date_start, end=date_end,
+                           freq='1D', closed='left')
 
         missing = []
         for date in ti:
@@ -81,7 +86,7 @@ class Collector:
                                     '"{}":\n{}'.format(var, missing))
 
         logger.info('Good file count of {} for "{}" in year {} in dir: {}'
-                    .format(len(flist), var, date.year, d))
+                    .format(len(flist), var, date_start.year, d))
 
     @staticmethod
     def get_flist(d, var):
