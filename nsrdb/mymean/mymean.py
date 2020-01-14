@@ -233,10 +233,22 @@ class MyMean:
         """Write MY Mean data to disk"""
         logger.info('Writing "{}" data to disk: {}'
                     .format(self._dset, self._fout))
+
+        out_dir = os.path.dirname(self._fout)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        data = self._data * self._attrs.get('scale_factor', 1)
+        data = np.round(data)
+        data = data.astype(self._dtype)
+
         with Outputs(self._fout, mode='a') as out:
             out['meta'] = self.meta
-            out._create_dset(self._dset, self._data.shape, self._dtype,
-                             attrs=self._attrs, data=self._data)
+            if self._dset not in out.dsets:
+                out._create_dset(self._dset, self._data.shape, self._dtype,
+                                 attrs=self._attrs, data=self._data)
+            else:
+                out[self._dset] = self._data
         logger.info('Finished writing "{}" data to disk: {}'
                     .format(self._dset, self._fout))
 
