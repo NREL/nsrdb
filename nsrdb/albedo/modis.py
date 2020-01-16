@@ -136,24 +136,36 @@ class ModisDay:
         partial_fname = f'MCD43GF_wsa_shortwave_{self.day}_{self.year}.hdf'
         self.file_name = os.path.join(modis_path, partial_fname)
 
-        self._load_day()
+        self.data, self.lon, self.lat = self._load_day()
 
     def _load_day(self):
-        """ Load albedo values, lon, and lat from HDF """
+        """
+        Load albedo values, lon, and lat from HDF
+
+        Returns
+        -------
+        data : 2D numpy array
+            Array with MODIS dry earth albedo values. CRS appears to be WGS84
+        lon : 1D numpy array
+            Array with longitude values for MODIS data
+        lat : 1D numpy array
+            Array with latitude values for MODIS data
+        """
         try:
             hdf = SD(self.file_name)
         except pyhdf.error.HDF4Error as e:
             raise ModisError(f'Issue loading {self.file_name}: {e}')
 
-        self.lat = hdf.select('Latitude')[:]
-        self.lon = hdf.select('Longitude')[:]
-        self.data = hdf.select('Albedo_Map_0.3-5.0')[:]
+        lat = hdf.select('Latitude')[:]
+        lon = hdf.select('Longitude')[:]
+        data = hdf.select('Albedo_Map_0.3-5.0')[:]
 
-        if len(self.lat) != 21600 or len(self.lon) != 43200 or \
-                self.data.shape != (21600, 43200):
+        if len(lat) != 21600 or len(lon) != 43200 or \
+                data.shape != (21600, 43200):
             msg = f'Shape of {self.file_name} is expected to be (21600, ' + \
-                   f'43200) but is {self.data.shape}. Lat/lon may be off.'
+                   f'43200) but is {data.shape}. Lat/lon may be off.'
             raise ModisError(msg)
+        return data, lon, lat
 
     def plot(self):
         """ Plot data as map. Nodata is corrected so colors are sane """

@@ -61,14 +61,10 @@ class ImsDay:
         partial_fname = f'ims{self.year}{self.day}_{self.res}_v1.3.asc'
         self.file_name = os.path.join(ims_path, partial_fname)
 
-        self.data = None  # IMS data, numpy array
-        self.lat = None  # Latitude mapping for data
-        self.lon = None  # Longitude mapping for data
-
-        self._load_data()
+        self.data = self._load_data()
 
         if meta is None:
-            self._load_meta()
+            self.lon, self.lat = self._load_meta()
         else:
             self.lat = meta[0]
             self.lon = meta[1]
@@ -77,6 +73,11 @@ class ImsDay:
         """
         Load IMS values from asc file. For format see
         https://nsidc.org/data/g02156 -> "User Guide" tab
+
+        Returns
+        -------
+        ims_data : 2D numpy array (int8)
+            IMS snow values [0, 1, 2, 3, 4] in polar projection
         """
         raw = []
         with open(self.file_name, 'r') as dat:
@@ -100,16 +101,22 @@ class ImsDay:
             raise ImsError(msg)
 
         # Reshape data to square, size dependent on resolution, and flip
-        # TODO - do we really need to flipud the data?
         grid = (self.pixels[self.res], self.pixels[self.res])
-        ims_data = np.flipud(np.array(raw).reshape(grid))
+        ims_data = np.flipud(np.array(raw).reshape(grid)).astype(np.int8)
 
-        self.data = ims_data
+        return ims_data
 
     def _load_meta(self):
         """
         Load IMS meta data (lat/lon values) from .double or .bin  file. For
         format see https://nsidc.org/data/g02156 -> "User Guide" tab
+
+        Returns
+        -------
+        lon, lat : 1D numpy arrays
+            Longitude and latitudes for IMS data. IMS data is stored in a polar
+            projection so lon/lat is specifically defined for each pixel. The
+            lon/lat arrays are the same length as the IMS data.
         """
         ims_lat_file, ims_lon_file = self._get_lat_lon_files()
 
@@ -148,10 +155,10 @@ class ImsDay:
                    f' but is {lat.shape}.'
             raise ImsError(msg)
 
-        self.lon = lon
-        self.lat = lat
+        return lon, lat
 
     def _get_lat_lon_files(self):
+        """ Returns file names of lon and lat meta data files. """
         if self.res == self.RES_1KM:
             lat = 'IMS1kmLats.24576x24576x1.double'
             lon = 'IMS1kmLons.24576x24576x1.double'
