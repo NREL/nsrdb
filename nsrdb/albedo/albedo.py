@@ -127,13 +127,27 @@ class CompositeAlbedoDay:
         print(f'Calculating composite albedo for {self.date}')
 
         # Find IMS pixels w/ snow: 3 = sea ice, 4 = snow on land
-        snow_ind = (self.ims.data == 3) | (self.ims.data == 4)
-        snow_ind_flat = snow_ind.flatten()
-        self.snow = self.ims.data[snow_ind]
-        self.snow_lat = self.ims.lat[snow_ind_flat]
-        self.snow_lon = self.ims.lon[snow_ind_flat]
-        print(f'Out of {self.ims.data.flatten().shape[0]:,} sites, ' +
-              f'{self.snow.shape[0]:,} have snow')
+        # snow_ind = (self.ims.data == 3) | (self.ims.data == 4)
+        # snow_ind_flat = snow_ind.flatten()
+        # self.snow = self.ims.data[snow_ind]
+        # self.snow_lat = self.ims.lat[snow_ind_flat]
+        # self.snow_lon = self.ims.lon[snow_ind_flat]
+        # print(f'Out of {self.ims.data.flatten().shape[0]:,} sites, ' +
+        #       f'{self.snow.shape[0]:,} have snow')
+
+    def get_ims_boundary(self):
+        """
+        Create IMS boundary layer
+
+        Returns
+        ------
+        asdklfj : numpy array
+            Description
+        """
+
+        ibin = self.ims.data.copy()
+        ibin[ibin<3] = 0
+        ibin[ibin>2] = 1
 
     @staticmethod
     def write_albedo(albedo):
