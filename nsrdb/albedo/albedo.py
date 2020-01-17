@@ -4,6 +4,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.spatial import cKDTree
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import cpu_count
 
 
 class AlbedoError(Exception):
@@ -11,8 +12,10 @@ class AlbedoError(Exception):
 
 
 class CompositeAlbedoDay:
+    SNOW_ALBEDO = 1000
+
     @classmethod
-    def run(cls, date, modis_path, ims_path, albedo_path, nn_indicies, res):
+    def run(cls, date, modis_path, ims_path, albedo_path):
         """
         Merge MODIS and IMS data for one day.
 
@@ -26,35 +29,26 @@ class CompositeAlbedoDay:
             Path for IMS data files
         albedo_path : str
             Path for composite albedo data files (output)
-        nn_indices : numpy array
-            Indices mapping IMS data to MODIS data
-
         """
-        # TODO remove res from parameters or add to docstring
-
-        cad = cls(date, modis_path, ims_path, albedo_path, nn_indicies)
+        cad = cls(date, modis_path, ims_path, albedo_path)
         cad.modis = cad.load_modis()
         # cad.modis.plot()
-        cad.ims = cad.load_ims(res)
-        #albedo = cad.calc_albedo()
-        #cad.write_albedo(albedo)
+        cad.ims = cad.load_ims()
+        # albedo = cad.calc_albedo()
+        # cad.write_albedo(albedo)
 
         # TODO delete below
         return cad
 
-    def __init__(self, date, modis_path, ims_path, albedo_path, nn_indicies):
+    def __init__(self, date, modis_path, ims_path, albedo_path):
         """ See parameter definitions for self.run() """
         self.date = date
         self.modis_path = modis_path
         self.ims_path = ims_path
         self.albedo_path = albedo_path
-        self.nn_indicies = nn_indicies
 
         self.modis = None  # ModisDay object
         self.ims = None  # ImsDay object
-
-        # TODO - handle below value in a better way
-        self.snow_albedo_value = 1000
 
     def load_modis(self):
         """ Load and return ModisDay instance """
@@ -62,11 +56,11 @@ class CompositeAlbedoDay:
         # ModisDay is responsible for getting the closest day
         return modis.ModisDay(self.date, self.modis_path)
 
-    def load_ims(self, res):
+    def load_ims(self):
         """ Load and return ImsDay instance """
         print(f'loading {self.date} from ims')
         # TODO improve resolution handling
-        return ims.ImsDay(self.date, self.ims_path, res)
+        return ims.ImsDay(self.date, self.ims_path)
 
     def calc_albedo(self):
         """
@@ -100,7 +94,7 @@ class CompositeAlbedoDay:
 
         # Copy and update MODIS albedo for cells w/ snow
         albedo = self.modis.data.copy()
-        albedo[snow_no_snow == 1] = self.snow_albedo_value
+        albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
         return albedo
 
     @staticmethod
@@ -141,8 +135,7 @@ class CompositeAlbedoDay:
             Indices mapping MODIS cells to ims_bin_mskd
         """
         futures = {}
-        # TODO - calculate number of cores automatically
-        chunks = np.array_split(modis_pts, 36)
+        chunks = np.array_split(modis_pts, cpu_count())
         with ProcessPoolExecutor() as exe:
             for i, chunk in enumerate(chunks):
                 future = exe.submit(self._run_single_tree, ims_tree, chunk)
@@ -164,7 +157,7 @@ class CompositeAlbedoDay:
 
     def _get_ims_boundary(self):
         """
-        Create IMS boundary layer which represents the pixels that from the
+        Create IMS boundary layer which represents the pixels that form the
         boundary between snow and no snow.
 
         Returns
@@ -221,66 +214,4 @@ class CompositeAlbedoDay:
         albedo : Albedo instance
             Albedo data from self.calc_albedo()
         """
-        pass
-
-
-#############################################
-##  Code below here is all obsolete
-
-class CalcCompositeAlbedo:
-    """
-    Calculate composite albedo from MODIS and IMS for an arbitrary period of
-    time.
-    """
-    @classmethod
-    def run(cls, start_date, end_date, modis_path, ims_path, albedo_path):
-        """
-        Parameters
-        ----------
-        start_date : datetime instance
-            Beginning of time frame to calculate albedo for
-        start_date : datetime instance
-            Beginning of time frame to calculate albedo for
-        modis_path : str
-            Path for MODIS data files
-        ims_path : str
-            Path for IMS data files
-        albedo_path : str
-            Path for composite albedo data files (output)
-        """
-        cca = cls(start_date, end_date, modis_path, ims_path, albedo_path)
-        cca.date_range = cca.calc_date_range()
-        cca.download_modis()
-        cca.download_ims()
-        cca.fill_ims_gaps()
-
-        # Calculate mapping between IMS and MODIS
-        nn_indicies = cca.calc_indicies()
-
-        for date in cca.date_range:
-            CompositeAlbedoDay.run(date, modis_path, ims_path, albedo_path,
-                                   nn_indicies)
-
-    def _init__(self, start_date, end_date, modis_path, ims_path, albedo_path):
-        """ See parameter definitions in self.run() """
-        self.start_date = start_date
-        self.end_date = end_date
-        self.modis_path = modis_path
-        self.ims_path = ims_path
-        self.albedo_path = albedo_path
-
-    def calc_date_range(self):
-        """ Calculate and return date range for analysis """
-        pass
-
-    def download_modis(self):
-        """ Download MODIS data for date range """
-        pass
-
-    def download_ims(self):
-        """ Download IMS data for date range """
-        pass
-
-    def fill_ims_gaps(self):
-        """ Fill any temporal gaps in IMS data """
         pass

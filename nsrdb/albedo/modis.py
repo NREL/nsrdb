@@ -21,6 +21,69 @@ NODATA = 32767
 class ModisError(Exception):
     pass
 
+class ModisDay:
+    """ Load MODIS data for a single day from disk """
+    def __init__(self, date, modis_path):
+        """
+        Parameters
+        ----------
+        date : datetime instance
+            Date to grab data for. Time is ignored
+        modis_path : str
+            Path to MODIS data files
+        """
+        # logger.debug(f'Importing {dfile} into ModisDay')
+        self.modis_path = modis_path
+        self._filename = ModisFileAcquisition.get_file(date, modis_path)
+        self.data, self.lon, self.lat = self._load_day()
+
+    def _load_day(self):
+        """
+        Load albedo values, lon, and lat from HDF
+
+        Returns
+        -------
+        data : 2D numpy array
+            Array with MODIS dry earth albedo values. CRS appears to be WGS84
+        lon : 1D numpy array
+            Array with longitude values for MODIS data
+        lat : 1D numpy array
+            Array with latitude values for MODIS data
+        """
+        try:
+            hdf = SD(self._filename)
+        except pyhdf.error.HDF4Error as e:
+            raise ModisError(f'Issue loading {self._filename}: {e}')
+
+        try:
+            lat = hdf.select('Latitude')[:]
+            lon = hdf.select('Longitude')[:]
+            data = hdf.select('Albedo_Map_0.3-5.0')[:]
+        except pyhdf.error.HDF4Error as e:
+            raise ModisError(f'Error loading {self._filename}: {e}. File ' +
+                             'does not have expected datasets and may be ' +
+                             'too old.')
+
+        if len(lat) != 21600 or len(lon) != 43200 or \
+                data.shape != (21600, 43200):
+            msg = f'Shape of {self._filename} is expected to be (21600, ' + \
+                   f'43200) but is {data.shape}. Lat/lon may be off.'
+            raise ModisError(msg)
+        return data, lon, lat
+
+    def plot(self):
+        """ Plot data as map. Nodata is corrected so colors are sane """
+        vals = self.data.copy()
+        vals[vals > 1000] = 0
+        plt.imshow(vals)
+        plt.title(self._filename)
+        plt.colorbar()
+        plt.show()
+
+    # TODO fix below
+    # def __repr__(self):
+        # return f'{self.__class__.__name__}(year={self.year}, day={self.day})'
+
 
 class ModisFileAcquisition:
     """
@@ -29,8 +92,8 @@ class ModisFileAcquisition:
     exist it is downloaded.
     """
     FTP_SERVER = 'rsftp.eeos.umb.edu'
-    FTP_FOLDER = '/data02/Gapfilled/{}/'
-    DATA_PATTERN = 'MCD43GF_wsa_shortwave_'
+    FTP_FOLDER = '/data02/Gapfilled/{year}/'
+    FILE_PATTERN = 'MCD43GF_wsa_shortwave_{day}_{year}.hdf'
     # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
 
     @classmethod
@@ -48,6 +111,7 @@ class ModisFileAcquisition:
             Location of/for MODIS data on disk
 
         Returns
+        -------
         filename : string
             Filename with path to MODIS data file
         """
@@ -73,10 +137,10 @@ class ModisFileAcquisition:
         self.year = str(date.year)
 
         # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
-        self.filename = f'MCD43GF_wsa_shortwave_{self.day}_{self.year}.hdf'
+        self.filename = self.FILE_PATTERN.format(day=self.day, year=self.year)
 
     def _download(self):
-        year_path = self.FTP_FOLDER.format(self.year)
+        year_path = self.FTP_FOLDER.format(year=self.year)
         url = f'ftp://{self.FTP_SERVER}{year_path}{self.filename}'
         logger.info(f'Downloading {url}')
         try:
@@ -117,66 +181,3 @@ class ModisFileAcquisition:
         if (day - 1) % 8 >= 4:
             # round up
             return day - (day - 1) % 8 + 8
-
-
-class ModisDay:
-    """ Load MODIS data for a single day from disk """
-    def __init__(self, date, modis_path):
-        """
-        Parameters
-        ----------
-        date : datetime instance
-            Date to grab data for. Time is ignored
-        modis_path : str
-            Path to MODIS data files
-        """
-        # logger.debug(f'Importing {dfile} into ModisDay')
-        self.modis_path = modis_path
-        self.filename = ModisFileAcquisition.get_file(date, modis_path)
-        self.data, self.lon, self.lat = self._load_day()
-
-    def _load_day(self):
-        """
-        Load albedo values, lon, and lat from HDF
-
-        Returns
-        -------
-        data : 2D numpy array
-            Array with MODIS dry earth albedo values. CRS appears to be WGS84
-        lon : 1D numpy array
-            Array with longitude values for MODIS data
-        lat : 1D numpy array
-            Array with latitude values for MODIS data
-        """
-        try:
-            hdf = SD(self.filename)
-        except pyhdf.error.HDF4Error as e:
-            raise ModisError(f'Issue loading {self.filename}: {e}')
-
-        try:
-            lat = hdf.select('Latitude')[:]
-            lon = hdf.select('Longitude')[:]
-            data = hdf.select('Albedo_Map_0.3-5.0')[:]
-        except pyhdf.error.HDF4Error as e:
-            raise ModisError(f'Error loading {self.filename}: {e}. File ' +
-                             'does not have expected datasets and may be ' +
-                             'too old.')
-
-        if len(lat) != 21600 or len(lon) != 43200 or \
-                data.shape != (21600, 43200):
-            msg = f'Shape of {self.filename} is expected to be (21600, ' + \
-                   f'43200) but is {data.shape}. Lat/lon may be off.'
-            raise ModisError(msg)
-        return data, lon, lat
-
-    def plot(self):
-        """ Plot data as map. Nodata is corrected so colors are sane """
-        vals = self.data.copy()
-        vals[vals > 1000] = 0
-        plt.imshow(vals)
-        plt.title(self.filename)
-        plt.colorbar()
-        plt.show()
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}(year={self.year}, day={self.day})'

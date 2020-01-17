@@ -14,21 +14,6 @@ import tempfile
 from datetime import datetime as dt
 
 
-def test_data_loading():
-    with tempfile.TemporaryDirectory() as td:
-        # Test old file that is not supported
-        d = dt(2002, 5, 15)
-        with pytest.raises(modis.ModisError):
-            md = modis.ModisDay(d, td)
-
-        # test modern file
-        d = dt(2015, 5, 15)
-        md = modis.ModisDay(d, td)
-        name = 'MCD43GF_wsa_shortwave_137_2015.hdf'
-        assert md.filename.split('/')[-1] == name
-        assert md.data.shape == (21600, 43200)
-
-
 def test_day_mapping():
     mfa = modis.ModisFileAcquisition
     assert mfa._nearest_modis_day(1) == 1
@@ -49,10 +34,15 @@ def test_day_mapping():
     assert mfa._nearest_modis_day(366) == 361
 
 
-def test_download():
-    d = dt(2015, 6, 6)
-
+def test_download_and_data_loading():
     with tempfile.TemporaryDirectory() as td:
+        # Test old file that is not supported
+        d = dt(2002, 5, 15)
+        with pytest.raises(modis.ModisError):
+            md = modis.ModisDay(d, td)
+
+        # Test downlaod
+        d = dt(2015, 6, 6)
         filename = modis.ModisFileAcquisition.get_file(d, td)
         assert os.path.isfile(filename)
 
@@ -61,6 +51,12 @@ def test_download():
         mfa.filename = 'fake'
         with pytest.raises(modis.ModisError):
             mfa._download()
+
+        # Test data loading
+        md = modis.ModisDay(d, td)
+        assert md.data.shape == (21600, 43200)
+        assert len(md.lon) == 43200
+        assert len(md.lat) == 21600
 
 
 def execute_pytest(capture='all', flags='-rapP'):
