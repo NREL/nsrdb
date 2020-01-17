@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
 sys.path.append(nsrdb_path)
 
-#from nsrdb.utilities.file_utils import url_download
+from nsrdb.utilities.file_utils import url_download
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -24,11 +24,11 @@ class ModisError(Exception):
     pass
 
 
-# TODO - This whole class needs to be updated to handle an arbitrary date
-# range
-class ModisYear:
+# TODO - This whole class needs to be updated
+class ModisFileAcquisition:
     """
-    Class to load and represent MODIS snow-free albedo data. If data does not
+    Class to acquire MODIS data for requested day. Attempts to get data from
+    disk first. If not available the data is downloaded
     exist it is downloaded.
     """
     FTP_SERVER = 'rsftp.eeos.umb.edu'
@@ -92,7 +92,6 @@ class ModisYear:
         # Download data
         failed = []
         # TODO - remove slicing
-        #for dfile in data_files[:3]:
         for dfile in data_files:
             url = f'ftp://{self.FTP_SERVER}{year_path}{dfile}'
             lfile = os.path.join(self.data_path, dfile)
@@ -103,14 +102,33 @@ class ModisYear:
         return failed
 
     @staticmethod
-    def download_all_years():
-        pass
+    def _nearest_modis_day(day):
+        """
+        MODIS data is available in 8 day increments, e.g. 1, 9, 17, 25, etc.
+        Finds nearest MODIS day to requested day. Days perfectly between
+        available days are rounded up, e.g. day=5 returns 9.
 
-    def __len__(self):
-        return len(self.days)
+        Parameters
+        ---------
+        day : int
+            Requested day of year [1-366]
 
-    def __getitem__(self, position):
-        return self.days[position]
+        Returns
+        -------
+        xxx : int
+            Nearest MODIS day to 'day'
+        """
+        if day > 361:
+            return 361
+        if (day - 1) % 8 == 0:
+            # day matches available day
+            return day
+        if (day - 1) % 8 < 4:
+            # round down
+            return day - (day - 1) % 8
+        if (day - 1) % 8 >= 4:
+            # round up
+            return day - (day - 1) % 8 + 8
 
 
 class ModisDay:
@@ -181,19 +199,17 @@ class ModisDay:
 
 
 if __name__ == '__main__':
-    #ModisYear(2015, 'scratch')
+    # ModisYear(2015, 'scratch')
 
     from datetime import datetime as dt
     from datetime import timedelta
-    #year = ModisYear(2012, 'scratch')
-    dates = [(2013, 1)] # , (2015, 9), (2013, 145)]
+    # year = ModisYear(2012, 'scratch')
+    dates = [(2013, 1)]  # , (2015, 9), (2013, 145)]
     for y, d in dates:
         date = dt(y, 1, 1) + timedelta(d - 1)
         print(date)
         m = ModisDay(date, 'scratch')
         m.plot()
-
-
 
         # d.plot()
     # print(m._download())
