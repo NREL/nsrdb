@@ -87,9 +87,6 @@ class ImsDay:
                 if re.search('[a-z]', line.strip()) is None:
                     raw.extend([int(l) for l in list(line.strip())])
 
-            # arr = np.flipud(np.array(out).reshape((6144, 6144))) \
-            # .flatten().astype(np.int8)
-
         # IMS data sanity check
         if self.res == self.RES_1KM and len(raw) != 24576**2:
             msg = f'Data length in {self.file_name} is expected to be ' + \
