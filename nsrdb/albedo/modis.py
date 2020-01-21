@@ -56,9 +56,12 @@ class ModisDay:
             raise ModisError(f'Issue loading {self._filename}: {e}')
 
         try:
+            print('Loading MODIS data')
+            data = hdf.select('Albedo_Map_0.3-5.0')[:]
+            print('Loading MODIS metadata')
             lat = hdf.select('Latitude')[:]
             lon = hdf.select('Longitude')[:]
-            data = hdf.select('Albedo_Map_0.3-5.0')[:]
+            print('Completed loading MODIS data and metadata')
         except pyhdf.error.HDF4Error as e:
             raise ModisError(f'Error loading {self._filename}: {e}. File ' +
                              'does not have expected datasets and may be ' +

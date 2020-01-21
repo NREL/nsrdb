@@ -13,8 +13,8 @@ import shutil
 from datetime import datetime, timedelta
 
 # TODO - remove below code after testing is finished
-nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
-sys.path.append(nsrdb_path)
+# nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
+# sys.path.append(nsrdb_path)
 
 from nsrdb.utilities.file_utils import url_download
 
@@ -63,8 +63,11 @@ class ImsDay:
 
         self.res = _ifa.res
 
+        print('Loading IMS data')
         self.data = self._load_data()
+        print('Loading IMS metadata')
         self.lon, self.lat = self._load_meta()
+        print('Completed loading IMS data and metadata')
 
     def _load_data(self):
         """
@@ -102,7 +105,7 @@ class ImsDay:
 
     def _load_meta(self):
         """
-        Load IMS meta data (lat/lon values) from .double or .bin  file. For
+        Load IMS metadata (lat/lon values) from .double or .bin  file. For
         format see https://nsidc.org/data/g02156 -> "User Guide" tab
 
         Returns

@@ -1,18 +1,20 @@
-import modis
-import ims
 import numpy as np
+import h5py
 from scipy import ndimage
 from scipy.spatial import cKDTree
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 
+import nsrdb.albedo.modis as modis
+import nsrdb.albedo.ims as ims
 
 class AlbedoError(Exception):
     pass
 
 
 class CompositeAlbedoDay:
-    SNOW_ALBEDO = 1000
+    # Value for snow/sea ice in IMS. In thousandths, e.g. 867 == 0.867
+    SNOW_ALBEDO = 867
 
     @classmethod
     def run(cls, date, modis_path, ims_path, albedo_path):
@@ -31,13 +33,14 @@ class CompositeAlbedoDay:
             Path for composite albedo data files (output)
         """
         cad = cls(date, modis_path, ims_path, albedo_path)
-        cad.modis = cad.load_modis()
-        # cad.modis.plot()
-        cad.ims = cad.load_ims()
-        # albedo = cad.calc_albedo()
-        # cad.write_albedo(albedo)
 
-        # TODO delete below
+        print(f'Loading MODIS data for {cad.date}')
+        cad.modis = modis.ModisDay(cad.date, cad.modis_path)
+
+        print(f'Loading IMS data {cad.date}')
+        cad.ims = ims.ImsDay(cad.date, cad.ims_path)
+
+        cad.albedo = cad._calc_albedo()
         return cad
 
     def __init__(self, date, modis_path, ims_path, albedo_path):
@@ -50,19 +53,29 @@ class CompositeAlbedoDay:
         self.modis = None  # ModisDay object
         self.ims = None  # ImsDay object
 
-    def load_modis(self):
-        """ Load and return ModisDay instance """
-        print(f'loading {self.date} from modis')
-        # ModisDay is responsible for getting the closest day
-        return modis.ModisDay(self.date, self.modis_path)
+    def write_albedo(self, outfilename):
+        """
+        Write albedo data to HDF5 file
 
-    def load_ims(self):
-        """ Load and return ImsDay instance """
-        print(f'loading {self.date} from ims')
-        # TODO improve resolution handling
-        return ims.ImsDay(self.date, self.ims_path)
+        Parameters
+        ----------
+        outfilename : string
+            Name of HDF5 file to save
+        """
+        albedo_attrs = {'units': 'unitless',
+                        'scale_factor': 1000}
+        with h5py.File(outfilename, 'w') as f:
+            f.create_dataset('surface_albedo', shape=self.albedo.shape,
+                                dtype=self.albedo.dtype, data=self.albedo)
+            for k, v in albedo_attrs.items():
+                f['surface_albedo'].attrs[k] = v
 
-    def calc_albedo(self):
+            f.create_dataset('latitude', shape=self.modis.lat.shape,
+                             dtype=self.modis.lat.dtype, data=self.modis.lat)
+            f.create_dataset('longitude', shape=self.modis.lon.shape,
+                             dtype=self.modis.lon.dtype, data=self.modis.lon)
+
+    def _calc_albedo(self):
         """
         Calculate composite albedo by merging MODIS and IMS
 
@@ -78,12 +91,15 @@ class CompositeAlbedoDay:
         print(f'Calculating composite albedo for {self.date}')
 
         # Find snow/no snow region boundaries of IMS
+        print('Determining IMS snow/no snow region boundaries')
         ims_bin_mskd, ims_pts = self._get_ims_boundary()
 
         # Create cKDTree to map MODIS points onto IMS regions
+        print('Creating KD Tree')
         ims_tree = cKDTree(ims_pts)
 
         # Map MODIS pixels to IMS data
+        print('Mapping MODIS to IMS data. This might take a while.')
         modis_pts = self._get_modis_pts()
         ind = self._run_futures(ims_tree, modis_pts)
 
@@ -204,14 +220,3 @@ class CompositeAlbedoDay:
         modis_pts = n_mg_v.T
         return modis_pts
 
-    @staticmethod
-    def write_albedo(albedo):
-        """
-        Write albedo data to self.albedo_path.
-
-        Parameters
-        ----------
-        albedo : Albedo instance
-            Albedo data from self.calc_albedo()
-        """
-        pass
