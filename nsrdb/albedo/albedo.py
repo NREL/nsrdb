@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Class to compile MODIS dry land albedo and IMS snow data into composite albedo.
+
+Created on Jan 23 2020
+
+@author: mbannist
+"""
 import os
 import numpy as np
 import h5py
@@ -5,9 +13,20 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
+import libtiff
 
 import nsrdb.albedo.modis as modis
 import nsrdb.albedo.ims as ims
+
+# TIFF world file. Values were extracted from MODIS data with QGIS and may
+# be slightly off.
+WORLD = '''0.00833333
+0.00000000
+0.00000000
+-0.00833333
+-179.99583333
+89.99583333
+'''
 
 
 class AlbedoError(Exception):
@@ -15,6 +34,32 @@ class AlbedoError(Exception):
 
 
 class CompositeAlbedoDay:
+    """
+    Combine IMS and MODIS data to create composite Albedo.
+
+    This class is intended to be used with the run() class method, which
+    acquires IMS and MODIS data, merges the two, and a returns an instance
+    of the class. Exporting albedo data to HDF5 or TIFF must be explicitly
+    requested by the user using appropriate methods.
+
+    The composite albedo data is created by mapping the MODIS data to the IMS
+    data using a KD tree to perform a nearest neighbor analysis using
+    concurrent futures. Passing a KD tree based on the full IMS data to the
+    futures proved problematic due to memory issues, so the IMS data is first
+    reduced to the snow/no-snow boundary areas first, which reduces the size
+    of the tree significantly.
+
+    Combining the two data sources takes roughly 15 minutes for older, 4 km
+    IMS data, and 50 minutes for 1 km IMS data running on a 36 core eagle node.
+
+    Methods
+    -------
+    run - Load all data and create composite albedo.
+    write_albedo - Write albedo data to HDF5 file.
+    write_tiff - Write albedo to georeferenced TIFF.
+    write_tiff_from_h5 - Load existing composite albedo data from HDF5 and
+                         write to TIFF.
+    """
     # Value for snow/sea ice in IMS. In thousandths, e.g. 867 == 0.867
     SNOW_ALBEDO = 867
 
@@ -38,6 +83,10 @@ class CompositeAlbedoDay:
             Shape of IMS data (rows, cols). Defaults to normal shape.
         modis : (int, int)
             Shape of MODIS data (rows, cols). Defaults to normal shape.
+
+        Returns
+        -------
+            Class instance
         """
         cad = cls(date, modis_path, ims_path, albedo_path)
 
@@ -90,6 +139,60 @@ class CompositeAlbedoDay:
                              dtype=self.modis.lat.dtype, data=self.modis.lat)
             f.create_dataset('longitude', shape=self.modis.lon.shape,
                              dtype=self.modis.lon.dtype, data=self.modis.lon)
+
+    def write_tiff(self):
+        """
+        Write albedo data to TIFF and world file. Georeferencing appears to be
+        off by 5 meters.
+        """
+        day = str(self.date.timetuple().tm_yday).zfill(3)
+        year = self.date.year
+        outfilename = os.path.join(self.albedo_path,
+                                   f'nsrdb_albedo_{year}_{day}.tif')
+
+        self._create_tiff(self.albedo, outfilename)
+
+    @classmethod
+    def write_tiff_from_h5(cls, infilename, outfilename=None):
+        """
+        Write albedo data to TIFF and world file. Georeferencing appears to be
+        off by 5 meters.
+
+        Parameters
+        ----------
+        infilename : string
+            Path and file name of albedo h5 file
+        outfilename : string
+            Path and file name for TIFF and world file. Defaults to infilename
+            with .tif extension
+        """
+        if outfilename is None:
+            outfilename = os.path.splitext(infilename)[0] + '.tif'
+
+        with h5py.File(infilename, 'r') as f:
+            data = np.array(f['surface_albedo'])
+
+        cls._create_tiff(data, outfilename)
+
+    @staticmethod
+    def _create_tiff(data, filename):
+        """
+        Write albedo data to TIFF and world file. Georeferencing appears to be
+        off by 5 meters.
+
+        Parameters
+        ----------
+        data : np.array() (int16)
+            Albedo data
+        filename : string
+            File name and full path for TIFF
+        """
+        tif = libtiff.TIFF.open(filename, mode='w')
+        tif.write_image(data)
+        tif.close()
+
+        with open(os.path.splitext(filename)[0] + '.tfw', 'wt') as f:
+            f.write(WORLD)
 
     def _calc_albedo(self):
         """
