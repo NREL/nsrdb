@@ -1,6 +1,5 @@
 # import ftplib
 import os
-import sys
 import logging
 # import glob
 import numpy as np
@@ -38,7 +37,7 @@ class ImsDay:
     pixels = {RES_4KM: 6144,
               RES_1KM: 24576}
 
-    def __init__(self, date, ims_path):
+    def __init__(self, date, ims_path, shape=None):
         """
         Parameters
         ----------
@@ -46,6 +45,9 @@ class ImsDay:
             Date to grab data for. Time is ignored
         ims_path : str
             Path to IMS data files
+        shape : (int, int)
+            Tuple of data shape in (rows, cols) format. Defaults to standard
+            values for 1- and 4-km grid. Used for testing.
         """
         # TODO - possibly accept metadata so it doesn't have to be read
         # logger.debug(f'Importing {dfile} into ImsDay')
@@ -62,6 +64,12 @@ class ImsDay:
         self._lon_file = _ifa.lon_file
 
         self.res = _ifa.res
+        if shape is None:
+            # Assume standard shape based on resolution
+            self._shape = (self.pixels[self.res], self.pixels[self.res])
+        else:
+            # Use customize data shape (i.e., for testing)
+            self._shape = shape
 
         print('Loading IMS data')
         self.data = self._load_data()
@@ -87,19 +95,16 @@ class ImsDay:
                 if re.search('[a-z]', line.strip()) is None:
                     raw.extend([int(l) for l in list(line.strip())])
 
-        # IMS data sanity check
-        if self.res == self.RES_1KM and len(raw) != 24576**2:
-            msg = f'Data length in {self.file_name} is expected to be ' + \
-                  f'{24576**2} but is {len(raw)}.'
-            raise ImsError(msg)
-        if self.res == self.RES_4KM and len(raw) != 6144**2:
-            msg = f'Data length in {self.file_name} is expected to be ' + \
-                  f'{6144**2} but is {len(raw)}.'
-            raise ImsError(msg)
-
         # Reshape data to square, size dependent on resolution, and flip
-        grid = (self.pixels[self.res], self.pixels[self.res])
-        ims_data = np.flipud(np.array(raw).reshape(grid)).astype(np.int8)
+        ims_data = np.flipud(np.array(raw).reshape(self._shape))
+        ims_data = ims_data.astype(np.int8)
+
+        # IMS data sanity check
+        length = self._shape[0]*self._shape[1]
+        if len(raw) != length:
+            msg = f'Data length in {self._filename} is expected to be ' + \
+                f'{length} but is {len(raw)}.'
+            raise ImsError(msg)
 
         return ims_data
 
@@ -115,14 +120,14 @@ class ImsDay:
             projection so lon/lat is specifically defined for each pixel. The
             lon/lat arrays are the same length as the IMS data.
         """
-        size = self.pixels[self.res]**2
+        length = self._shape[0]*self._shape[1]
         # The 1km and 4km data are stored in different formats
         if self.res == self.RES_1KM:
             with open(self._lat_file, 'rb') as f:
-                lat = np.fromfile(f, dtype='<d', count=size)\
+                lat = np.fromfile(f, dtype='<d', count=length)\
                     .astype(np.float32)
             with open(self._lon_file, 'rb') as f:
-                lon = np.fromfile(f, dtype='<d', count=size)\
+                lon = np.fromfile(f, dtype='<d', count=length)\
                     .astype(np.float32)
         else:
             # 4km
@@ -133,12 +138,12 @@ class ImsDay:
         lon = np.where(lon > 180, lon - 360, lon)
 
         # Meta data sanity checks
-        if lon.shape != (size,):
-            msg = f'Shape of {self._lon_file} is expected to be ({size},)' + \
+        if lon.shape != (length,):
+            msg = f'Shape of {self._lon_file} is expected to be ({length},)' +\
                    f' but is {lon.shape}.'
             raise ImsError(msg)
-        if lat.shape != (size,):
-            msg = f'Shape of {self._lat_file} is expected to be ({size},)' + \
+        if lat.shape != (length,):
+            msg = f'Shape of {self._lat_file} is expected to be ({length},)' +\
                    f' but is {lat.shape}.'
         return lon, lat
 

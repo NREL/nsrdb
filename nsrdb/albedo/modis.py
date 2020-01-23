@@ -1,14 +1,9 @@
 import os
-import sys
 import logging
 import pyhdf
 from pyhdf.SD import SD
 import matplotlib.pyplot as plt
 import urllib
-
-# TODO - remove below code after testing is finished
-nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
-sys.path.append(nsrdb_path)
 
 from nsrdb.utilities.file_utils import url_download
 
@@ -21,9 +16,13 @@ NODATA = 32767
 class ModisError(Exception):
     pass
 
+
 class ModisDay:
     """ Load MODIS data for a single day from disk """
-    def __init__(self, date, modis_path):
+    LAT_SIZE = 21600
+    LON_SIZE = 43200
+
+    def __init__(self, date, modis_path, shape=None):
         """
         Parameters
         ----------
@@ -31,9 +30,16 @@ class ModisDay:
             Date to grab data for. Time is ignored
         modis_path : str
             Path to MODIS data files
+        shape : (int, int)
+            Shape of MODIS data. Defaults to normal values. Used for testing.
         """
         # logger.debug(f'Importing {dfile} into ModisDay')
         self.modis_path = modis_path
+        if shape is None:
+            self._shape = (self.LAT_SIZE, self.LON_SIZE)
+        else:
+            self._shape = shape
+
         self._filename = ModisFileAcquisition.get_file(date, modis_path)
         self.data, self.lon, self.lat = self._load_day()
 
@@ -67,11 +73,14 @@ class ModisDay:
                              'does not have expected datasets and may be ' +
                              'too old.')
 
-        if len(lat) != 21600 or len(lon) != 43200 or \
-                data.shape != (21600, 43200):
-            msg = f'Shape of {self._filename} is expected to be (21600, ' + \
-                   f'43200) but is {data.shape}. Lat/lon may be off.'
+        if len(lat) != self._shape[0] or len(lon) != self._shape[1] or \
+                data.shape != self._shape:
+            msg = f'Data/metadata shapes are not correct for ' +\
+                  f'{self._filename}. Data shape={data.shape}, ' +\
+                  f'Lon shape={lon.shape}, Lat shape={lat.shape}. Data ' +\
+                  f'shape is expected to be {self._shape}.'
             raise ModisError(msg)
+
         return data, lon, lat
 
     def plot(self):

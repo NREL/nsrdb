@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import h5py
 from scipy import ndimage
@@ -8,6 +9,7 @@ from multiprocessing import cpu_count
 import nsrdb.albedo.modis as modis
 import nsrdb.albedo.ims as ims
 
+
 class AlbedoError(Exception):
     pass
 
@@ -17,7 +19,8 @@ class CompositeAlbedoDay:
     SNOW_ALBEDO = 867
 
     @classmethod
-    def run(cls, date, modis_path, ims_path, albedo_path):
+    def run(cls, date, modis_path, ims_path, albedo_path, ims_shape=None,
+            modis_shape=None):
         """
         Merge MODIS and IMS data for one day.
 
@@ -31,14 +34,18 @@ class CompositeAlbedoDay:
             Path for IMS data files
         albedo_path : str
             Path for composite albedo data files (output)
+        ims_shape : (int, int)
+            Shape of IMS data (rows, cols). Defaults to normal shape.
+        modis : (int, int)
+            Shape of MODIS data (rows, cols). Defaults to normal shape.
         """
         cad = cls(date, modis_path, ims_path, albedo_path)
 
         print(f'Loading MODIS data for {cad.date}')
-        cad.modis = modis.ModisDay(cad.date, cad.modis_path)
+        cad.modis = modis.ModisDay(cad.date, cad.modis_path, shape=modis_shape)
 
         print(f'Loading IMS data {cad.date}')
-        cad.ims = ims.ImsDay(cad.date, cad.ims_path)
+        cad.ims = ims.ImsDay(cad.date, cad.ims_path, shape=ims_shape)
 
         cad.albedo = cad._calc_albedo()
         return cad
@@ -53,20 +60,29 @@ class CompositeAlbedoDay:
         self.modis = None  # ModisDay object
         self.ims = None  # ImsDay object
 
-    def write_albedo(self, outfilename):
+    def write_albedo(self):
         """
         Write albedo data to HDF5 file
 
         Parameters
         ----------
-        outfilename : string
-            Name of HDF5 file to save
+        path : string
+            Location to save albedo data to
         """
+
+        day = str(self.date.timetuple().tm_yday).zfill(3)
+        year = self.date.year
+        # TODO update the file pattern
+        outfilename = os.path.join(self.albedo_path,
+                                   f'nsrdb_albedo_{year}_{day}.h5')
+
         albedo_attrs = {'units': 'unitless',
                         'scale_factor': 1000}
+
+        print(f'Writing albedo data to {outfilename}')
         with h5py.File(outfilename, 'w') as f:
             f.create_dataset('surface_albedo', shape=self.albedo.shape,
-                                dtype=self.albedo.dtype, data=self.albedo)
+                             dtype=self.albedo.dtype, data=self.albedo)
             for k, v in albedo_attrs.items():
                 f['surface_albedo'].attrs[k] = v
 
@@ -219,4 +235,3 @@ class CompositeAlbedoDay:
         n_mg_v = np.vstack((new_mg[0].reshape(-1), new_mg[1].reshape(-1)))
         modis_pts = n_mg_v.T
         return modis_pts
-
