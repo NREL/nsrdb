@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 import urllib
 
 from nsrdb.utilities.file_utils import url_download
+from nsrdb.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
+# TODO - NODATA is unused, should I remove?
 NODATA = 32767
 
 
@@ -22,7 +23,8 @@ class ModisDay:
     LAT_SIZE = 21600
     LON_SIZE = 43200
 
-    def __init__(self, date, modis_path, shape=None):
+    def __init__(self, date, modis_path, shape=None, log_level='INFO',
+                 log_file=None):
         """
         Parameters
         ----------
@@ -32,15 +34,22 @@ class ModisDay:
             Path to MODIS data files
         shape : (int, int)
             Shape of MODIS data. Defaults to normal values. Used for testing.
+        log_level : str
+            Level to log messages at.
+        log_file : str
+            File to log messages to
         """
-        # logger.debug(f'Importing {dfile} into ModisDay')
+        init_logger(__name__, log_file=log_file, log_level=log_level)
+
         self.modis_path = modis_path
         if shape is None:
             self._shape = (self.LAT_SIZE, self.LON_SIZE)
         else:
             self._shape = shape
 
-        self._filename = ModisFileAcquisition.get_file(date, modis_path)
+        self._filename = ModisFileAcquisition.get_file(date, modis_path,
+                                                       log_level=log_level,
+                                                       log_file=log_file)
         self.data, self.lon, self.lat = self._load_day()
 
     def _load_day(self):
@@ -62,12 +71,12 @@ class ModisDay:
             raise ModisError(f'Issue loading {self._filename}: {e}')
 
         try:
-            print('Loading MODIS data')
+            logger.info('Loading MODIS data')
             data = hdf.select('Albedo_Map_0.3-5.0')[:]
-            print('Loading MODIS metadata')
+            logger.info('Loading MODIS metadata')
             lat = hdf.select('Latitude')[:]
             lon = hdf.select('Longitude')[:]
-            print('Completed loading MODIS data and metadata')
+            logger.info('Completed loading MODIS data and metadata')
         except pyhdf.error.HDF4Error as e:
             raise ModisError(f'Error loading {self._filename}: {e}. File ' +
                              'does not have expected datasets and may be ' +
@@ -81,6 +90,7 @@ class ModisDay:
                   f'shape is expected to be {self._shape}.'
             raise ModisError(msg)
 
+        logger.info(f'MODIS data shape is {data.shape}')
         return data, lon, lat
 
     def plot(self):
@@ -109,7 +119,7 @@ class ModisFileAcquisition:
     # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
 
     @classmethod
-    def get_file(cls, date, path):
+    def get_file(cls, date, path, log_level='INFO', log_file=None):
         """
         Returns filename for MODIS date file for date. Searches in 'path' and
         downloads if necessary. MODIS files are every 8 days. Returns nearest
@@ -118,23 +128,32 @@ class ModisFileAcquisition:
         Parameters
         ----------
         date : Datetime object
-            Desired data
-        path : string
-            Location of/for MODIS data on disk
+            Desired date for MODIS data.
+        path : str
+            Location of/for MODIS data on disk.
+        log_level : str
+            Level to log messages at.
+        log_file : str
+            File to log messages to
 
         Returns
         -------
-        filename : string
+        filename : str
             Filename with path to MODIS data file
         """
+        init_logger(__name__, log_file=log_file, log_level=log_level)
+        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
+                    log_level=log_level)
+
         mfa = cls(date, path)
 
         # See if the file is on disk
         if os.path.isfile(os.path.join(path, mfa.filename)):
-            print(f'{mfa.filename} found on disk at {path}')
+            logger.info(f'{mfa.filename} found on disk at {path}')
         else:
             # Download it
-            print(f'{mfa.filename} not found on disk, attempting to download')
+            logger.info(f'{mfa.filename} not found on disk, attempting to ' +
+                        'download')
             mfa._download()
         return os.path.join(mfa.path, mfa.filename)
 
@@ -163,7 +182,7 @@ class ModisFileAcquisition:
                              e)
         if fail:
             raise ModisError(f'Error while attempting to download {url}')
-        print(f'Successfully downloaded {url}')
+        logger.info(f'Successfully downloaded {url}')
 
     @staticmethod
     def _nearest_modis_day(day):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PyTest file for multi year mean.
+PyTest file for IMS snow data processing
 
 Created on Jan 17th 2020
 

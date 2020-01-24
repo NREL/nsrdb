@@ -11,15 +11,11 @@ import gzip
 import shutil
 from datetime import datetime, timedelta
 
-# TODO - remove below code after testing is finished
-# nsrdb_path = os.path.dirname(os.path.dirname(os.getcwd()))
-# sys.path.append(nsrdb_path)
-
 from nsrdb.utilities.file_utils import url_download
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class ImsError(Exception):
@@ -37,27 +33,34 @@ class ImsDay:
     pixels = {RES_4KM: 6144,
               RES_1KM: 24576}
 
-    def __init__(self, date, ims_path, shape=None):
+    def __init__(self, date, ims_path, shape=None, log_level='INFO',
+                 log_file=None):
         """
         Parameters
         ----------
         date : datetime instance
-            Date to grab data for. Time is ignored
+            Date to grab data for. Time is ignored.
         ims_path : str
-            Path to IMS data files
+            Path to IMS data files.
         shape : (int, int)
             Tuple of data shape in (rows, cols) format. Defaults to standard
             values for 1- and 4-km grid. Used for testing.
+        log_level : str
+            Level to log messages at.
+        log_file : str
+            File to log messages to
         """
         # TODO - possibly accept metadata so it doesn't have to be read
-        # logger.debug(f'Importing {dfile} into ImsDay')
+        init_logger(__name__, log_file=log_file, log_level=log_level)
+
         self.ims_path = ims_path
 
         self.day = date.timetuple().tm_yday
         self.year = date.year
 
         # Download data (if necessary)
-        _ifa = ImsFileAcquisition(date, ims_path)
+        _ifa = ImsFileAcquisition(date, ims_path, log_level=log_level,
+                                  log_file=log_file)
         _ifa.get_files()
         self._filename = _ifa.filename
         self._lat_file = _ifa.lat_file
@@ -71,11 +74,11 @@ class ImsDay:
             # Use customize data shape (i.e., for testing)
             self._shape = shape
 
-        print('Loading IMS data')
+        logger.info('Loading IMS data')
         self.data = self._load_data()
-        print('Loading IMS metadata')
+        logger.info('Loading IMS metadata')
         self.lon, self.lat = self._load_meta()
-        print('Completed loading IMS data and metadata')
+        logger.info('Completed loading IMS data and metadata')
 
     def _load_data(self):
         """
@@ -95,10 +98,6 @@ class ImsDay:
                 if re.search('[a-z]', line.strip()) is None:
                     raw.extend([int(l) for l in list(line.strip())])
 
-        # Reshape data to square, size dependent on resolution, and flip
-        ims_data = np.flipud(np.array(raw).reshape(self._shape))
-        ims_data = ims_data.astype(np.int8)
-
         # IMS data sanity check
         length = self._shape[0]*self._shape[1]
         if len(raw) != length:
@@ -106,6 +105,11 @@ class ImsDay:
                 f'{length} but is {len(raw)}.'
             raise ImsError(msg)
 
+        # Reshape data to square, size dependent on resolution, and flip
+        ims_data = np.flipud(np.array(raw).reshape(self._shape))
+        ims_data = ims_data.astype(np.int8)
+
+        logger.info(f'IMS data shape is {ims_data.shape}')
         return ims_data
 
     def _load_meta(self):
@@ -181,7 +185,7 @@ class ImsFileAcquisition:
     Class to acquire IMS data for requested day. Attempts to get data from
     disk first. If not available the data is downloaded exist it is downloaded.
 
-    Files are acquired by calling self.get_files().
+    Files are acquired by calling self.get_files() after class is initialized.
 
     It should be noted that for dates on and after 2014, 336, (Ver 1.3) the
     file date is one day after the data date.
@@ -196,26 +200,33 @@ class ImsFileAcquisition:
     EARLIEST_VER_1_3 = get_dt(2014, 336)
     EARLIEST_SUPPORTED = datetime(2004, 2, 22)
 
-    def __init__(self, date, path):
+    def __init__(self, date, path, log_level='INFO', log_file=None):
         """
         Attributes
         ----------
-        self.filename : string
+        self.filename : str
             Path and filename for IMS data file
-        self.lon_file : string
+        self.lon_file : str
             Path and filename for longitude data file
-        self.lat_file : string
+        self.lat_file : str
             Path and filename for latitude data file
-        self.res: string
+        self.res: str
             Resolution of data
 
         Parameters
         ----------
         date : Datetime object
             Desired date
-        path : string
+        path : str
             Path of/for IMS data on disk
+        log_level : str
+            Level to log messages at.
+        log_file : str
+            File to log messages to
         """
+        init_logger(__name__, log_file=log_file, log_level=log_level)
+        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
+                    log_level=log_level)
 
         if date < self.EARLIEST_SUPPORTED:
             raise ImsError(f'Dates before {self.EARLIEST_SUPPORTED} are not' +
@@ -259,18 +270,19 @@ class ImsFileAcquisition:
         """
         # Data
         if os.path.isfile(self.filename):
-            print(f'{self._pfilename} found on disk at {self.path}')
+            logger.info(f'{self._pfilename} found on disk at {self.path}')
         else:
-            print(f'{self._pfilename} not found on disk, attempting to ' +
-                  'download')
+            logger.info(f'{self._pfilename} not found on disk, attempting to' +
+                        ' download')
             self._download_data()
             self._uncompress(self._pfilename + '.gz')
 
         # Metadata
         if os.path.isfile(self.lon_file) and os.path.isfile(self.lat_file):
-            print(f'IMS metadata found on disk at {self.path}')
+            logger.info(f'IMS metadata found on disk at {self.path}')
         else:
-            print(f'IMS metadata not found on disk, attempting to download')
+            logger.info(f'IMS metadata not found on disk, attempting to ' +
+                        'download')
             self._download_metadata(self._mf.lon_remote, self._mf.lat_remote)
             self._uncompress(self._mf.lon_remote)
             self._uncompress(self._mf.lat_remote)
@@ -287,7 +299,7 @@ class ImsFileAcquisition:
 
         Parameters
         ----------
-        lon_file, lat_file : string
+        lon_file, lat_file : str
             Names of metadata files
         """
         url = f'ftp://{self.FTP_SERVER}{self.FTP_METADATA_FOLDER}' + \
@@ -304,18 +316,16 @@ class ImsFileAcquisition:
 
         Parameters
         ----------
-        filename : string
+        filename : str
             File to untar/ungzip
         """
-        print(f'Uncompressing {filename}')
+        logger.info(f'Uncompressing {filename}')
         filename = os.path.join(self.path, filename)
 
         if filename.split('.')[-2] == 'tar':
-            print('tar processing', filename)
             with tarfile.open(filename) as tar:
                 tar.extractall(self.path)
         else:
-            print('gzip processing', filename)
             with gzip.open(filename, 'r') as f_in:
                 with open(filename[:-3], 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
@@ -327,9 +337,9 @@ class ImsFileAcquisition:
 
         Parameters
         ----------
-        url : string
+        url : str
             full url to download
-        lfile : string
+        lfile : str
             Path and filename to save data as
         """
         logger.info(f'Downloading {url}')
@@ -341,7 +351,7 @@ class ImsFileAcquisition:
                            str(e))
         if fail:
             raise ImsError(f'Error while attempting to download {url}')
-        print(f'Successfully downloaded {url}')
+        logger.info(f'Successfully downloaded {url}')
 
 
 class MetaFiles:
@@ -350,7 +360,7 @@ class MetaFiles:
         """
         Parameters
         ----------
-        res : string ['1km', '4km']
+        res : str ['1km', '4km']
             Desired resolution
         """
         self.res = res

@@ -14,9 +14,13 @@ from scipy.spatial import cKDTree
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 import libtiff
+import logging
+from datetime import datetime as dt
 
+from nsrdb.utilities.loggers import init_logger
 import nsrdb.albedo.modis as modis
 import nsrdb.albedo.ims as ims
+
 
 # TIFF world file. Values were extracted from MODIS data with QGIS and may
 # be slightly off.
@@ -27,6 +31,8 @@ WORLD = '''0.00833333
 -179.99583333
 89.99583333
 '''
+
+logger = logging.getLogger(__name__)
 
 
 class AlbedoError(Exception):
@@ -65,7 +71,7 @@ class CompositeAlbedoDay:
 
     @classmethod
     def run(cls, date, modis_path, ims_path, albedo_path, ims_shape=None,
-            modis_shape=None):
+            modis_shape=None, log_level='INFO', log_file=None):
         """
         Merge MODIS and IMS data for one day.
 
@@ -83,18 +89,26 @@ class CompositeAlbedoDay:
             Shape of IMS data (rows, cols). Defaults to normal shape.
         modis : (int, int)
             Shape of MODIS data (rows, cols). Defaults to normal shape.
+        log_level : str
+            Level to log messages at.
+        log_file : str
+            File to log messages to
 
         Returns
         -------
             Class instance
         """
+        init_logger(__name__, log_file=log_file, log_level=log_level)
+
         cad = cls(date, modis_path, ims_path, albedo_path)
 
-        print(f'Loading MODIS data for {cad.date}')
-        cad.modis = modis.ModisDay(cad.date, cad.modis_path, shape=modis_shape)
+        logger.info(f'Loading MODIS data for {cad.date}')
+        cad.modis = modis.ModisDay(cad.date, cad.modis_path, shape=modis_shape,
+                                   log_file=log_file, log_level=log_level)
 
-        print(f'Loading IMS data {cad.date}')
-        cad.ims = ims.ImsDay(cad.date, cad.ims_path, shape=ims_shape)
+        logger.info(f'Loading IMS data {cad.date}')
+        cad.ims = ims.ImsDay(cad.date, cad.ims_path, shape=ims_shape,
+                             log_file=log_file, log_level=log_level)
 
         cad.albedo = cad._calc_albedo()
         return cad
@@ -128,7 +142,7 @@ class CompositeAlbedoDay:
         albedo_attrs = {'units': 'unitless',
                         'scale_factor': 1000}
 
-        print(f'Writing albedo data to {outfilename}')
+        logger.info(f'Writing albedo data to {outfilename}')
         with h5py.File(outfilename, 'w') as f:
             f.create_dataset('surface_albedo', shape=self.albedo.shape,
                              dtype=self.albedo.dtype, data=self.albedo)
@@ -207,18 +221,18 @@ class CompositeAlbedoDay:
         if self.modis is None or self.ims is None:
             raise AlbedoError('MODIS/IMS data must be loaded before running' +
                               ' calc_albedo()')
-        print(f'Calculating composite albedo for {self.date}')
+        logger.info(f'Calculating composite albedo for {self.date}')
 
         # Find snow/no snow region boundaries of IMS
-        print('Determining IMS snow/no snow region boundaries')
+        logger.info('Determining IMS snow/no snow region boundaries')
         ims_bin_mskd, ims_pts = self._get_ims_boundary()
 
         # Create cKDTree to map MODIS points onto IMS regions
-        print('Creating KD Tree')
+        logger.info('Creating KD Tree')
         ims_tree = cKDTree(ims_pts)
 
         # Map MODIS pixels to IMS data
-        print('Mapping MODIS to IMS data. This might take a while.')
+        logger.info('Mapping MODIS to IMS data. This might take a while.')
         modis_pts = self._get_modis_pts()
         ind = self._run_futures(ims_tree, modis_pts)
 
@@ -271,15 +285,29 @@ class CompositeAlbedoDay:
         """
         futures = {}
         chunks = np.array_split(modis_pts, cpu_count())
+        now = dt.now()
         with ProcessPoolExecutor() as exe:
             for i, chunk in enumerate(chunks):
                 future = exe.submit(self._run_single_tree, ims_tree, chunk)
-                futures[future] = i
-            print('Started all futures')
+                meta = {'id': i}
+                ct = chunk.T
+                meta['lon_min'] = ct[0].min()
+                meta['lon_max'] = ct[0].max()
+                meta['lat_min'] = ct[1].min()
+                meta['lat_max'] = ct[1].max()
+                meta['size'] = ct.size
+                futures[future] = meta
+                # import pdb; pdb.set_trace()
+
+            logger.info(f'Started all futures in {dt.now() - now}')
 
             for i, future in enumerate(as_completed(futures)):
-                print(f'{i + 1} out of {len(futures)} futures completed.')
-        print('done processing')
+                logger.info(f'Future {futures[future]} completed in ' +
+                            f'{dt.now() - now}.')
+                logger.info(f'{i + 1} out of {len(futures)} futures ' +
+                            f'completed')
+                # import pdb; pdb.set_trace()
+        logger.info('done processing')
 
         # Merge all returned indices
         ind = np.empty((len(modis_pts)), dtype=int)
