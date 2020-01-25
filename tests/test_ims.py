@@ -57,7 +57,7 @@ def test_ims_res():
     assert ifa.res == '4km'
 
 
-def test_download_and_loading():
+def test_download():
     """
     For data on and after 2014, 336, the file is dated one day after the data!!
 
@@ -85,6 +85,16 @@ def test_download_and_loading():
         with pytest.raises(ims.ImsError):
             ifa._download_data()
 
+
+def test_data_loading():
+    """
+    For data on and after 2014, 336, the file is dated one day after the data!!
+
+    Downloading meta data for 1km is slow (~4GB)
+    """
+    with tempfile.TemporaryDirectory() as td:
+        # TODO - Remove next line
+        td = 'scratch'
         d = get_dt(2005, 157)
         ims_day = ims.ImsDay(d, td)
         assert ims_day.data.shape == (ims_day.pixels['4km'],
@@ -98,6 +108,7 @@ def test_download_and_loading():
                                       ims_day.pixels['1km'])
         assert ims_day.lon.shape == (ims_day.pixels['1km']**2,)
         assert ims_day.lat.shape == (ims_day.pixels['1km']**2,)
+
 
 def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.

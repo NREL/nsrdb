@@ -110,6 +110,7 @@ class ImsDay:
         ims_data = ims_data.astype(np.int8)
 
         logger.info(f'IMS data shape is {ims_data.shape}')
+        # TODO - Consider ignoring nodata pixels (value == 0)
         return ims_data
 
     def _load_meta(self):

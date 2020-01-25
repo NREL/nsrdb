@@ -91,6 +91,9 @@ class ModisDay:
             raise ModisError(msg)
 
         logger.info(f'MODIS data shape is {data.shape}')
+        logger.info(f'Boundaries of MODIS data: ' +
+                    f'{lon.min()} - {lon.max()} long, {lat.min()} - ' +
+                    f'{lat.max()} lat')
         return data, lon, lat
 
     def plot(self):

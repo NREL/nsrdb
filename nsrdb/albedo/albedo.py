@@ -32,6 +32,12 @@ WORLD = '''0.00833333
 89.99583333
 '''
 
+# MODIS is clipped to IMS extent before calculating nearest neighbors.
+# CLIP_MARGIN is a small buffer around the IMS extent to prevent the MODIS
+# data from being clipped slightly too small due to mismatched projections.
+CLIP_MARGIN = 0.1  # degrees lat/long
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -231,19 +237,28 @@ class CompositeAlbedoDay:
         logger.info('Creating KD Tree')
         ims_tree = cKDTree(ims_pts)
 
+        # Clip MODIS data to IMS boundary
+        mc = ModisClipper(self.modis, self.ims)
+
         # Map MODIS pixels to IMS data
         logger.info('Mapping MODIS to IMS data. This might take a while.')
-        modis_pts = self._get_modis_pts()
+        modis_pts = self._get_modis_pts(mc.mlon_clip, mc.mlat_clip)
         ind = self._run_futures(ims_tree, modis_pts)
 
         # Project nearest neighbors from IMS to MODIS. Array is on same grid as
-        # MODIS, but has snow/no snow values from binary IMS.
-        snow_no_snow = ims_bin_mskd[ind].reshape(len(self.modis.lat),
-                                                 len(self.modis.lon))
+        # clipped MODIS, but has snow/no snow values from binary IMS.
+        snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
+                                                 len(mc.mlon_clip))
+        logger.info(f'Shape of snow/no snow grid is {snow_no_snow.shape}.')
 
         # Copy and update MODIS albedo for cells w/ snow
+        mclip_albedo = mc.modis_clip.copy()
+        mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
+
+        # Merge clipped composite albedo with full MODIS data
         albedo = self.modis.data.copy()
-        albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
+        albedo[mc.modis_idx] = mclip_albedo
+
         return albedo
 
     @staticmethod
@@ -352,9 +367,16 @@ class CompositeAlbedoDay:
 
         return ims_bin_mskd, ims_pts
 
-    def _get_modis_pts(self):
+    def _get_modis_pts(self, lon_pts, lat_pts):
         """
         Create 2D numpy array representing lon/lats of MODIS pixels
+
+        Parameters
+        ----------
+        lon_pts : numpy array
+            Longitude points for MODIS data
+        lat_pts : numpy array
+            Latitude points for MODIS data
 
         Returns
         -------
@@ -362,7 +384,67 @@ class CompositeAlbedoDay:
             Array of lon/lat points corresponding to all pixels in
             self.modis.data
         """
-        new_mg = np.meshgrid(self.modis.lon, self.modis.lat)
+        new_mg = np.meshgrid(lon_pts, lat_pts)
         n_mg_v = np.vstack((new_mg[0].reshape(-1), new_mg[1].reshape(-1)))
         modis_pts = n_mg_v.T
         return modis_pts
+
+
+class ModisClipper:
+    """
+    Clip MODIS data to extent of valid IMS data. This prevents
+    assigning IMS values to MODIS outside of the IMS extents, and
+    speeds NN mapping.
+
+    Attributes
+    ----------
+    modis_idx : 2D numpy boolean array
+        2D indices of MODIS values w/n IMS extent
+    modis_clip : 2D numpy int16
+        MODIS data clipped to IMS extent
+    mlat_clip : 1D numpy float32
+        MODIS latitudes clipped to IMS extent
+    mlon_clip : 1D numpy float32
+        MODIS longigutes clipped to IMS extent
+
+    """
+    def __init__(self, modis, ims):
+        """
+        Parameters
+        ----------
+        modis : ModisDay instance
+            MODIS data to clip
+        ims : ImsDay instance
+            IMS data to clip MODIS extent to
+        """
+        self._modis = modis
+        self._ims = ims
+
+        # Ignore IMS Nodata pixels
+        idata = self._ims.data.copy().flatten()
+        mask = idata > 0
+
+        # idata_good = idata[mask]
+        ilat_good = self._ims.lat[mask]
+        ilon_good = self._ims.lon[mask]
+
+        # Get MODIS mask from IMS extents
+        logger.info(f'Boundaries of valid IMS data: {ilon_good.min()} - ' +
+                    f'{ilon_good.max()} long, {ilat_good.min()} - ' +
+                    f'{ilat_good.max()} lat')
+        mlat_idx = (ilat_good.min() - CLIP_MARGIN <= self._modis.lat) & \
+                   (self._modis.lat <= ilat_good.max() + CLIP_MARGIN)
+        mlon_idx = (ilon_good.min() - CLIP_MARGIN <= self._modis.lon) & \
+                   (self._modis.lon <= ilon_good.max() + CLIP_MARGIN)
+        self.modis_idx = np.ix_(mlat_idx, mlon_idx)
+
+        # Clip out MODIS that matches IMS extents
+        self.modis_clip = self._modis.data[self.modis_idx]
+        self.mlat_clip = self._modis.lat[mlat_idx]
+        self.mlon_clip = self._modis.lon[mlon_idx]
+
+        logger.info(f'Boundaries of clipped MODIS data: ' +
+                    f'{self.mlon_clip.min()} - ' +
+                    f'{self.mlon_clip.max()} long, {self.mlat_clip.min()} - ' +
+                    f'{self.mlat_clip.max()} lat')
+        logger.info(f'Shape of clipped MODIS data is {self.modis_clip.shape}')

@@ -33,6 +33,12 @@ def test_4km_data():
     with h5py.File(test_data, 'r') as f:
         data = np.array(f['surface_albedo'])
 
+    # import matplotlib.pyplot as plt
+    # plt.imshow(data)
+    # plt.show()
+    # plt.imshow(cad.albedo)
+    # plt.show()
+
     assert np.array_equal(data, cad.albedo)
 
 
@@ -47,6 +53,12 @@ def test_1km_data():
     test_data = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2015_001.h5')
     with h5py.File(test_data, 'r') as f:
         data = np.array(f['surface_albedo'])
+
+    # import matplotlib.pyplot as plt
+    # plt.imshow(data)
+    # plt.show()
+    # plt.imshow(cad.albedo)
+    # plt.show()
 
     assert np.array_equal(data, cad.albedo)
 
