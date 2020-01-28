@@ -1,4 +1,4 @@
-# import ftplib
+import ftplib
 import os
 import logging
 # import glob
@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class ImsError(Exception):
+    pass
+
+
+class ImsDataNotFound(ImsError):
     pass
 
 
@@ -51,7 +55,10 @@ class ImsDay:
             File to log messages to
         """
         # TODO - possibly accept metadata so it doesn't have to be read
+
         init_logger(__name__, log_file=log_file, log_level=log_level)
+        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
+                    log_level=log_level)
 
         self.ims_path = ims_path
 
@@ -59,8 +66,7 @@ class ImsDay:
         self.year = date.year
 
         # Download data (if necessary)
-        _ifa = ImsFileAcquisition(date, ims_path, log_level=log_level,
-                                  log_file=log_file)
+        _ifa = ImsFileAcquisition(date, ims_path)
         _ifa.get_files()
         self._filename = _ifa.filename
         self._lat_file = _ifa.lat_file
@@ -183,6 +189,139 @@ def get_dt(year, day):
 
 class ImsFileAcquisition:
     """
+    Grab IMS files from ftp. If they don't exist, attempt to temporal gap fill.
+    """
+    def __init__(self, date, path):
+        """
+        Parameters
+        ----------
+        date : Datetime object
+            Desired date
+        path : str
+            Path of/for IMS data on disk
+        """
+
+        self.date = date  # data date
+        self.path = path
+
+        self.filename = None
+        self.lat_file = None
+        self.lon_file = None
+        self.res = None
+
+    def get_files(self):
+        """
+        Grab data from ftp or disk if it exists. If day is missing, check if
+        gap filled data already exists. If not, create it.
+        """
+        ifa = ImsRealFileAcquisition(self.date, self.path)
+        self.lat_file = ifa.lat_file
+        self.lon_file = ifa.lon_file
+        self.res = ifa.res
+
+        # See if data for self.date exists on server or disk
+        # TODO - this logic is painfully convoluted. Fix.
+        try:
+            ifa.get_files()
+            self.filename = ifa.filename
+        except ImsDataNotFound:
+            # Doesn't exist, gap fill
+            logger.info(f'Data is missing from server for {self.date}, '
+                        f'looking for existing gap-filled file')
+            missing_fname = ifa.filename
+            self.filename = missing_fname + '.gf'
+
+            # Check if gap fill file was already created
+            if os.path.isfile(missing_fname + '.gf'):
+                logger.info(f'Gap-filled file found, opening {missing_fname}' +
+                            f'.gf')
+            else:
+                logger.info('Gap-filled file not found, creating gap-filled ' +
+                            'data.')
+                fa = ImsGapFill(self.date, self.path, missing_fname)
+                fa.fill_gap()
+
+
+class ImsGapFill:
+    """
+    Fill temporal gaps in IMS data set.
+    """
+    def __init__(self, date, path, missing_fname, sr=4):
+        """
+        Parameters
+        ----------
+        date : Datetime object
+            Desired date.
+        path : str
+            Path of/for IMS data on disk.
+        missing_fname : str
+            Path and name of data file for missing date
+        sr : int
+            Number of days to search before and after a missing date for good
+            data.
+        """
+        self.date = date
+        self.path = path
+        self._missing_fname = missing_fname
+        self._sr = sr
+        if sr < 1:
+            raise ValueError('sr must be at least 1')
+
+    def fill_gap(self):
+        """
+        Fill gaps in IMS data set for one year and save to disk. There may be
+        multiple consecutive days of missing data. Try to find data within
+        self._sr days of desired date.
+        """
+        logger.info(f'Looking for IMS data before/after {self.date}')
+        for i in range(1, self._sr + 1):
+            day_before = self.date - timedelta(days=i)
+            logger.debug(f'Trying {i} day before missing date. {day_before}')
+            # TODO - The use of IRFA to see if a file is on the server seems
+            # wrong and is unintuitive.
+            irfa = ImsRealFileAcquisition(day_before, self.path)
+            if irfa.check_ftp_for_data():
+                logger.info(f'Found good data {i} day(s) before missing day ' +
+                            f'on {day_before}')
+                break
+        else:
+            raise ImsError('No data found on ftp before {self.date}')
+
+        # Search for data after missing days.
+        for i in range(1, self._sr + 1):
+            day_after = self.date + timedelta(days=i)
+            logger.debug(f'Trying {i} day after missing date. {day_after}')
+            irfa = ImsRealFileAcquisition(day_after, self.path)
+            if irfa.check_ftp_for_data():
+                logger.info(f'Found good data {i} day(s) after missing day ' +
+                            f'on {day_after}')
+                break
+        else:
+            raise ImsError(f'No data found on ftp before {self.date}')
+
+        logger.info(f'Creating gap-fill data for {self.date}')
+        # TODO - Currently just using data from day before. Improve algorithm
+        i = ImsDay(day_before, self.path)
+
+        # Data is stored in asc file starting at bottom left cell. Flip.
+        self._write_data(np.flipud(i.data))
+
+    def _write_data(self, data):
+        """ Write gap filled data to disk with .gf extension """
+        meta_header = f'Temporal gap filled data for {self.date}\n'
+
+        # Write masked IMS data to disk
+        with open(self._missing_fname + '.gf', 'wt') as f:
+            f.write(meta_header)
+            # write each row of data as a string
+            for r in data:
+                txt = ''.join(r.astype(str))
+                f.write(txt)
+                f.write('\n')
+
+
+class ImsRealFileAcquisition:
+    """
     Class to acquire IMS data for requested day. Attempts to get data from
     disk first. If not available the data is downloaded exist it is downloaded.
 
@@ -201,7 +340,7 @@ class ImsFileAcquisition:
     EARLIEST_VER_1_3 = get_dt(2014, 336)
     EARLIEST_SUPPORTED = datetime(2004, 2, 22)
 
-    def __init__(self, date, path, log_level='INFO', log_file=None):
+    def __init__(self, date, path):
         """
         Attributes
         ----------
@@ -220,18 +359,11 @@ class ImsFileAcquisition:
             Desired date
         path : str
             Path of/for IMS data on disk
-        log_level : str
-            Level to log messages at.
-        log_file : str
-            File to log messages to
         """
-        init_logger(__name__, log_file=log_file, log_level=log_level)
-        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
-                    log_level=log_level)
 
         if date < self.EARLIEST_SUPPORTED:
             raise ImsError(f'Dates before {self.EARLIEST_SUPPORTED} are not' +
-                           ' current supported.')
+                           ' currently supported.')
         self.date = date  # data date
         self.path = path
 
@@ -269,15 +401,6 @@ class ImsFileAcquisition:
         """
         Check if IMS data and metadata is on disk and download if necessary.
         """
-        # Data
-        if os.path.isfile(self.filename):
-            logger.info(f'{self._pfilename} found on disk at {self.path}')
-        else:
-            logger.info(f'{self._pfilename} not found on disk, attempting to' +
-                        ' download')
-            self._download_data()
-            self._uncompress(self._pfilename + '.gz')
-
         # Metadata
         if os.path.isfile(self.lon_file) and os.path.isfile(self.lat_file):
             logger.info(f'IMS metadata found on disk at {self.path}')
@@ -288,10 +411,38 @@ class ImsFileAcquisition:
             self._uncompress(self._mf.lon_remote)
             self._uncompress(self._mf.lat_remote)
 
+        # Data
+        if os.path.isfile(self.filename):
+            logger.info(f'{self._pfilename} found on disk at {self.path}')
+        else:
+            logger.info(f'{self._pfilename} not found on disk, attempting to' +
+                        ' download')
+            if not self.check_ftp_for_data():
+                raise ImsDataNotFound(f'{self._pfilename}.gz not found on ' +
+                                      f'{self.FTP_SERVER}')
+            self._download_data()
+            self._uncompress(self._pfilename + '.gz')
+
+    def check_ftp_for_data(self):
+        """
+        Check for existence of data on ftp server. Returns True if file exists,
+        otherwise False.
+        """
+        ftp_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
+
+        ftp = ftplib.FTP(self.FTP_SERVER)
+        ftp.login()
+        ftp.cwd(ftp_path)
+        rfiles = []
+        ftp.retrlines('LIST', rfiles.append)
+        # LIST provides ls -ls style output, simplify to filenames
+        rfiles = [x.split()[8] for x in rfiles]
+        return f'{self._pfilename}.gz' in rfiles
+
     def _download_data(self):
         """ Download IMS data file and save to disk"""
-        year_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
-        url = f'ftp://{self.FTP_SERVER}{year_path}{self._pfilename}.gz'
+        ftp_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
+        url = f'ftp://{self.FTP_SERVER}{ftp_path}{self._pfilename}.gz'
         self.__download(url, os.path.join(self.path, self._pfilename + '.gz'))
 
     def _download_metadata(self, lon_file, lat_file):
@@ -393,21 +544,3 @@ class MetaFiles:
             return 'IMS1kmLats.24576x24576x1.double'
         else:
             return 'imslat_4km.bin'
-
-
-class ImsGapFill:
-    """
-    Fill gaps in IMS data set. First attempt to perform temporal gap fill,
-    then attempt spatial.
-    """
-    def __init__(self, year):
-        pass
-
-    @classmethod
-    def fill_gaps(cls, year):
-        """
-        Fill gaps in IMS data set for one year.
-
-        And then save to disk????
-        """
-        pass

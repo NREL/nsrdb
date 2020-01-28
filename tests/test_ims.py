@@ -15,10 +15,15 @@ import tempfile
 from datetime import datetime as dt
 
 
+METAFILES = ['IMS1kmLats.24576x24576x1.double',
+             'IMS1kmLons.24576x24576x1.double',
+             'imslat_4km.bin', 'imslon_4km.bin']
+
+
 def test_early_date():
     d = dt(2004, 2, 21)
     with pytest.raises(ims.ImsError):
-        ims.ImsFileAcquisition(d, '.')
+        ims.ImsDay(d, '.')
 
 
 def test_version_1_3_date_shift():
@@ -26,35 +31,51 @@ def test_version_1_3_date_shift():
     For data starting on 2014, 336, the file is dated one day after the data!!
     """
     d = get_dt(2014, 335)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa._pfilename == 'ims2014335_4km_v1.2.asc'
 
     d = get_dt(2014, 336)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa._pfilename == 'ims2014337_1km_v1.3.asc'
 
     d = get_dt(2014, 365)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa._pfilename == 'ims2015001_1km_v1.3.asc'
 
 
 def test_ims_res():
     """ Verify correct resolution is selected by date """
     d = get_dt(2014, 336)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa.res == '1km'
 
     d = get_dt(2014, 335)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa.res == '4km'
 
     d = dt(2025, 1, 1)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa.res == '1km'
 
     d = dt(2006, 1, 1)
-    ifa = ims.ImsFileAcquisition(d, '.')
+    ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa.res == '4km'
+
+
+def test_missing_data():
+    """
+    Verify appropriate exception is raised when a missing date is requested.
+    """
+    with tempfile.TemporaryDirectory() as td:
+        with pytest.raises(ims.ImsDataNotFound):
+            for mf in METAFILES:
+                with open(os.path.join(td, mf),
+                          'wt') as f:
+                    f.write('asdf')
+
+            d = get_dt(2015, 108)
+            ifa = ims.ImsRealFileAcquisition(d, td)
+            ifa.get_files()
 
 
 def test_download():
@@ -80,13 +101,14 @@ def test_download():
         assert ifa.filename.split('/')[-1] == 'ims2015158_1km_v1.3.asc'
 
         # test downloading fake file
-        ifa = ims.ImsFileAcquisition(d, td)
-        ifa._pfilename = 'fake'
+        irfa = ims.ImsRealFileAcquisition(d, td)
+        irfa._pfilename = 'fake'
         with pytest.raises(ims.ImsError):
-            ifa._download_data()
+            irfa._download_data()
 
 
-def test_data_loading():
+# TODO remove first underscore
+def _test_data_loading():
     """
     For data on and after 2014, 336, the file is dated one day after the data!!
 
@@ -95,6 +117,7 @@ def test_data_loading():
     with tempfile.TemporaryDirectory() as td:
         # TODO - Remove next line
         td = 'scratch'
+
         d = get_dt(2005, 157)
         ims_day = ims.ImsDay(d, td)
         assert ims_day.data.shape == (ims_day.pixels['4km'],
