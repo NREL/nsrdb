@@ -4,9 +4,9 @@ import pyhdf
 from pyhdf.SD import SD
 import matplotlib.pyplot as plt
 import urllib
+import numpy as np
 
 from nsrdb.utilities.file_utils import url_download
-from nsrdb.utilities.loggers import init_logger
 from nsrdb.albedo.ims import get_dt
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,7 @@ class ModisDay:
     LAT_SIZE = 21600
     LON_SIZE = 43200
 
-    def __init__(self, date, modis_path, shape=None, log_level='INFO',
-                 log_file=None):
+    def __init__(self, date, modis_path, shape=None):
         """
         Parameters
         ----------
@@ -39,22 +38,14 @@ class ModisDay:
             Path to MODIS data files
         shape : (int, int)
             Shape of MODIS data. Defaults to normal values. Used for testing.
-        log_level : str
-            Level to log messages at.
-        log_file : str
-            File to log messages to
         """
-        init_logger(__name__, log_file=log_file, log_level=log_level)
-
         self.modis_path = modis_path
         if shape is None:
             self._shape = (self.LAT_SIZE, self.LON_SIZE)
         else:
             self._shape = shape
 
-        self._filename = ModisFileAcquisition.get_file(date, modis_path,
-                                                       log_level=log_level,
-                                                       log_file=log_file)
+        self._filename = ModisFileAcquisition.get_file(date, modis_path)
         self.data, self.lon, self.lat = self._load_day()
 
     def _load_day(self):
@@ -63,11 +54,11 @@ class ModisDay:
 
         Returns
         -------
-        data : 2D numpy array
+        data : 2D numpy array (float32)
             Array with MODIS dry earth albedo values. CRS appears to be WGS84
-        lon : 1D numpy array
+        lon : 1D numpy array (float32)
             Array with longitude values for MODIS data
-        lat : 1D numpy array
+        lat : 1D numpy array (float32)
             Array with latitude values for MODIS data
         """
         try:
@@ -99,7 +90,7 @@ class ModisDay:
         logger.info(f'Boundaries of MODIS data: ' +
                     f'{lon.min()} - {lon.max()} long, {lat.min()} - ' +
                     f'{lat.max()} lat')
-        return data, lon, lat
+        return data.astype(np.float32), lon, lat
 
     def plot(self):
         """ Plot data as map. Nodata is corrected so colors are sane """
@@ -127,7 +118,7 @@ class ModisFileAcquisition:
     # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
 
     @classmethod
-    def get_file(cls, date, path, log_level='INFO', log_file=None):
+    def get_file(cls, date, path):
         """
         Returns filename for MODIS date file for date. Searches in 'path' and
         downloads if necessary. MODIS files are every 8 days. Returns nearest
@@ -139,20 +130,12 @@ class ModisFileAcquisition:
             Desired date for MODIS data.
         path : str
             Location of/for MODIS data on disk.
-        log_level : str
-            Level to log messages at.
-        log_file : str
-            File to log messages to
 
         Returns
         -------
         filename : str
             Filename with path to MODIS data file
         """
-        init_logger(__name__, log_file=log_file, log_level=log_level)
-        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
-                    log_level=log_level)
-
         mfa = cls(date, path)
 
         # See if the file is on disk

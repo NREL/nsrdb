@@ -12,17 +12,21 @@ import shutil
 from datetime import datetime, timedelta
 
 from nsrdb.utilities.file_utils import url_download
-from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
 
 
 class ImsError(Exception):
+    """ General exception for IMS processing """
     pass
 
 
 class ImsDataNotFound(ImsError):
+    """
+    Raised when IMS data is not available on ftp server. This is typically
+    caused by a missing day that needs to be gap-filled.
+    """
     pass
 
 
@@ -37,8 +41,7 @@ class ImsDay:
     pixels = {RES_4KM: 6144,
               RES_1KM: 24576}
 
-    def __init__(self, date, ims_path, shape=None, log_level='INFO',
-                 log_file=None):
+    def __init__(self, date, ims_path, shape=None):
         """
         Parameters
         ----------
@@ -49,17 +52,8 @@ class ImsDay:
         shape : (int, int)
             Tuple of data shape in (rows, cols) format. Defaults to standard
             values for 1- and 4-km grid. Used for testing.
-        log_level : str
-            Level to log messages at.
-        log_file : str
-            File to log messages to
         """
         # TODO - possibly accept metadata so it doesn't have to be read
-
-        init_logger(__name__, log_file=log_file, log_level=log_level)
-        init_logger('nsrdb.utilities.file_utils', log_file=log_file,
-                    log_level=log_level)
-
         self.ims_path = ims_path
 
         self.day = date.timetuple().tm_yday

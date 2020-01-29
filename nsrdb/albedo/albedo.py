@@ -17,7 +17,6 @@ import libtiff
 import logging
 from datetime import datetime as dt
 
-from nsrdb.utilities.loggers import init_logger
 import nsrdb.albedo.modis as modis
 import nsrdb.albedo.ims as ims
 
@@ -41,7 +40,8 @@ CLIP_MARGIN = 0.1  # degrees lat/long
 logger = logging.getLogger(__name__)
 
 
-class AlbedoError(Exception):
+class AlbedoError (Exception):
+    """ Exceptions for albedo related errors """
     pass
 
 
@@ -77,7 +77,7 @@ class CompositeAlbedoDay:
 
     @classmethod
     def run(cls, date, modis_path, ims_path, albedo_path, ims_shape=None,
-            modis_shape=None, log_level='INFO', log_file=None):
+            modis_shape=None):
         """
         Merge MODIS and IMS data for one day.
 
@@ -95,26 +95,18 @@ class CompositeAlbedoDay:
             Shape of IMS data (rows, cols). Defaults to normal shape.
         modis : (int, int)
             Shape of MODIS data (rows, cols). Defaults to normal shape.
-        log_level : str
-            Level to log messages at.
-        log_file : str
-            File to log messages to
 
         Returns
         -------
             Class instance
         """
-        init_logger(__name__, log_file=log_file, log_level=log_level)
-
         cad = cls(date, modis_path, ims_path, albedo_path)
 
         logger.info(f'Loading MODIS data for {cad.date}')
-        cad.modis = modis.ModisDay(cad.date, cad.modis_path, shape=modis_shape,
-                                   log_file=log_file, log_level=log_level)
+        cad.modis = modis.ModisDay(cad.date, cad.modis_path, shape=modis_shape)
 
         logger.info(f'Loading IMS data {cad.date}')
-        cad.ims = ims.ImsDay(cad.date, cad.ims_path, shape=ims_shape,
-                             log_file=log_file, log_level=log_level)
+        cad.ims = ims.ImsDay(cad.date, cad.ims_path, shape=ims_shape)
 
         cad.albedo = cad._calc_albedo()
         return cad
@@ -128,6 +120,7 @@ class CompositeAlbedoDay:
 
         self.modis = None  # ModisDay object
         self.ims = None  # ImsDay object
+        self.albedo = None  # numpy array of albedo data, same formate as MODIS
 
     def write_albedo(self):
         """

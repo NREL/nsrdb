@@ -10,8 +10,29 @@ import os
 import pytest
 # from nsrdb import TESTDATADIR
 import nsrdb.albedo.modis as modis
+from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
+
+
+def test_last_year():
+    """ Verify dates after most recently published data are handled """
+    d1 = get_dt(2016, 233)
+    d2 = get_dt(2015, 233)
+    d3 = get_dt(2017, 110)  # Nearest available data is 113
+
+    with tempfile.TemporaryDirectory() as td:
+        mfa = modis.ModisFileAcquisition(d1, td)
+        print(mfa.filename)
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_233_2015.hdf'
+
+        mfa = modis.ModisFileAcquisition(d2, td)
+        print(mfa.filename)
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_233_2015.hdf'
+
+        mfa = modis.ModisFileAcquisition(d3, td)
+        print(mfa.filename)
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_113_2015.hdf'
 
 
 def test_day_mapping():

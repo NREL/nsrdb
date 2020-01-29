@@ -1,11 +1,22 @@
+"""
+Command line interface for creating composite albedo data for a single day from
+MODIS dry-land albedo and IMS snow data.
+
+Mike Bannister
+1/29/2020
+"""
 import click
 import sys
-import os
+import logging
 from datetime import datetime as dt
 
-from ims import get_dt  # , ImsDay
-# from modis import ModisDay
-from albedo import CompositeAlbedoDay
+from nsrdb.utilities.loggers import init_logger
+
+from nsrdb.albedo.albedo import CompositeAlbedoDay
+from nsrdb.albedo.ims import get_dt  # , ImsDay
+
+
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -21,15 +32,15 @@ from albedo import CompositeAlbedoDay
 @click.option('--log-level',
               type=click.Choice(['DEBUG', 'INFO', 'WARNING',
                                  'ERROR', 'CRITICAL'],
-                                 case_sensitive=False),
+                                case_sensitive=False),
               default='INFO',
               help='Logging level')
 @click.option('--log-file', type=click.Path(), default=None,
               help='Logging output file.')
 @click.option('--modis-shape', nargs=2, type=int, default=None,
-              help='Shape of MODIS data')
+              help='Shape of MODIS data, in format: XXX YYY')
 @click.option('--ims-shape', nargs=2, type=int, default=None,
-              help='Shape of IMS data')
+              help='Shape of IMS data, in format: XXX YYY')
 @click.argument('date')  # help='Desired date for albedo data. In YYYYDDD ' +
 def main(path, modis_path, ims_path, albedo_path, date, log_level, log_file,
          modis_shape, ims_shape):
@@ -78,8 +89,11 @@ def main(path, modis_path, ims_path, albedo_path, date, log_level, log_file,
         print('ims shape!')
         _kwargs['ims_shape'] = ims_shape
 
+    init_logger(__name__, log_file=log_file, log_level=log_level)
+    init_logger('nsrdb.utilities.file_utils', log_file=log_file,
+                log_level=log_level)
+
     cad = CompositeAlbedoDay.run(date, modis_path, ims_path, albedo_path,
-                                 log_level=log_level, log_file=log_file,
                                  **_kwargs)
     cad.write_albedo()
 

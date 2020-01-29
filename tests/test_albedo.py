@@ -26,8 +26,7 @@ def test_4km_data():
     d = dt(2013, 1, 1)
     cad = albedo.CompositeAlbedoDay.run(d, TEST_DATA_DIR, TEST_DATA_DIR,
                                         '_', ims_shape=(32, 25),
-                                        modis_shape=(122, 120),
-                                        log_file='4km_test.log')
+                                        modis_shape=(122, 120))
 
     test_data = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_data, 'r') as f:
@@ -42,13 +41,12 @@ def test_4km_data():
     assert np.array_equal(data, cad.albedo)
 
 
-def test_1km_data():
+def  test_1km_data():
     # Create composite albedo data for 1km IMS
-    d = dt(2015, 1, 1)
+    d = dt(2015,1, 1)
     cad = albedo.CompositeAlbedoDay.run(d, TEST_DATA_DIR, TEST_DATA_DIR,
                                         '_', ims_shape=(64, 50),
                                         modis_shape=(60, 61))
-                                        # log_file='1km_test.log')
 
     test_data = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2015_001.h5')
     with h5py.File(test_data, 'r') as f:
