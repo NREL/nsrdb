@@ -14,6 +14,8 @@ from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
 
+BASE_DIR = os.path.dirname(__file__)
+TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
 
 METAFILES = ['IMS1kmLats.24576x24576x1.double',
              'IMS1kmLons.24576x24576x1.double',
@@ -78,7 +80,24 @@ def test_missing_data():
             ifa.get_files()
 
 
-def test_download():
+# TODO remove first underscore
+def test_data_loading():
+    """ Test data loading """
+    d = get_dt(2015, 1)
+    ims_day = ims.ImsDay(d, TEST_DATA_DIR, shape=(64, 50))
+    assert ims_day.data.shape == (64, 50)
+    assert ims_day.lon.shape == (64*50,)
+    assert ims_day.lat.shape == (64*50,)
+
+    d = get_dt(2013, 1)
+    ims_day = ims.ImsDay(d, TEST_DATA_DIR, shape=(32, 25))
+    assert ims_day.data.shape == (32, 25)
+    assert ims_day.lon.shape == (32*25,)
+    assert ims_day.lat.shape == (32*25,)
+
+
+# Test downloads data and is no longer being used
+def __test_download():
     """
     For data on and after 2014, 336, the file is dated one day after the data!!
 
@@ -105,32 +124,6 @@ def test_download():
         irfa._pfilename = 'fake'
         with pytest.raises(ims.ImsError):
             irfa._download_data()
-
-
-# TODO remove first underscore
-def _test_data_loading():
-    """
-    For data on and after 2014, 336, the file is dated one day after the data!!
-
-    Downloading meta data for 1km is slow (~4GB)
-    """
-    with tempfile.TemporaryDirectory() as td:
-        # TODO - Remove next line
-        td = 'scratch'
-
-        d = get_dt(2005, 157)
-        ims_day = ims.ImsDay(d, td)
-        assert ims_day.data.shape == (ims_day.pixels['4km'],
-                                      ims_day.pixels['4km'])
-        assert ims_day.lon.shape == (ims_day.pixels['4km']**2,)
-        assert ims_day.lat.shape == (ims_day.pixels['4km']**2,)
-
-        d = get_dt(2015, 157)
-        ims_day = ims.ImsDay(d, td)
-        assert ims_day.data.shape == (ims_day.pixels['1km'],
-                                      ims_day.pixels['1km'])
-        assert ims_day.lon.shape == (ims_day.pixels['1km']**2,)
-        assert ims_day.lat.shape == (ims_day.pixels['1km']**2,)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

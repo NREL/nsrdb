@@ -8,11 +8,13 @@ Created on Jan 17th 2020
 """
 import os
 import pytest
-# from nsrdb import TESTDATADIR
 import nsrdb.albedo.modis as modis
 from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
+
+BASE_DIR = os.path.dirname(__file__)
+TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
 
 
 def test_last_year():
@@ -55,29 +57,36 @@ def test_day_mapping():
     assert mfa._nearest_modis_day(366) == 361
 
 
-def test_download_and_data_loading():
-    with tempfile.TemporaryDirectory() as td:
-        # Test old file that is not supported
-        d = dt(2002, 5, 15)
-        with pytest.raises(modis.ModisError):
-            md = modis.ModisDay(d, td)
+# Test downloads data and is no longer used
+def __test_old_unsupported():
+    """ Test old file that is not supported """
+    d = dt(2002, 5, 15)
+    with pytest.raises(modis.ModisError):
+        _ = modis.ModisDay(d, TEST_DATA_DIR)
 
-        # Test downlaod
-        d = dt(2015, 6, 6)
-        filename = modis.ModisFileAcquisition.get_file(d, td)
-        assert os.path.isfile(filename)
 
-        # test downloading fake file
-        mfa = modis.ModisFileAcquisition(d, td)
-        mfa.filename = 'fake'
-        with pytest.raises(modis.ModisError):
-            mfa._download()
+def test_dl_fake_file():
+    """ test downloading fake file """
+    d = dt(2002, 5, 15)
+    mfa = modis.ModisFileAcquisition(d, 'fake')
+    mfa.filename = 'fake'
+    with pytest.raises(modis.ModisError):
+        mfa._download()
 
-        # Test data loading
-        md = modis.ModisDay(d, td)
-        assert md.data.shape == (21600, 43200)
-        assert len(md.lon) == 43200
-        assert len(md.lat) == 21600
+
+def test_data_loading():
+    """ Test data loading """
+    d = dt(2015, 1, 1)
+    md = modis.ModisDay(d, TEST_DATA_DIR, shape=(60, 61))
+    assert md.data.shape == (60, 61)
+    assert len(md.lon) == 61
+    assert len(md.lat) == 60
+
+    d = dt(2013, 1, 1)
+    md = modis.ModisDay(d, TEST_DATA_DIR, shape=(122, 120))
+    assert md.data.shape == (122, 120)
+    assert len(md.lon) == 120
+    assert len(md.lat) == 122
 
 
 def execute_pytest(capture='all', flags='-rapP'):
