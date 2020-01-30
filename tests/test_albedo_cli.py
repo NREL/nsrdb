@@ -30,10 +30,10 @@ def runner():
 def test_cli_4km_data(runner):
     """ Test CLI with 4km IMS data """
     with tempfile.TemporaryDirectory() as td:
-        result = runner.invoke(cli.main, ['2013001',
-                                          '-m', TEST_DATA_DIR,
+        result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
                                           '-i', TEST_DATA_DIR,
                                           '-a', td,
+                                          'singleday', '2013001',
                                           '--modis-shape', '122', '120',
                                           '--ims-shape', '32', '25'])
         print(result.output)
@@ -61,10 +61,12 @@ def test_cli_4km_data(runner):
 def test_cli_1km_data(runner):
     """ Test CLI with 1km IMS data """
     with tempfile.TemporaryDirectory() as td:
-        result = runner.invoke(cli.main, ['2015001',
-                                          '-m', TEST_DATA_DIR,
+        # td = 'scratch'
+        result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
                                           '-i', TEST_DATA_DIR,
                                           '-a', td,
+                                          '--tiff',
+                                          'singleday', '20150101',
                                           '--modis-shape', '60', '61',
                                           '--ims-shape', '64', '50'])
         print(result.output)
@@ -78,15 +80,19 @@ def test_cli_1km_data(runner):
         fname = os.path.join(td, 'nsrdb_albedo_2015_001.h5')
         with h5py.File(fname, 'r') as f:
             new_data = np.array(f['surface_albedo'])
-
         assert np.array_equal(known_data, new_data)
 
         # Compare against wrong output
         fname = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2013_001.h5')
         with h5py.File(fname, 'r') as f:
             wrong_data = np.array(f['surface_albedo'])
-
         assert not np.array_equal(wrong_data, new_data)
+
+        # Check for tiff file
+        tname = os.path.join(td, 'nsrdb_albedo_2015_001.tif')
+        assert os.path.isfile(tname)
+        tname = os.path.join(td, 'nsrdb_albedo_2015_001.tfw')
+        assert os.path.isfile(tname)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

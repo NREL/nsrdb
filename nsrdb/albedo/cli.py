@@ -9,17 +9,65 @@ import click
 import sys
 import logging
 from datetime import datetime as dt
+from datetime import timedelta
 
 from nsrdb.utilities.loggers import init_logger
 
 from nsrdb.albedo.albedo import CompositeAlbedoDay
+from nsrdb.albedo.albedo import logger as alogger
 from nsrdb.albedo.ims import get_dt  # , ImsDay
 
 
-logger = logging.getLogger(__name__)
+#logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
-@click.command()
+class Date(click.ParamType):
+    """ Date argument parser and sanity checker """
+    def convert(self, value, param, ctx):
+        if len(value) == 7:
+            # E.g., 2015001
+            date = get_dt(int(value[:4]), int(value[4:]))
+        elif len(value) == 8:
+            # E.g., 20150531
+            date = dt.strptime(value, '%Y%m%d')
+        else:
+            print('Date must be provided in YYYYDDD or YYYYMMDD ' +
+                  f'format (e.g. 2015012 or 20150305). {value} ' +
+                  'was provided.')
+            sys.exit(1)
+        return date
+
+
+def _setup_paths(ctx):
+    """ Handle paths and path overrides """
+    # Verify path is set
+    if ctx.obj['path'] is None and (ctx.obj['mpath'] is None or
+                                    ctx.obj['ipath'] is None or
+                                    ctx.obj['apath'] is None):
+        print('Paths for MODIS, IMS, and composite albedo data ' +
+              'must be set together using --path, or ' +
+              'individually using --modis-path, --ims-path, and ' +
+              '--albedo-path.')
+        sys.exit(1)
+
+    # Over ride general path with specifics
+    if ctx.obj['path'] is not None:
+        if ctx.obj['mpath'] is None:
+            ctx.obj['mpath'] = ctx.obj['path']
+        if ctx.obj['ipath'] is None:
+            ctx.obj['ipath'] = ctx.obj['path']
+        if ctx.obj['apath'] is None:
+            ctx.obj['apath'] = ctx.obj['path']
+
+
+@click.group()
 @click.option('--path', '-p', type=click.Path(exists=True),
               help='Path for all data files. This may be partially ' +
               'overridden by the other path arguments.')
@@ -37,65 +85,92 @@ logger = logging.getLogger(__name__)
               help='Logging level')
 @click.option('--log-file', type=click.Path(), default=None,
               help='Logging output file.')
+@click.option('--tiff', '-t', is_flag=True, default=False,
+              help='Create TIFF and world file in addition to h5 file.')
+@click.pass_context
+def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
+         tiff):
+    """
+    Create composite albedo data for one day using MODIS and IMS data sets or
+    convert existing albedo h5 file to TIFF with world file.
+    """
+    ctx.obj = {}
+    ctx.obj['path'] = path
+    ctx.obj['mpath'] = modis_path
+    ctx.obj['ipath'] = ims_path
+    ctx.obj['apath'] = albedo_path
+
+    ctx.obj['tiff'] = tiff
+
+#    init_logger(__name__, log_file=log_file, log_level=log_level)
+#    init_logger('nsrdb.utilities.file_utils', log_file=log_file,
+#                log_level=log_level)
+
+
+@main.command()
+@click.argument('date', type=Date())
 @click.option('--modis-shape', nargs=2, type=int, default=None,
               help='Shape of MODIS data, in format: XXX YYY')
 @click.option('--ims-shape', nargs=2, type=int, default=None,
               help='Shape of IMS data, in format: XXX YYY')
-@click.argument('date')  # help='Desired date for albedo data. In YYYYDDD ' +
-def main(path, modis_path, ims_path, albedo_path, date, log_level, log_file,
-         modis_shape, ims_shape):
+@click.pass_context
+def singleday(ctx, date, modis_shape, ims_shape):
     """
-    Create composite albedo data for one day using MODIS and IMS data sets.
+    Calculate composite albedo for a single day
+                help='Desired date for albedo data. In YYYYDDD or YYYYMMDD ' +
+                'format')
     """
-    # Date sanity check
-    if len(date) == 7:
-        date = get_dt(int(date[:4]), int(date[4:]))
-    elif len(date) == 8:
-        date = dt.strptime(date, '%Y%m%d')
-    else:
-        print('Date must be provided in YYYYDDD or YYYYMMDD ' +
-              f'format (e.g. 2015012 or 20150305). {date} ' +
-              'was provided.')
-        sys.exit(1)
+    _setup_paths(ctx)
+    print(f'Calculating single day composite albedo on {date}.')
+    logger.info(f'Click context: {ctx.obj}')
 
-    # Verify path is set
-    if path is None and (modis_path is None or ims_path is None or
-                         albedo_path is None):
-        print('Paths for MODIS, IMS, and composite albedo data ' +
-              'must be set together using --path, or ' +
-              'individually using --modis-path, --ims-path, and ' +
-              '--albedo-path.')
-        sys.exit(1)
-
-    # Over ride general path with specifics
-    if path is not None:
-        if modis_path is None:
-            modis_path = path
-        if ims_path is None:
-            ims_path = path
-        if albedo_path is None:
-            albedo_path = path
-
-    print(f'modis: {modis_path}, ims: {ims_path}, albedo: {albedo_path}, ' +
-          f'date: {date}, path: {path}, log_level: {log_level}, ' +
-          f'log_file: {log_file}')
-    print(f'modis_shape {modis_shape}, ims_shape {ims_shape}')
-
+    # Override data shapes, used for testing
     _kwargs = {}
     if modis_shape:
-        print('modis shape!')
         _kwargs['modis_shape'] = modis_shape
+        print(f'Using MODIS data shape of {modis_shape}')
     if ims_shape:
-        print('ims shape!')
         _kwargs['ims_shape'] = ims_shape
+        print(f'Using IMS data shape of {ims_shape}')
 
-    init_logger(__name__, log_file=log_file, log_level=log_level)
-    init_logger('nsrdb.utilities.file_utils', log_file=log_file,
-                log_level=log_level)
-
-    cad = CompositeAlbedoDay.run(date, modis_path, ims_path, albedo_path,
-                                 **_kwargs)
+    cad = CompositeAlbedoDay.run(date, ctx.obj['mpath'], ctx.obj['ipath'],
+                                 ctx.obj['apath'], **_kwargs)
     cad.write_albedo()
+    if ctx.obj['tiff']:
+        cad.write_tiff()
+
+
+@main.command()
+@click.argument('start', type=Date())
+@click.argument('end', type=Date())
+@click.pass_context
+def multiday(ctx, start, end):
+    """ Calculate composite albedo for a range of dates. Range is inclusive """
+    def daterange(start_date, end_date):
+        """
+        Create a range of dates.
+
+        From https://stackoverflow.com/questions/1060279/
+        iterating-through-a-range-of-dates-in-python
+        """
+        for n in range(int((end_date - start_date).days) + 1):
+            yield start_date + timedelta(n)
+
+    if start > end:
+        print('Start date must be before end date')
+        sys.exit(1)
+    print('range', start, end)
+
+    for date in daterange(start, end):
+        print(date)
+
+
+@main.command()
+@click.argument('albedo-file')
+def h5totiff(albedo_file):
+    """ Convert composite data in H5 file to TIFF """
+    print(f'Creating TIFF from {albedo_file}')
+    CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
 
 
 if __name__ == '__main__':

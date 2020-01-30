@@ -40,6 +40,7 @@ CLIP_MARGIN = 0.1  # degrees lat/long
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class AlbedoError (Exception):
