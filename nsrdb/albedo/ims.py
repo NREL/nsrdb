@@ -23,8 +23,7 @@ class ImsError(Exception):
 
 
 class ImsDataNotFound(ImsError):
-    """
-    Raised when IMS data is not available on ftp server. This is typically
+    """ Raised when IMS data is not available on ftp server. This is typically
     caused by a missing day that needs to be gap-filled.
     """
     pass

@@ -11,8 +11,7 @@ from nsrdb.albedo.ims import get_dt
 
 logger = logging.getLogger(__name__)
 
-# TODO - NODATA is unused, should I remove?
-NODATA = 32767
+MODIS_NODATA = 32767
 
 # Last year of MODIS data. Any dates after this year will use the data for the
 # appropriate day from this year.

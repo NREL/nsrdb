@@ -20,6 +20,8 @@ from datetime import datetime as dt
 import nsrdb.albedo.modis as modis
 import nsrdb.albedo.ims as ims
 
+# Value for NODATA cells in composite albedo
+ALBEDO_NODATA = 0
 
 # TIFF world file. Values were extracted from MODIS data with QGIS and may
 # be slightly off.
@@ -120,7 +122,7 @@ class CompositeAlbedoDay:
 
         self.modis = None  # ModisDay object
         self.ims = None  # ImsDay object
-        self.albedo = None  # numpy array of albedo data, same formate as MODIS
+        self.albedo = None  # numpy array of albedo data, same format as MODIS
 
     def write_albedo(self):
         """
@@ -139,7 +141,7 @@ class CompositeAlbedoDay:
                                    f'nsrdb_albedo_{year}_{day}.h5')
 
         albedo_attrs = {'units': 'unitless',
-                        'scale_factor': 1000}
+                        'scale_factor': 100}
 
         logger.info(f'Writing albedo data to {outfilename}')
         with h5py.File(outfilename, 'w') as f:
@@ -213,7 +215,7 @@ class CompositeAlbedoDay:
 
         Returns
         -------
-        albedo : 2D numpy array
+        albedo : 2D numpy array (np.uint8)
             MODIS data overlayed with IMS snow. Array has same shape/projection
             as MODIS
         """
@@ -251,6 +253,19 @@ class CompositeAlbedoDay:
         # Merge clipped composite albedo with full MODIS data
         albedo = self.modis.data.copy()
         albedo[mc.modis_idx] = mclip_albedo
+
+        # Reset NODATA values
+        albedo[albedo == modis.MODIS_NODATA] = ALBEDO_NODATA
+
+        # Check bounds
+        if albedo[albedo < 0].any() or albedo[albedo > 1000].any():
+            raise AlbedoError('Composite albedo data has values greater than' +
+                              ' 1000 or less than 0, before reducing scale ' +
+                              'factor.')
+
+        # Reduce scaling factor, round, cast to np.uint8
+        albedo /= 10
+        albedo = np.round(albedo).astype(np.uint8)
 
         return albedo
 
