@@ -11,19 +11,22 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta
 
-from nsrdb.utilities.loggers import init_logger
+from nsrdb.utilities.execution import SLURM
+from nsrdb.utilities.cli_dtypes import STR, INT  # , FLOATLIST, STRFLOAT
 
+from nsrdb.utilities.loggers import init_logger
 from nsrdb.albedo.albedo import CompositeAlbedoDay
-from nsrdb.albedo.albedo import logger as alogger
+# from nsrdb.albedo.albedo import logger as alogger
 from nsrdb.albedo.ims import get_dt  # , ImsDay
 
-
-#logger = logging.getLogger(__name__)
+# TODO clean all the logging up!!!
+# logger = logging.getLogger(__name__)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - ' +
+                              '%(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -100,11 +103,14 @@ def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
     ctx.obj['ipath'] = ims_path
     ctx.obj['apath'] = albedo_path
 
+    ctx.obj['log_level'] = log_level
+    ctx.obj['log_file'] = log_file
+
     ctx.obj['tiff'] = tiff
 
-#    init_logger(__name__, log_file=log_file, log_level=log_level)
-#    init_logger('nsrdb.utilities.file_utils', log_file=log_file,
-#                log_level=log_level)
+    init_logger('nsrdb.albedo', log_file=log_file, log_level=log_level)
+    init_logger('nsrdb.utilities', log_file=log_file,
+                log_level=log_level)
 
 
 @main.command()
@@ -143,26 +149,58 @@ def singleday(ctx, date, modis_shape, ims_shape):
 @main.command()
 @click.argument('start', type=Date())
 @click.argument('end', type=Date())
+@click.option('--alloc', required=True, type=STR,
+              help='Eagle allocation account name.')
+@click.option('--walltime', '-wt', default=1.0, type=float,
+              help='Eagle walltime request in hours. Default is 1.0')
+@click.option('--feature', '-l', default=None, type=STR,
+              help=('Additional flags for SLURM job. Format is "--qos=high" '
+                    'or "--depend=[state:job_id]". Default is None.'))
+@click.option('--memory', '-mem', default=None, type=INT,
+              help='Eagle node memory request in GB. Default is None')
+@click.option('--stdout_path', '-sout', default=None, type=STR,
+              help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
-def multiday(ctx, start, end):
+def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
     """ Calculate composite albedo for a range of dates. Range is inclusive """
-    def daterange(start_date, end_date):
-        """
-        Create a range of dates.
 
-        From https://stackoverflow.com/questions/1060279/
-        iterating-through-a-range-of-dates-in-python
-        """
-        for n in range(int((end_date - start_date).days) + 1):
-            yield start_date + timedelta(n)
+    # TODO - revisit assignment of name
+    name = 'c_albedo'
+
+    _setup_paths(ctx)
+    # TODO - revisit assignment of std_outpath
+    if stdout_path is None:
+        stdout_path = ctx.obj['apath']
 
     if start > end:
         print('Start date must be before end date')
         sys.exit(1)
-    print('range', start, end)
+
+    logger.info(f'Calculating composite albedo from {start} to {end}.')
 
     for date in daterange(start, end):
-        print(date)
+        cmd = get_node_cmd(date, ctx.obj['ipath'], ctx.obj['mpath'],
+                           ctx.obj['apath'], ctx.obj['tiff'])
+        print(cmd)
+        logger.info('Running composite albedo processing on Eagle with '
+                    f'node name "{name}" for {date}')
+        slurm = SLURM(cmd, alloc=alloc, memory=memory,
+                      walltime=walltime, feature=feature,
+                      name=name, stdout_path=stdout_path)
+        if slurm.id:
+            msg = ('Kicked off reV SC aggregation job "{}" '
+                   '(SLURM jobid #{}) on Eagle.'
+                   .format(name, slurm.id))
+        #     Status.add_job(
+        #         out_dir, 'aggregation', name, replace=True,
+        #         job_attrs={'job_id': slurm.id, 'hardware': 'eagle',
+        #                    'fout': '{}.csv'.format(name), 'dirout': out_dir})
+        else:
+            msg = ('Was unable to kick off reV SC job "{}". '
+                   'Please see the stdout error messages'
+                   .format(name))
+        click.echo(msg)
+        logger.info(msg)
 
 
 @main.command()
@@ -171,6 +209,29 @@ def h5totiff(albedo_file):
     """ Convert composite data in H5 file to TIFF """
     print(f'Creating TIFF from {albedo_file}')
     CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
+
+
+def get_node_cmd(date, ipath, mpath, apath, tiff):
+    """ Create shell command for single day CLI call """
+    sdate = date.strftime('%Y%m%d')
+    args = f'-i {ipath} -m {mpath} -a {apath}'
+    if tiff:
+        args += ' --tiff'
+    args += f' singleday {sdate}'
+
+    cmd = f'python -m nsrdb.albedo.cli {args}'
+    return cmd
+
+
+def daterange(start_date, end_date):
+    """
+    Create a range of dates.
+
+    From https://stackoverflow.com/questions/1060279/
+    iterating-through-a-range-of-dates-in-python
+    """
+    for n in range(int((end_date - start_date).days) + 1):
+        yield start_date + timedelta(n)
 
 
 if __name__ == '__main__':

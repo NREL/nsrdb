@@ -102,6 +102,7 @@ class ImsDay:
         if len(raw) != length:
             msg = f'Data length in {self._filename} is expected to be ' + \
                 f'{length} but is {len(raw)}.'
+            logger.error(msg)
             raise ImsError(msg)
 
         # Reshape data to square, size dependent on resolution, and flip
@@ -145,10 +146,13 @@ class ImsDay:
         if lon.shape != (length,):
             msg = f'Shape of {self._lon_file} is expected to be ({length},)' +\
                    f' but is {lon.shape}.'
+            logger.error(msg)
             raise ImsError(msg)
         if lat.shape != (length,):
             msg = f'Shape of {self._lat_file} is expected to be ({length},)' +\
                    f' but is {lat.shape}.'
+            logger.error(msg)
+            raise ImsError(msg)
         return lon, lat
 
     def plot(self):
@@ -278,7 +282,9 @@ class ImsGapFill:
                             f'on {day_before}')
                 break
         else:
-            raise ImsError('No data found on ftp before {self.date}')
+            msg = f'No data found on ftp before {self.date}'
+            logger.error(msg)
+            raise ImsError(msg)
 
         # Search for data after missing days.
         for i in range(1, self._sr + 1):
@@ -290,7 +296,9 @@ class ImsGapFill:
                             f'on {day_after}')
                 break
         else:
-            raise ImsError(f'No data found on ftp before {self.date}')
+            msg = f'No data found on ftp before {self.date}'
+            logger.error(msg)
+            raise ImsError(msg)
 
         logger.info(f'Creating gap-fill data for {self.date}')
         # TODO - Currently just using data from day before. Improve algorithm
@@ -355,8 +363,10 @@ class ImsRealFileAcquisition:
         """
 
         if date < self.EARLIEST_SUPPORTED:
-            raise ImsError(f'Dates before {self.EARLIEST_SUPPORTED} are not' +
-                           ' currently supported.')
+            msg = f'Dates before {self.EARLIEST_SUPPORTED} are not' + \
+                  ' currently supported.'
+            logger.error(msg)
+            raise ImsError(msg)
         self.date = date  # data date
         self.path = path
 
@@ -492,10 +502,13 @@ class ImsRealFileAcquisition:
             fail = url_download(url, lfile)
         # TODO below exception catching is not working
         except urllib.error.URLError as e:
-            raise ImsError(f'Error while attempting to download {url}, ' +
-                           str(e))
+            msg = f'Error while attempting to download {url}: {str(e)}'
+            logger.error(msg)
+            raise ImsError(msg)
         if fail:
-            raise ImsError(f'Error while attempting to download {url}')
+            msg = f'Error while attempting to download {url}'
+            logger.error(msg)
+            raise ImsError(msg)
         logger.info(f'Successfully downloaded {url}')
 
 
