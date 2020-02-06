@@ -12,7 +12,7 @@ import gzip
 import shutil
 from urllib.request import urlopen
 from urllib.error import URLError
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, run
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from nsrdb.utilities.loggers import init_logger
@@ -94,8 +94,13 @@ def repack_h5(fpath, f_new=None, inplace=True):
                 .format(cmd))
 
     # use subprocess to submit command and wait until it is done
-    process = Popen(cmd)
-    process.wait()
+    x = run(cmd)
+    if x.returncode != 0:
+        e = ('H5Repack process terminated with return code of {}.'
+             '\nSTDOUT: \n{}\nSTDERR: \n{}'
+             .format(x.returncode, x.stdout, x.stderr))
+        logger.error(e)
+        raise RuntimeError(e)
 
     if inplace:
         # remove the original file and rename the newly packed file
