@@ -3,10 +3,11 @@ import logging
 import pyhdf
 from pyhdf.SD import SD
 import matplotlib.pyplot as plt
-import urllib
+# import urllib
 import numpy as np
 
-from nsrdb.utilities.file_utils import url_download
+# from nsrdb.utilities.file_utils import url_download
+import requests
 from nsrdb.albedo.ims import get_dt
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ MODIS_NODATA = 32767
 
 # Last year of MODIS data. Any dates after this year will use the data for the
 # appropriate day from this year.
-LAST_YEAR = 2015
+LAST_YEAR = 2017
 
 
 class ModisError(Exception):
@@ -111,9 +112,9 @@ class ModisFileAcquisition:
     disk first. If not available the data is downloaded
     exist it is downloaded.
     """
-    FTP_SERVER = 'rsftp.eeos.umb.edu'
-    FTP_FOLDER = '/data02/Gapfilled/{year}/'
-    FILE_PATTERN = 'MCD43GF_wsa_shortwave_{day}_{year}.hdf'
+    HTTP_SERVER = 'e4ftl01.cr.usgs.gov'
+    HTTP_FOLDER = '/MOTA/MCD43GF.006/'
+    FILE_PATTERN = 'MCD43GF_wsa_shortwave_{day}_{year}_V006.hdf'
     # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
 
     @classmethod
@@ -160,52 +161,29 @@ class ModisFileAcquisition:
         self.path = path
 
         # Extract day as day of year (e.g. 1-366), left pad with 0
-        day = self._nearest_modis_day(self.date.timetuple().tm_yday)
-        self.day = str(day).zfill(3)
+        self.day = str(self.date.timetuple().tm_yday).zfill(3)
         self.year = str(self.date.year)
 
         # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
         self.filename = self.FILE_PATTERN.format(day=self.day, year=self.year)
 
-    def _download(self):
-        year_path = self.FTP_FOLDER.format(year=self.year)
-        url = f'ftp://{self.FTP_SERVER}{year_path}{self.filename}'
+    def _download(self, cookies={'DATA': 'XjydXCwldR8Y5YgvxK7fnwAAAJA'}):
+        # TODO - current oath2 handling needs to be updated
+        """
+        Download MODIS hdf file from server
+        """
+        # Example: https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006/2012.01.15/
+        #                  MCD43GF_wsa_shortwave_015_2012_V006.hdf
+        df = self.date.strftime('%Y.%m.%d/')
+        url = f'https://{self.HTTP_SERVER}{self.HTTP_FOLDER}{df}' +\
+              f'{self.filename}'
         logger.info(f'Downloading {url}')
-        try:
-            fail = url_download(url, os.path.join(self.path, self.filename))
-        # TODO below exception catching is not working
-        except urllib.error.URLError as e:
-            raise ModisError(f'Error while attempting to download {url}, ' +
-                             e)
-        if fail:
-            raise ModisError(f'Error while attempting to download {url}')
+
+        r = requests.get(url, cookies=cookies)
+        if r.status_code != 200:
+            msg = f'Download failed with status {r.status_code}: {r.text}'
+            logger.exception(msg)
+            raise ModisError(f'{url} {msg}')
+
         logger.info(f'Successfully downloaded {url}')
-
-    @staticmethod
-    def _nearest_modis_day(day):
-        """
-        MODIS data is available in 8 day increments, e.g. 1, 9, 17, 25, etc.
-        Finds nearest MODIS day to requested day. Days perfectly between
-        available days are rounded up, e.g. day=5 returns 9.
-
-        Parameters
-        ---------
-        day : int
-            Requested day of year [1-366]
-
-        Returns
-        -------
-        xxx : int
-            Nearest MODIS day to 'day'
-        """
-        if day > 361:
-            return 361
-        if (day - 1) % 8 == 0:
-            # day matches available day
-            return day
-        if (day - 1) % 8 < 4:
-            # round down
-            return day - (day - 1) % 8
-        if (day - 1) % 8 >= 4:
-            # round up
-            return day - (day - 1) % 8 + 8
+        open(os.path.join(self.path, self.filename), 'wb').write(r.content)
