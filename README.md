@@ -10,3 +10,11 @@ The code base and additional documentation can be found [here](https://github.nr
 ## The NSRDB Data Model
 The NSRDB Data Model is the data aggregation framework that sources, processes, and prepares data for input to All-Sky. 
 The code base and additional documentation can be found [here](https://github.nrel.gov/PXS/nsrdb/tree/master/nsrdb/data_model).
+
+## Installation
+1. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb environment: `conda create --name nsrdb python=3.7`
+2. Activate your new conda env: `conda activate nsrdb`
+3. Navigate to the nsrdb directory that contains setup.py and run: `pip install -e .`
+4. Test your installation:
+    a. Start ipython and test the following import: `from nsrdb.data_model import DataModel`
+	b. Navigate to the tests/ directory and run the command: `pytest`
