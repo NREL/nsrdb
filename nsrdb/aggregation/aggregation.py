@@ -605,7 +605,8 @@ class Aggregation:
 
     @classmethod
     def cloud_property(cls, var, data_fpath, nn, w, final_ti, gid, fout):
-        """Run cloud type aggregation, returning the most common cloud type.
+        """Run cloud property aggregation, returning the mean cloud property
+        only for timesteps that match the most common (mode) cloud type.
 
         Parameters
         ----------
@@ -628,8 +629,10 @@ class Aggregation:
         Returns
         -------
         data : np.ndarray
-            (n, ) array unscaled and rounded data from the nn with time
-            series matching final_ti.
+            Average cloud property data in the window surrounding each
+            timestep masked by cloud type output == cloud type source.
+            Shape is same as ctype_out_full. Array is (n, ) and is unscaled
+            and rounded data from the nn with time series matching final_ti.
         """
 
         with Outputs(fout) as out:
