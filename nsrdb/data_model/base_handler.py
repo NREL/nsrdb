@@ -19,7 +19,7 @@ class AncillaryVarHandler:
     # default source data directory
     DEFAULT_DIR = DATADIR
 
-    def __init__(self, name, var_meta=None, date=None):
+    def __init__(self, name, var_meta=None, date=None, source_dir=None):
         """
         Parameters
         ----------
@@ -30,11 +30,15 @@ class AncillaryVarHandler:
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
+        source_dir : str | None
+            Optional data source directory. Will overwrite the source directory
+            from the var_meta input.
         """
 
         self._var_meta = self._parse_var_meta(var_meta)
         self._name = name
         self._date = date
+        self._source_dir = source_dir
         self._cache_file = False
         self._mask = None
 
@@ -208,11 +212,14 @@ class AncillaryVarHandler:
         source_dir : str
             Directory containing source data files (with possible sub folders).
         """
-        d = self.var_meta.loc[self.mask, 'source_directory'].values[0]
-        if not d:
-            warn('Using default data directory for "{}"'.format(self.name))
-            d = self.DEFAULT_DIR
-        return str(d)
+        if self._source_dir is None:
+            self._source_dir = self.var_meta.loc[
+                self.mask, 'source_directory'].values[0]
+            if not self._source_dir:
+                warn('Using default data directory for "{}"'
+                     .format(self.name))
+                self._source_dir = self.DEFAULT_DIR
+        return str(self._source_dir)
 
     @property
     def temporal_method(self):

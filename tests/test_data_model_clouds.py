@@ -83,12 +83,14 @@ def test_regrid():
     var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2007, month=1, day=16)
     cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
+    factory_kwargs = {v: {'source_dir': cloud_dir} for v in cloud_vars}
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
 
-    data = DataModel.run_clouds(cloud_vars, date, cloud_dir, nsrdb_grid,
-                                nsrdb_freq='1d', var_meta=var_meta)
+    data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
+                                nsrdb_freq='1d', var_meta=var_meta,
+                                factory_kwargs=factory_kwargs)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 

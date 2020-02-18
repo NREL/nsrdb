@@ -71,24 +71,32 @@ class VarFactory:
             Instantiated ancillary variable helper object (AsymVar, MerraVar).
         """
 
-        # ensure var is in the available handlers
-        if var_name in self.MAPPING:
+        if 'handler' in kwargs:
+            handler = kwargs.pop('handler')
+            if handler not in self.HANDLER_NAMES:
+                e = ('Did not recognize "{}" as an available NSRDB variable '
+                     'data handler. The following handlers are available: {}'
+                     .format(handler, list(self.HANDLER_NAMES.keys())))
+                logger.error(e)
+                raise KeyError(e)
+            else:
+                handler_class = self.HANDLER_NAMES[handler]
+                kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
+
+                return handler_class(*args, **kwargs)
+
+        elif var_name in self.MAPPING:
             handler_class = self.MAPPING[var_name]
             kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
 
             return handler_class(*args, **kwargs)
 
-        elif 'handler' in kwargs:
-            handler = kwargs.pop('handler')
-            if handler in self.HANDLER_NAMES:
-                handler_class = self.HANDLER_NAMES[handler]
-
-                return handler_class(*args, **kwargs)
-
         else:
-            raise KeyError('Did not recognize "{}" as an available NSRDB '
-                           'variable. The following variables are available: '
-                           '{}'.format(var_name, list(self.MAPPING.keys())))
+            e = ('Did not recognize "{}" as an available NSRDB '
+                 'variable. The following variables are available: '
+                 '{}'.format(var_name, list(self.MAPPING.keys())))
+            logger.error(e)
+            raise KeyError(e)
 
     def _clean_kwargs(self, var_name, handler_class, kwargs,
                       cld_list=('extent', 'cloud_dir', 'dsets')):
@@ -114,7 +122,11 @@ class VarFactory:
         if var_name in self.NO_ARGS:
             kwargs = {}
 
-        elif not isinstance(handler_class, CloudVar):
+        elif isinstance(handler_class, CloudVar):
+            if 'cloud_dir' in kwargs:
+                kwargs['source_dir'] = kwargs.pop('cloud_dir')
+
+        else:
             kwargs = {k: v for k, v in kwargs.items()
                       if k not in cld_list}
 
