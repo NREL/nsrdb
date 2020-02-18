@@ -40,6 +40,15 @@ class VarFactory:
                'wind_direction': MerraVar,
                }
 
+    HANDLER_NAMES = {'AsymVar': AsymVar,
+                     'AlbedoVar': AlbedoVar,
+                     'CloudVar': CloudVar,
+                     'MerraVar': MerraVar,
+                     'DewPoint': DewPoint,
+                     'RelativeHumidity': RelativeHumidity,
+                     'SolarZenithAngle': SolarZenithAngle,
+                     }
+
     NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')
 
     def get(self, var_name, *args, **kwargs):
@@ -53,6 +62,8 @@ class VarFactory:
             List of positional args for instantiation of ancillary var.
         **kwargs : dict
             List of keyword args for instantiation of ancillary var.
+            Can also include "handler" which specifies the handler name
+            explicitly.
 
         Returns
         -------
@@ -62,22 +73,52 @@ class VarFactory:
 
         # ensure var is in the available handlers
         if var_name in self.MAPPING:
+            handler_class = self.MAPPING[var_name]
+            kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
 
-            if var_name in self.NO_ARGS:
-                kwargs = {}
+            return handler_class(*args, **kwargs)
 
-            # kwarg reduction for non-cloud vars
-            elif 'cld' not in var_name and 'cloud' not in var_name:
-                del_list = ('extent', 'cloud_dir', 'dsets')
-                kwargs = {k: v for k, v in kwargs.items() if k not in del_list}
+        elif 'handler' in kwargs:
+            handler = kwargs.pop('handler')
+            if handler in self.HANDLER_NAMES:
+                handler_class = self.HANDLER_NAMES[handler]
 
-            # single creational statement to init handler
-            return self.MAPPING[var_name](*args, **kwargs)
+                return handler_class(*args, **kwargs)
 
         else:
             raise KeyError('Did not recognize "{}" as an available NSRDB '
                            'variable. The following variables are available: '
                            '{}'.format(var_name, list(self.MAPPING.keys())))
+
+    def _clean_kwargs(self, var_name, handler_class, kwargs,
+                      cld_list=('extent', 'cloud_dir', 'dsets')):
+        """Clean a kwargs namespace for cloud var specific kwargs.
+
+        Parameters
+        ----------
+        handler_class : AncillaryVarHandler
+            DataModel handler class. This method looks for the CloudVar class.
+        kwargs : dict
+            Namespace of kwargs to init handler_class.
+        cld_list : tuple
+            List of CloudVar specific input variables
+            default: ('extent', 'cloud_dir', 'dsets')
+
+        Returns
+        -------
+        kwargs : dict
+            Namespace of kwargs to init handler class
+            cleaned for cloud kwargs.
+        """
+
+        if var_name in self.NO_ARGS:
+            kwargs = {}
+
+        elif not isinstance(handler_class, CloudVar):
+            kwargs = {k: v for k, v in kwargs.items()
+                      if k not in cld_list}
+
+        return kwargs
 
     @staticmethod
     def get_base_handler(*args, **kwargs):
