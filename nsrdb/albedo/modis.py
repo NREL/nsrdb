@@ -3,11 +3,8 @@ import logging
 import pyhdf
 from pyhdf.SD import SD
 import matplotlib.pyplot as plt
-# import urllib
 import numpy as np
 
-# from nsrdb.utilities.file_utils import url_download
-import requests
 from nsrdb.albedo.ims import get_dt
 
 logger = logging.getLogger(__name__)
@@ -28,6 +25,8 @@ class ModisDay:
     LAT_SIZE = 21600
     LON_SIZE = 43200
 
+    SCALE = 0.001
+
     def __init__(self, date, modis_path, shape=None):
         """
         Parameters
@@ -45,6 +44,7 @@ class ModisDay:
         else:
             self._shape = shape
 
+        self._date = date
         self._filename = ModisFileAcquisition.get_file(date, modis_path)
         self.data, self.lon, self.lat = self._load_day()
 
@@ -68,15 +68,27 @@ class ModisDay:
 
         try:
             logger.info('Loading MODIS data')
+            attrs = hdf.select('Albedo_Map_0.3-5.0').attributes()
             data = hdf.select('Albedo_Map_0.3-5.0')[:]
             logger.info('Loading MODIS metadata')
             lat = hdf.select('Latitude')[:]
             lon = hdf.select('Longitude')[:]
             logger.info('Completed loading MODIS data and metadata')
         except pyhdf.error.HDF4Error as e:
-            raise ModisError(f'Error loading {self._filename}: {e}. File ' +
-                             'does not have expected datasets and may be ' +
+            raise ModisError(f'Error loading {self._filename}: {e}. File '
+                             'does not have expected datasets and may be '
                              'too old.')
+        if 'scale_factor' in attrs:
+            scale = attrs['scale_factor']
+            if scale != self.SCALE:
+                msg = f'Scaling factor of MODIS data is {scale}, but is ' +\
+                    f'expected to be {self.SCALE}'
+                logger.error(msg)
+                raise ModisError(msg)
+        else:
+            # This should only occur in testing
+            logger.warning(f'MODIS data in {self._filename} is missing the '
+                           'scale factor attribute.')
 
         if len(lat) != self._shape[0] or len(lon) != self._shape[1] or \
                 data.shape != self._shape:
@@ -87,8 +99,8 @@ class ModisDay:
             raise ModisError(msg)
 
         logger.info(f'MODIS data shape is {data.shape}')
-        logger.info(f'Boundaries of MODIS data: ' +
-                    f'{lon.min()} - {lon.max()} long, {lat.min()} - ' +
+        logger.info(f'Boundaries of MODIS data: '
+                    f'{lon.min()} - {lon.max()} long, {lat.min()} - '
                     f'{lat.max()} lat')
         return data.astype(np.float32), lon, lat
 
@@ -101,9 +113,10 @@ class ModisDay:
         plt.colorbar()
         plt.show()
 
-    # TODO fix below
-    # def __repr__(self):
-        # return f'{self.__class__.__name__}(year={self.year}, day={self.day})'
+    def __repr__(self):
+        year = self._date.year
+        day = self._date.timetuple().tm_yday
+        return f'{self.__class__.__name__}(year={year}, day={day})'
 
 
 class ModisFileAcquisition:
@@ -143,17 +156,17 @@ class ModisFileAcquisition:
             logger.info(f'{mfa.filename} found on disk at {path}')
         else:
             # Download it
-            logger.info(f'{mfa.filename} not found on disk, attempting to ' +
+            logger.info(f'{mfa.filename} not found on disk, attempting to '
                         'download')
             mfa._download()
         return os.path.join(mfa.path, mfa.filename)
 
     def __init__(self, date, path):
-        """ See docstring for self.get_filename() """
+        """ See docstring for self.get_file() """
         # Check if data exists for requested year.
         if date.year > LAST_YEAR:
             self.date = get_dt(LAST_YEAR, date.timetuple().tm_yday)
-            logger.info(f'MODIS albedo data does not yet exist for ' +
+            logger.info(f'MODIS albedo data does not yet exist for '
                         f'{date.year}. Using data for {self.date} instead.')
         else:
             self.date = date
@@ -167,23 +180,12 @@ class ModisFileAcquisition:
         # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
         self.filename = self.FILE_PATTERN.format(day=self.day, year=self.year)
 
-    def _download(self, cookies={'DATA': 'XjydXCwldR8Y5YgvxK7fnwAAAJA'}):
-        # TODO - current oath2 handling needs to be updated
+    def _download(self):
         """
-        Download MODIS hdf file from server
+        Download Ver 6 MODIS hdf file from server
         """
         # Example: https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006/2012.01.15/
         #                  MCD43GF_wsa_shortwave_015_2012_V006.hdf
-        df = self.date.strftime('%Y.%m.%d/')
-        url = f'https://{self.HTTP_SERVER}{self.HTTP_FOLDER}{df}' +\
-              f'{self.filename}'
-        logger.info(f'Downloading {url}')
-
-        r = requests.get(url, cookies=cookies)
-        if r.status_code != 200:
-            msg = f'Download failed with status {r.status_code}: {r.text}'
-            logger.exception(msg)
-            raise ModisError(f'{url} {msg}')
-
-        logger.info(f'Successfully downloaded {url}')
-        open(os.path.join(self.path, self.filename), 'wb').write(r.content)
+        msg = 'Automatic downloading of MODIS data is currently not supported.'
+        logger.exception(msg)
+        raise NotImplementedError(msg)

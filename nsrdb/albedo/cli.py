@@ -7,28 +7,19 @@ Mike Bannister
 """
 import click
 import sys
+import os
 import logging
 from datetime import datetime as dt
 from datetime import timedelta
 
 from nsrdb.utilities.execution import SLURM
-from nsrdb.utilities.cli_dtypes import STR, INT  # , FLOATLIST, STRFLOAT
+from nsrdb.utilities.cli_dtypes import STR, INT
 
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.albedo.albedo import CompositeAlbedoDay
-# from nsrdb.albedo.albedo import logger as alogger
-from nsrdb.albedo.ims import get_dt  # , ImsDay
+from nsrdb.albedo.ims import get_dt
 
-# TODO clean all the logging up!!!
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - ' +
-                              '%(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+logger = logging.getLogger(__name__)
 
 
 class Date(click.ParamType):
@@ -41,9 +32,11 @@ class Date(click.ParamType):
             # E.g., 20150531
             date = dt.strptime(value, '%Y%m%d')
         else:
-            print('Date must be provided in YYYYDDD or YYYYMMDD ' +
-                  f'format (e.g. 2015012 or 20150305). {value} ' +
-                  'was provided.')
+            msg = 'Date must be provided in YYYYDDD or YYYYMMDD ' +\
+                  f'format (e.g. 2015012 or 20150305). {value} ' +\
+                  'was provided.'
+            click.echo(msg)
+            logger.error(msg)
             sys.exit(1)
         return date
 
@@ -54,10 +47,12 @@ def _setup_paths(ctx):
     if ctx.obj['path'] is None and (ctx.obj['mpath'] is None or
                                     ctx.obj['ipath'] is None or
                                     ctx.obj['apath'] is None):
-        print('Paths for MODIS, IMS, and composite albedo data ' +
-              'must be set together using --path, or ' +
-              'individually using --modis-path, --ims-path, and ' +
-              '--albedo-path.')
+        msg = 'Paths for MODIS, IMS, and composite albedo data ' +\
+              'must be set together using --path, or ' +\
+              'individually using --modis-path, --ims-path, and ' +\
+              '--albedo-path.'
+        click.echo(msg)
+        logger.error(msg)
         sys.exit(1)
 
     # Over ride general path with specifics
@@ -72,7 +67,7 @@ def _setup_paths(ctx):
 
 @click.group()
 @click.option('--path', '-p', type=click.Path(exists=True),
-              help='Path for all data files. This may be partially ' +
+              help='Path for all data files. This may be partially '
               'overridden by the other path arguments.')
 @click.option('--modis-path', '-m', type=click.Path(exists=True),
               help='Path of/for MODIS data files')
@@ -86,7 +81,7 @@ def _setup_paths(ctx):
                                 case_sensitive=False),
               default='INFO',
               help='Logging level')
-@click.option('--log-file', type=click.Path(), default=None,
+@click.option('--log-file', type=click.Path(), default='nsrdb.albedo.log',
               help='Logging output file.')
 @click.option('--tiff', '-t', is_flag=True, default=False,
               help='Create TIFF and world file in addition to h5 file.')
@@ -103,6 +98,7 @@ def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
     ctx.obj['ipath'] = ims_path
     ctx.obj['apath'] = albedo_path
 
+    log_level = log_level.upper()
     ctx.obj['log_level'] = log_level
     ctx.obj['log_file'] = log_file
 
@@ -122,22 +118,22 @@ def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
 @click.pass_context
 def singleday(ctx, date, modis_shape, ims_shape):
     """
-    Calculate composite albedo for a single day
-                help='Desired date for albedo data. In YYYYDDD or YYYYMMDD ' +
-                'format')
+    Calculate composite albedo for a single day. Date is in YYYYDDD or
+    YYYYMMDD format
     """
     _setup_paths(ctx)
-    print(f'Calculating single day composite albedo on {date}.')
-    logger.info(f'Click context: {ctx.obj}')
+    click.echo(f'Calculating single day composite albedo on {date}.')
+    logger.info(f'Calculating single day composite albedo on {date}.')
+    logger.debug(f'Click context: {ctx.obj}')
 
     # Override data shapes, used for testing
     _kwargs = {}
     if modis_shape:
         _kwargs['modis_shape'] = modis_shape
-        print(f'Using MODIS data shape of {modis_shape}')
+        logger.info(f'Using MODIS data shape of {modis_shape}')
     if ims_shape:
         _kwargs['ims_shape'] = ims_shape
-        print(f'Using IMS data shape of {ims_shape}')
+        logger.info(f'Using IMS data shape of {ims_shape}')
 
     cad = CompositeAlbedoDay.run(date, ctx.obj['mpath'], ctx.obj['ipath'],
                                  ctx.obj['apath'], **_kwargs)
@@ -164,16 +160,13 @@ def singleday(ctx, date, modis_shape, ims_shape):
 def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
     """ Calculate composite albedo for a range of dates. Range is inclusive """
 
-    # TODO - revisit assignment of name
-    name = 'c_albedo'
-
     _setup_paths(ctx)
-    # TODO - revisit assignment of std_outpath
     if stdout_path is None:
-        stdout_path = ctx.obj['apath']
+        stdout_path = os.path.join(ctx.obj['apath'], 'stdout')
 
     if start > end:
-        print('Start date must be before end date')
+        click.echo('Start date must be before end date')
+        logger.error('Start date must be before end date')
         sys.exit(1)
 
     logger.info(f'Calculating composite albedo from {start} to {end}.')
@@ -181,24 +174,20 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
     for date in daterange(start, end):
         cmd = get_node_cmd(date, ctx.obj['ipath'], ctx.obj['mpath'],
                            ctx.obj['apath'], ctx.obj['tiff'])
-        print(cmd)
+        logger.debug(f'command for slurm: {cmd}')
+
+        name = dt.strftime(date, 'albedo_%Y%j')
         logger.info('Running composite albedo processing on Eagle with '
-                    f'node name "{name}" for {date}')
+                    f'name "{name}" for {date}')
         slurm = SLURM(cmd, alloc=alloc, memory=memory,
                       walltime=walltime, feature=feature,
                       name=name, stdout_path=stdout_path)
         if slurm.id:
-            msg = ('Kicked off reV SC aggregation job "{}" '
-                   '(SLURM jobid #{}) on Eagle.'
-                   .format(name, slurm.id))
-        #     Status.add_job(
-        #         out_dir, 'aggregation', name, replace=True,
-        #         job_attrs={'job_id': slurm.id, 'hardware': 'eagle',
-        #                    'fout': '{}.csv'.format(name), 'dirout': out_dir})
+            msg = f'Kicked off reV SC aggregation job "{name}" (SLURM ' +\
+                  f'jobid #{slurm.id}) on Eagle.'
         else:
-            msg = ('Was unable to kick off reV SC job "{}". '
-                   'Please see the stdout error messages'
-                   .format(name))
+            msg = f'Was unable to kick off reV SC job "{name}". ' +\
+                  'Please see the stdout error messages'
         click.echo(msg)
         logger.info(msg)
 
@@ -207,7 +196,7 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
 @click.argument('albedo-file')
 def h5totiff(albedo_file):
     """ Convert composite data in H5 file to TIFF """
-    print(f'Creating TIFF from {albedo_file}')
+    click.echo(f'Creating TIFF from {albedo_file}')
     CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
 
 

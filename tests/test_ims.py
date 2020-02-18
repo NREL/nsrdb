@@ -8,18 +8,43 @@ Created on Jan 17th 2020
 """
 import os
 import pytest
-# from nsrdb import TESTDATADIR
 import nsrdb.albedo.ims as ims
 from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
 
-BASE_DIR = os.path.dirname(__file__)
-TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
+from nsrdb import TESTDATADIR
+IMSTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 
 METAFILES = ['IMS1kmLats.24576x24576x1.double',
              'IMS1kmLons.24576x24576x1.double',
              'imslat_4km.bin', 'imslon_4km.bin']
+
+
+def test_gap_fill_date():
+    """
+    Verify gap fill code finds the correct nearest day for days with
+    missing data.
+    """
+    # Missing days: 2014 - 293, 294, 295
+    missing = get_dt(2014, 293)
+    igf = ims.ImsGapFill(missing, '_', '_')
+    assert igf._closest_day() == get_dt(2014, 292)
+
+    missing = get_dt(2014, 295)
+    igf = ims.ImsGapFill(missing, '_', '_')
+    assert igf._closest_day() == get_dt(2014, 296)
+
+    # For a tie, defaults to earlier day
+    missing = get_dt(2014, 294)
+    igf = ims.ImsGapFill(missing, '_', '_')
+    assert igf._closest_day() == get_dt(2014, 292)
+
+    # Test searching for data with inadequate search range
+    missing = get_dt(2014, 294)
+    igf = ims.ImsGapFill(missing, '_', '_', search_range=1)
+    with pytest.raises(ims.ImsError):
+        _ = igf._closest_day()
 
 
 def test_early_date():
@@ -73,57 +98,26 @@ def test_missing_data():
             for mf in METAFILES:
                 with open(os.path.join(td, mf),
                           'wt') as f:
-                    f.write('asdf')
+                    f.write('fake metafile data')
 
             d = get_dt(2015, 108)
             ifa = ims.ImsRealFileAcquisition(d, td)
             ifa.get_files()
 
 
-# TODO remove first underscore
 def test_data_loading():
     """ Test data loading """
     d = get_dt(2015, 1)
-    ims_day = ims.ImsDay(d, TEST_DATA_DIR, shape=(64, 50))
+    ims_day = ims.ImsDay(d, IMSTESTDATADIR, shape=(64, 50))
     assert ims_day.data.shape == (64, 50)
-    assert ims_day.lon.shape == (64*50,)
-    assert ims_day.lat.shape == (64*50,)
+    assert ims_day.lon.shape == (64 * 50,)
+    assert ims_day.lat.shape == (64 * 50,)
 
     d = get_dt(2013, 1)
-    ims_day = ims.ImsDay(d, TEST_DATA_DIR, shape=(32, 25))
+    ims_day = ims.ImsDay(d, IMSTESTDATADIR, shape=(32, 25))
     assert ims_day.data.shape == (32, 25)
-    assert ims_day.lon.shape == (32*25,)
-    assert ims_day.lat.shape == (32*25,)
-
-
-# Test downloads data and is no longer being used
-def __test_download():
-    """
-    For data on and after 2014, 336, the file is dated one day after the data!!
-
-    Downloading meta data for 1km is slow (~4GB)
-    """
-    with tempfile.TemporaryDirectory() as td:
-        # TODO - Remove next line
-        td = 'scratch'
-
-        d = get_dt(2005, 157)
-        ifa = ims.ImsFileAcquisition(d, td)
-        ifa.get_files()
-        assert os.path.isfile(ifa.filename)
-        assert ifa.filename.split('/')[-1] == 'ims2005157_4km_v1.2.asc'
-
-        d = get_dt(2015, 157)
-        ifa = ims.ImsFileAcquisition(d, td)
-        ifa.get_files()
-        assert os.path.isfile(ifa.filename)
-        assert ifa.filename.split('/')[-1] == 'ims2015158_1km_v1.3.asc'
-
-        # test downloading fake file
-        irfa = ims.ImsRealFileAcquisition(d, td)
-        irfa._pfilename = 'fake'
-        with pytest.raises(ims.ImsError):
-            irfa._download_data()
+    assert ims_day.lon.shape == (32 * 25,)
+    assert ims_day.lat.shape == (32 * 25,)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

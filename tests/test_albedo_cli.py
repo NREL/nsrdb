@@ -16,8 +16,6 @@ from click.testing import CliRunner
 
 import nsrdb.albedo.cli as cli
 
-# from nsrdb.albedo.ims import get_dt
-
 BASE_DIR = os.path.dirname(__file__)
 TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
 
@@ -36,7 +34,6 @@ def test_cli_4km_data(runner):
                                           'singleday', '2013001',
                                           '--modis-shape', '122', '120',
                                           '--ims-shape', '32', '25'])
-        print(result.output)
         assert result.exit_code == 0
 
         # Compare against known output
@@ -61,7 +58,6 @@ def test_cli_4km_data(runner):
 def test_cli_1km_data(runner):
     """ Test CLI with 1km IMS data """
     with tempfile.TemporaryDirectory() as td:
-        # td = 'scratch'
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
                                           '-i', TEST_DATA_DIR,
                                           '-a', td,
@@ -69,7 +65,6 @@ def test_cli_1km_data(runner):
                                           'singleday', '20150101',
                                           '--modis-shape', '60', '61',
                                           '--ims-shape', '64', '50'])
-        print(result.output)
         assert result.exit_code == 0
 
         # Compare against known output

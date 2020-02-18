@@ -9,56 +9,115 @@ Created on Jan 23th 2020
 """
 import os
 import pytest
-# from nsrdb import TESTDATADIR
 from datetime import datetime as dt
 import numpy as np
 import h5py
+import tempfile
+import logging
 
 import nsrdb.albedo.albedo as albedo
-# from nsrdb.albedo.ims import get_dt
 
-BASE_DIR = os.path.dirname(__file__)
-TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
+from nsrdb import TESTDATADIR
+ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
+
+
+logger = logging.getLogger()
 
 
 def test_4km_data():
-    # Create composite albedo data for 4km IMS
+    """ Create composite albedo data using 4km IMS """
+    test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
+    with h5py.File(test_file, 'r') as f:
+        data = np.array(f['surface_albedo'])
+
     d = dt(2013, 1, 1)
-    cad = albedo.CompositeAlbedoDay.run(d, TEST_DATA_DIR, TEST_DATA_DIR,
-                                        '_', ims_shape=(32, 25),
-                                        modis_shape=(122, 120))
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120))
 
-    test_data = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2013_001.h5')
-    with h5py.File(test_data, 'r') as f:
+        assert np.array_equal(data, cad.albedo)
+
+        cad.write_albedo()
+        new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
+        with h5py.File(new_albedo_file, 'r') as f:
+            new_data = np.array(f['surface_albedo'])
+        assert np.array_equal(data, new_data)
+
+
+def test_1km_data():
+    """ Create composite albedo data using 1km IMS """
+    test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2015_001.h5')
+    with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
 
-    # import matplotlib.pyplot as plt
-    # plt.imshow(data)
-    # plt.show()
-    # plt.imshow(cad.albedo)
-    # plt.show()
+    d = dt(2015, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            ims_shape=(64, 50),
+                                            modis_shape=(60, 61))
 
-    assert np.array_equal(data, cad.albedo)
+        assert np.array_equal(data, cad.albedo)
+
+        cad.write_albedo()
+        new_albedo_file = os.path.join(td, 'nsrdb_albedo_2015_001.h5')
+        with h5py.File(new_albedo_file, 'r') as f:
+            new_data = np.array(f['surface_albedo'])
+        assert np.array_equal(data, new_data)
 
 
-def  test_1km_data():
-    # Create composite albedo data for 1km IMS
-    d = dt(2015,1, 1)
-    cad = albedo.CompositeAlbedoDay.run(d, TEST_DATA_DIR, TEST_DATA_DIR,
-                                        '_', ims_shape=(64, 50),
-                                        modis_shape=(60, 61))
-
-    test_data = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2015_001.h5')
-    with h5py.File(test_data, 'r') as f:
+def test_single_worker():
+    """ Create composite albedo data using 4km IMS and one worker"""
+    test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
+    with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
 
-    # import matplotlib.pyplot as plt
-    # plt.imshow(data)
-    # plt.show()
-    # plt.imshow(cad.albedo)
-    # plt.show()
+    d = dt(2013, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120),
+                                            max_workers=1)
 
-    assert np.array_equal(data, cad.albedo)
+        assert np.array_equal(data, cad.albedo)
+
+        cad.write_albedo()
+        new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
+        with h5py.File(new_albedo_file, 'r') as f:
+            new_data = np.array(f['surface_albedo'])
+        assert np.array_equal(data, new_data)
+
+
+def test_five_workers():
+    """ Create composite albedo data using 4km IMS and an arbitrary number
+    of workers (5).
+    """
+    test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
+    with h5py.File(test_file, 'r') as f:
+        data = np.array(f['surface_albedo'])
+
+    d = dt(2013, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120),
+                                            max_workers=5)
+
+        assert np.array_equal(data, cad.albedo)
+
+        cad.write_albedo()
+        new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
+        with h5py.File(new_albedo_file, 'r') as f:
+            new_data = np.array(f['surface_albedo'])
+        assert np.array_equal(data, new_data)
 
 
 def execute_pytest(capture='all', flags='-rapP'):
