@@ -732,9 +732,9 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._file_df is None:
-            data_ti = self.data_time_index(self.flist)
+            data_ti = self.infer_data_time_index(self.flist)
 
-            freq = self.data_freq(self.flist)
+            freq = self.infer_data_freq(self.flist)
 
             df_actual = pd.DataFrame({'flist': self.flist}, index=data_ti)
 
@@ -749,7 +749,7 @@ class CloudVar(AncillaryVarHandler):
         return self._file_df
 
     @staticmethod
-    def data_time_index(flist):
+    def infer_data_time_index(flist):
         """Get the actual time index of the file set based on the timestamps.
 
         Parameters
@@ -759,16 +759,16 @@ class CloudVar(AncillaryVarHandler):
 
         Returns
         -------
-        data_time_index : pd.datetimeindex
+        time_index : pd.datetimeindex
             Pandas datetime index based on the actual file timestamps.
         """
 
         strtime = [str(CloudVar.get_timestamp(fstr))[:11] for fstr in flist]
-        data_time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
-        return data_time_index
+        time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
+        return time_index
 
     @staticmethod
-    def data_freq(flist):
+    def infer_data_freq(flist):
         """Infer the cloud data timestep frequency from the file list.
 
         Parameters
@@ -782,7 +782,9 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime frequency.
         """
 
-        data_ti = CloudVar.data_time_index(flist)
+        data_ti = CloudVar.infer_data_time_index(flist)
+
+        logger.debug('Inferred cloud data time index: {}'.format(data_ti))
 
         if len(flist) == 1:
             freq = '1d'
@@ -797,6 +799,8 @@ class CloudVar(AncillaryVarHandler):
             raise ValueError('Could not infer cloud data timestep frequency.')
         else:
             freq = freq.replace('T', 'min')
+            logger.debug('Infered cloud data timestep frequency: {}'
+                         .format(freq))
 
         return freq
 

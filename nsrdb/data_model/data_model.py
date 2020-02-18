@@ -165,6 +165,11 @@ class DataModel:
         self._ti = None
         self._weights = {}
 
+        logger.debug('Initialized DataModel with the following var meta: {}'
+                     .format(self._var_meta))
+        logger.debug('Initialized DataModel with the following variable '
+                     'factory kwargs: {}'.format(self._factory_kwargs))
+
     def __getitem__(self, key):
         return self._processed[key]
 
@@ -562,11 +567,6 @@ class DataModel:
             Array shape is (n_time, n_sites).
         """
 
-        for var in cloud_vars:
-            if var not in self.CLOUD_VARS:
-                raise KeyError('Did not recognize request to process cloud '
-                               'variable "{}".'.format(var))
-
         # use the first cloud var name to get object,
         # full cloud_var list is passed in kwargs
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
@@ -912,7 +912,7 @@ class DataModel:
         # number of kdtrees during regrid)
         cloud_vars = []
         for cv in var_list:
-            handler = data_model._factory_kwargs.get('cv', {})
+            handler = data_model._factory_kwargs.get(cv, {})
             handler = handler.get('handler', '')
             if cv in cls.CLOUD_VARS or 'cloud' in handler.lower():
                 cloud_vars.append(cv)

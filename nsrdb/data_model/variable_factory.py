@@ -83,13 +83,9 @@ class VarFactory:
                 handler_class = self.HANDLER_NAMES[handler]
                 kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
 
-                return handler_class(*args, **kwargs)
-
         elif var_name in self.MAPPING:
             handler_class = self.MAPPING[var_name]
             kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
-
-            return handler_class(*args, **kwargs)
 
         else:
             e = ('Did not recognize "{}" as an available NSRDB '
@@ -97,6 +93,16 @@ class VarFactory:
                  '{}'.format(var_name, list(self.MAPPING.keys())))
             logger.error(e)
             raise KeyError(e)
+
+        try:
+            instance = handler_class(*args, **kwargs)
+        except Exception as e:
+            m = ('Received an exception trying to instantiate "{}":\n{}'
+                 .format(var_name, e))
+            logger.error(m)
+            raise RuntimeError(m)
+
+        return instance
 
     def _clean_kwargs(self, var_name, handler_class, kwargs,
                       cld_list=('extent', 'cloud_dir', 'dsets')):
@@ -122,7 +128,7 @@ class VarFactory:
         if var_name in self.NO_ARGS:
             kwargs = {}
 
-        elif isinstance(handler_class, CloudVar):
+        elif handler_class == CloudVar:
             if 'cloud_dir' in kwargs:
                 kwargs['source_dir'] = kwargs.pop('cloud_dir')
 

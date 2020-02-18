@@ -491,6 +491,9 @@ class NSRDB:
             Optional name for pipeline and status identification.
         """
 
+        if isinstance(factory_kwargs, str):
+            factory_kwargs = json.loads(factory_kwargs)
+
         t0 = time.time()
         date = cls.to_datetime(date)
 
@@ -501,6 +504,8 @@ class NSRDB:
 
         if isinstance(factory_kwargs, str):
             factory_kwargs = json.loads(factory_kwargs)
+        if isinstance(var_list, str):
+            var_list = json.loads(var_list)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
                                                  var_list=var_list,

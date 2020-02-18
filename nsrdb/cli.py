@@ -6,8 +6,9 @@ Created on Mon Oct 21 15:39:01 2019
 @author: gbuster
 """
 import os
-import click
+import json
 import logging
+import click
 from nsrdb.main import NSRDB
 from nsrdb.utilities.cli_dtypes import STR, INT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
@@ -57,11 +58,11 @@ def pipeline(ctx, config_file, cancel, monitor):
 def config(ctx, config_file, command):
     """NSRDB processing CLI from config json file."""
 
-    config = safe_json_load(config_file)
+    run_config = safe_json_load(config_file)
 
-    direct_args = config.pop('direct')
-    eagle_args = config.pop('eagle')
-    cmd_args = config.pop(command)
+    direct_args = run_config.pop('direct')
+    eagle_args = run_config.pop('eagle')
+    cmd_args = run_config.pop(command)
 
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
@@ -75,7 +76,7 @@ def config(ctx, config_file, command):
     ctx.obj['YEAR'] = direct_args['year']
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
     ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
-    ctx.obj['VAR_META'] = direct_args['var_meta']
+    ctx.obj['VAR_META'] = direct_args.get('var_meta', None)
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
 
@@ -209,12 +210,17 @@ def data_model(ctx, doy, var_list, factory_kwargs):
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
+    if var_list is not None:
+        var_list = json.dumps(var_list)
+    if factory_kwargs is not None:
+        factory_kwargs = json.dumps(factory_kwargs)
+
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
                'log_level="{}", job_name="{}", factory_kwargs={}'
-               .format(out_dir, date, nsrdb_grid, nsrdb_freq, var_list,
-                       log_level, name, factory_kwargs))
+               .format(out_dir, date, nsrdb_grid, nsrdb_freq,
+                       var_list, log_level, name, factory_kwargs))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
@@ -390,6 +396,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
     else:
         cmd = ("python -c '{import_str};{f}({a})'"
                .format(import_str=import_str, f=fun_str, a=arg_str))
+        print('cmd: {}'.format(cmd))
         slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
                       feature=feature, name=name, stdout_path=stdout_path)
 
