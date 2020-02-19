@@ -158,6 +158,63 @@ class VarFactory:
         return AncillaryVarHandler(*args, **kwargs)
 
     @staticmethod
+    def get_dset_attrs(dset, var_meta=None):
+        """Use the variable factory to get output attributes for a single dset.
+
+        Parameters
+        ----------
+        dset : str
+            Single dataset / variable name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes.
+        chunks : tuple
+            Chunk shape tuple.
+        dtype : dict
+            Numpy datatype.
+        """
+
+        var_obj = VarFactory.get_base_handler(dset, var_meta=var_meta)
+        return var_obj.attrs, var_obj.chunks, var_obj.final_dtype
+
+    @staticmethod
+    def get_dsets_attrs(dsets, var_meta=None):
+        """Use the variable factory to get output attributes for list of dsets.
+
+        Parameters
+        ----------
+        dsets : list
+            List of dataset / variable names.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
+        """
+
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+
+        for dset in dsets:
+            out = VarFactory.get_dset_attrs(dset, var_meta=var_meta)
+            attrs[dset], chunks[dset], dtypes[dset] = out
+
+        return attrs, chunks, dtypes
+
+    @staticmethod
     def get_cloud_handler(fpath, dsets=None):
         """Get a cloud data file handler object.
 

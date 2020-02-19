@@ -9,6 +9,8 @@ import os
 import logging
 import psutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 
 
@@ -185,6 +187,12 @@ class Collector:
             f_ti = f.time_index
             f_meta = f.meta
 
+            if dset not in f.dsets:
+                e = ('Trying to collect dataset "{}" but cannot find in '
+                     'available: {}'.format(dset, f.dsets))
+                logger.error(e)
+                raise KeyError(e)
+
             if sites is None:
                 f_data = f[dset][...]
             else:
@@ -200,7 +208,7 @@ class Collector:
 
     @staticmethod
     def _get_collection_attrs(flist, collect_dir, f_out, dset, sites=None,
-                              sort_key=None):
+                              sort=True, sort_key=None):
         """Get important dataset attributes from a file list to be collected.
 
         Assumes the file list is chunked in time (row chunked).
@@ -217,47 +225,114 @@ class Collector:
             Dataset name to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        sort : bool
+            flag to sort flist to determine meta data order.
         sort_key : None | fun
             Optional sort key to sort flist by (determines how meta is built
             if f_out does not exist).
+
+        Returns
+        -------
+        time_index : pd.datetimeindex
+            Concatenated datetime index from flist
+        meta : pd.DataFrame
+            Concatenated meta data from flist
+        shape : tuple
+            Output (collected) dataset shape
+        dtype : str
+            Dataset output (collected on disk) dataset data type.
         """
 
         if os.path.exists(f_out):
             with Outputs(f_out, mode='r') as f:
                 time_index = f.time_index
                 meta = f.meta
-                shape, dtype, _ = f.get_dset_properties(dset)
-                if sites is not None:
-                    shape = (shape[0], len(sites))
+            shape = (len(time_index), len(meta))
 
         else:
-            flist = sorted(flist, key=sort_key)
+            if sort:
+                flist = sorted(flist, key=sort_key)
             logger.info('Collection output file does not exist, collecting '
                         'files in this order: {}'.format(flist))
-            time_index = []
+            time_index = None
             meta = []
             for fn in flist:
                 fp = os.path.join(collect_dir, fn)
                 with Outputs(fp, mode='r') as f:
-                    dtype = f.get_dset_properties(dset)[1]
-                    time_index.append(f.time_index)
                     meta.append(f.meta)
 
-            time_index = pd.concat(time_index)
-            time_index = pd.sort_values(time_index)
+                    if time_index is None:
+                        time_index = f.time_index
+                    else:
+                        time_index = time_index.append(f.time_index)
+
+            time_index = time_index.sort_values()
+            time_index = time_index.drop_duplicates()
             meta = pd.concat(meta)
             meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
+            if sites is not None:
+                meta = meta.iloc[sites, :]
+
             shape = (len(time_index), len(meta))
 
-            with Outputs(f_out, mode='w') as f:
-                f['time_index'] = time_index
-                f['meta'] = meta
+        fp0 = os.path.join(collect_dir, flist[0])
+        with Outputs(fp0, mode='r') as fin:
+            dtype = fin.get_dset_properties(dset)[1]
 
         return time_index, meta, shape, dtype
 
     @staticmethod
+    def _init_collected_h5(f_out, time_index, meta):
+        """Initialize the output h5 file to save collected data to.
+
+        Parameters
+        ----------
+        f_out : str
+            Output file path - must not yet exist.
+        time_index : pd.datetimeindex
+            Full datetime index of collected data.
+        meta : pd.DataFrame
+            Full meta dataframe collected data.
+        """
+
+        with Outputs(f_out, mode='w-') as f:
+            logger.info('Initializing collection output file: {}'
+                        .format(f_out))
+            logger.info('Initializing collection output file with shape {} '
+                        'and meta data:\n{}'
+                        .format((len(time_index), len(meta)), meta))
+            f['time_index'] = time_index
+            f['meta'] = meta
+
+    @staticmethod
+    def _ensure_dset_in_output(f_out, dset, var_meta=None, data=None):
+        """Ensure that dset is initialized in f_out and initialize if not.
+
+        Parameters
+        ----------
+        f_out : str
+            Pre-existing H5 file output path
+        dset : str
+            Dataset name
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        data : np.ndarray | None
+            Optional data to write to dataset if initializing.
+        """
+
+        with Outputs(f_out, mode='a') as f:
+            if dset not in f.dsets:
+                attrs, chunks, dtype = VarFactory.get_dset_attrs(
+                    dset, var_meta=var_meta)
+                logger.info('Initializing dataset "{}" with shape {} and '
+                            'dtype {}'.format(dset, f.shape, dtype))
+                f._create_dset(dset, f.shape, dtype, chunks=chunks,
+                               attrs=attrs, data=data)
+
+    @staticmethod
     def collect_flist(flist, collect_dir, f_out, dset, sites=None,
-                      parallel=True):
+                      var_meta=None, parallel=True):
         """Collect a dataset from a file list with data pre-init.
 
         Collects data that can be chunked in both space and time.
@@ -274,6 +349,9 @@ class Collector:
             Dataset name to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         parallel : bool | int
             Flag to do chunk collection in parallel. Can be integer number of
             workers to use (number of parallel reads).
@@ -327,13 +405,19 @@ class Collector:
                     f_data, row_slice, col_slice = future.result()
                     data[row_slice, col_slice] = f_data
 
+        if not os.path.exists(f_out):
+            Collector._init_collected_h5(f_out, time_index, meta)
+
+        Collector._ensure_dset_in_output(f_out, dset, var_meta=var_meta)
+
         with Outputs(f_out, mode='a') as f:
             f[dset] = data
 
         logger.info('Finished writing dataset "{}"'.format(dset))
 
     @staticmethod
-    def collect_flist_lowmem(flist, collect_dir, f_out, dset):
+    def collect_flist_lowmem(flist, collect_dir, f_out, dset,
+                             sort=False, sort_key=None, var_meta=None):
         """Collect a file list without data pre-init for low memory utilization
 
         Collects data that can be chunked in both space and time as long as
@@ -351,7 +435,23 @@ class Collector:
             full time index and meta.
         dset : str
             Dataset name to collect.
+        sort : bool
+            flag to sort flist to determine meta data order.
+        sort_key : None | fun
+            Optional sort key to sort flist by (determines how meta is built
+            if f_out does not exist).
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
+
+        if not os.path.exists(f_out):
+            time_index, meta, _, _ = Collector._get_collection_attrs(
+                flist, collect_dir, f_out, dset, sort=sort, sort_key=sort_key)
+
+            Collector._init_collected_h5(f_out, time_index, meta)
+
+        Collector._ensure_dset_in_output(f_out, dset, var_meta=var_meta)
 
         if isinstance(flist, str):
             if '[' in flist and ']' in flist:
@@ -372,10 +472,16 @@ class Collector:
                 f[dset, rows, cols] = data
 
     @classmethod
-    def collect(cls, collect_dir, f_out, dsets, sites=None, parallel=True):
-        """Collect files from a dir to one output file.
+    def collect_daily(cls, collect_dir, f_out, dsets, sites=None,
+                      var_meta=None, parallel=True):
+        """Collect daily data model files from a dir to one output file.
 
         Assumes the file list is chunked in time (row chunked).
+
+        Filename requirements:
+         - Expects file names with leading "YYYYMMDD_".
+         - Must have var in the file name.
+         - Should end with ".h5"
 
         Parameters
         ----------
@@ -389,6 +495,10 @@ class Collector:
             dataset or json.dumps(dsets).
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo. This is used if
+            f_out has not yet been initialized.
         parallel : bool | int
             Flag to do chunk collection in parallel. Can be integer number of
             workers to use (number of parallel reads).
@@ -415,4 +525,5 @@ class Collector:
                     raise e
             else:
                 collector.collect_flist(collector.flist, collect_dir, f_out,
-                                        dset, sites=sites, parallel=parallel)
+                                        dset, sites=sites, var_meta=var_meta,
+                                        parallel=parallel)

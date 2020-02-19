@@ -90,6 +90,7 @@ class AncillaryVarHandler:
                       'source_dir': self.source_dir,
                       'psm_units': self.units,
                       'psm_scale_factor': self.scale_factor,
+                      'chunks': self.chunks,
                       })
         return attrs
 

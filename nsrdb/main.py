@@ -293,8 +293,7 @@ class NSRDB:
         if log_version:
             self._log_py_version()
 
-    @staticmethod
-    def _init_output_h5(f_out, dsets, time_index, meta):
+    def _init_output_h5(self, f_out, dsets, time_index, meta):
         """Initialize a target output h5 file.
 
         Parameters
@@ -313,7 +312,8 @@ class NSRDB:
             logger.info('Initializing {} for the following datasets: {}'
                         .format(f_out, dsets))
 
-            attrs, chunks, dtypes = NSRDB.get_dset_attrs(dsets)
+            attrs, chunks, dtypes = VarFactory.get_dsets_attrs(
+                dsets, var_meta=self._var_meta)
 
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
                             time_index, meta)
@@ -415,37 +415,6 @@ class NSRDB:
                 raise ValueError('Could not parse date: {}'.format(date))
 
         return date
-
-    @staticmethod
-    def get_dset_attrs(dsets):
-        """Get output file dataset attributes for a set of datasets.
-
-        Parameters
-        ----------
-        dsets : list
-            List of dataset / variable names.
-
-        Returns
-        -------
-        attrs : dict
-            Dictionary of dataset attributes keyed by dset name.
-        chunks : dict
-            Dictionary of chunk tuples keyed by dset name.
-        dtypes : dict
-            dictionary of numpy datatypes keyed by dset name.
-        """
-
-        attrs = {}
-        chunks = {}
-        dtypes = {}
-
-        for dset in dsets:
-            var_obj = VarFactory.get_base_handler(dset)
-            attrs[dset] = var_obj.attrs
-            chunks[dset] = var_obj.chunks
-            dtypes[dset] = var_obj.final_dtype
-
-        return attrs, chunks, dtypes
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
@@ -605,9 +574,9 @@ class NSRDB:
                     .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
                             meta_chunk['gid'].values[-1], f_out))
 
-        NSRDB._init_output_h5(f_out, dsets, ti, meta_chunk)
-        Collector.collect(daily_dir, f_out, dsets, sites=chunk,
-                          parallel=parallel)
+        nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
+        Collector.collect_daily(daily_dir, f_out, dsets, sites=chunk,
+                                var_meta=nsrdb._var_meta, parallel=parallel)
         logger.info('Finished file collection to: {}'.format(f_out))
 
         if job_name is not None:
@@ -702,7 +671,8 @@ class NSRDB:
                 for dset in dsets:
                     logger.info('Collecting dataset "{}".'.format(dset))
                     Collector.collect_flist_lowmem(flist, collect_dir, f_out,
-                                                   dset)
+                                                   dset,
+                                                   var_meta=nsrdb._var_meta)
 
             else:
                 emsg = ('Could not find files to collect for {} in the '
