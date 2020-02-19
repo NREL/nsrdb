@@ -167,21 +167,48 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               help='Full output filepath.')
 @click.option('--dsets', '-ds', type=STRLIST, required=True,
               help='List of dataset names to collect.')
-@click.option('--flist', '-fl', default=None, type=STRLIST,
-              help='Optional list of filenames in collect_dir to collect. '
-              'Using this option will superscede the default behavior of '
-              'collecting daily data model outputs in collect_dir.')
 @click.option('-p', '--parallel', is_flag=True,
               help='Flag for parallel daily data model file collection.')
 @click.pass_context
-def collect(ctx, collect_dir, f_out, dsets, flist, parallel):
-    """Run the NSRDB file collection method."""
-    ctx.ensure_object(dict)
-    if flist is not None:
+def collect_directory(ctx, collect_dir, f_out, dsets, parallel):
+    """Run the NSRDB file collection method on a directory."""
+    ctx.obj['COLLECT_DIR'] = collect_dir
+    ctx.obj['F_OUT'] = f_out
+    ctx.obj['DSETS'] = dsets
+    if ctx.invoked_subcommand is None:
+        Collector.collect(collect_dir, f_out, dsets, parallel=parallel)
+    else:
+        ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                                 'import Collector')
+        ctx.obj['FUN_STR'] = 'Collector.collect'
+        ctx.obj['ARG_STR'] = ('"{}", "{}", {}, parallel={}'
+                              .format(collect_dir, f_out, json.dumps(dsets),
+                                      parallel))
+        ctx.obj['COMMAND'] = 'collect-directory'
+
+
+@collect_directory.group(invoke_without_command=True)
+@click.option('--flist', '-fl', type=STRLIST, required=True,
+              help='Explicit list of filenames in collect_dir to collect. '
+              'Using this option will superscede the default behavior of '
+              'collecting daily data model outputs in collect_dir.')
+@click.pass_context
+def collect_flist(ctx, flist):
+    """Run the NSRDB file collection method with explicitly defined flist."""
+    collect_dir = ctx.obj['COLLECT_DIR']
+    f_out = ctx.obj['F_OUT']
+    dsets = ctx.obj['DSETS']
+    if ctx.invoked_subcommand is None:
         for dset in dsets:
             Collector.collect_flist_lowmem(flist, collect_dir, f_out, dset)
     else:
-        Collector.collect(collect_dir, f_out, dsets, parallel=parallel)
+        ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                                 'import Collector')
+        ctx.obj['FUN_STR'] = 'Collector.collect_flist_lowmem'
+        ctx.obj['ARG_STR'] = ('{}, "{}", "{}", {}'
+                              .format(json.dumps(flist), collect_dir, f_out,
+                                      json.dumps(dsets)))
+        ctx.obj['COMMAND'] = 'collect-directory'
 
 
 @direct.group()

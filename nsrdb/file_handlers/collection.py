@@ -2,6 +2,7 @@
 """NSRDB chunked file collection tools.
 """
 import datetime
+import json
 import numpy as np
 import pandas as pd
 import os
@@ -198,9 +199,68 @@ class Collector:
         return f_data, row_slice, col_slice
 
     @staticmethod
+    def _get_collection_attrs(flist, collect_dir, f_out, dset, sites=None,
+                              sort_key=None):
+        """Get important dataset attributes from a file list to be collected.
+
+        Assumes the file list is chunked in time (row chunked).
+
+        Parameters
+        ----------
+        flist : list
+            List of chunked filenames in collect_dir to collect.
+        collect_dir : str
+            Directory of chunked files (flist).
+        f_out : str
+            File path of final output file.
+        dset : str
+            Dataset name to collect.
+        sites : None | np.ndarray
+            Subset of site indices to collect. None collects all sites.
+        sort_key : None | fun
+            Optional sort key to sort flist by (determines how meta is built
+            if f_out does not exist).
+        """
+
+        if os.path.exists(f_out):
+            with Outputs(f_out, mode='r') as f:
+                time_index = f.time_index
+                meta = f.meta
+                shape, dtype, _ = f.get_dset_properties(dset)
+                if sites is not None:
+                    shape = (shape[0], len(sites))
+
+        else:
+            flist = sorted(flist, key=sort_key)
+            logger.info('Collection output file does not exist, collecting '
+                        'files in this order: {}'.format(flist))
+            time_index = []
+            meta = []
+            for fn in flist:
+                fp = os.path.join(collect_dir, fn)
+                with Outputs(fp, mode='r') as f:
+                    dtype = f.get_dset_properties(dset)[1]
+                    time_index.append(f.time_index)
+                    meta.append(f.meta)
+
+            time_index = pd.concat(time_index)
+            time_index = pd.sort_values(time_index)
+            meta = pd.concat(meta)
+            meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
+            shape = (len(time_index), len(meta))
+
+            with Outputs(f_out, mode='w') as f:
+                f['time_index'] = time_index
+                f['meta'] = meta
+
+        return time_index, meta, shape, dtype
+
+    @staticmethod
     def collect_flist(flist, collect_dir, f_out, dset, sites=None,
                       parallel=True):
         """Collect a dataset from a file list with data pre-init.
+
+        Collects data that can be chunked in both space and time.
 
         Parameters
         ----------
@@ -219,12 +279,8 @@ class Collector:
             workers to use (number of parallel reads).
         """
 
-        with Outputs(f_out, mode='r') as f:
-            time_index = f.time_index
-            meta = f.meta
-            shape, dtype, _ = f.get_dset_properties(dset)
-            if sites is not None:
-                shape = (shape[0], len(sites))
+        time_index, meta, shape, dtype = Collector._get_collection_attrs(
+            flist, collect_dir, f_out, dset, sites=sites)
 
         data = np.zeros(shape, dtype=dtype)
         mem = psutil.virtual_memory()
@@ -280,17 +336,26 @@ class Collector:
     def collect_flist_lowmem(flist, collect_dir, f_out, dset):
         """Collect a file list without data pre-init for low memory utilization
 
+        Collects data that can be chunked in both space and time as long as
+        f_out is pre-initialized.
+
         Parameters
         ----------
-        flist : list
-            List of chunked filenames in collect_dir to collect.
+        flist : list | str
+            List of chunked filenames in collect_dir to collect. Can also be a
+            json.dumps(flist).
         collect_dir : str
             Directory of chunked files (flist).
         f_out : str
-            File path of final output file.
+            File path of final output file. Must already be initialized with
+            full time index and meta.
         dset : str
             Dataset name to collect.
         """
+
+        if isinstance(flist, str):
+            if '[' in flist and ']' in flist:
+                flist = json.loads(flist)
 
         with Outputs(f_out, mode='a') as f:
 
@@ -310,6 +375,8 @@ class Collector:
     def collect(cls, collect_dir, f_out, dsets, sites=None, parallel=True):
         """Collect files from a dir to one output file.
 
+        Assumes the file list is chunked in time (row chunked).
+
         Parameters
         ----------
         collect_dir : str
@@ -317,14 +384,21 @@ class Collector:
             one day.
         f_out : str
             File path of final output file.
-        dsets : list
-            List of datasets / variable names to collect.
+        dsets : list | str
+            List of datasets / variable names to collect. Can also be a single
+            dataset or json.dumps(dsets).
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
         parallel : bool | int
             Flag to do chunk collection in parallel. Can be integer number of
             workers to use (number of parallel reads).
         """
+
+        if isinstance(dsets, str):
+            if '[' in dsets and ']' in dsets:
+                dsets = json.loads(dsets)
+            else:
+                dsets = [dsets]
 
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
