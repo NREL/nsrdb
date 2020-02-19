@@ -16,6 +16,7 @@ from nsrdb.utilities.execution import SLURM
 from nsrdb.pipeline.status import Status
 from nsrdb.pipeline.pipeline import Pipeline
 from nsrdb.file_handlers.collection import Collector
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -174,14 +175,21 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               'initialized.')
 @click.option('-p', '--parallel', is_flag=True,
               help='Flag for parallel daily data model file collection.')
+@click.option('-v', '--verbose', is_flag=True,
+              help='Flag to turn on debug logging. Default is not verbose.')
 @click.pass_context
-def collect_daily(ctx, collect_dir, f_out, dsets, var_meta, parallel):
+def collect_daily(ctx, collect_dir, f_out, dsets, var_meta, parallel, verbose):
     """Run the NSRDB file collection method on a daily directory."""
     ctx.obj['COLLECT_DIR'] = collect_dir
     ctx.obj['F_OUT'] = f_out
     ctx.obj['DSETS'] = dsets
     ctx.obj['VAR_META'] = var_meta
+    if verbose:
+        log_level = 'DEBUG'
+    else:
+        log_level = 'INFO'
     if ctx.invoked_subcommand is None:
+        init_logger('nsrdb.file_handlers', log_level=log_level)
         Collector.collect_daily(collect_dir, f_out, dsets, parallel=parallel,
                                 var_meta=var_meta)
     else:
@@ -199,14 +207,21 @@ def collect_daily(ctx, collect_dir, f_out, dsets, var_meta, parallel):
               help='Explicit list of filenames in collect_dir to collect. '
               'Using this option will superscede the default behavior of '
               'collecting daily data model outputs in collect_dir.')
+@click.option('-v', '--verbose', is_flag=True,
+              help='Flag to turn on debug logging. Default is not verbose.')
 @click.pass_context
-def collect_flist(ctx, flist):
+def collect_flist(ctx, flist, verbose):
     """Run the NSRDB file collection method with explicitly defined flist."""
     collect_dir = ctx.obj['COLLECT_DIR']
     f_out = ctx.obj['F_OUT']
     dsets = ctx.obj['DSETS']
     var_meta = ctx.obj['VAR_META']
+    if verbose:
+        log_level = 'DEBUG'
+    else:
+        log_level = 'INFO'
     if ctx.invoked_subcommand is None:
+        init_logger('nsrdb.file_handlers', log_level=log_level)
         for dset in dsets:
             Collector.collect_flist_lowmem(flist, collect_dir, f_out, dset,
                                            var_meta=var_meta)

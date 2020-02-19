@@ -114,8 +114,16 @@ class Collector:
             Sorted by integer before the first underscore in the filename.
         """
 
-        flist = os.listdir(d)
-        flist = [f for f in flist if '.h5' in f and var in f]
+        flist = []
+        temp = os.listdir(d)
+        flist = [f for f in flist if f.endswith('.h5')]
+
+        for fn in temp:
+            fp = os.path.join(d, fn)
+            with Outputs(fp, mode='r') as fobj:
+                if var in fobj.dsets:
+                    flist.append(fn)
+
         flist = sorted(flist, key=lambda x: int(x.split('_')[0]))
 
         return flist
