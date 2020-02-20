@@ -74,6 +74,7 @@ def config(ctx, config_file, command):
             direct_args[k] = cmd_args[k]
 
     name = direct_args['name']
+    ctx.obj['NAME'] = name
     ctx.obj['YEAR'] = direct_args['year']
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
     ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
@@ -90,17 +91,6 @@ def config(ctx, config_file, command):
                        factory_kwargs=cmd_args.get('factory_kwargs', None))
             ctx.invoke(eagle, **eagle_args)
 
-    elif command == 'collect-data-model':
-        n_chunks = cmd_args['n_chunks']
-        for i_chunk in range(n_chunks):
-            for i_fname in range(3):
-                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
-                ctx.invoke(collect_data_model,
-                           daily_dir=cmd_args['daily_dir'],
-                           n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
-                           n_workers=cmd_args['n_workers'])
-                ctx.invoke(eagle, **eagle_args)
-
     elif command == 'cloud-fill':
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
@@ -115,6 +105,32 @@ def config(ctx, config_file, command):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
             ctx.invoke(all_sky, i_chunk=i_chunk)
             ctx.invoke(eagle, **eagle_args)
+
+    elif command == 'collect-data-model':
+        n_chunks = cmd_args['n_chunks']
+        for i_chunk in range(n_chunks):
+            for i_fname in range(3):
+                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
+                ctx.invoke(collect_data_model,
+                           daily_dir=cmd_args['daily_dir'],
+                           n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
+                           n_workers=cmd_args['n_workers'])
+                ctx.invoke(eagle, **eagle_args)
+
+    elif command == 'collect-daily':
+        ctx.obj['NAME'] = name + '_collect_daily'
+        ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
+                   fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
+                   parallel=cmd_args.get('parallel', True), eagle=True)
+        ctx.invoke(eagle, **eagle_args)
+
+    elif command == 'collect-flist':
+        ctx.obj['NAME'] = name + '_collect_flist'
+        ctx.invoke(collect_flist, flist=cmd_args['flist'],
+                   collect_dir=cmd_args['collect_dir'],
+                   fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
+                   parallel=cmd_args.get('parallel', True), eagle=True)
+        ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-final':
         for i_fname in range(4):
@@ -139,7 +155,7 @@ def config(ctx, config_file, command):
 @click.option('--var_meta', '-vm', default=None, type=STR,
               help='CSV file or dataframe containing meta data for all NSRDB '
               'variables. Defaults to the NSRDB var meta csv in git repo.')
-@click.option('--out_dir', '-od', default=None, type=STR,
+@click.option('--out_dir', '-od', type=STR, required=True,
               help='Output directory.')
 @click.option('-v', '--verbose', is_flag=True,
               help='Flag to turn on debug logging. Default is not verbose.')
@@ -159,80 +175,6 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
         ctx.obj['LOG_LEVEL'] = 'DEBUG'
     else:
         ctx.obj['LOG_LEVEL'] = 'INFO'
-
-
-@main.group(invoke_without_command=True)
-@click.option('--collect_dir', '-cd', type=str, required=True,
-              help='Directory containing chunked files to collect from.')
-@click.option('--f_out', '-fo', type=str, required=True,
-              help='Full output filepath.')
-@click.option('--dsets', '-ds', type=STRLIST, required=True,
-              help='List of dataset names to collect.')
-@click.option('--var_meta', '-vm', default=None, type=STR,
-              help='CSV file or dataframe containing meta data for all NSRDB '
-              'variables. Defaults to the NSRDB var meta csv in git repo. '
-              'Used to get output dataset attributes if f_out is not yet '
-              'initialized.')
-@click.option('-p', '--parallel', is_flag=True,
-              help='Flag for parallel daily data model file collection.')
-@click.option('-v', '--verbose', is_flag=True,
-              help='Flag to turn on debug logging. Default is not verbose.')
-@click.pass_context
-def collect_daily(ctx, collect_dir, f_out, dsets, var_meta, parallel, verbose):
-    """Run the NSRDB file collection method on a daily directory."""
-    ctx.obj['COLLECT_DIR'] = collect_dir
-    ctx.obj['F_OUT'] = f_out
-    ctx.obj['DSETS'] = dsets
-    ctx.obj['VAR_META'] = var_meta
-    if verbose:
-        log_level = 'DEBUG'
-    else:
-        log_level = 'INFO'
-    if ctx.invoked_subcommand is None:
-        init_logger('nsrdb.file_handlers', log_level=log_level)
-        Collector.collect_daily(collect_dir, f_out, dsets, parallel=parallel,
-                                var_meta=var_meta)
-    else:
-        ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
-                                 'import Collector')
-        ctx.obj['FUN_STR'] = 'Collector.collect_daily'
-        ctx.obj['ARG_STR'] = ('"{}", "{}", {}, parallel={}'
-                              .format(collect_dir, f_out, json.dumps(dsets),
-                                      parallel))
-        ctx.obj['COMMAND'] = 'collect-daily'
-
-
-@collect_daily.group(invoke_without_command=True)
-@click.option('--flist', '-fl', type=STRLIST, required=True,
-              help='Explicit list of filenames in collect_dir to collect. '
-              'Using this option will superscede the default behavior of '
-              'collecting daily data model outputs in collect_dir.')
-@click.option('-v', '--verbose', is_flag=True,
-              help='Flag to turn on debug logging. Default is not verbose.')
-@click.pass_context
-def collect_flist(ctx, flist, verbose):
-    """Run the NSRDB file collection method with explicitly defined flist."""
-    collect_dir = ctx.obj['COLLECT_DIR']
-    f_out = ctx.obj['F_OUT']
-    dsets = ctx.obj['DSETS']
-    var_meta = ctx.obj['VAR_META']
-    if verbose:
-        log_level = 'DEBUG'
-    else:
-        log_level = 'INFO'
-    if ctx.invoked_subcommand is None:
-        init_logger('nsrdb.file_handlers', log_level=log_level)
-        for dset in dsets:
-            Collector.collect_flist_lowmem(flist, collect_dir, f_out, dset,
-                                           var_meta=var_meta)
-    else:
-        ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
-                                 'import Collector')
-        ctx.obj['FUN_STR'] = 'Collector.collect_flist_lowmem'
-        ctx.obj['ARG_STR'] = ('{}, "{}", "{}", {}'
-                              .format(json.dumps(flist), collect_dir, f_out,
-                                      json.dumps(dsets)))
-        ctx.obj['COMMAND'] = 'collect-flist'
 
 
 @direct.group()
@@ -278,46 +220,6 @@ def data_model(ctx, doy, var_list, factory_kwargs):
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'data-model'
-
-
-@direct.group()
-@click.option('--daily_dir', '-d', type=str, required=True,
-              help='Data model output directory to collect to out_dir.')
-@click.option('--n_chunks', '-n', type=int, required=True,
-              help='Number of chunks to collect into.')
-@click.option('--i_chunk', '-ic', type=int, required=True,
-              help='Chunk index.')
-@click.option('--i_fname', '-if', type=int, required=True,
-              help='Filename index (0: ancillary, 1: clouds, 2: sam vars).')
-@click.option('--n_workers', '-w', type=int, required=True,
-              help='Number of parallel workers to use.')
-@click.pass_context
-def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
-    """Collect data model results into cohesive timseries file chunks."""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
-
-    fun_str = 'NSRDB.collect_data_model'
-    arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
-               'i_fname={}, freq="{}", parallel={}, '
-               'log_file="{}", log_level="{}", job_name="{}"'
-               .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
-                       i_chunk, i_fname, nsrdb_freq, n_workers,
-                       log_file, log_level, name))
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
-    ctx.obj['FUN_STR'] = fun_str
-    ctx.obj['ARG_STR'] = arg_str
-    ctx.obj['COMMAND'] = 'collect-data-model'
 
 
 @direct.group()
@@ -376,6 +278,136 @@ def all_sky(ctx, i_chunk):
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'all-sky'
+
+
+@direct.group()
+@click.option('--daily_dir', '-d', type=str, required=True,
+              help='Data model output directory to collect to out_dir.')
+@click.option('--n_chunks', '-n', type=int, required=True,
+              help='Number of chunks to collect into.')
+@click.option('--i_chunk', '-ic', type=int, required=True,
+              help='Chunk index.')
+@click.option('--i_fname', '-if', type=int, required=True,
+              help='Filename index (0: ancillary, 1: clouds, 2: sam vars).')
+@click.option('--n_workers', '-w', type=int, required=True,
+              help='Number of parallel workers to use.')
+@click.pass_context
+def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
+    """Collect data model results into cohesive timseries file chunks."""
+
+    name = ctx.obj['NAME']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
+    log_level = ctx.obj['LOG_LEVEL']
+
+    log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
+
+    fun_str = 'NSRDB.collect_data_model'
+    arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
+               'i_fname={}, freq="{}", parallel={}, '
+               'log_file="{}", log_level="{}", job_name="{}"'
+               .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
+                       i_chunk, i_fname, nsrdb_freq, n_workers,
+                       log_file, log_level, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['FUN_STR'] = fun_str
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'collect-data-model'
+
+
+@direct.group(invoke_without_command=True)
+@click.option('--collect_dir', '-cd', type=str, required=True,
+              help='Directory containing chunked files to collect from.')
+@click.option('--fn_out', '-fo', type=str, required=True,
+              help='Output filename to be saved in out_dir.')
+@click.option('--dsets', '-ds', type=STRLIST, required=True,
+              help='List of dataset names to collect.')
+@click.option('-p', '--parallel', is_flag=True,
+              help='Flag for parallel daily data model file collection.')
+@click.option('-e', '--eagle', is_flag=True,
+              help='Flag for that this is being used to pass commands to '
+              'an Eagle call.')
+@click.pass_context
+def collect_daily(ctx, collect_dir, fn_out, dsets, parallel, eagle):
+    """Run the NSRDB file collection method on a daily directory."""
+
+    name = ctx.obj['NAME']
+    out_dir = ctx.obj['OUT_DIR']
+    var_meta = ctx.obj['VAR_META']
+    log_level = ctx.obj['LOG_LEVEL']
+    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
+
+    fp_out = os.path.join(out_dir, fn_out)
+
+    arg_str = ('"{}", "{}", {}, parallel={}, log_level="{}", '
+               'log_file="{}", write_status=True, job_name="{}"'
+               .format(collect_dir, fp_out, json.dumps(dsets), parallel,
+                       log_level, log_file, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+
+    ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                             'import Collector')
+    ctx.obj['FUN_STR'] = 'Collector.collect_daily'
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'collect-daily'
+
+    if ctx.invoked_subcommand is None and not eagle:
+        init_logger('nsrdb.file_handlers', log_level=log_level,
+                    log_file=log_file)
+        Collector.collect_daily(collect_dir, fp_out, dsets, parallel=parallel,
+                                var_meta=var_meta)
+
+
+@direct.group(invoke_without_command=True)
+@click.option('--flist', '-fl', type=STRLIST, required=True,
+              help='Explicit list of filenames in collect_dir to collect. '
+              'Using this option will superscede the default behavior of '
+              'collecting daily data model outputs in collect_dir.')
+@click.option('--collect_dir', '-cd', type=str, required=True,
+              help='Directory containing chunked files to collect from.')
+@click.option('--fn_out', '-fo', type=str, required=True,
+              help='Output filename to be saved in out_dir.')
+@click.option('--dsets', '-ds', type=STRLIST, required=True,
+              help='List of dataset names to collect.')
+@click.option('-e', '--eagle', is_flag=True,
+              help='Flag for that this is being used to pass commands to '
+              'an Eagle call.')
+@click.pass_context
+def collect_flist(ctx, flist, collect_dir, fn_out, dsets, eagle):
+    """Run the NSRDB file collection method with explicitly defined flist."""
+
+    name = ctx.obj['NAME']
+    out_dir = ctx.obj['OUT_DIR']
+    var_meta = ctx.obj['VAR_META']
+    log_level = ctx.obj['LOG_LEVEL']
+    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
+
+    fp_out = os.path.join(out_dir, fn_out)
+
+    arg_str = ('{}, "{}", "{}", {} log_level="{}", '
+               'log_file="{}", write_status=True, job_name="{}"'
+               .format(json.dumps(flist), collect_dir, fp_out,
+                       json.dumps(dsets), log_level, log_file, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                             'import Collector')
+    ctx.obj['FUN_STR'] = 'Collector.collect_flist_lowmem'
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'collect-flist'
+
+    if ctx.invoked_subcommand is None and not eagle:
+        init_logger('nsrdb.file_handlers', log_level=log_level,
+                    log_file=log_file)
+        for dset in dsets:
+            Collector.collect_flist_lowmem(flist, collect_dir, fp_out, dset,
+                                           var_meta=var_meta)
 
 
 @direct.group()

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """NSRDB chunked file collection tools.
 """
+import time
 import datetime
 import json
 import numpy as np
@@ -12,6 +13,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.pipeline.status import Status
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -425,7 +428,9 @@ class Collector:
 
     @staticmethod
     def collect_flist_lowmem(flist, collect_dir, f_out, dset,
-                             sort=False, sort_key=None, var_meta=None):
+                             sort=False, sort_key=None, var_meta=None,
+                             log_level=None, log_file=None, write_status=False,
+                             job_name=None):
         """Collect a file list without data pre-init for low memory utilization
 
         Collects data that can be chunked in both space and time as long as
@@ -451,7 +456,20 @@ class Collector:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        log_level : str | None
+            Desired log level, None will not initialize logging.
+        log_file : str | None
+            Target log file. None logs to stdout.
+        write_status : bool
+            Flag to write status file once complete if running from pipeline.
+        job_name : str
+            Job name for status file if running from pipeline.
         """
+        t0 = time.time()
+
+        if log_level is not None:
+            init_logger('nsrdb.file_handlers', log_file=log_file,
+                        log_level=log_level)
 
         if not os.path.exists(f_out):
             time_index, meta, _, _ = Collector._get_collection_attrs(
@@ -479,9 +497,22 @@ class Collector:
 
                 f[dset, rows, cols] = data
 
+        if write_status and job_name is not None:
+            status = {'out_dir': os.path.dirname(f_out),
+                      'fout': f_out,
+                      'collect_dir': collect_dir,
+                      'job_status': 'successful',
+                      'runtime': (time.time() - t0) / 60,
+                      'dset': dset}
+            Status.make_job_file(os.path.dirname(f_out), 'collect-flist',
+                                 job_name, status)
+
+        logger.info('Finished file list collection.')
+
     @classmethod
     def collect_daily(cls, collect_dir, f_out, dsets, sites=None,
-                      var_meta=None, parallel=True):
+                      var_meta=None, parallel=True, log_level=None,
+                      log_file=None, write_status=False, job_name=None):
         """Collect daily data model files from a dir to one output file.
 
         Assumes the file list is chunked in time (row chunked).
@@ -510,7 +541,20 @@ class Collector:
         parallel : bool | int
             Flag to do chunk collection in parallel. Can be integer number of
             workers to use (number of parallel reads).
+        log_level : str | None
+            Desired log level, None will not initialize logging.
+        log_file : str | None
+            Target log file. None logs to stdout.
+        write_status : bool
+            Flag to write status file once complete if running from pipeline.
+        job_name : str
+            Job name for status file if running from pipeline.
         """
+        t0 = time.time()
+
+        if log_level is not None:
+            init_logger('nsrdb.file_handlers', log_file=log_file,
+                        log_level=log_level)
 
         if isinstance(dsets, str):
             if '[' in dsets and ']' in dsets:
@@ -535,3 +579,15 @@ class Collector:
                 collector.collect_flist(collector.flist, collect_dir, f_out,
                                         dset, sites=sites, var_meta=var_meta,
                                         parallel=parallel)
+
+        if write_status and job_name is not None:
+            status = {'out_dir': os.path.dirname(f_out),
+                      'fout': f_out,
+                      'collect_dir': collect_dir,
+                      'job_status': 'successful',
+                      'runtime': (time.time() - t0) / 60,
+                      'dsets': dsets}
+            Status.make_job_file(os.path.dirname(f_out), 'collect-daily',
+                                 job_name, status)
+
+        logger.info('Finished daily file collection.')

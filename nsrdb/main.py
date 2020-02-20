@@ -495,7 +495,7 @@ class NSRDB:
                       'runtime': runtime,
                       'grid': grid,
                       'freq': freq,
-                      'factory_kwargs': factory_kwargs,
+                      'var_meta': nsrdb._var_meta,
                       'data_model_date': date_str}
             Status.make_job_file(nsrdb._out_dir, 'data-model',
                                  job_name, status)
