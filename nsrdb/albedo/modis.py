@@ -81,8 +81,8 @@ class ModisDay:
         if 'scale_factor' in attrs:
             scale = attrs['scale_factor']
             if scale != self.SCALE:
-                msg = f'Scaling factor of MODIS data is {scale}, but is ' +\
-                    f'expected to be {self.SCALE}'
+                msg = (f'Scaling factor of MODIS data is {scale}, but is '
+                       f'expected to be {self.SCALE}')
                 logger.error(msg)
                 raise ModisError(msg)
         else:
@@ -92,10 +92,10 @@ class ModisDay:
 
         if len(lat) != self._shape[0] or len(lon) != self._shape[1] or \
                 data.shape != self._shape:
-            msg = f'Data/metadata shapes are not correct for ' +\
-                  f'{self._filename}. Data shape={data.shape}, ' +\
-                  f'Lon shape={lon.shape}, Lat shape={lat.shape}. Data ' +\
-                  f'shape is expected to be {self._shape}.'
+            msg = (f'Data/metadata shapes are not correct for '
+                   f'{self._filename}. Data shape={data.shape}, '
+                   f'Lon shape={lon.shape}, Lat shape={lat.shape}. Data '
+                   f'shape is expected to be {self._shape}.')
             raise ModisError(msg)
 
         logger.info(f'MODIS data shape is {data.shape}')

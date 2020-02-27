@@ -102,8 +102,8 @@ class ImsDay:
         # IMS data sanity check
         length = self._shape[0] * self._shape[1]
         if len(raw) != length:
-            msg = f'Data length in {self._filename} is expected to be ' + \
-                f'{length} but is {len(raw)}.'
+            msg = (f'Data length in {self._filename} is expected to be '
+                   f'{length} but is {len(raw)}.')
             logger.error(msg)
             raise ImsError(msg)
 
@@ -144,13 +144,13 @@ class ImsDay:
 
         # Meta data sanity checks
         if lon.shape != (length,):
-            msg = f'Shape of {self._lon_file} is expected to be ({length},)' +\
-                  f' but is {lon.shape}.'
+            msg = (f'Shape of {self._lon_file} is expected to be ({length},)'
+                   f' but is {lon.shape}.')
             logger.error(msg)
             raise ImsError(msg)
         if lat.shape != (length,):
-            msg = f'Shape of {self._lat_file} is expected to be ({length},)' +\
-                  f' but is {lat.shape}.'
+            msg = (f'Shape of {self._lat_file} is expected to be ({length},)'
+                   f' but is {lat.shape}.')
             logger.error(msg)
             raise ImsError(msg)
         return lon, lat

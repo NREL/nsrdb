@@ -32,9 +32,9 @@ class Date(click.ParamType):
             # E.g., 20150531
             date = dt.strptime(value, '%Y%m%d')
         else:
-            msg = 'Date must be provided in YYYYDDD or YYYYMMDD ' +\
-                  f'format (e.g. 2015012 or 20150305). {value} ' +\
-                  'was provided.'
+            msg = ('Date must be provided in YYYYDDD or YYYYMMDD '
+                   f'format (e.g. 2015012 or 20150305). {value} '
+                   'was provided.')
             click.echo(msg)
             logger.error(msg)
             sys.exit(1)
@@ -44,13 +44,13 @@ class Date(click.ParamType):
 def _setup_paths(ctx):
     """ Handle paths and path overrides """
     # Verify path is set
-    if ctx.obj['path'] is None and (ctx.obj['mpath'] is None or
-                                    ctx.obj['ipath'] is None or
-                                    ctx.obj['apath'] is None):
-        msg = 'Paths for MODIS, IMS, and composite albedo data ' +\
-              'must be set together using --path, or ' +\
-              'individually using --modis-path, --ims-path, and ' +\
-              '--albedo-path.'
+    if ctx.obj['path'] is None and (ctx.obj['mpath'] is None
+                                    or ctx.obj['ipath'] is None
+                                    or ctx.obj['apath'] is None):
+        msg = ('Paths for MODIS, IMS, and composite albedo data '
+               'must be set together using --path, or '
+               'individually using --modis-path, --ims-path, and '
+               '--albedo-path.')
         click.echo(msg)
         logger.error(msg)
         sys.exit(1)
@@ -183,11 +183,11 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
                       walltime=walltime, feature=feature,
                       name=name, stdout_path=stdout_path)
         if slurm.id:
-            msg = f'Kicked off reV SC aggregation job "{name}" (SLURM ' +\
-                  f'jobid #{slurm.id}) on Eagle.'
+            msg = (f'Kicked off reV SC aggregation job "{name}" (SLURM '
+                   f'jobid #{slurm.id}) on Eagle.')
         else:
-            msg = f'Was unable to kick off reV SC job "{name}". ' +\
-                  'Please see the stdout error messages'
+            msg = (f'Was unable to kick off reV SC job "{name}". '
+                   'Please see the stdout error messages')
         click.echo(msg)
         logger.info(msg)
 
