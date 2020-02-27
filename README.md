@@ -18,7 +18,7 @@ The code base and additional documentation can be found [here](https://github.nr
 
     a. `conda install hdf4`
     
-    b. `conda install pyhdf`
+    b. `conda install pyhdf` (might need to run `conda install -c conda-forge pyhdf`)
 
 4. Navigate to the nsrdb directory that contains setup.py and run: `pip install -e .`
 5. There is a known dependency issue between h5py and netCDF4. If you get an error using the netCDF4 module, you should additionally run: `conda install netCDF4`
