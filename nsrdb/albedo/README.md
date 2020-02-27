@@ -2,19 +2,28 @@
 
 The surface albedo dataset is a measure of the ground reflectivity. 
 The albedo parameter is comprised of a slow-changing land-based albedo parameter from the 
-[MODIS Dataset](https://modis.gsfc.nasa.gov/data/dataprod/mod43.php), 
-and the daily [IMS Snow Dataset](https://nsidc.org/data/g02156). 
+[MODIS Dataset (Version 6)](https://lpdaac.usgs.gov/news/release-modis-version-6-brdfalbedo-gap-filled-snow-free-product/)
+and the [IMS Snow Dataset](https://nsidc.org/data/g02156). 
 Both datasets are available at a high spatial resolution close to the final NSRDB resolution, so no spatial interpolation is required. 
-The MODIS Dataset is on an 8-day temporal resolution, which is paired with the IMS daily snow cover, resulting in a daily albedo timeseries. 
+The MODIS Dataset is paired with the IMS daily snow cover, resulting in a daily albedo time series. 
 
 ## Albedo Processing Steps for the NSRDB
 
-The processing of surface albedo has been updated for the 2018 NSRDB. The new process is detailed in the following steps:
+The processing of surface albedo was updated in February 2020 . The new process is detailed in the following steps:
 
-1. The MODIS data is retrieved and the .hdf files are converted to .h5 using the [NSRDB file utilities](https://github.nrel.gov/PXS/nsrdb/blob/master/nsrdb/utilities/file_utils.py). 
-    a. As of 4/19, the MCD43GF MODIS dataset is only available up to 2015. The 2015 dataset is used for the NSRDB 2016-2018 datasets. 
-2. The IMS snow data is retrieved. 
-3. The full year of IMS snow data is compiled into a single .h5 file so that temporal gap filling can be performed. 
-    a. The methods used are year_1k_to_h5() and gap_fill_ims() found in the [IMS snow module](https://github.nrel.gov/PXS/nsrdb/blob/master/nsrdb/albedo/ims_snow.py). 
-4. The 1km MODIS albedo data is updated with a fixed snow albedo value for coordinates that have snow based 1km IMS data. 
-    a. This is done using the [map_modis() code](https://github.nrel.gov/PXS/nsrdb/blob/master/nsrdb/albedo/map_ims_to_modis.py).
+1. The MODIS data must currently be downloaded manually, as described below. As of 2/20, the MCD43GF MODIS dataset is only available up to 2017. The 2017 dataset is used for the all NSRDB datasets newer than 2017. 
+2. The IMS snow data is automatically retrieved. 
+3. The IMS data has four categories: dry land, open water, snow, sea ice. These categories are simplified to snow (snow and sea ice) or no-snow (dry land and open water).
+4. The IMS data is filtered to only contain pixels that act as a boundary between regions of snow and no-snow. This greatly reduces memory needs and computation time.
+5. The MODIS data is clipped to the extents of the IMS data. The following step are performed on the clipped MODIS data:
+    - The nearest IMS pixel is determined for each MODIS pixel using lat-lon values.
+    - If the nearest IMS pixel is categorized as snow the MODIS albedo value is updated to the SNOW_ALBEDO value in `albedo.py`. If the nearest IMS pixel is no-snow, the MODIS pixel retains its original value.
+6. The clipped MODIS data is reintegrated into the original MODIS data, creating the composite albedo data.
+7. The albedo data is scaled and exported to HDF5.
+
+
+## Downloading MODIS data
+
+The current MODIS data requires a free [Earthdata](https://wiki.earthdata.nasa.gov/display/EL/Earthdata+Login+Home) login account and must be downloaded manually. Files are available at the Earthdata [Data Pool](https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006). The albedo processing requires the shortwave, white-sky albedo datasets, which have the filename format `MCD43GF_wsa_shortwave_113_2017_V006.hdf`. 
+
+[Directions](https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget) are available to download the MODIS data via curl and wget. Additionally, the provided Python script `modis_v6_download.py` can be used to automate downloading MODIS data after the `.netrc` and `.urs_cookies` files are setup per the directions above.
