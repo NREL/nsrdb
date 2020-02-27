@@ -49,11 +49,13 @@ setup(
                       "pandas>=0.25,<1",
                       "click>=7.0",
                       "scipy>=1.3",
+                      "pyhdf",
                       "h5py>=2.9",
                       "scikit-learn>=0.21",
                       "netcdf4>=1.4",
                       "matplotlib>=3.1",
                       "pytest>=5.2",
                       "ipython",
+                      "notebook",
                       "psutil"],
 )
