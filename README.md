@@ -14,10 +14,14 @@ The code base and additional documentation can be found [here](https://github.nr
 ## Installation
 1. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb environment: `conda create --name nsrdb python=3.7`
 2. Activate your new conda env: `conda activate nsrdb`
-3. Navigate to the nsrdb directory that contains setup.py and run: `pip install -e .`
+3. A few packages cannot be installed using pypi and must be installed using conda. Run these commands:
+
+    a. `conda install hdf4`
     
-    a. There is a known dependency issue between h5py and netCDF4. If you get an error using the netCDF4 module, you should additionally `conda install netCDF4`
-    
+    b. `conda install pyhdf`
+
+4. Navigate to the nsrdb directory that contains setup.py and run: `pip install -e .`
+5. There is a known dependency issue between h5py and netCDF4. If you get an error using the netCDF4 module, you should additionally run: `conda install netCDF4`
 4. Test your installation:
     
     a. Start ipython and test the following import: `from nsrdb.data_model import DataModel`
