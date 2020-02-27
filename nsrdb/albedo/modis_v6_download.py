@@ -14,8 +14,9 @@ import os
 from datetime import datetime as dt
 from datetime import timedelta
 
+
 def main():
-    start = dt(2017,1,1)
+    start = dt(2017, 1, 1)
     end = dt(2017, 12, 31)
 
     curl_cmd = 'curl -O -b ~/.urs_cookies -c ~/.urs_cookies -L -n '
