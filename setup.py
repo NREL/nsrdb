@@ -57,5 +57,6 @@ setup(
                       "pytest>=5.2",
                       "ipython",
                       "notebook",
-                      "psutil"],
+                      "psutil",
+                      "pre-commit"],
 )
