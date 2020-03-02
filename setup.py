@@ -58,5 +58,7 @@ setup(
                       "ipython",
                       "notebook",
                       "psutil",
-                      "pre-commit"],
+                      "pre-commit",
+                      "flake8",
+                      "pylint"],
 )
