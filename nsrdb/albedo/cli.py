@@ -23,8 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class Date(click.ParamType):
-    """ Date argument parser and sanity checker """
-    def convert(self, value, param, ctx):
+    """Date argument parser and sanity checker """
+
+    @staticmethod
+    def convert(value, param, ctx):
+        """Click dtype convert method"""
         if len(value) == 7:
             # E.g., 2015001
             date = get_dt(int(value[:4]), int(value[4:]))
@@ -34,7 +37,7 @@ class Date(click.ParamType):
         else:
             msg = ('Date must be provided in YYYYDDD or YYYYMMDD '
                    f'format (e.g. 2015012 or 20150305). {value} '
-                   'was provided.')
+                   f'was provided. Param: {param}, ctx: {ctx}')
             click.echo(msg)
             logger.error(msg)
             sys.exit(1)
@@ -172,8 +175,15 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
     logger.info(f'Calculating composite albedo from {start} to {end}.')
 
     for date in daterange(start, end):
+        log_file = ctx.obj['log_file']
+        if isinstance(log_file, str):
+            if log_file.endswith('.log'):
+                sdate = date.strftime('%Y%m%d')
+                log_file = log_file.replace('.log', f'_{sdate}.log')
+
         cmd = get_node_cmd(date, ctx.obj['ipath'], ctx.obj['mpath'],
-                           ctx.obj['apath'], ctx.obj['tiff'])
+                           ctx.obj['apath'], ctx.obj['tiff'], log_file)
+
         logger.debug(f'command for slurm: {cmd}')
 
         name = dt.strftime(date, 'albedo_%Y%j')
@@ -200,10 +210,10 @@ def h5totiff(albedo_file):
     CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
 
 
-def get_node_cmd(date, ipath, mpath, apath, tiff):
+def get_node_cmd(date, ipath, mpath, apath, tiff, log_file):
     """ Create shell command for single day CLI call """
     sdate = date.strftime('%Y%m%d')
-    args = f'-i {ipath} -m {mpath} -a {apath}'
+    args = f'-i {ipath} -m {mpath} -a {apath} --log-file {log_file}'
     if tiff:
         args += ' --tiff'
     args += f' singleday {sdate}'

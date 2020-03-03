@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# flake8: noqa: C901
 """Test data extraction.
 
 Created on Tue Dec  10 08:22:26 2018
@@ -420,7 +421,7 @@ class Spatial:
 
     @staticmethod
     def dsets(h5, dsets, out_dir, timesteps=(0,), fname=None, file_ext='.png',
-              sites=None, interval=None, parallel=False, **kwargs):
+              sites=None, interval=None, max_workers=1, **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -443,8 +444,8 @@ class Spatial:
         interval : None | int
             Interval to plots sites at, i.e. if 100, only 1 every 100 sites
             will be plotted.
-        parallel : bool
-            Flag to generate plots in parallel (for each timestep).
+        max_workers : int | None
+            Maximum number of workers to use (>1 is parallel).
 
         Returns
         -------
@@ -510,7 +511,7 @@ class Spatial:
                                            timesteps.stop,
                                            step))
 
-                if not parallel:
+                if max_workers == 1:
                     for i, ts in enumerate(timesteps):
                         df[dset] = data[i, :]
                         fn_out, kwargs, og_title = Spatial._fmt_title(
@@ -520,7 +521,7 @@ class Spatial:
                                                       **kwargs)
                 else:
                     fig, ax = None, None
-                    with ProcessPoolExecutor() as exe:
+                    with ProcessPoolExecutor(max_workers=max_workers) as exe:
                         for i, ts in enumerate(timesteps):
                             df_par = df.copy()
                             df_par[dset] = data[i, :]
@@ -607,7 +608,8 @@ class Spatial:
                     cbar_label='dset', marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
-                    extent=None, axis=None, shape=None):
+                    extent=None, axis=None, shape=None, shape_aspect=None,
+                    bbox_inches='tight'):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -640,6 +642,10 @@ class Spatial:
             Image file extension (.png, .jpeg).
         shape : str
             Filepath to a shape file to plot on top of df data.
+        shape_aspect : None | float
+            Optional aspect ratio to use on shape.
+        bbox_inches : str
+            kwarg for saving figure.
 
         Returns
         -------
@@ -705,7 +711,8 @@ class Spatial:
                 gdf.geometry.boundary.plot(ax=ax, color=None,
                                            edgecolor=(0.2, 0.2, 0.2),
                                            linewidth=1)
-                ax.set_aspect(1.3)
+                if shape_aspect:
+                    ax.set_aspect(shape_aspect)
 
             if xlabel is None:
                 xlabel = labels[1]
@@ -754,7 +761,7 @@ class Spatial:
                 png2.save(out)
                 png2.close()
             else:
-                fig.savefig(out, dpi=dpi, bbox_inches='tight')
+                fig.savefig(out, dpi=dpi, bbox_inches=bbox_inches)
             logger.info('Saved figure: {}'.format(fname))
             plt.close()
         except Exception as e:
