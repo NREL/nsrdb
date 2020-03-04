@@ -21,7 +21,7 @@ relative_humidity,%,uint16,100,0,100,,,,,,derived,,2000,500
 solar_zenith_angle,degrees,uint16,100,0,180,,,,,,calculated,,2000,500
 specific_humidity,kg kg-1,float32,1,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/projects/pxs/ancillary/source,2000,250
 ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/projects/pxs/ancillary/source,2000,1000
-surface_albedo,unitless,uint8,100,0,1,AGG4,FALSE,nearest,,,MODIS-IMS,/projects/pxs/albedo/nsrdb_2018,2000,1000
+surface_albedo,unitless,uint8,100,0,1,AGG4,FALSE,nearest,,,MODIS-IMS,/projects/pxs/albedo,2000,1000
 surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/projects/pxs/ancillary/source,2000,500
 total_precipitable_water,cm,uint8,10,0,15,IDW2,TRUE,linear,tavg1_2d_slv_Nx,TQV,MERRA2,/projects/pxs/ancillary/source,2000,1000
 wind_direction,degrees,uint16,1,0,360,NN,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/projects/pxs/ancillary/source,2000,500
