@@ -30,7 +30,6 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary/')
     out_file = os.path.join(out_dir, 'output_handler_test.h5')
     date = datetime.date(year=2017, month=1, day=1)
-    cloud_dir = './'
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
     # set test directory
@@ -38,7 +37,7 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
     var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
     var_meta['source_directory'] = source_dir
 
-    data_model = DataModel.run_multiple(var_list, date, cloud_dir,
+    data_model = DataModel.run_multiple(var_list, date,
                                         grid, var_meta=var_meta,
                                         parallel=False,
                                         return_obj=True)

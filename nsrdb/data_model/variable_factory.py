@@ -40,6 +40,15 @@ class VarFactory:
                'wind_direction': MerraVar,
                }
 
+    HANDLER_NAMES = {'AsymVar': AsymVar,
+                     'AlbedoVar': AlbedoVar,
+                     'CloudVar': CloudVar,
+                     'MerraVar': MerraVar,
+                     'DewPoint': DewPoint,
+                     'RelativeHumidity': RelativeHumidity,
+                     'SolarZenithAngle': SolarZenithAngle,
+                     }
+
     NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')
 
     def get(self, var_name, *args, **kwargs):
@@ -53,6 +62,8 @@ class VarFactory:
             List of positional args for instantiation of ancillary var.
         **kwargs : dict
             List of keyword args for instantiation of ancillary var.
+            Can also include "handler" which specifies the handler name
+            explicitly.
 
         Returns
         -------
@@ -60,24 +71,72 @@ class VarFactory:
             Instantiated ancillary variable helper object (AsymVar, MerraVar).
         """
 
-        # ensure var is in the available handlers
-        if var_name in self.MAPPING:
+        if 'handler' in kwargs:
+            handler = kwargs.pop('handler')
+            if handler not in self.HANDLER_NAMES:
+                e = ('Did not recognize "{}" as an available NSRDB variable '
+                     'data handler. The following handlers are available: {}'
+                     .format(handler, list(self.HANDLER_NAMES.keys())))
+                logger.error(e)
+                raise KeyError(e)
+            else:
+                handler_class = self.HANDLER_NAMES[handler]
+                kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
 
-            if var_name in self.NO_ARGS:
-                kwargs = {}
-
-            # kwarg reduction for non-cloud vars
-            elif 'cld' not in var_name and 'cloud' not in var_name:
-                del_list = ('extent', 'cloud_dir', 'dsets')
-                kwargs = {k: v for k, v in kwargs.items() if k not in del_list}
-
-            # single creational statement to init handler
-            return self.MAPPING[var_name](*args, **kwargs)
+        elif var_name in self.MAPPING:
+            handler_class = self.MAPPING[var_name]
+            kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
 
         else:
-            raise KeyError('Did not recognize "{}" as an available NSRDB '
-                           'variable. The following variables are available: '
-                           '{}'.format(var_name, list(self.MAPPING.keys())))
+            e = ('Did not recognize "{}" as an available NSRDB '
+                 'variable. The following variables are available: '
+                 '{}'.format(var_name, list(self.MAPPING.keys())))
+            logger.error(e)
+            raise KeyError(e)
+
+        try:
+            instance = handler_class(*args, **kwargs)
+        except Exception as e:
+            m = ('Received an exception trying to instantiate "{}":\n{}'
+                 .format(var_name, e))
+            logger.error(m)
+            raise RuntimeError(m)
+
+        return instance
+
+    def _clean_kwargs(self, var_name, handler_class, kwargs,
+                      cld_list=('extent', 'cloud_dir', 'dsets')):
+        """Clean a kwargs namespace for cloud var specific kwargs.
+
+        Parameters
+        ----------
+        handler_class : AncillaryVarHandler
+            DataModel handler class. This method looks for the CloudVar class.
+        kwargs : dict
+            Namespace of kwargs to init handler_class.
+        cld_list : tuple
+            List of CloudVar specific input variables
+            default: ('extent', 'cloud_dir', 'dsets')
+
+        Returns
+        -------
+        kwargs : dict
+            Namespace of kwargs to init handler class
+            cleaned for cloud kwargs.
+        """
+
+        if var_name in self.NO_ARGS:
+            kwargs = {}
+
+        elif handler_class == CloudVar:
+            if 'cloud_dir' in kwargs:
+                kwargs['source_dir'] = kwargs.pop('cloud_dir')
+
+        else:
+            kwargs = {k: v for k, v in kwargs.items()
+                      if k not in cld_list}
+
+        return kwargs
 
     @staticmethod
     def get_base_handler(*args, **kwargs):
@@ -97,6 +156,63 @@ class VarFactory:
         """
 
         return AncillaryVarHandler(*args, **kwargs)
+
+    @staticmethod
+    def get_dset_attrs(dset, var_meta=None):
+        """Use the variable factory to get output attributes for a single dset.
+
+        Parameters
+        ----------
+        dset : str
+            Single dataset / variable name.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes.
+        chunks : tuple
+            Chunk shape tuple.
+        dtype : dict
+            Numpy datatype.
+        """
+
+        var_obj = VarFactory.get_base_handler(dset, var_meta=var_meta)
+        return var_obj.attrs, var_obj.chunks, var_obj.final_dtype
+
+    @staticmethod
+    def get_dsets_attrs(dsets, var_meta=None):
+        """Use the variable factory to get output attributes for list of dsets.
+
+        Parameters
+        ----------
+        dsets : list
+            List of dataset / variable names.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+
+        Returns
+        -------
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
+        """
+
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+
+        for dset in dsets:
+            out = VarFactory.get_dset_attrs(dset, var_meta=var_meta)
+            attrs[dset], chunks[dset], dtypes[dset] = out
+
+        return attrs, chunks, dtypes
 
     @staticmethod
     def get_cloud_handler(fpath, dsets=None):

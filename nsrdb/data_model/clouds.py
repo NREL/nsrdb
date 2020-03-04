@@ -399,7 +399,7 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, cloud_dir,
+    def __init__(self, name, var_meta, date, source_dir,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
@@ -412,7 +412,7 @@ class CloudVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        cloud_dir : str
+        source_dir : str
             Cloud data directory containing nested daily directories with
             h5 or nc files from UW. Can be a normal directory path or
             /directory/prefix*suffix where /directory/ can have more sub dirs.
@@ -423,15 +423,16 @@ class CloudVar(AncillaryVarHandler):
         """
 
         self._path = None
-        x = self._parse_cloud_dir(cloud_dir)
-        self._cloud_dir, self._prefix, self._suffix = x
+        x = self._parse_cloud_dir(source_dir)
+        self._source_dir, self._prefix, self._suffix = x
         self._flist = None
         self._file_df = None
         self._dsets = dsets
         self._ftype = None
         self._i = None
 
-        super().__init__(name, var_meta=var_meta, date=date)
+        super().__init__(name, var_meta=var_meta, date=date,
+                         source_dir=self._source_dir)
 
         if len(self.file_df) != len(self.flist):
             msg = ('Bad number of cloud data files for {}. Counted {} files '
@@ -498,12 +499,12 @@ class CloudVar(AncillaryVarHandler):
         Parameters
         ----------
         cloud_dir : str
-            Normal directory path or /directory/prefix*suffix
+            Complete directory path or /directory/prefix*suffix
 
         Returns
         -------
         cloud_dir : str
-            Directory path
+            Base directory path
         prefix : str | None
             File prefix if * in cloud_dir
         suffix : str | None
@@ -529,9 +530,9 @@ class CloudVar(AncillaryVarHandler):
     def path(self):
         """Final path containing cloud data files.
 
-        The path is searched in _cloud_dir based on the analysis date.
+        The path is searched in _source_dir based on the analysis date.
 
-        Where _cloud_dir is defined in the nsrdb_vars.csv meta/config file.
+        Where _source_dir is defined in the nsrdb_vars.csv meta/config file.
         """
 
         if self._path is None:
@@ -543,7 +544,7 @@ class CloudVar(AncillaryVarHandler):
             fsearch2 = '{}_{}'.format(self._date.year, doy)
 
             # walk through current directory looking for day directory
-            for dirpath, _, _ in os.walk(self._cloud_dir):
+            for dirpath, _, _ in os.walk(self._source_dir):
                 dirpath = dirpath.replace('\\', '/')
                 if not dirpath.endswith('/'):
                     dirpath += '/'
@@ -557,8 +558,8 @@ class CloudVar(AncillaryVarHandler):
 
             if self._path is None:
                 msg = ('Could not find cloud data dir for date {} in '
-                       'cloud_dir {}. Looked for {}, {}, and {}'
-                       .format(self._date, self._cloud_dir, dirsearch,
+                       'source_dir {}. Looked for {}, {}, and {}'
+                       .format(self._date, self._source_dir, dirsearch,
                                fsearch1, fsearch2))
                 logger.exception(msg)
                 raise IOError(msg)
@@ -578,12 +579,12 @@ class CloudVar(AncillaryVarHandler):
             If nothing is missing, return an empty string.
         """
 
-        if self._cloud_dir is None:
+        if self._source_dir is None:
             raise IOError('No cloud dir input for cloud var handler!')
 
         missing = ''
-        if not os.path.exists(self._cloud_dir):
-            missing = self._cloud_dir
+        if not os.path.exists(self._source_dir):
+            missing = self._source_dir
         elif not os.path.exists(self.path):
             missing = self.path
 
@@ -731,9 +732,9 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._file_df is None:
-            data_ti = self.data_time_index(self.flist)
+            data_ti = self.infer_data_time_index(self.flist)
 
-            freq = self.data_freq(self.flist)
+            freq = self.infer_data_freq(self.flist)
 
             df_actual = pd.DataFrame({'flist': self.flist}, index=data_ti)
 
@@ -748,7 +749,7 @@ class CloudVar(AncillaryVarHandler):
         return self._file_df
 
     @staticmethod
-    def data_time_index(flist):
+    def infer_data_time_index(flist):
         """Get the actual time index of the file set based on the timestamps.
 
         Parameters
@@ -758,16 +759,16 @@ class CloudVar(AncillaryVarHandler):
 
         Returns
         -------
-        data_time_index : pd.datetimeindex
+        time_index : pd.datetimeindex
             Pandas datetime index based on the actual file timestamps.
         """
 
         strtime = [str(CloudVar.get_timestamp(fstr))[:11] for fstr in flist]
-        data_time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
-        return data_time_index
+        time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
+        return time_index
 
     @staticmethod
-    def data_freq(flist):
+    def infer_data_freq(flist):
         """Infer the cloud data timestep frequency from the file list.
 
         Parameters
@@ -781,7 +782,9 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime frequency.
         """
 
-        data_ti = CloudVar.data_time_index(flist)
+        data_ti = CloudVar.infer_data_time_index(flist)
+
+        logger.debug('Inferred cloud data time index: {}'.format(data_ti))
 
         if len(flist) == 1:
             freq = '1d'
@@ -796,6 +799,8 @@ class CloudVar(AncillaryVarHandler):
             raise ValueError('Could not infer cloud data timestep frequency.')
         else:
             freq = freq.replace('T', 'min')
+            logger.debug('Infered cloud data timestep frequency: {}'
+                         .format(freq))
 
         return freq
 

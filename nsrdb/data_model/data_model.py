@@ -123,7 +123,7 @@ class DataModel:
                          + CLOUD_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
-                 scale=True):
+                 factory_kwargs=None, scale=True):
         """
         Parameters
         ----------
@@ -138,6 +138,13 @@ class DataModel:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
         scale : bool
             Flag to scale source data to reduced (integer) precision after
             data model processing.
@@ -149,11 +156,19 @@ class DataModel:
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_meta = var_meta
+        if factory_kwargs is None:
+            factory_kwargs = {}
+        self._factory_kwargs = factory_kwargs
         self._scale = scale
         self._var_factory = VarFactory()
         self._processed = {}
         self._ti = None
         self._weights = {}
+
+        logger.debug('Initialized DataModel with the following var meta: {}'
+                     .format(self._var_meta))
+        logger.debug('Initialized DataModel with the following variable '
+                     'factory kwargs: {}'.format(self._factory_kwargs))
 
     def __getitem__(self, key):
         return self._processed[key]
@@ -460,26 +475,22 @@ class DataModel:
 
         return data
 
-    def run_pre_flight(self, var_list, cloud_dir):
+    def run_pre_flight(self, var_list):
         """Run pre-flight checks, raise if specified paths/files are not found.
 
         Parameters
         ----------
         var_list : list
             List of variable names
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         """
 
         missing_list = []
         for var in var_list:
             if var in self._var_factory.MAPPING:
+                var_kwargs = self._factory_kwargs.get(var, {})
                 var_obj = self._var_factory.get(var, var_meta=self._var_meta,
                                                 name=var, date=self.date,
-                                                cloud_dir=cloud_dir,
-                                                dsets=[var])
+                                                dsets=[var], **var_kwargs)
 
                 if hasattr(var_obj, 'pre_flight'):
                     missing = var_obj.pre_flight()
@@ -533,7 +544,7 @@ class DataModel:
 
         return data
 
-    def _cloud_regrid(self, cloud_vars, cloud_dir, parallel=False):
+    def _cloud_regrid(self, cloud_vars, parallel=False):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
 
         (most efficient to process all cloud variables together to minimize
@@ -545,10 +556,6 @@ class DataModel:
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         parallel : bool
             Flag to perform regrid in parallel.
 
@@ -560,16 +567,12 @@ class DataModel:
             Array shape is (n_time, n_sites).
         """
 
-        for var in cloud_vars:
-            if var not in self.CLOUD_VARS:
-                raise KeyError('Did not recognize request to process cloud '
-                               'variable "{}".'.format(var))
-
         # use the first cloud var name to get object,
         # full cloud_var list is passed in kwargs
+        var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
         var_obj = self._var_factory.get(cloud_vars[0], var_meta=self._var_meta,
                                         name=cloud_vars[0], date=self.date,
-                                        cloud_dir=cloud_dir, dsets=cloud_vars)
+                                        dsets=cloud_vars, **var_kwargs)
 
         logger.debug('Starting cloud data ReGrid with {} futures '
                      '(cloud timesteps).'.format(len(var_obj)))
@@ -799,8 +802,10 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
+        var_kwargs = self._factory_kwargs.get(var, {})
         var_obj = self._var_factory.get(var, var_meta=self._var_meta,
-                                        name=var, date=self.date)
+                                        name=var, date=self.date,
+                                        **var_kwargs)
 
         if 'albedo' in var:
             # special exclusions for large-extent albedo
@@ -851,9 +856,9 @@ class DataModel:
         return data
 
     @classmethod
-    def _process_multiple(cls, var_list, date, cloud_dir, nsrdb_grid,
+    def _process_multiple(cls, var_list, date, nsrdb_grid,
                           nsrdb_freq='5min', var_meta=None, parallel=False,
-                          fpath_out=None):
+                          fpath_out=None, factory_kwargs=None):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -862,10 +867,6 @@ class DataModel:
             List of variables to process
         date : datetime.date
             Single day to extract ancillary data for.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
@@ -882,6 +883,13 @@ class DataModel:
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
 
         Returns
         -------
@@ -890,10 +898,10 @@ class DataModel:
         """
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs)
 
         # run pre-flight checks
-        data_model.run_pre_flight(var_list, cloud_dir)
+        data_model.run_pre_flight(var_list)
 
         # default multiple compute
         if var_list is None:
@@ -902,8 +910,13 @@ class DataModel:
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
-        cloud_vars = [cv for cv in var_list if cv in cls.CLOUD_VARS]
-        var_list = [v for v in var_list if v not in cls.CLOUD_VARS]
+        cloud_vars = []
+        for cv in var_list:
+            handler = data_model._factory_kwargs.get(cv, {})
+            handler = handler.get('handler', '')
+            if cv in cls.CLOUD_VARS or 'cloud' in handler.lower():
+                cloud_vars.append(cv)
+        var_list = [v for v in var_list if v not in cloud_vars]
 
         # remove derived (dependent) variables from var_list to be processed
         # last (most efficient to process depdencies first, dependents last)
@@ -924,20 +937,23 @@ class DataModel:
                 for var in var_list:
                     data_model[var] = cls.run_single(
                         var, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                        var_meta=var_meta, fpath_out=fpath_out)
+                        var_meta=var_meta, fpath_out=fpath_out,
+                        factory_kwargs=factory_kwargs)
             # run in parallel
             else:
                 data = cls._process_parallel(
                     var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                    var_meta=var_meta, fpath_out=fpath_out)
+                    var_meta=var_meta, fpath_out=fpath_out,
+                    factory_kwargs=factory_kwargs)
                 for k, v in data.items():
                     data_model[k] = v
 
         # process cloud variables together
         if cloud_vars:
             data_model['clouds'] = cls.run_clouds(
-                cloud_vars, date, cloud_dir, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                var_meta=var_meta, parallel=parallel, fpath_out=fpath_out)
+                cloud_vars, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+                var_meta=var_meta, parallel=parallel, fpath_out=fpath_out,
+                factory_kwargs=factory_kwargs)
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
@@ -1067,7 +1083,7 @@ class DataModel:
 
     @classmethod
     def run_single(cls, var, date, nsrdb_grid, nsrdb_freq='5min',
-                   var_meta=None, fpath_out=None):
+                   var_meta=None, fpath_out=None, factory_kwargs=None):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1088,6 +1104,13 @@ class DataModel:
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
 
         Returns
         -------
@@ -1096,7 +1119,7 @@ class DataModel:
         """
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs)
 
         if fpath_out is None:
             logger.info('Processing data for "{}".'.format(var))
@@ -1109,7 +1132,10 @@ class DataModel:
             logger.info('Processing data for "{}" with fpath_out: {}'
                         .format(var, fpath_out))
 
-        if var in cls.CLOUD_VARS:
+        handler = data_model._factory_kwargs.get('cv', {})
+        handler = handler.get('handler', '')
+
+        if var in cls.CLOUD_VARS or 'cloud' in handler.lower():
             method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
             method = data_model._derive
@@ -1135,9 +1161,9 @@ class DataModel:
         return data
 
     @classmethod
-    def run_clouds(cls, cloud_vars, date, cloud_dir, nsrdb_grid,
+    def run_clouds(cls, cloud_vars, date, nsrdb_grid,
                    nsrdb_freq='5min', var_meta=None, parallel=False,
-                   fpath_out=None):
+                   fpath_out=None, factory_kwargs=None):
         """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
@@ -1149,10 +1175,6 @@ class DataModel:
             NSRDB cloud variables names.
         date : datetime.date
             Single day to extract ancillary data for.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
@@ -1169,6 +1191,13 @@ class DataModel:
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
 
         Returns
         -------
@@ -1180,11 +1209,10 @@ class DataModel:
                     .format(cloud_vars))
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs)
 
         try:
-            data = data_model._cloud_regrid(cloud_vars, cloud_dir,
-                                            parallel=parallel)
+            data = data_model._cloud_regrid(cloud_vars, parallel=parallel)
         except Exception as e:
             logger.exception('Processing method "DataModel._cloud_regrid()" '
                              'failed for "{}"'.format(cloud_vars))
@@ -1208,9 +1236,9 @@ class DataModel:
         return data
 
     @classmethod
-    def run_multiple(cls, var_list, date, cloud_dir, nsrdb_grid,
+    def run_multiple(cls, var_list, date, nsrdb_grid,
                      nsrdb_freq='5min', var_meta=None, parallel=False,
-                     return_obj=False, fpath_out=None):
+                     return_obj=False, fpath_out=None, factory_kwargs=None):
         """Run ancillary data processing for multiple variables for single day.
 
         Parameters
@@ -1219,10 +1247,6 @@ class DataModel:
             List of variables to process
         date : datetime.date
             Single day to extract ancillary data for.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
@@ -1241,6 +1265,13 @@ class DataModel:
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
 
         Returns
         -------
@@ -1266,8 +1297,9 @@ class DataModel:
                             'received: {}'.format(nsrdb_grid))
 
         data_model = cls._process_multiple(
-            var_list, date, cloud_dir, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-            var_meta=var_meta, parallel=parallel, fpath_out=fpath_out)
+            var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
+            var_meta=var_meta, parallel=parallel, fpath_out=fpath_out,
+            factory_kwargs=factory_kwargs)
 
         # Create an AncillaryDataProcessing object instance for storing data.
         logger.info('Final NSRDB output shape is: {}'

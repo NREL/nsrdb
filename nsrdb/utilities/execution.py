@@ -103,8 +103,7 @@ class SubprocessManager:
         stdout = stdout.decode('ascii').rstrip()
 
         if stderr:
-            raise Exception('Error occurred submitting job:\n{}'
-                            .format(stderr))
+            warn('Error occurred submitting job:\n{}'.format(stderr))
 
         return stdout, stderr
 

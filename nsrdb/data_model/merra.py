@@ -20,7 +20,7 @@ class MerraVar(AncillaryVarHandler):
     # default MERRA paths.
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
-    def __init__(self, name, var_meta, date):
+    def __init__(self, name, var_meta, date, source_dir=None):
         """
         Parameters
         ----------
@@ -31,10 +31,14 @@ class MerraVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
+        source_dir : str | None
+            Optional data source directory. Will overwrite the source directory
+            from the var_meta input.
         """
 
         self._merra_grid = None
-        super().__init__(name, var_meta=var_meta, date=date)
+        super().__init__(name, var_meta=var_meta, date=date,
+                         source_dir=source_dir)
 
     @property
     def date_stamp(self):

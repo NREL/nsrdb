@@ -1,6 +1,7 @@
 """
 Logging for NSRDB
 """
+import os
 import logging
 import sys
 
@@ -75,6 +76,11 @@ def setup_logger(logger_name, log_level="INFO", log_file=None,
     handler : logging.FileHandler | logging.StreamHandler | list
         handler(s) added to logger
     """
+
+    if log_file is not None:
+        if not os.path.exists(os.path.dirname(log_file)):
+            os.makedirs(os.path.dirname(log_file))
+
     logger = logging.getLogger(logger_name)
     current_handlers = [str(h) for h in logger.handlers]
 
