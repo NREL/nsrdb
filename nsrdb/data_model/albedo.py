@@ -59,7 +59,7 @@ class AlbedoVar(AncillaryVarHandler):
         # day index is zero-indexed
         d_i = str(self._date.timetuple().tm_yday - 1).zfill(3)
         y = str(self._date.year)
-        date = '{d_i}_{y}'.format(d_i=d_i, y=y)
+        date = '{y}_{d_i}'.format(y=y, d_i=d_i)
         return date
 
     @property
