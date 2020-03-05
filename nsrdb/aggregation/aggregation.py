@@ -908,7 +908,7 @@ class Manager:
         ----------
         h5dir : str
             Path to directory containing multiple h5 files with all available
-            dsets.
+            dsets. Can also be a single h5 filepath.
 
         Returns
         -------
@@ -929,7 +929,10 @@ class Manager:
         chunks = {}
         dtypes = {}
 
-        h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
+        if h5dir.endswith('.h5') and os.path.isfile(h5dir):
+            h5_files = [h5dir]
+        else:
+            h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
 
         for fn in h5_files:
             with Outputs(os.path.join(h5dir, fn)) as out:
@@ -950,10 +953,14 @@ class Manager:
         """Initialize the output file with all datasets and final
         time index and meta"""
 
-        data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir'] + '/'
-
-        self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
-            self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
+        if 'fpath' in self.data[self.data_sources[0]]:
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+                self.get_dset_attrs(self.data[self.data_sources[0]]['fpath'])
+        else:
+            data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir']
+            data_sub_dir += '/'
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+                self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
 
         if not os.path.exists(self.fout):
             logger.info('Initializing output file: {}'.format(self.fout))
@@ -1310,7 +1317,7 @@ class Manager:
 
     @classmethod
     def run_chunk(cls, data, data_dir, meta_dir, i_chunk, n_chunks,
-                  year=2018, parallel=True, chunk_log=False):
+                  year=2018, parallel=True, log_level='INFO'):
         """
         Parameters
         ----------
@@ -1330,15 +1337,16 @@ class Manager:
             Year being analyzed.
         parallel : bool
             Flag to use parallel compute.
-        chunk_log : bool
-            Flag to start a logger for this agg chunk.
+        log_level : str | bool
+            Flag to initialize a log file at a given log level.
+            False will not init a logger.
         """
 
-        if chunk_log:
+        if log_level:
             log_file = os.path.join(data_dir,
                                     data['final']['data_sub_dir'] + '/',
                                     'agg_{}.log'.format(i_chunk))
-            init_logger(__name__, log_level='INFO', log_file=log_file)
+            init_logger(__name__, log_level=log_level, log_file=log_file)
 
         logger.info('Working on site chunk {} out of {}'
                     .format(i_chunk + 1, n_chunks))
@@ -1413,7 +1421,7 @@ class Manager:
         for i_chunk in range(n_chunks):
             i_node_name = node_name + '_{}'.format(i_chunk)
             a = ('{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
-                 'parallel=True, chunk_log=True'
+                 'parallel=True, log_level="INFO"'
                  .format(json.dumps(data), data_dir, meta_dir,
                          i_chunk, n_chunks, year))
             icmd = cmd.format(a)
