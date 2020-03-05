@@ -1209,8 +1209,18 @@ class Manager:
             data_sub_dir = self.data[source]['data_sub_dir']
             nn = self.data[source]['nn'][gid, :]
             w = self.data[source]['window']
-            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
-                                         source)
+
+            if 'fpath' in self.data[source]:
+                data_fpath = self.data[source]['fpath']
+            else:
+                data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
+                                             source)
+
+            if not os.path.exists(data_fpath):
+                e = ('Could not find source data filepath for "{}": {}'
+                     .format(var, data_fpath))
+                logger.error(e)
+                raise FileNotFoundError(e)
 
             args = [var, data_fpath, nn, w, self.time_index]
 
