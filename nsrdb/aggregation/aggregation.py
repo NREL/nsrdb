@@ -350,15 +350,18 @@ class Aggregation:
         iarr : np.ndarray
             Array of index arrays.
         """
+        if w == 1:
+            iarr = np.expand_dims(np.arange(L), axis=1)
 
-        iarr = np.zeros((L, w), dtype=np.uint32)
-        for i in range(L):
-            sub = [i + n for n in range(w)]
-            sub -= (np.round(w / 2) - 1)
-            iarr[i, :] = sub
-
-        iarr = np.maximum(iarr, 0)
-        iarr = np.minimum(iarr, L - 1)
+        else:
+            iarr = np.zeros((L, w), dtype=np.int32)
+            for i in range(L):
+                sub = [i + n for n in range(w)]
+                sub -= (np.round(w / 2) - 1)
+                iarr[i, :] = sub
+            iarr[(iarr < 0)] = 0
+            iarr = np.maximum(iarr, 0)
+            iarr = np.minimum(iarr, L - 1)
 
         return iarr
 
