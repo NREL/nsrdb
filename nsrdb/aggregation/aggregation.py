@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy.stats import mode
+from scipy.spatial import cKDTree
 from warnings import warn
 
 from nsrdb.all_sky.utilities import calc_dhi
@@ -1101,14 +1102,17 @@ class Manager:
                                     self.final_sres)
             logger.info('Data source {} will use {} neighbors'
                         .format(source, k))
+
+            meta_fpath = os.path.join(self.meta_dir,
+                                      self.data[source]['meta_file'])
             tree_fpath = os.path.join(self.meta_dir,
                                       self.data[source]['tree_file'])
-            _, i = self.knn(self.meta, tree_fpath, k=k)
+            _, i = self.knn(self.meta, tree_fpath, meta_fpath, k=k)
 
             self.data[source]['nn'] = i
 
     @staticmethod
-    def knn(meta, tree_fpath, k=1):
+    def knn(meta, tree_fpath, meta_fpath, k=1):
         """Run KNN between the final meta data and the pickled ckdtree.
 
         Parameters
@@ -1116,7 +1120,10 @@ class Manager:
         meta : pd.DataFrame
             Final meta data.
         tree_fpath : str
-            Filepath to a pickled ckdtree.
+            Filepath to a pickled ckdtree containing ckdtree for source
+            meta data.
+        meta_fpath : str
+            Filepath to csv containing source meta data.
         k : int
             Number of neighbors to query.
 
@@ -1127,8 +1134,29 @@ class Manager:
         i : np.ndarray
             Index results. Shape is (len(meta), k)
         """
-        with open(tree_fpath, 'rb') as pkl:
-            tree = pickle.load(pkl)
+
+        if os.path.exists(tree_fpath):
+            try:
+                with open(tree_fpath, 'rb') as pkl:
+                    tree = pickle.load(pkl)
+            except Exception as e:
+                m = ('Could not load pickle file. May have been generated '
+                     'with a different python version. Try deleting the file '
+                     'and rerunning the agg code: {}'.format(e))
+                logger.error(m)
+                logger.exception(e)
+                raise e
+        elif os.path.exists(meta_fpath):
+            meta_source = pd.read_csv(meta_fpath)
+            tree = cKDTree(meta_source[['latitude', 'longitude']])
+            with open(tree_fpath, 'wb') as pkl:
+                pickle.dump(tree, pkl)
+        else:
+            e = ('Missing both meta source tree file and meta source csv '
+                 'file: {}, {}'.format(tree_fpath, meta_fpath))
+            logger.error(e)
+            raise FileNotFoundError(e)
+
         d, i = tree.query(meta[['latitude', 'longitude']], k=k)
         if len(i.shape) == 1:
             d = d.reshape((len(i), 1))
