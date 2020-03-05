@@ -165,11 +165,6 @@ class DataModel:
         self._ti = None
         self._weights = {}
 
-        logger.debug('Initialized DataModel with the following var meta: {}'
-                     .format(self._var_meta))
-        logger.debug('Initialized DataModel with the following variable '
-                     'factory kwargs: {}'.format(self._factory_kwargs))
-
     def __getitem__(self, key):
         return self._processed[key]
 
@@ -1016,8 +1011,10 @@ class DataModel:
                     if future.running():
                         running += 1
                         keys += [key]
-                logger.debug('{} DataModel processing futures are running: {}'
-                             .format(running, keys))
+                logger.debug('{} DataModel processing futures are running: {} '
+                             'memory usage is {:.3f} GB out of {:.3f} GB total'
+                             .format(running, keys, mem.used / 1e9,
+                                     mem.total / 1e9))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -1295,6 +1292,11 @@ class DataModel:
         else:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(nsrdb_grid))
+
+        logger.debug('Running DataModel with the following var meta: {}'
+                     .format(var_meta))
+        logger.debug('Running DataModel with the following variable '
+                     'factory kwargs: {}'.format(factory_kwargs))
 
         data_model = cls._process_multiple(
             var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,

@@ -784,8 +784,6 @@ class CloudVar(AncillaryVarHandler):
 
         data_ti = CloudVar.infer_data_time_index(flist)
 
-        logger.debug('Inferred cloud data time index: {}'.format(data_ti))
-
         if len(flist) == 1:
             freq = '1d'
         else:
