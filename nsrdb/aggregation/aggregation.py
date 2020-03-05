@@ -943,7 +943,16 @@ class Manager:
                         attrs[d] = Manager._special_attrs(
                             d, out.get_attrs(dset=d))
 
-                        _, dtypes[d], chunks[d] = out.get_dset_properties(d)
+                        try:
+                            x = out.get_dset_properties(d)
+                        except Exception as e:
+                            m = ('Could not get dataset "{}" properties from '
+                                 'file: {}'.format(os.path.join(h5dir, fn)))
+                            logger.error(m)
+                            logger.exception(m)
+                            raise e
+                        else:
+                            _, dtypes[d], chunks[d] = x
 
         dsets = list(attrs.keys())
 
@@ -1317,7 +1326,8 @@ class Manager:
 
     @classmethod
     def run_chunk(cls, data, data_dir, meta_dir, i_chunk, n_chunks,
-                  year=2018, parallel=True, log_level='INFO'):
+                  year=2018, ignore_dsets=None,
+                  parallel=True, log_level='INFO'):
         """
         Parameters
         ----------
@@ -1335,6 +1345,8 @@ class Manager:
             Number of chunks to process the meta data in.
         year : int
             Year being analyzed.
+        ignore_dsets : list | None
+            Source datasets to ignore (not aggregate). Optional.
         parallel : bool
             Flag to use parallel compute.
         log_level : str | bool
@@ -1354,10 +1366,13 @@ class Manager:
         m = cls(data, data_dir, meta_dir, year=year, i_chunk=i_chunk,
                 n_chunks=n_chunks)
 
+        if ignore_dsets is None:
+            ignore_dsets = []
+
         datasets = [d for d in m.dsets if 'dhi' not in d
-                    and 'cld_' not in d]
+                    and 'cld_' not in d and d not in ignore_dsets]
         delayed_datasets = [d for d in m.dsets if 'dhi' in d
-                            or 'cld_' in d]
+                            or 'cld_' in d and d not in ignore_dsets]
         n_var = len(datasets) + len(delayed_datasets)
         i_var = 0
         for dsets in [datasets, delayed_datasets]:
