@@ -773,6 +773,15 @@ class Manager:
         self._meta = None
         self._meta_chunk = None
 
+        self.final_sres = None
+        self.final_tres = None
+        self.fout = None
+        self.data_sources = None
+        self.dsets = None
+        self.attrs = None
+        self.chunks = None
+        self.dtypes = None
+
         self.parse_data()
         self.preflight()
         self.run_nn()
@@ -904,7 +913,8 @@ class Manager:
         return dset_attrs
 
     @staticmethod
-    def get_dset_attrs(h5dir):
+    def get_dset_attrs(h5dir,
+                       ignore_dsets=('coordinates', 'time_index', 'meta')):
         """Get output file dataset attributes for a set of datasets.
 
         Parameters
@@ -912,6 +922,8 @@ class Manager:
         h5dir : str
             Path to directory containing multiple h5 files with all available
             dsets. Can also be a single h5 filepath.
+        ignore_dsets : tuple | list
+            List of datasets to ignore (will not be aggregated).
 
         Returns
         -------
@@ -937,11 +949,14 @@ class Manager:
         else:
             h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
 
+        logger.info('Getting dataset attributes from the following files: {}'
+                    .format(h5_files))
+
         for fn in h5_files:
             with Outputs(os.path.join(h5dir, fn)) as out:
                 ti = out.time_index
                 for d in out.dsets:
-                    if d not in ['time_index', 'meta'] and d not in attrs:
+                    if d not in ignore_dsets and d not in attrs:
 
                         attrs[d] = Manager._special_attrs(
                             d, out.get_attrs(dset=d))
@@ -958,6 +973,7 @@ class Manager:
                             _, dtypes[d], chunks[d] = x
 
         dsets = list(attrs.keys())
+        logger.info('Found the following datasets: {}'.format(dsets))
 
         return dsets, attrs, chunks, dtypes, ti
 
