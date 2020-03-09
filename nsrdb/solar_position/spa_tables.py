@@ -2,6 +2,185 @@
 Input tables for SPA algorithm
 """
 import numpy as np
+import pandas as pd
+
+
+class DeltaTable:
+    """"Class to handle delta-t values - year-dependent difference between
+    terrestrial time and UT1.
+
+    Data sources:
+    http://maia.usno.navy.mil/ser7/deltat.data (no longer accessible)
+    https://stjarnhimlen.se/comp/time.html#deltat (current)
+
+    Note that delta-t values starting in 2021 are predicted.
+    """
+
+    TIMES = ['1/1/1990',
+             '7/1/1990',
+             '1/1/1991',
+             '7/1/1991',
+             '1/1/1992',
+             '7/1/1992',
+             '1/1/1993',
+             '7/1/1993',
+             '1/1/1994',
+             '7/1/1994',
+             '1/1/1995',
+             '7/1/1995',
+             '1/1/1996',
+             '7/1/1996',
+             '1/1/1997',
+             '7/1/1997',
+             '1/1/1998',
+             '7/1/1998',
+             '1/1/1999',
+             '7/1/1999',
+             '1/1/2000',
+             '7/1/2000',
+             '1/1/2001',
+             '7/1/2001',
+             '1/1/2002',
+             '7/1/2002',
+             '1/1/2003',
+             '7/1/2003',
+             '1/1/2004',
+             '7/1/2004',
+             '1/1/2005',
+             '7/1/2005',
+             '1/1/2006',
+             '7/1/2006',
+             '1/1/2007',
+             '7/1/2007',
+             '1/1/2008',
+             '7/1/2008',
+             '1/1/2009',
+             '7/1/2009',
+             '1/1/2010',
+             '7/1/2010',
+             '1/1/2011',
+             '7/1/2011',
+             '1/1/2012',
+             '7/1/2012',
+             '1/1/2013',
+             '7/1/2013',
+             '1/1/2014',
+             '7/1/2014',
+             '1/1/2015',
+             '7/1/2015',
+             '1/1/2016',
+             '7/1/2016',
+             '1/1/2017',
+             '7/1/2017',
+             '1/1/2018',
+             '7/1/2018',
+             '1/1/2019',
+             '7/1/2019',
+             '1/1/2020',
+             '1/1/2021',
+             '1/1/2022',
+             '1/1/2023',
+             '1/1/2024',
+             '1/1/2025',
+             '1/1/2026',
+             '1/1/2027',
+             '1/1/2028']
+
+    DELTAS = [56.86,
+              57.22,
+              57.57,
+              57.94,
+              58.31,
+              58.72,
+              59.12,
+              59.55,
+              59.98,
+              60.38,
+              60.78,
+              61.2,
+              61.63,
+              61.96,
+              62.29,
+              62.63,
+              62.97,
+              63.22,
+              63.47,
+              63.66,
+              63.82,
+              63.98,
+              64.09,
+              64.2,
+              64.3,
+              64.41,
+              64.47,
+              64.55,
+              64.57,
+              64.65,
+              64.68,
+              64.8,
+              64.85,
+              64.99,
+              65.15,
+              65.34,
+              65.45,
+              65.63,
+              65.78,
+              65.95,
+              66.07,
+              66.24,
+              66.32,
+              66.47,
+              66.6,
+              66.77,
+              66.91,
+              67.13,
+              67.28,
+              67.49,
+              67.64,
+              67.86,
+              68.1,
+              68.4,
+              68.59,
+              68.82,
+              68.96,
+              69.11,
+              69.22,
+              69.35,
+              69.36,
+              70,
+              70,
+              70,
+              71,
+              71,
+              71,
+              72,
+              72,
+              ]
+
+    DELTA_T = pd.DataFrame({'starting_at': TIMES,
+                            'delta_t_tt-utc1': DELTAS})
+    DELTA_T.index = pd.to_datetime(DELTA_T['starting_at'])
+    DELTA_T = DELTA_T.sort_index()
+
+    def __getitem__(self, date):
+        """Get the delta-t value for a given input date
+
+        Parameters
+        ----------
+        date : datetime.date
+            Date to retrieve delta t for.
+
+        Returns
+        -------
+        delta_t : float
+            Delta t value for input date
+        """
+        delta_t = None
+        for i, row in self.DELTA_T.iterrows():
+            if not date > i:
+                delta_t = row['delta_t_tt-utc1']
+                break
+        return delta_t
 
 
 class SPAtables:
