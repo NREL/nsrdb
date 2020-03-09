@@ -399,7 +399,7 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, source_dir,
+    def __init__(self, name, var_meta, date, source_dir, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
@@ -416,6 +416,10 @@ class CloudVar(AncillaryVarHandler):
             Cloud data directory containing nested daily directories with
             h5 or nc files from UW. Can be a normal directory path or
             /directory/prefix*suffix where /directory/ can have more sub dirs.
+        freq : str | None
+            Optional timeseries frequency to force cloud files to
+            (time_index.freqstr). If None, the frequency of the cloud file
+            list will be inferred.
         dsets : tuple | list
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
@@ -423,6 +427,7 @@ class CloudVar(AncillaryVarHandler):
         """
 
         self._path = None
+        self._freq = freq
         x = self._parse_cloud_dir(source_dir)
         self._source_dir, self._prefix, self._suffix = x
         self._flist = None
@@ -433,6 +438,8 @@ class CloudVar(AncillaryVarHandler):
 
         super().__init__(name, var_meta=var_meta, date=date,
                          source_dir=self._source_dir)
+
+        self._check_freq()
 
         if len(self.file_df) != len(self.flist):
             msg = ('Bad number of cloud data files for {}. Counted {} files '
@@ -525,6 +532,20 @@ class CloudVar(AncillaryVarHandler):
                 return cloud_dir, prefix, suffix
 
         raise ValueError('Could not parse cloud dir: {}'.format(cloud_dir))
+
+    def _check_freq(self):
+        """Check the input vs inferred file frequency and warn if != """
+        if self.freq.lower() != self.inferred_freq.lower():
+            w = ('CloudVar handler has an input frequency of "{}" but '
+                 'inferred a frequency of "{}" for directory: {}'
+                 .format(self.freq, self.inferred_freq, self.path))
+            logger.warning(w)
+            warn(w)
+        else:
+            m = ('CloudVar handler has an input frequency of "{}" and '
+                 'inferred a frequency of "{}" for directory: {}'
+                 .format(self.freq, self.inferred_freq, self.path))
+            logger.info(m)
 
     @property
     def path(self):
@@ -719,6 +740,35 @@ class CloudVar(AncillaryVarHandler):
         return self._flist
 
     @property
+    def inferred_freq(self):
+        """Get the inferred frequency from the file list.
+
+        Returns
+        -------
+        freq : str
+            Pandas datetime frequency.
+        """
+        return self.infer_data_freq(self.flist)
+
+    @property
+    def freq(self):
+        """Get the file list timeseries frequency.
+
+        Is forced if this object is initialized with freq != None.
+        Otherwise, inferred from file list.
+
+        Returns
+        -------
+        freq : str
+            Nominal pandas datetimeindex frequency of the cloud file list.
+        """
+        if self._freq is None:
+            self._freq = self.inferred_freq
+        if len(self._freq) == 1:
+            self._freq = '1{}'.format(self._freq)
+        return self._freq
+
+    @property
     def file_df(self):
         """Get a dataframe with nominal time index and available cloud files.
 
@@ -732,16 +782,15 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._file_df is None:
+            # actual file list with actual time index from file timestamps
             data_ti = self.infer_data_time_index(self.flist)
-
-            freq = self.infer_data_freq(self.flist)
-
             df_actual = pd.DataFrame({'flist': self.flist}, index=data_ti)
 
-            df_nominal = pd.DataFrame(index=self._get_time_index(self._date,
-                                                                 freq=freq))
+            # nominal time index based on inferred or input freq
+            nominal_index = self._get_time_index(self._date, freq=self.freq)
+            df_nominal = pd.DataFrame(index=nominal_index)
+            tolerance = pd.Timedelta(self.freq) / 2
 
-            tolerance = pd.Timedelta(freq) / 2
             self._file_df = pd.merge_asof(df_nominal, df_actual,
                                           left_index=True, right_index=True,
                                           direction='nearest',
@@ -796,7 +845,6 @@ class CloudVar(AncillaryVarHandler):
         if freq is None:
             raise ValueError('Could not infer cloud data timestep frequency.')
         else:
-            freq = freq.replace('T', 'min')
             logger.debug('Infered cloud data timestep frequency: {}'
                          .format(freq))
 
