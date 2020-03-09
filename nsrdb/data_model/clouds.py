@@ -794,6 +794,9 @@ class CloudVar(AncillaryVarHandler):
             df_nominal = pd.DataFrame(index=nominal_index)
             tolerance = pd.Timedelta(self.freq) / 2
 
+            logger.debug('Using a file to timestep matching tolerance of {}'
+                         .format(tolerance))
+
             self._file_df = pd.merge_asof(df_nominal, df_actual,
                                           left_index=True, right_index=True,
                                           direction='nearest',
