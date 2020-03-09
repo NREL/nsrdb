@@ -17,6 +17,7 @@ import sys
 import shutil
 import time
 
+from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
@@ -129,9 +130,10 @@ class NSRDB:
         return self._grid
 
     @staticmethod
-    def _log_py_version():
-        """Check python version and 64-bit and print to logger."""
+    def _log_version():
+        """Check NSRDB and python version and 64-bit and print to logger."""
 
+        logger.info('Running NSRDB version: {}'.format(__version__))
         logger.info('Running python version: {}'.format(sys.version_info))
 
         is_64bits = sys.maxsize > 2 ** 32
@@ -291,7 +293,7 @@ class NSRDB:
                 init_logger(name, log_level=log_level, log_file=log_file)
 
         if log_version:
-            self._log_py_version()
+            self._log_version()
 
     def _init_output_h5(self, f_out, dsets, time_index, meta):
         """Initialize a target output h5 file.
