@@ -484,8 +484,8 @@ class CloudVar(AncillaryVarHandler):
                 elif fpath.endswith('.nc'):
                     obj = CloudVarSingleNC(fpath, dsets=self._dsets)
 
-                logger.debug('Cloud data timestep {} has source file: {}'
-                             .format(timestamp, os.path.basename(fpath)))
+                logger.info('Cloud data timestep {} has source file: {}'
+                            .format(timestamp, os.path.basename(fpath)))
 
             else:
                 obj = None
@@ -542,9 +542,8 @@ class CloudVar(AncillaryVarHandler):
             logger.warning(w)
             warn(w)
         else:
-            m = ('CloudVar handler has an input frequency of "{}" and '
-                 'inferred a frequency of "{}" for directory: {}'
-                 .format(self.freq, self.inferred_freq, self.path))
+            m = ('CloudVar handler has a frequency of "{}" for directory: {}'
+                 .format(self.freq, self.path))
             logger.info(m)
 
     @property
@@ -717,6 +716,10 @@ class CloudVar(AncillaryVarHandler):
     def flist(self):
         """List of cloud data file paths for one day. Each file is a timestep.
 
+        Note that this is the raw parsed file list, which may not match
+        self.file_df DataFrame, which is the final file list based on desired
+        timestep frequency
+
         Returns
         -------
         flist : list
@@ -844,9 +847,6 @@ class CloudVar(AncillaryVarHandler):
 
         if freq is None:
             raise ValueError('Could not infer cloud data timestep frequency.')
-        else:
-            logger.debug('Infered cloud data timestep frequency: {}'
-                         .format(freq))
 
         return freq
 

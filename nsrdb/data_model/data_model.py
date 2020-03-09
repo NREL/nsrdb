@@ -575,13 +575,13 @@ class DataModel:
 
         logger.debug('Starting cloud data ReGrid with {} futures '
                      '(cloud timesteps).'.format(len(var_obj)))
-
+        flist = var_obj.file_df['flist'].values.tolist()
         if parallel:
-            regrid_ind = self._cloud_regrid_parallel(var_obj.flist)
+            regrid_ind = self._cloud_regrid_parallel(flist)
         else:
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
-            for fpath in var_obj.flist:
+            for fpath in flist:
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
                 regrid_ind[fpath] = self.get_cloud_nn(fpath, self.nsrdb_grid)
