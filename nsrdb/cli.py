@@ -65,6 +65,9 @@ def config(ctx, config_file, command):
     eagle_args = run_config.pop('eagle')
     cmd_args = run_config.pop(command)
 
+    if cmd_args is None:
+        cmd_args = {}
+
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
         if k in cmd_args:
@@ -108,11 +111,12 @@ def config(ctx, config_file, command):
 
     elif command == 'collect-data-model':
         n_chunks = cmd_args['n_chunks']
+        def_dir = os.path.join(direct_args['out_dir'], 'daily/')
         for i_chunk in range(n_chunks):
             for i_fname in range(3):
                 ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
                 ctx.invoke(collect_data_model,
-                           daily_dir=cmd_args['daily_dir'],
+                           daily_dir=cmd_args.get('daily_dir', def_dir),
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
                            n_workers=cmd_args['n_workers'])
                 ctx.invoke(eagle, **eagle_args)
@@ -133,9 +137,11 @@ def config(ctx, config_file, command):
         ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-final':
+        def_dir = os.path.join(direct_args['out_dir'], 'collect/')
         for i_fname in range(4):
             ctx.obj['NAME'] = name + '_{}'.format(i_fname)
-            ctx.invoke(collect_final, collect_dir=cmd_args['collect_dir'],
+            ctx.invoke(collect_final,
+                       collect_dir=cmd_args.get('collect_dir', def_dir),
                        i_fname=i_fname)
             ctx.invoke(eagle, **eagle_args)
 

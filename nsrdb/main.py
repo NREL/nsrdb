@@ -82,7 +82,8 @@ class NSRDB:
 
         self._out_dir = out_dir
         self._log_dir = os.path.join(out_dir, 'logs/')
-        self._data_dir = os.path.join(out_dir, 'data/')
+        self._daily_dir = os.path.join(out_dir, 'daily/')
+        self._collect_dir = os.path.join(out_dir, 'collect/')
         self._final_dir = os.path.join(out_dir, 'final/')
         self.make_out_dir()
         self._year = int(year)
@@ -93,8 +94,8 @@ class NSRDB:
 
     def make_out_dir(self):
         """Ensure that all output directories exist"""
-        all_dirs = [self._out_dir, self._log_dir, self._data_dir,
-                    self._final_dir]
+        all_dirs = [self._out_dir, self._log_dir, self._daily_dir,
+                    self._collect_dir, self._final_dir]
         for d in all_dirs:
             if not os.path.exists(d):
                 os.makedirs(d)
@@ -212,7 +213,7 @@ class NSRDB:
         for var, arr in data_model._processed.items():
             if var not in ['time_index', 'meta']:
 
-                fpath_out = self._get_fpath_out(data_model.date)
+                fpath_out = self._get_daily_fpath_out(data_model.date)
                 fpath_out = fpath_out.format(var=var, i=self.meta.index[0])
 
                 logger.debug('\tWriting file: {}'
@@ -234,7 +235,7 @@ class NSRDB:
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
 
-    def _get_fpath_out(self, date):
+    def _get_daily_fpath_out(self, date):
         """Get the data model file output path based on a date.
         Will have {var} and {i}.
 
@@ -253,7 +254,7 @@ class NSRDB:
                                  str(date.month).zfill(2),
                                  str(date.day).zfill(2)))
         fname += '_{var}_{i}.h5'
-        fpath_out = os.path.join(self._data_dir, fname)
+        fpath_out = os.path.join(self._daily_dir, fname)
         return fpath_out
 
     def _init_loggers(self, loggers=None, log_file='nsrdb.log',
@@ -471,7 +472,7 @@ class NSRDB:
         nsrdb = cls(out_dir, date.year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
 
-        fpath_out = nsrdb._get_fpath_out(date)
+        fpath_out = nsrdb._get_daily_fpath_out(date)
 
         if isinstance(factory_kwargs, str):
             factory_kwargs = json.loads(factory_kwargs)
@@ -491,7 +492,7 @@ class NSRDB:
             runtime = (time.time() - t0) / 60
             year = date.year
             date_str = nsrdb.doy_to_datestr(year, nsrdb.date_to_doy(date))
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._daily_dir,
                       'fout': fpath_out,
                       'job_status': 'successful',
                       'runtime': runtime,
@@ -550,7 +551,7 @@ class NSRDB:
         t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
-        ti = nsrdb._parse_data_model_output_ti(nsrdb._data_dir, freq)
+        ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
 
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
@@ -564,7 +565,7 @@ class NSRDB:
         if '{y}' in fname:
             fname = fname.format(y=year)
 
-        f_out = os.path.join(nsrdb._data_dir, fname)
+        f_out = os.path.join(nsrdb._collect_dir, fname)
         f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
@@ -583,7 +584,7 @@ class NSRDB:
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_out,
                       'job_status': 'successful',
                       'runtime': runtime,
@@ -638,7 +639,7 @@ class NSRDB:
         t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
-        ti = nsrdb._parse_data_model_output_ti(nsrdb._data_dir, freq)
+        ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
 
         fnames = sorted(list(cls.OUTS.keys()))
         if i_fname is not None:
@@ -737,7 +738,7 @@ class NSRDB:
         nsrdb = cls(out_dir, year, None, var_meta=var_meta)
 
         fname = [fn for fn in nsrdb.OUTS if 'cloud' in fn][0].format(y=year)
-        f_cloud = os.path.join(nsrdb._data_dir, fname)
+        f_cloud = os.path.join(nsrdb._collect_dir, fname)
         f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
 
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
@@ -747,7 +748,7 @@ class NSRDB:
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_cloud,
                       'job_status': 'successful',
                       'runtime': runtime,
@@ -796,14 +797,14 @@ class NSRDB:
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
-                f_out = os.path.join(nsrdb._data_dir,
+                f_out = os.path.join(nsrdb._collect_dir,
                                      fname.format(y=year))
                 irrad_dsets = dsets
             elif 'ancil' in fname:
-                f_ancillary = os.path.join(nsrdb._data_dir,
+                f_ancillary = os.path.join(nsrdb._collect_dir,
                                            fname.format(y=year))
             elif 'cloud' in fname:
-                f_cloud = os.path.join(nsrdb._data_dir,
+                f_cloud = os.path.join(nsrdb._collect_dir,
                                        fname.format(y=year))
 
         if i_chunk is not None:
@@ -833,7 +834,7 @@ class NSRDB:
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_out,
                       'job_status': 'successful',
                       'runtime': runtime,
