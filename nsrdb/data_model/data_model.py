@@ -565,12 +565,16 @@ class DataModel:
         # use the first cloud var name to get object,
         # full cloud_var list is passed in kwargs
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
-        var_obj = self._var_factory.get(cloud_vars[0], var_meta=self._var_meta,
-                                        name=cloud_vars[0], date=self.date,
-                                        dsets=cloud_vars, **var_kwargs)
+        var_obj = self._var_factory.get(cloud_vars[0],
+                                        var_meta=self._var_meta,
+                                        name=cloud_vars[0],
+                                        date=self.date,
+                                        dsets=cloud_vars,
+                                        freq=self.nsrdb_ti.freqstr,
+                                        **var_kwargs)
 
         logger.debug('Starting cloud data ReGrid with {} futures '
-                     '(cloud timesteps).'.format(len(var_obj)))
+                     '(cloud timesteps).'.format(len(var_obj.flist)))
 
         if parallel:
             regrid_ind = self._cloud_regrid_parallel(var_obj.flist)

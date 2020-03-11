@@ -105,7 +105,7 @@ class VarFactory:
         return instance
 
     def _clean_kwargs(self, var_name, handler_class, kwargs,
-                      cld_list=('extent', 'cloud_dir', 'dsets')):
+                      cld_list=('extent', 'cloud_dir', 'dsets', 'freq')):
         """Clean a kwargs namespace for cloud var specific kwargs.
 
         Parameters
