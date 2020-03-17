@@ -228,8 +228,8 @@ class Blender:
             Source filepath (h5) to blend.
         source_meta : pd.DataFrame
             Source meta data to be blended - must be reduced to only data that
-            is going to be written to final output file from source. Should
-            ideally be sequential in source and destination.
+            is going to be written to final output file from source. Site gids
+            must be sequential in source and destination.
         chunk_size : int
             Number of sites to read/write at a time.
         """
@@ -253,7 +253,18 @@ class Blender:
                         logger.info('Blending gid chunk {} out of {}'
                                     .format(i + 1, len(source_chunks)))
 
-                        out[dset, :, i_destination] = source[dset, :, i_source]
+                        self._check_sequential(
+                            i_source, 'Source chunk {}'.format(i),
+                            raise_flag=True)
+
+                        self._check_sequential(
+                            i_destination, 'Destination chunk {}'.format(i),
+                            raise_flag=True)
+
+                        s = slice(i_source.min(), i_source.max() + 1)
+                        d = slice(i_destination.min(), i_destination.max() + 1)
+
+                        out[dset, :, d] = source[dset, :, s]
 
     @classmethod
     def run(cls, meta_out, fpath_out, fpath_east, fpath_west,
