@@ -62,7 +62,8 @@ def main(ctx, name, meta, out_dir, east_dir, west_dir, out_fn, east_fn,
 
     if log_dir is None:
         log_dir = os.path.join(out_dir, 'logs/')
-        os.makedirs(log_dir)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
 
     ctx.ensure_object(dict)
     ctx.obj['NAME'] = name
@@ -174,8 +175,8 @@ def get_node_cmds(name, meta, out_dir, east_dir, west_dir, out_fn,
 @main.command()
 @click.option('--alloc', '-a', default='pxs', type=str,
               help='SLURM allocation account name.')
-@click.option('--walltime', '-wt', default=1.0, type=float,
-              help='SLURM walltime request in hours. Default is 1.0')
+@click.option('--walltime', '-wt', default=4.0, type=float,
+              help='SLURM walltime request in hours. Default is 4.0')
 @click.option('--feature', '-l', default=None, type=STR,
               help=('Additional flags for SLURM job. Format is "--qos=high" '
                     'or "--depend=[state:job_id]". Default is None.'))
@@ -184,8 +185,7 @@ def get_node_cmds(name, meta, out_dir, east_dir, west_dir, out_fn,
 @click.option('--stdout_path', '-sout', default=None, type=STR,
               help='Subprocess standard output path. Default is in log_dir.')
 @click.pass_context
-def slurm(ctx, alloc, walltime, feature, memory, module, conda_env,
-          stdout_path):
+def slurm(ctx, alloc, walltime, feature, memory, stdout_path):
     """slurm (Eagle) submission tool for reV supply curve aggregation."""
 
     name = ctx.obj['NAME']
@@ -215,8 +215,7 @@ def slurm(ctx, alloc, walltime, feature, memory, module, conda_env,
                     'node name "{}"'.format(name))
         slurm = SLURM(cmd, alloc=alloc, memory=memory,
                       walltime=walltime, feature=feature,
-                      name=name, stdout_path=stdout_path,
-                      conda_env=conda_env, module=module)
+                      name=name, stdout_path=stdout_path)
         if slurm.id:
             msg = ('Kicked off nsrdb blend job "{}" (SLURM jobid #{}).'
                    .format(name, slurm.id))
