@@ -8,7 +8,7 @@ import pandas as pd
 from warnings import warn
 
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.main import NSRDB
+from nsrdb.data_model import VarFactory
 
 
 logger = logging.getLogger(__name__)
@@ -38,21 +38,6 @@ class Blender:
             source to eastern, by default -105 (historical closest to nadir).
         """
 
-        self._out_fpath = out_fpath
-        self._east_fpath = east_fpath
-        self._west_fpath = west_fpath
-        self._map_col = map_col
-        self._lon_seam = lon_seam
-
-        self._meta_out = self._parse_meta_file(meta_out)
-        self._meta_west = self._parse_meta_file(east_fpath)
-        self._meta_east = self._parse_meta_file(west_fpath)
-
-        self._parse_blended_meta()
-
-        self._time_index = self._parse_ti()
-        self._dsets = self._parse_dsets()
-
         logger.info('Blender running at longitude seam: {}'.format(lon_seam))
         logger.info('Blender initialized with west source file: {}'
                     .format(west_fpath))
@@ -61,8 +46,28 @@ class Blender:
         logger.info('Blender initialized with output file: {}'
                     .format(out_fpath))
 
-        NSRDB._init_output_h5(out_fpath, self._dsets, self._time_index,
-                              self._meta_out)
+        self._out_fpath = out_fpath
+        self._east_fpath = east_fpath
+        self._west_fpath = west_fpath
+        self._map_col = map_col
+        self._lon_seam = lon_seam
+
+        self._meta_out = self._parse_meta_file(meta_out)
+        self._meta_east = self._parse_meta_file(east_fpath)
+        self._meta_west = self._parse_meta_file(west_fpath)
+
+        logger.debug('Final output meta: \n{}'.format(self._meta_out.head()))
+        logger.debug('Source east meta: \n{}'.format(self._meta_east.head()))
+        logger.debug('Source west meta: \n{}'.format(self._meta_west.head()))
+
+        self._parse_blended_meta()
+
+        self._time_index = self._parse_ti()
+        self._dsets = self._parse_dsets()
+
+        attrs, chunks, dtypes = VarFactory.get_dsets_attrs(self._dsets)
+        Outputs.init_h5(self._out_fpath, self._dsets, attrs, chunks, dtypes,
+                        self._time_index, self._meta_out)
 
     @staticmethod
     def _parse_meta_file(inp):
@@ -110,6 +115,15 @@ class Blender:
 
         self._meta_west = self._meta_west[west_mask]
         self._meta_east = self._meta_east[east_mask]
+
+        if len(self._meta_east) < 10:
+            e = 'Eastern meta got totally eliminated by seam mask!'
+            logger.error(e)
+            raise RuntimeError(e)
+        if len(self._meta_west) < 10:
+            e = 'Western meta got totally eliminated by seam mask!'
+            logger.error(e)
+            raise RuntimeError(e)
 
         west_gid_full = self._meta_west[self._map_col].values.tolist()
         east_gid_full = self._meta_east[self._map_col].values.tolist()
@@ -211,7 +225,7 @@ class Blender:
         with Outputs(self._west_fpath, mode='r') as out:
             dsets_w = sorted([d for d in out.dsets if d not in ignore])
 
-        if not all(dsets_e == dsets_w):
+        if dsets_e != dsets_w:
             w = 'Datasets from east and west files do not match!'
             logger.warning(w)
             warn(w)
@@ -221,7 +235,7 @@ class Blender:
                     .format(len(dsets), dsets))
         return dsets
 
-    def run_blend(self, source_fpath, source_meta, chunk_size=1000):
+    def run_blend(self, source_fpath, source_meta, chunk_size=100000):
         """Run blending from one source file to the initialized output file.
 
         Parameters
@@ -247,13 +261,14 @@ class Blender:
         with Outputs(source_fpath, mode='r', unscale=False) as source:
             with Outputs(self._out_fpath, mode='a') as out:
 
-                for dset in self._dsets:
-                    logger.info('Blending {}'.format(dset))
+                for i_d, dset in enumerate(self._dsets):
+                    logger.info('Starting blend of dataset "{}", {} of {}'
+                                .format(dset, i_d + 1, len(self._dsets)))
 
                     zipped = zip(source_chunks, destination_chunks)
                     for i, (i_source, i_destination) in enumerate(zipped):
-                        logger.info('Blending gid chunk {} out of {}'
-                                    .format(i + 1, len(source_chunks)))
+                        logger.debug('\t Blending gid chunk {} out of {}'
+                                     .format(i + 1, len(source_chunks)))
 
                         self._check_sequential(
                             i_source, 'Source chunk {}'.format(i),
@@ -268,9 +283,11 @@ class Blender:
 
                         out[dset, :, d] = source[dset, :, s]
 
+        logger.info('Finished blend from source file: {}'.format(source_fpath))
+
     @classmethod
     def blend_file(cls, meta_out, out_fpath, east_fpath, west_fpath,
-                   map_col='gid_full', lon_seam=-105.0, chunk_size=1000):
+                   map_col='gid_full', lon_seam=-105.0, chunk_size=100000):
         """Initialize and run the blender using explicit source and output
         filepaths.
 
@@ -300,10 +317,12 @@ class Blender:
         b.run_blend(b._east_fpath, b._meta_east, chunk_size=chunk_size)
         b.run_blend(b._west_fpath, b._meta_west, chunk_size=chunk_size)
 
+        logger.info('Finished blend. Output file is: {}'.format(b._out_fpath))
+
     @classmethod
     def blend_dir(cls, meta_out, out_dir, east_dir, west_dir, file_tag,
                   out_fn=None, map_col='gid_full', lon_seam=-105.0,
-                  chunk_size=1000):
+                  chunk_size=100000):
         """Initialize and run the blender on two source directories with a
         file tag to search for.
 

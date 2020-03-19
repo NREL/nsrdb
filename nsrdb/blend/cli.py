@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
               help='Vertical longitude seam at which data transitions from '
               'the western source to eastern, by default -105.0 (historical '
               'closest to nadir).')
-@click.option('--chunk_size', '-cs', type=int, default=1000,
+@click.option('--chunk_size', '-cs', type=int, default=100000,
               help='Number of sites to read/write at a time.')
 @click.option('--log_dir', '-ld', type=STR, default=None,
               help='Directory to save blend logs. Defaults to a logs/ '
@@ -132,21 +132,21 @@ def get_node_cmds(name, meta, out_dir, east_dir, west_dir, out_fn,
                                 map_col, lon_seam, chunk_size, log_dir,
                                 verbose)
             names += out[0]
-            cmd += out[1]
+            cmds += out[1]
 
     else:
         args = ('-n {name} '
                 '-m {meta} '
-                '-od {out_dir}'
-                '-ed {east_dir}'
-                '-wd {west_dir}'
-                '-of {out_fn}'
-                '-ef {east_fn}'
-                '-wf {west_fn}'
-                '-t {file_tag}'
-                '-mc {map_col}'
-                '-ls {lon_seam}'
-                '-cs {chunk_size}'
+                '-od {out_dir} '
+                '-ed {east_dir} '
+                '-wd {west_dir} '
+                '-of {out_fn} '
+                '-ef {east_fn} '
+                '-wf {west_fn} '
+                '-t {file_tag} '
+                '-mc {map_col} '
+                '-ls {lon_seam} '
+                '-cs {chunk_size} '
                 '-ld {log_dir} '
                 )
         args = args.format(name=SLURM.s(name),
