@@ -44,8 +44,9 @@ logger = logging.getLogger(__name__)
               'closest to nadir).')
 @click.option('--chunk_size', '-cs', type=int, default=1000,
               help='Number of sites to read/write at a time.')
-@click.option('--log_dir', '-ld', type=STR, default='./logs/',
-              help='Directory to save blend logs.')
+@click.option('--log_dir', '-ld', type=STR, default=None,
+              help='Directory to save blend logs. Defaults to a logs/ '
+              'directory in out_dir.')
 @click.option('-v', '--verbose', is_flag=True,
               help='Flag to turn on debug logging. Default is not verbose.')
 @click.pass_context
@@ -58,6 +59,10 @@ def main(ctx, name, meta, out_dir, east_dir, west_dir, out_fn, east_fn,
      - Only file_tag
      - No filenames and no file_tag (for all file tags on Eagle)
     """
+
+    if log_dir is None:
+        log_dir = os.path.join(out_dir, 'logs/')
+        os.makedirs(log_dir)
 
     ctx.ensure_object(dict)
     ctx.obj['NAME'] = name
