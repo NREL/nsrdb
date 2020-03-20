@@ -371,8 +371,16 @@ class DataModel:
 
         if isinstance(labels, tuple):
             labels = list(labels)
+
         # Build NN tree based on the unique cloud grid at single timestep
-        grid = VarFactory.get_cloud_handler(fpath).grid
+        try:
+            grid = VarFactory.get_cloud_handler(fpath).grid
+        except Exception as e:
+            msg = ('Exception building cloud NN '
+                   'tree for {}: {}'.format(fpath, e))
+            logger.error(msg)
+            raise RuntimeError(msg)
+
         if grid is not None:
             tree = cKDTree(grid[labels])
             # Get the index of NN to NSRDB grid

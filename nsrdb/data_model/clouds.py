@@ -305,8 +305,14 @@ class CloudVarSingleNC(CloudVarSingle):
 
                 # use netCDF masked array mask to reduce ~1/4 of the data
                 if sparse_mask is None:
-                    sparse_mask = ~f[dset][:].mask
-
+                    try:
+                        sparse_mask = ~f[dset][:].mask
+                    except Exception as e:
+                        msg = 'Exception masking {} in {}: {}'.format(dset,
+                                                                      fpath,
+                                                                      e)
+                        logger.error(msg)
+                        raise RuntimeError(msg)
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid.empty:
