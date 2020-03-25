@@ -99,7 +99,7 @@ class VarFactory:
         except Exception as e:
             m = ('Received an exception trying to instantiate "{}":\n{}'
                  .format(var_name, e))
-            logger.error(m)
+            logger.exception(m)
             raise RuntimeError(m)
 
         return instance

@@ -405,7 +405,7 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, source_dir, freq=None,
+    def __init__(self, name, var_meta, date, source_dir=None, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
                         'cld_press_acha')):
         """
@@ -432,18 +432,19 @@ class CloudVar(AncillaryVarHandler):
             kdtree is built for each unique coordinate set in each cloud file.
         """
 
+        super().__init__(name, var_meta=var_meta, date=date,
+                         source_dir=source_dir)
+
+        x = self._parse_cloud_dir(self.source_dir)
+        self._source_dir, self._prefix, self._suffix = x
+
         self._path = None
         self._freq = freq
-        x = self._parse_cloud_dir(source_dir)
-        self._source_dir, self._prefix, self._suffix = x
         self._flist = None
         self._file_df = None
         self._dsets = dsets
         self._ftype = None
         self._i = None
-
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=self._source_dir)
 
         self._check_freq()
 
@@ -511,12 +512,12 @@ class CloudVar(AncillaryVarHandler):
 
         Parameters
         ----------
-        cloud_dir : str
+        cloud_dir : str | None
             Complete directory path or /directory/prefix*suffix
 
         Returns
         -------
-        cloud_dir : str
+        cloud_dir : str | None
             Base directory path
         prefix : str | None
             File prefix if * in cloud_dir
@@ -527,7 +528,10 @@ class CloudVar(AncillaryVarHandler):
         prefix = None
         suffix = None
 
-        if os.path.exists(cloud_dir):
+        if cloud_dir is None:
+            return cloud_dir, prefix, suffix
+
+        elif os.path.exists(cloud_dir):
             return cloud_dir, prefix, suffix
 
         elif os.path.exists(os.path.dirname(cloud_dir)):
