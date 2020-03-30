@@ -67,6 +67,9 @@ class AncillaryVarHandler:
         if var_meta is None:
             raise TypeError('Could not parse meta data for NSRDB variables '
                             'from: {}'.format(inp))
+
+        var_meta['var'] = var_meta['var'].str.strip(' ')
+
         return var_meta
 
     @property
