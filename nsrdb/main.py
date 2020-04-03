@@ -11,11 +11,13 @@ import datetime
 import pandas as pd
 import numpy as np
 import os
+import json
 import logging
 import sys
 import shutil
 import time
 
+from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
@@ -80,7 +82,8 @@ class NSRDB:
 
         self._out_dir = out_dir
         self._log_dir = os.path.join(out_dir, 'logs/')
-        self._data_dir = os.path.join(out_dir, 'data/')
+        self._daily_dir = os.path.join(out_dir, 'daily/')
+        self._collect_dir = os.path.join(out_dir, 'collect/')
         self._final_dir = os.path.join(out_dir, 'final/')
         self.make_out_dir()
         self._year = int(year)
@@ -91,8 +94,8 @@ class NSRDB:
 
     def make_out_dir(self):
         """Ensure that all output directories exist"""
-        all_dirs = [self._out_dir, self._log_dir, self._data_dir,
-                    self._final_dir]
+        all_dirs = [self._out_dir, self._log_dir, self._daily_dir,
+                    self._collect_dir, self._final_dir]
         for d in all_dirs:
             if not os.path.exists(d):
                 os.makedirs(d)
@@ -128,9 +131,10 @@ class NSRDB:
         return self._grid
 
     @staticmethod
-    def _log_py_version():
-        """Check python version and 64-bit and print to logger."""
+    def _log_version():
+        """Check NSRDB and python version and 64-bit and print to logger."""
 
+        logger.info('Running NSRDB version: {}'.format(__version__))
         logger.info('Running python version: {}'.format(sys.version_info))
 
         is_64bits = sys.maxsize > 2 ** 32
@@ -141,8 +145,9 @@ class NSRDB:
             logger.warning('Running 32-bit python, sys.maxsize: {}'
                            .format(sys.maxsize))
 
-    def _exe_daily_data_model(self, month, day, cloud_dir, var_list=None,
-                              parallel=True, fpath_out=None):
+    def _exe_daily_data_model(self, month, day, var_list=None,
+                              factory_kwargs=None, parallel=True,
+                              fpath_out=None):
         """Execute the data model for a single day.
 
         Parameters
@@ -151,13 +156,16 @@ class NSRDB:
             Month to run data model for.
         day : int | str
             Day to run data model for.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
-            variables.
+            NSRDB variables.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
         parallel : bool
             Flag to perform data model processing in parallel.
         fpath_out : str | None
@@ -180,9 +188,9 @@ class NSRDB:
 
         # run data model
         data_model = DataModel.run_multiple(
-            var_list, date, cloud_dir, self._grid, nsrdb_freq=self._freq,
-            var_meta=self._var_meta, parallel=parallel,
-            return_obj=True, fpath_out=fpath_out)
+            var_list, date, self._grid, nsrdb_freq=self._freq,
+            var_meta=self._var_meta, parallel=parallel, return_obj=True,
+            fpath_out=fpath_out, factory_kwargs=factory_kwargs)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
                     .format(month, day, self._year))
@@ -205,7 +213,7 @@ class NSRDB:
         for var, arr in data_model._processed.items():
             if var not in ['time_index', 'meta']:
 
-                fpath_out = self._get_fpath_out(data_model.date)
+                fpath_out = self._get_daily_fpath_out(data_model.date)
                 fpath_out = fpath_out.format(var=var, i=self.meta.index[0])
 
                 logger.debug('\tWriting file: {}'
@@ -227,7 +235,7 @@ class NSRDB:
         logger.info('Finished file export of daily data model results to: {}'
                     .format(self._out_dir))
 
-    def _get_fpath_out(self, date):
+    def _get_daily_fpath_out(self, date):
         """Get the data model file output path based on a date.
         Will have {var} and {i}.
 
@@ -246,7 +254,7 @@ class NSRDB:
                                  str(date.month).zfill(2),
                                  str(date.day).zfill(2)))
         fname += '_{var}_{i}.h5'
-        fpath_out = os.path.join(self._data_dir, fname)
+        fpath_out = os.path.join(self._daily_dir, fname)
         return fpath_out
 
     def _init_loggers(self, loggers=None, log_file='nsrdb.log',
@@ -286,10 +294,9 @@ class NSRDB:
                 init_logger(name, log_level=log_level, log_file=log_file)
 
         if log_version:
-            self._log_py_version()
+            self._log_version()
 
-    @staticmethod
-    def _init_output_h5(f_out, dsets, time_index, meta):
+    def _init_output_h5(self, f_out, dsets, time_index, meta):
         """Initialize a target output h5 file.
 
         Parameters
@@ -308,7 +315,8 @@ class NSRDB:
             logger.info('Initializing {} for the following datasets: {}'
                         .format(f_out, dsets))
 
-            attrs, chunks, dtypes = NSRDB.get_dset_attrs(dsets)
+            attrs, chunks, dtypes = VarFactory.get_dsets_attrs(
+                dsets, var_meta=self._var_meta)
 
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
                             time_index, meta)
@@ -411,41 +419,11 @@ class NSRDB:
 
         return date
 
-    @staticmethod
-    def get_dset_attrs(dsets):
-        """Get output file dataset attributes for a set of datasets.
-
-        Parameters
-        ----------
-        dsets : list
-            List of dataset / variable names.
-
-        Returns
-        -------
-        attrs : dict
-            Dictionary of dataset attributes keyed by dset name.
-        chunks : dict
-            Dictionary of chunk tuples keyed by dset name.
-        dtypes : dict
-            dictionary of numpy datatypes keyed by dset name.
-        """
-
-        attrs = {}
-        chunks = {}
-        dtypes = {}
-
-        for dset in dsets:
-            var_obj = VarFactory.get_base_handler(dset)
-            attrs[dset] = var_obj.attrs
-            chunks[dset] = var_obj.chunks
-            dtypes[dset] = var_obj.final_dtype
-
-        return attrs, chunks, dtypes
-
     @classmethod
-    def run_data_model(cls, out_dir, date, cloud_dir, grid, freq='5min',
-                       parallel=True, log_level='DEBUG',
-                       log_file='data_model.log', job_name=None):
+    def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
+                       var_meta=None, factory_kwargs=None, parallel=True,
+                       log_level='DEBUG', log_file='data_model.log',
+                       job_name=None):
         """Run daily data model, and save output files.
 
         Parameters
@@ -455,16 +433,25 @@ class NSRDB:
         date : datetime.date | str | int
             Single day to extract ancillary data for.
             Can be str or int in YYYYMMDD format.
-        cloud_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
             must be the NSRDB site gid's.
+        var_list : list | tuple | None
+            Variables to process with the data model. None will default to all
+            NSRDB variables.
         freq : str
             Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
         parallel : bool
             Flag to perform data model processing in parallel.
         log_level : str | None
@@ -476,16 +463,26 @@ class NSRDB:
             Optional name for pipeline and status identification.
         """
 
+        if isinstance(factory_kwargs, str):
+            factory_kwargs = json.loads(factory_kwargs)
+
         t0 = time.time()
         date = cls.to_datetime(date)
 
-        nsrdb = cls(out_dir, date.year, grid, freq=freq)
+        nsrdb = cls(out_dir, date.year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
 
-        fpath_out = nsrdb._get_fpath_out(date)
+        fpath_out = nsrdb._get_daily_fpath_out(date)
+
+        if isinstance(factory_kwargs, str):
+            factory_kwargs = json.loads(factory_kwargs)
+        if isinstance(var_list, str):
+            var_list = json.loads(var_list)
 
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
-                                                 cloud_dir, parallel=parallel,
+                                                 var_list=var_list,
+                                                 factory_kwargs=factory_kwargs,
+                                                 parallel=parallel,
                                                  fpath_out=fpath_out)
 
         if fpath_out is None:
@@ -495,13 +492,13 @@ class NSRDB:
             runtime = (time.time() - t0) / 60
             year = date.year
             date_str = nsrdb.doy_to_datestr(year, nsrdb.date_to_doy(date))
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._daily_dir,
                       'fout': fpath_out,
                       'job_status': 'successful',
                       'runtime': runtime,
                       'grid': grid,
                       'freq': freq,
-                      'cloud_dir': cloud_dir,
+                      'var_meta': nsrdb._var_meta,
                       'data_model_date': date_str}
             Status.make_job_file(nsrdb._out_dir, 'data-model',
                                  job_name, status)
@@ -509,8 +506,8 @@ class NSRDB:
     @classmethod
     def collect_data_model(cls, daily_dir, out_dir, year, grid,
                            n_chunks, i_chunk, i_fname,
-                           freq='5min', log_level='DEBUG',
-                           log_file='collect_dm.log',
+                           freq='5min', var_meta=None,
+                           log_level='DEBUG', log_file='collect_dm.log',
                            parallel=True, job_name=None):
         """Collect daily data model files to a single site-chunked output file.
 
@@ -536,6 +533,9 @@ class NSRDB:
                 2 - sam vars
         freq : str
             Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -549,9 +549,9 @@ class NSRDB:
         """
 
         t0 = time.time()
-        nsrdb = cls(out_dir, year, grid, freq=freq)
+        nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
-        ti = nsrdb._parse_data_model_output_ti(nsrdb._data_dir, freq)
+        ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
 
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
@@ -565,7 +565,7 @@ class NSRDB:
         if '{y}' in fname:
             fname = fname.format(y=year)
 
-        f_out = os.path.join(nsrdb._data_dir, fname)
+        f_out = os.path.join(nsrdb._collect_dir, fname)
         f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
@@ -577,14 +577,14 @@ class NSRDB:
                     .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
                             meta_chunk['gid'].values[-1], f_out))
 
-        NSRDB._init_output_h5(f_out, dsets, ti, meta_chunk)
-        Collector.collect(daily_dir, f_out, dsets, sites=chunk,
-                          parallel=parallel)
+        nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
+        Collector.collect_daily(daily_dir, f_out, dsets, sites=chunk,
+                                var_meta=nsrdb._var_meta, parallel=parallel)
         logger.info('Finished file collection to: {}'.format(f_out))
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_out,
                       'job_status': 'successful',
                       'runtime': runtime,
@@ -599,7 +599,7 @@ class NSRDB:
 
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
-                      i_fname=None, tmp=False,
+                      var_meta=None, i_fname=None, tmp=False,
                       log_level='DEBUG', log_file='final_collection.log',
                       job_name=None):
         """Collect chunked files to single final output files.
@@ -617,6 +617,9 @@ class NSRDB:
             site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -632,10 +635,11 @@ class NSRDB:
         job_name : str
             Optional name for pipeline and status identification.
         """
+
         t0 = time.time()
-        nsrdb = cls(out_dir, year, grid, freq=freq)
+        nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
-        ti = nsrdb._parse_data_model_output_ti(nsrdb._data_dir, freq)
+        ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
 
         fnames = sorted(list(cls.OUTS.keys()))
         if i_fname is not None:
@@ -670,7 +674,8 @@ class NSRDB:
                 for dset in dsets:
                     logger.info('Collecting dataset "{}".'.format(dset))
                     Collector.collect_flist_lowmem(flist, collect_dir, f_out,
-                                                   dset)
+                                                   dset,
+                                                   var_meta=nsrdb._var_meta)
 
             else:
                 emsg = ('Could not find files to collect for {} in the '
@@ -699,7 +704,7 @@ class NSRDB:
     @classmethod
     def gap_fill_clouds(cls, out_dir, year, i_chunk,
                         rows=slice(None), cols=slice(None),
-                        col_chunk=1000, log_level='DEBUG',
+                        col_chunk=1000, var_meta=None, log_level='DEBUG',
                         log_file='cloud_fill.log', job_name=None):
         """Gap fill cloud properties in a collected data model output file.
 
@@ -718,6 +723,9 @@ class NSRDB:
         col_chunks : None
             Optional chunking method to gap fill a few chunks at a time
             to reduce memory requirements.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -727,10 +735,10 @@ class NSRDB:
             Optional name for pipeline and status identification.
         """
         t0 = time.time()
-        nsrdb = cls(out_dir, year, None)
+        nsrdb = cls(out_dir, year, None, var_meta=var_meta)
 
         fname = [fn for fn in nsrdb.OUTS if 'cloud' in fn][0].format(y=year)
-        f_cloud = os.path.join(nsrdb._data_dir, fname)
+        f_cloud = os.path.join(nsrdb._collect_dir, fname)
         f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
 
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
@@ -740,7 +748,7 @@ class NSRDB:
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_cloud,
                       'job_status': 'successful',
                       'runtime': runtime,
@@ -749,7 +757,7 @@ class NSRDB:
                                  job_name, status)
 
     @classmethod
-    def run_all_sky(cls, out_dir, year, grid, freq='5min',
+    def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
                     rows=slice(None), cols=slice(None), parallel=True,
                     log_level='DEBUG', log_file='all_sky.log',
                     i_chunk=None, job_name=None):
@@ -766,6 +774,9 @@ class NSRDB:
             site gid's.
         freq : str
             Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -781,19 +792,19 @@ class NSRDB:
             Optional name for pipeline and status identification.
         """
         t0 = time.time()
-        nsrdb = cls(out_dir, year, grid, freq=freq)
+        nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         for fname, dsets in cls.OUTS.items():
             if 'irradiance' in fname:
-                f_out = os.path.join(nsrdb._data_dir,
+                f_out = os.path.join(nsrdb._collect_dir,
                                      fname.format(y=year))
                 irrad_dsets = dsets
             elif 'ancil' in fname:
-                f_ancillary = os.path.join(nsrdb._data_dir,
+                f_ancillary = os.path.join(nsrdb._collect_dir,
                                            fname.format(y=year))
             elif 'cloud' in fname:
-                f_cloud = os.path.join(nsrdb._data_dir,
+                f_cloud = os.path.join(nsrdb._collect_dir,
                                        fname.format(y=year))
 
         if i_chunk is not None:
@@ -823,7 +834,7 @@ class NSRDB:
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60
-            status = {'out_dir': nsrdb._data_dir,
+            status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_out,
                       'job_status': 'successful',
                       'runtime': runtime,

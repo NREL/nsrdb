@@ -671,6 +671,12 @@ class Spatial:
             if cbar_range is None:
                 cbar_range = [np.nanmin(df.iloc[:, 2]),
                               np.nanmax(df.iloc[:, 2])]
+            elif isinstance(cbar_range, tuple):
+                cbar_range = list(cbar_range)
+            if cbar_range[0] is None:
+                cbar_range[0] = np.nanmin(df.iloc[:, 2])
+            if cbar_range[1] is None:
+                cbar_range[1] = np.nanmax(df.iloc[:, 2])
 
             if '_' not in cmap:
                 custom_cmap = False

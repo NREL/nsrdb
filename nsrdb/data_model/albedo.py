@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AlbedoVar(AncillaryVarHandler):
     """Framework for Albedo data extraction."""
 
-    def __init__(self, name, var_meta, date):
+    def __init__(self, name, var_meta, date, source_dir=None):
         """
         Parameters
         ----------
@@ -32,11 +32,15 @@ class AlbedoVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
+        source_dir : str | None
+            Optional data source directory. Will overwrite the source directory
+            from the var_meta input.
         """
         self._albedo_grid = None
         self._lon_good = None
         self._lat_good = None
-        super().__init__(name, var_meta=var_meta, date=date)
+        super().__init__(name, var_meta=var_meta, date=date,
+                         source_dir=source_dir)
 
         # Albedo benefits from caching the nn results
         self._cache_file = 'albedo_nn_cache.csv'
@@ -49,13 +53,12 @@ class AlbedoVar(AncillaryVarHandler):
         -------
         date : str
             Date stamp that should be in the NSRDB Albedo file,
-            format is DDD_YYYY where DDD is the zero-indexed day of year.
+            format is DDD_YYYY where DDD is the one-indexed day of year.
         """
 
-        # day index is zero-indexed
-        d_i = str(self._date.timetuple().tm_yday - 1).zfill(3)
+        d_i = str(self._date.timetuple().tm_yday).zfill(3)
         y = str(self._date.year)
-        date = '{d_i}_{y}'.format(d_i=d_i, y=y)
+        date = '{y}_{d_i}'.format(y=y, d_i=d_i)
         return date
 
     @property

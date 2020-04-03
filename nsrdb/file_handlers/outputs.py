@@ -9,6 +9,7 @@ import re
 import time
 from warnings import warn
 
+from nsrdb import __version__
 from nsrdb.file_handlers.resource import Resource, parse_keys
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,9 @@ class Outputs(Resource):
         self._mode = mode
         self._meta = None
         self._time_index = None
+
+        if self.writable:
+            self.set_version_attr()
 
     def __len__(self):
         _len = 0
@@ -125,8 +129,7 @@ class Outputs(Resource):
         """
         mode = ['a', 'w', 'w-', 'x']
         if self._mode not in mode:
-            raise RuntimeError('mode must be writable: {}'.format(mode))
-
+            return False
         return True
 
     def update_dset(self, dset, dset_array, dset_slice=None):
@@ -457,6 +460,10 @@ class Outputs(Resource):
 
         self._create_dset(dset_name, data.shape, dtype,
                           chunks=chunks, attrs=attrs, data=data)
+
+    def set_version_attr(self):
+        """Set the version attribute to the h5 file."""
+        self._h5.attrs['version'] = __version__
 
     @classmethod
     def write_profiles(cls, h5_file, meta, time_index, dset_name, profiles,

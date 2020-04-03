@@ -6,14 +6,17 @@ Created on Mon Oct 21 15:39:01 2019
 @author: gbuster
 """
 import os
-import click
+import json
 import logging
+import click
 from nsrdb.main import NSRDB
-from nsrdb.utilities.cli_dtypes import STR, INT
+from nsrdb.utilities.cli_dtypes import STR, INT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
 from nsrdb.utilities.execution import SLURM
 from nsrdb.pipeline.status import Status
 from nsrdb.pipeline.pipeline import Pipeline
+from nsrdb.file_handlers.collection import Collector
+from nsrdb.utilities.loggers import init_logger
 
 
 logger = logging.getLogger(__name__)
@@ -56,11 +59,14 @@ def pipeline(ctx, config_file, cancel, monitor):
 def config(ctx, config_file, command):
     """NSRDB processing CLI from config json file."""
 
-    config = safe_json_load(config_file)
+    run_config = safe_json_load(config_file)
 
-    direct_args = config.pop('direct')
-    eagle_args = config.pop('eagle')
-    cmd_args = config.pop(command)
+    direct_args = run_config.pop('direct')
+    eagle_args = run_config.pop('eagle')
+    cmd_args = run_config.pop(command)
+
+    if cmd_args is None:
+        cmd_args = {}
 
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
@@ -71,9 +77,11 @@ def config(ctx, config_file, command):
             direct_args[k] = cmd_args[k]
 
     name = direct_args['name']
+    ctx.obj['NAME'] = name
     ctx.obj['YEAR'] = direct_args['year']
     ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
     ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
+    ctx.obj['VAR_META'] = direct_args.get('var_meta', None)
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
 
@@ -82,19 +90,9 @@ def config(ctx, config_file, command):
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             ctx.invoke(data_model, doy=doy,
-                       cloud_dir=cmd_args['cloud_dir'])
+                       var_list=cmd_args.get('var_list', None),
+                       factory_kwargs=cmd_args.get('factory_kwargs', None))
             ctx.invoke(eagle, **eagle_args)
-
-    elif command == 'collect-data-model':
-        n_chunks = cmd_args['n_chunks']
-        for i_chunk in range(n_chunks):
-            for i_fname in range(3):
-                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
-                ctx.invoke(collect_data_model,
-                           daily_dir=cmd_args['daily_dir'],
-                           n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
-                           n_workers=cmd_args['n_workers'])
-                ctx.invoke(eagle, **eagle_args)
 
     elif command == 'cloud-fill':
         n_chunks = cmd_args['n_chunks']
@@ -111,10 +109,39 @@ def config(ctx, config_file, command):
             ctx.invoke(all_sky, i_chunk=i_chunk)
             ctx.invoke(eagle, **eagle_args)
 
+    elif command == 'collect-data-model':
+        n_chunks = cmd_args['n_chunks']
+        def_dir = os.path.join(direct_args['out_dir'], 'daily/')
+        for i_chunk in range(n_chunks):
+            for i_fname in range(3):
+                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
+                ctx.invoke(collect_data_model,
+                           daily_dir=cmd_args.get('daily_dir', def_dir),
+                           n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
+                           n_workers=cmd_args['n_workers'])
+                ctx.invoke(eagle, **eagle_args)
+
+    elif command == 'collect-daily':
+        ctx.obj['NAME'] = name + '_collect_daily'
+        ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
+                   fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
+                   parallel=cmd_args.get('parallel', True), eagle=True)
+        ctx.invoke(eagle, **eagle_args)
+
+    elif command == 'collect-flist':
+        ctx.obj['NAME'] = name + '_collect_flist'
+        ctx.invoke(collect_flist, flist=cmd_args['flist'],
+                   collect_dir=cmd_args['collect_dir'],
+                   fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
+                   parallel=cmd_args.get('parallel', True), eagle=True)
+        ctx.invoke(eagle, **eagle_args)
+
     elif command == 'collect-final':
+        def_dir = os.path.join(direct_args['out_dir'], 'collect/')
         for i_fname in range(4):
             ctx.obj['NAME'] = name + '_{}'.format(i_fname)
-            ctx.invoke(collect_final, collect_dir=cmd_args['collect_dir'],
+            ctx.invoke(collect_final,
+                       collect_dir=cmd_args.get('collect_dir', def_dir),
                        i_fname=i_fname)
             ctx.invoke(eagle, **eagle_args)
 
@@ -131,18 +158,23 @@ def config(ctx, config_file, command):
               help='File path to NSRDB meta data grid.')
 @click.option('--nsrdb_freq', '-f', default=None, type=STR,
               help='NSRDB frequency (e.g. "5min", "30min").')
-@click.option('--out_dir', '-od', default=None, type=STR,
+@click.option('--var_meta', '-vm', default=None, type=STR,
+              help='CSV file or dataframe containing meta data for all NSRDB '
+              'variables. Defaults to the NSRDB var meta csv in git repo.')
+@click.option('--out_dir', '-od', type=STR, required=True,
               help='Output directory.')
 @click.option('-v', '--verbose', is_flag=True,
               help='Flag to turn on debug logging. Default is not verbose.')
 @click.pass_context
-def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
+def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
+           out_dir, verbose):
     """NSRDB direct processing CLI (no config file)."""
 
     ctx.obj['NAME'] = name
     ctx.obj['YEAR'] = year
     ctx.obj['NSRDB_GRID'] = nsrdb_grid
     ctx.obj['NSRDB_FREQ'] = nsrdb_freq
+    ctx.obj['VAR_META'] = var_meta
     ctx.obj['OUT_DIR'] = out_dir
 
     if verbose:
@@ -154,12 +186,19 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, out_dir, verbose):
 @direct.group()
 @click.option('--doy', '-d', type=int, required=True,
               help='Integer day-of-year to run data model for.')
-@click.option('--cloud_dir', '-cd', type=str, required=True,
-              help='Top level cloud data directory. Can be a normal directory '
-              'path or /directory/prefix*suffix where /directory/ can have '
-              'more sub dirs.')
+@click.option('--var_list', '-vl', type=STRLIST, required=False, default=None,
+              help='Variables to process with the data model. None will '
+              'default to all NSRDB variables.')
+@click.option('--factory_kwargs', '-kw', type=DICT,
+              required=False, default=None,
+              help='Optional namespace of kwargs to use to initialize '
+              'variable data handlers from the data models variable factory. '
+              'Keyed by variable name. Values can be "source_dir", "handler", '
+              'etc... source_dir for cloud variables can be a normal '
+              'directory path or /directory/prefix*suffix where /directory/ '
+              'can have more sub dirs.')
 @click.pass_context
-def data_model(ctx, doy, cloud_dir):
+def data_model(ctx, doy, var_list, factory_kwargs):
     """Run the data model for a single day."""
 
     name = ctx.obj['NAME']
@@ -167,17 +206,84 @@ def data_model(ctx, doy, cloud_dir):
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
     nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
+    if var_list is not None:
+        var_list = json.dumps(var_list)
+    if factory_kwargs is not None:
+        factory_kwargs = json.dumps(factory_kwargs)
+
     date = NSRDB.doy_to_datestr(year, doy)
-    fun_str = 'run_data_model'
-    arg_str = ('"{}", "{}", "{}", "{}", freq="{}", '
-               'log_level="{}", job_name="{}"'
-               .format(out_dir, date, cloud_dir, nsrdb_grid, nsrdb_freq,
-                       log_level, name))
+    fun_str = 'NSRDB.run_data_model'
+    arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
+               'log_level="{}", job_name="{}", factory_kwargs={}'
+               .format(out_dir, date, nsrdb_grid, nsrdb_freq,
+                       var_list, log_level, name, factory_kwargs))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'data-model'
+
+
+@direct.group()
+@click.option('--i_chunk', '-i', type=int, required=True,
+              help='Chunked file index in out_dir to run cloud fill for.')
+@click.option('--col_chunk', '-ch', type=int, required=True, default=10000,
+              help='Column chunk to process at one time.')
+@click.pass_context
+def cloud_fill(ctx, i_chunk, col_chunk):
+    """Gap fill a cloud data file."""
+
+    name = ctx.obj['NAME']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    log_level = ctx.obj['LOG_LEVEL']
+    var_meta = ctx.obj['VAR_META']
+    log_file = 'cloud_fill_{}.log'.format(i_chunk)
+
+    fun_str = 'NSRDB.gap_fill_clouds'
+    arg_str = ('"{}", {}, {}, col_chunk={}, log_file="{}", '
+               'log_level="{}", job_name="{}"'
+               .format(out_dir, year, i_chunk, col_chunk,
+                       log_file, log_level, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['FUN_STR'] = fun_str
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'cloud-fill'
+
+
+@direct.group()
+@click.option('--i_chunk', '-i', type=int, required=True,
+              help='Chunked file index in out_dir to run allsky for.')
+@click.pass_context
+def all_sky(ctx, i_chunk):
+    """Run allsky for a single chunked file"""
+
+    name = ctx.obj['NAME']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
+    log_level = ctx.obj['LOG_LEVEL']
+
+    log_file = 'all_sky_{}.log'.format(i_chunk)
+    fun_str = 'NSRDB.run_all_sky'
+    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
+               'log_file="{}", log_level="{}", job_name="{}"'
+               .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
+                       log_file, log_level, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['FUN_STR'] = fun_str
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'all-sky'
 
 
 @direct.group()
@@ -200,71 +306,114 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
     nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
     log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
 
-    fun_str = 'collect_data_model'
+    fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
                'i_fname={}, freq="{}", parallel={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
                .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
                        i_chunk, i_fname, nsrdb_freq, n_workers,
                        log_file, log_level, name))
-
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-data-model'
 
 
-@direct.group()
-@click.option('--i_chunk', '-i', type=int, required=True,
-              help='Chunked file index in out_dir to run cloud fill for.')
-@click.option('--col_chunk', '-ch', type=int, required=True, default=10000,
-              help='Column chunk to process at one time.')
+@direct.group(invoke_without_command=True)
+@click.option('--collect_dir', '-cd', type=str, required=True,
+              help='Directory containing chunked files to collect from.')
+@click.option('--fn_out', '-fo', type=str, required=True,
+              help='Output filename to be saved in out_dir.')
+@click.option('--dsets', '-ds', type=STRLIST, required=True,
+              help='List of dataset names to collect.')
+@click.option('-p', '--parallel', is_flag=True,
+              help='Flag for parallel daily data model file collection.')
+@click.option('-e', '--eagle', is_flag=True,
+              help='Flag for that this is being used to pass commands to '
+              'an Eagle call.')
 @click.pass_context
-def cloud_fill(ctx, i_chunk, col_chunk):
-    """Gap fill a cloud data file."""
+def collect_daily(ctx, collect_dir, fn_out, dsets, parallel, eagle):
+    """Run the NSRDB file collection method on a daily directory."""
 
     name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
+    var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
-    log_file = 'cloud_fill_{}.log'.format(i_chunk)
+    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
 
-    fun_str = 'gap_fill_clouds'
-    arg_str = ('"{}", {}, {}, col_chunk={}, log_file="{}", '
-               'log_level="{}", job_name="{}"'
-               .format(out_dir, year, i_chunk, col_chunk,
-                       log_file, log_level, name))
-    ctx.obj['FUN_STR'] = fun_str
+    fp_out = os.path.join(out_dir, fn_out)
+
+    arg_str = ('"{}", "{}", {}, parallel={}, log_level="{}", '
+               'log_file="{}", write_status=True, job_name="{}"'
+               .format(collect_dir, fp_out, json.dumps(dsets), parallel,
+                       log_level, log_file, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+
+    ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                             'import Collector')
+    ctx.obj['FUN_STR'] = 'Collector.collect_daily'
     ctx.obj['ARG_STR'] = arg_str
-    ctx.obj['COMMAND'] = 'cloud-fill'
+    ctx.obj['COMMAND'] = 'collect-daily'
+
+    if ctx.invoked_subcommand is None and not eagle:
+        init_logger('nsrdb.file_handlers', log_level=log_level,
+                    log_file=log_file)
+        Collector.collect_daily(collect_dir, fp_out, dsets, parallel=parallel,
+                                var_meta=var_meta)
 
 
-@direct.group()
-@click.option('--i_chunk', '-i', type=int, required=True,
-              help='Chunked file index in out_dir to run allsky for.')
+@direct.group(invoke_without_command=True)
+@click.option('--flist', '-fl', type=STRLIST, required=True,
+              help='Explicit list of filenames in collect_dir to collect. '
+              'Using this option will superscede the default behavior of '
+              'collecting daily data model outputs in collect_dir.')
+@click.option('--collect_dir', '-cd', type=str, required=True,
+              help='Directory containing chunked files to collect from.')
+@click.option('--fn_out', '-fo', type=str, required=True,
+              help='Output filename to be saved in out_dir.')
+@click.option('--dsets', '-ds', type=STRLIST, required=True,
+              help='List of dataset names to collect.')
+@click.option('-e', '--eagle', is_flag=True,
+              help='Flag for that this is being used to pass commands to '
+              'an Eagle call.')
 @click.pass_context
-def all_sky(ctx, i_chunk):
-    """Run allsky for a single chunked file"""
+def collect_flist(ctx, flist, collect_dir, fn_out, dsets, eagle):
+    """Run the NSRDB file collection method with explicitly defined flist."""
 
     name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
     out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
+    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
 
-    log_file = 'all_sky_{}.log'.format(i_chunk)
-    fun_str = 'run_all_sky'
-    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
-               'log_file="{}", log_level="{}", job_name="{}"'
-               .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
-                       log_file, log_level, name))
-    ctx.obj['FUN_STR'] = fun_str
+    fp_out = os.path.join(out_dir, fn_out)
+
+    arg_str = ('{}, "{}", "{}", {} log_level="{}", '
+               'log_file="{}", write_status=True, job_name="{}"'
+               .format(json.dumps(flist), collect_dir, fp_out,
+                       json.dumps(dsets), log_level, log_file, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = ('from nsrdb.file_handlers.collection '
+                             'import Collector')
+    ctx.obj['FUN_STR'] = 'Collector.collect_flist_lowmem'
     ctx.obj['ARG_STR'] = arg_str
-    ctx.obj['COMMAND'] = 'all-sky'
+    ctx.obj['COMMAND'] = 'collect-flist'
+
+    if ctx.invoked_subcommand is None and not eagle:
+        init_logger('nsrdb.file_handlers', log_level=log_level,
+                    log_file=log_file)
+        for dset in dsets:
+            Collector.collect_flist_lowmem(flist, collect_dir, fp_out, dset,
+                                           var_meta=var_meta)
 
 
 @direct.group()
@@ -282,17 +431,20 @@ def collect_final(ctx, collect_dir, i_fname):
     out_dir = ctx.obj['OUT_DIR']
     nsrdb_grid = ctx.obj['NSRDB_GRID']
     nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
     log_file = 'final_collection_{}.log'.format(i_fname)
 
-    fun_str = 'collect_final'
+    fun_str = 'NSRDB.collect_final'
     arg_str = ('"{}", "{}", {}, "{}", freq="{}", '
                'i_fname={}, log_file="{}", log_level="{}", '
                'tmp=False, job_name="{}"'
                .format(collect_dir, out_dir, year, nsrdb_grid, nsrdb_freq,
                        i_fname, log_file, log_level, name))
-
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-final'
@@ -316,6 +468,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
 
     name = ctx.obj['NAME']
     out_dir = ctx.obj['OUT_DIR']
+    import_str = ctx.obj['IMPORT_STR']
     fun_str = ctx.obj['FUN_STR']
     arg_str = ctx.obj['ARG_STR']
     command = ctx.obj['COMMAND']
@@ -330,8 +483,9 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
         click.echo(msg)
         logger.info(msg)
     else:
-        cmd = ("python -c 'from nsrdb.main import NSRDB;NSRDB.{f}({a})'"
-               .format(f=fun_str, a=arg_str))
+        cmd = ("python -c '{import_str};{f}({a})'"
+               .format(import_str=import_str, f=fun_str, a=arg_str))
+        print('cmd: {}'.format(cmd))
         slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
                       feature=feature, name=name, stdout_path=stdout_path)
 

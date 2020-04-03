@@ -1,6 +1,7 @@
 """
 Generation
 """
+import json
 import click
 import logging
 
@@ -63,8 +64,8 @@ class ProjectPointsType(click.ParamType):
                 numeric = [int(x) if str(x) != 'None' else None for x in list0]
                 return slice(*numeric)
 
-            elif (('[' in value and ']' in value) or
-                  ('(' in value and ')' in value)):
+            elif (('[' in value and ']' in value)
+                  or ('(' in value and ')' in value)):
                 # project points is a list or tuple.
                 value = sanitize_str(value, subs=['=', '(', ')', ' ', '[', ']',
                                                   '"', "'"])
@@ -101,6 +102,25 @@ class IntType(click.ParamType):
                 return int(value)
         elif isinstance(value, int):
             return value
+        else:
+            raise TypeError('Cannot recognize int type: {} {} {} {}'
+                            .format(value, type(value), param, ctx))
+
+
+class DictType(click.ParamType):
+    """Dict click input argument type."""
+
+    name = 'dict'
+
+    @staticmethod
+    def convert(value, param, ctx):
+        """Convert to dict or return as None."""
+        if isinstance(value, dict):
+            return value
+        elif isinstance(value, str):
+            return json.loads(value)
+        elif value is None:
+            return None
         else:
             raise TypeError('Cannot recognize int type: {} {} {} {}'
                             .format(value, type(value), param, ctx))
@@ -182,6 +202,7 @@ class StrListType(ListType):
 
 INT = IntType()
 STR = StrType()
+DICT = DictType()
 SAMFILES = SAMFilesType()
 PROJECTPOINTS = ProjectPointsType()
 INTLIST = IntListType()

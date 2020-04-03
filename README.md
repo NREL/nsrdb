@@ -27,3 +27,4 @@ The code base and additional documentation can be found [here](https://github.nr
     a. Start ipython and test the following import: `from nsrdb.data_model import DataModel`
 
     b. Navigate to the tests/ directory and run the command: `pytest`
+5. If you are a developer, also run `pre-commit install` in the directory containing .pre-commit-config.yaml.

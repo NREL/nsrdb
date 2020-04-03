@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy.stats import mode
+from scipy.spatial import cKDTree
 from warnings import warn
 
 from nsrdb.all_sky.utilities import calc_dhi
@@ -349,15 +350,18 @@ class Aggregation:
         iarr : np.ndarray
             Array of index arrays.
         """
+        if w == 1:
+            iarr = np.expand_dims(np.arange(L), axis=1)
 
-        iarr = np.zeros((L, w), dtype=np.uint32)
-        for i in range(L):
-            sub = [i + n for n in range(w)]
-            sub -= (np.round(w / 2) - 1)
-            iarr[i, :] = sub
-
-        iarr = np.maximum(iarr, 0)
-        iarr = np.minimum(iarr, L - 1)
+        else:
+            iarr = np.zeros((L, w), dtype=np.int32)
+            for i in range(L):
+                sub = [i + n for n in range(w)]
+                sub -= (np.round(w / 2) - 1)
+                iarr[i, :] = sub
+            iarr[(iarr < 0)] = 0
+            iarr = np.maximum(iarr, 0)
+            iarr = np.minimum(iarr, L - 1)
 
         return iarr
 
@@ -769,6 +773,15 @@ class Manager:
         self._meta = None
         self._meta_chunk = None
 
+        self.final_sres = None
+        self.final_tres = None
+        self.fout = None
+        self.data_sources = None
+        self.dsets = None
+        self.attrs = None
+        self.chunks = None
+        self.dtypes = None
+
         self.parse_data()
         self.preflight()
         self.run_nn()
@@ -900,14 +913,17 @@ class Manager:
         return dset_attrs
 
     @staticmethod
-    def get_dset_attrs(h5dir):
+    def get_dset_attrs(h5dir,
+                       ignore_dsets=('coordinates', 'time_index', 'meta')):
         """Get output file dataset attributes for a set of datasets.
 
         Parameters
         ----------
         h5dir : str
             Path to directory containing multiple h5 files with all available
-            dsets.
+            dsets. Can also be a single h5 filepath.
+        ignore_dsets : tuple | list
+            List of datasets to ignore (will not be aggregated).
 
         Returns
         -------
@@ -928,20 +944,36 @@ class Manager:
         chunks = {}
         dtypes = {}
 
-        h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
+        if h5dir.endswith('.h5') and os.path.isfile(h5dir):
+            h5_files = [h5dir]
+        else:
+            h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
+
+        logger.info('Getting dataset attributes from the following files: {}'
+                    .format(h5_files))
 
         for fn in h5_files:
             with Outputs(os.path.join(h5dir, fn)) as out:
                 ti = out.time_index
                 for d in out.dsets:
-                    if d not in ['time_index', 'meta'] and d not in attrs:
+                    if d not in ignore_dsets and d not in attrs:
 
                         attrs[d] = Manager._special_attrs(
                             d, out.get_attrs(dset=d))
 
-                        _, dtypes[d], chunks[d] = out.get_dset_properties(d)
+                        try:
+                            x = out.get_dset_properties(d)
+                        except Exception as e:
+                            m = ('Could not get dataset "{}" properties from '
+                                 'file: {}'.format(os.path.join(h5dir, fn)))
+                            logger.error(m)
+                            logger.exception(m)
+                            raise e
+                        else:
+                            _, dtypes[d], chunks[d] = x
 
         dsets = list(attrs.keys())
+        logger.info('Found the following datasets: {}'.format(dsets))
 
         return dsets, attrs, chunks, dtypes, ti
 
@@ -949,10 +981,14 @@ class Manager:
         """Initialize the output file with all datasets and final
         time index and meta"""
 
-        data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir'] + '/'
-
-        self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
-            self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
+        if 'fpath' in self.data[self.data_sources[0]]:
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+                self.get_dset_attrs(self.data[self.data_sources[0]]['fpath'])
+        else:
+            data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir']
+            data_sub_dir += '/'
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+                self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
 
         if not os.path.exists(self.fout):
             logger.info('Initializing output file: {}'.format(self.fout))
@@ -1101,14 +1137,17 @@ class Manager:
                                     self.final_sres)
             logger.info('Data source {} will use {} neighbors'
                         .format(source, k))
+
+            meta_fpath = os.path.join(self.meta_dir,
+                                      self.data[source]['meta_file'])
             tree_fpath = os.path.join(self.meta_dir,
                                       self.data[source]['tree_file'])
-            _, i = self.knn(self.meta, tree_fpath, k=k)
+            _, i = self.knn(self.meta, tree_fpath, meta_fpath, k=k)
 
             self.data[source]['nn'] = i
 
     @staticmethod
-    def knn(meta, tree_fpath, k=1):
+    def knn(meta, tree_fpath, meta_fpath, k=1):
         """Run KNN between the final meta data and the pickled ckdtree.
 
         Parameters
@@ -1116,7 +1155,10 @@ class Manager:
         meta : pd.DataFrame
             Final meta data.
         tree_fpath : str
-            Filepath to a pickled ckdtree.
+            Filepath to a pickled ckdtree containing ckdtree for source
+            meta data.
+        meta_fpath : str
+            Filepath to csv containing source meta data.
         k : int
             Number of neighbors to query.
 
@@ -1127,8 +1169,29 @@ class Manager:
         i : np.ndarray
             Index results. Shape is (len(meta), k)
         """
-        with open(tree_fpath, 'rb') as pkl:
-            tree = pickle.load(pkl)
+
+        if os.path.exists(tree_fpath):
+            try:
+                with open(tree_fpath, 'rb') as pkl:
+                    tree = pickle.load(pkl)
+            except Exception as e:
+                m = ('Could not load pickle file. May have been generated '
+                     'with a different python version. Try deleting the file '
+                     'and rerunning the agg code: {}'.format(e))
+                logger.error(m)
+                logger.exception(e)
+                raise e
+        elif os.path.exists(meta_fpath):
+            meta_source = pd.read_csv(meta_fpath)
+            tree = cKDTree(meta_source[['latitude', 'longitude']])
+            with open(tree_fpath, 'wb') as pkl:
+                pickle.dump(tree, pkl)
+        else:
+            e = ('Missing both meta source tree file and meta source csv '
+                 'file: {}, {}'.format(tree_fpath, meta_fpath))
+            logger.error(e)
+            raise FileNotFoundError(e)
+
         d, i = tree.query(meta[['latitude', 'longitude']], k=k)
         if len(i.shape) == 1:
             d = d.reshape((len(i), 1))
@@ -1181,8 +1244,18 @@ class Manager:
             data_sub_dir = self.data[source]['data_sub_dir']
             nn = self.data[source]['nn'][gid, :]
             w = self.data[source]['window']
-            data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
-                                         source)
+
+            if 'fpath' in self.data[source]:
+                data_fpath = self.data[source]['fpath']
+            else:
+                data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
+                                             source)
+
+            if not os.path.exists(data_fpath):
+                e = ('Could not find source data filepath for "{}": {}'
+                     .format(var, data_fpath))
+                logger.error(e)
+                raise FileNotFoundError(e)
 
             args = [var, data_fpath, nn, w, self.time_index]
 
@@ -1272,7 +1345,8 @@ class Manager:
 
     @classmethod
     def run_chunk(cls, data, data_dir, meta_dir, i_chunk, n_chunks,
-                  year=2018, parallel=True, chunk_log=False):
+                  year=2018, ignore_dsets=None,
+                  parallel=True, log_level='INFO'):
         """
         Parameters
         ----------
@@ -1290,17 +1364,20 @@ class Manager:
             Number of chunks to process the meta data in.
         year : int
             Year being analyzed.
+        ignore_dsets : list | None
+            Source datasets to ignore (not aggregate). Optional.
         parallel : bool
             Flag to use parallel compute.
-        chunk_log : bool
-            Flag to start a logger for this agg chunk.
+        log_level : str | bool
+            Flag to initialize a log file at a given log level.
+            False will not init a logger.
         """
 
-        if chunk_log:
+        if log_level:
             log_file = os.path.join(data_dir,
                                     data['final']['data_sub_dir'] + '/',
                                     'agg_{}.log'.format(i_chunk))
-            init_logger(__name__, log_level='INFO', log_file=log_file)
+            init_logger(__name__, log_level=log_level, log_file=log_file)
 
         logger.info('Working on site chunk {} out of {}'
                     .format(i_chunk + 1, n_chunks))
@@ -1308,10 +1385,13 @@ class Manager:
         m = cls(data, data_dir, meta_dir, year=year, i_chunk=i_chunk,
                 n_chunks=n_chunks)
 
+        if ignore_dsets is None:
+            ignore_dsets = []
+
         datasets = [d for d in m.dsets if 'dhi' not in d
-                    and 'cld_' not in d]
+                    and 'cld_' not in d and d not in ignore_dsets]
         delayed_datasets = [d for d in m.dsets if 'dhi' in d
-                            or 'cld_' in d]
+                            or 'cld_' in d and d not in ignore_dsets]
         n_var = len(datasets) + len(delayed_datasets)
         i_var = 0
         for dsets in [datasets, delayed_datasets]:
@@ -1375,7 +1455,7 @@ class Manager:
         for i_chunk in range(n_chunks):
             i_node_name = node_name + '_{}'.format(i_chunk)
             a = ('{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
-                 'parallel=True, chunk_log=True'
+                 'parallel=True, log_level="INFO"'
                  .format(json.dumps(data), data_dir, meta_dir,
                          i_chunk, n_chunks, year))
             icmd = cmd.format(a)

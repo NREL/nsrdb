@@ -21,10 +21,13 @@ class Pipeline:
     """NSRDB pipeline execution framework."""
 
     COMMANDS = ('data-model',
-                'collect-data-model',
                 'cloud-fill',
                 'all-sky',
-                'collect-final')
+                'collect-data-model',
+                'collect-daily',
+                'collect-flist',
+                'collect-final',
+                )
 
     RETURN_CODES = {0: 'successful',
                     1: 'running',

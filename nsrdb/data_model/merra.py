@@ -20,7 +20,7 @@ class MerraVar(AncillaryVarHandler):
     # default MERRA paths.
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
 
-    def __init__(self, name, var_meta, date):
+    def __init__(self, name, var_meta, date, source_dir=None):
         """
         Parameters
         ----------
@@ -31,10 +31,14 @@ class MerraVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
+        source_dir : str | None
+            Optional data source directory. Will overwrite the source directory
+            from the var_meta input.
         """
 
         self._merra_grid = None
-        super().__init__(name, var_meta=var_meta, date=date)
+        super().__init__(name, var_meta=var_meta, date=date,
+                         source_dir=source_dir)
 
     @property
     def date_stamp(self):
@@ -245,13 +249,20 @@ class RelativeHumidity:
             convert_t = True
             t -= 273.15
 
-        # determine ps
+        # determine ps (saturation vapor pressure):
+        # Ref: https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
         ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
-        # determine w
+        # determine w (mixing ratio)
+        # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
+        # esci241_lesson06_humidity.pdf
         w = h / (1 - h)
-        # determine ws
+        # determine ws (saturation mixing ratio)
+        # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
+        # esci241_lesson06_humidity.pdf
+        # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
         # determine RH
+        # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         rh = w / ws * 100.
         # check values
         rh[rh > 100] = 100

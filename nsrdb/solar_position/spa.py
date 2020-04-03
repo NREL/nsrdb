@@ -15,9 +15,10 @@ apparent_zenith_angle = SPA.zenith(time_index, lat_lon, elev=elev,
 """
 import numpy as np
 import pandas as pd
-from nsrdb.solar_position.spa_tables import SPAtables
+from nsrdb.solar_position.spa_tables import SPAtables, DeltaTable
 
 SPA_TABLES = SPAtables()
+DELTA_TABLE = DeltaTable()
 
 
 class SPA:
@@ -99,8 +100,19 @@ class SPA:
         """
         return self._elev
 
-    @staticmethod
-    def _parse_time(time_index, delta_t=69.3032):
+    def _parse_delta_t(self):
+        """Get a delta t value for start of time index
+
+        Returns
+        -------
+        delta_t : float
+            Delta-t value for the first date in the time index.
+        """
+        date = self.time_index[0].to_pydatetime().date()
+        delta_t = DELTA_TABLE[date]
+        return delta_t
+
+    def _parse_time(self, delta_t=None):
         """
         Convert UTC datetime index into:
         - Julian day
@@ -111,11 +123,9 @@ class SPA:
 
         Parameters
         ----------
-        time_index : pandas.DatetimeIndex
-            Datetime stamps of interest
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -130,7 +140,10 @@ class SPA:
         jme : ndarray
             Julian ephemeris millennium
         """
-        jd = time_index.to_julian_date().values
+        if delta_t is None:
+            delta_t = self._parse_delta_t()
+
+        jd = self.time_index.to_julian_date().values
         jde = jd + delta_t / 86400
         jc = (jd - 2451545) / 36525
         jce = (jde - 2451545) / 36525
@@ -156,8 +169,8 @@ class SPA:
             heliocentric value for each input timestep
         """
         jme = np.expand_dims(jme, axis=0)
-        out = np.sum(arr[:, :, [0]] *
-                     np.cos(arr[:, :, [1]] + arr[:, :, [2]] * jme), axis=1)
+        out = np.sum(arr[:, :, [0]]
+                     * np.cos(arr[:, :, [1]] + arr[:, :, [2]] * jme), axis=1)
         out = np.sum(out * np.power(jme.T, range(len(arr))).T, axis=0) / 10**8
         return out
 
@@ -268,8 +281,8 @@ class SPA:
         x0 : ndarray
             Mean elogation for all timesteps
         """
-        x0 = (297.85036 + 445267.111480 * jce - 0.0019142 * jce**2 + jce**3 /
-              189474)
+        x0 = (297.85036 + 445267.111480 * jce - 0.0019142 * jce**2 + jce**3
+              / 189474)
         return x0
 
     @staticmethod
@@ -287,8 +300,8 @@ class SPA:
         x1 : ndarray
             Mean sun anomaly for all timesteps
         """
-        x1 = (357.52772 + 35999.050340 * jce - 0.0001603 * jce**2 - jce**3 /
-              300000)
+        x1 = (357.52772 + 35999.050340 * jce - 0.0001603 * jce**2 - jce**3
+              / 300000)
         return x1
 
     @staticmethod
@@ -306,8 +319,8 @@ class SPA:
         x2 : ndarray
             Mean moon anomaly for all timesteps
         """
-        x2 = (134.96298 + 477198.867398 * jce + 0.0086972 * jce**2 + jce**3 /
-              56250)
+        x2 = (134.96298 + 477198.867398 * jce + 0.0086972 * jce**2 + jce**3
+              / 56250)
         return x2
 
     @staticmethod
@@ -325,8 +338,8 @@ class SPA:
         x3 : ndarray
             Moon latitude for all timesteps
         """
-        x3 = (93.27191 + 483202.017538 * jce - 0.0036825 * jce**2 + jce**3 /
-              327270)
+        x3 = (93.27191 + 483202.017538 * jce - 0.0036825 * jce**2 + jce**3
+              / 327270)
         return x3
 
     @staticmethod
@@ -344,8 +357,8 @@ class SPA:
         x4 : ndarray
             Moon ascending longitude for all timesteps
         """
-        x4 = (125.04452 - 1934.136261 * jce + 0.0020708 * jce**2 + jce**3 /
-              450000)
+        x4 = (125.04452 - 1934.136261 * jce + 0.0020708 * jce**2 + jce**3
+              / 450000)
         return x4
 
     @staticmethod
@@ -508,8 +521,8 @@ class SPA:
         v0 : ndarray
             Mean sidereal time in degrees
         """
-        v0 = (280.46061837 + 360.98564736629 * (jd - 2451545) +
-              0.000387933 * jc**2 - jc**3 / 38710000)
+        v0 = (280.46061837 + 360.98564736629 * (jd - 2451545)
+              + 0.000387933 * jc**2 - jc**3 / 38710000)
         return v0 % 360.0
 
     @staticmethod
@@ -563,8 +576,8 @@ class SPA:
         denom = np.cos(lamd)
         alpha = np.degrees(np.arctan2(num, denom)) % 360
 
-        delta = (np.sin(beta) * np.cos(e) + np.cos(beta) * np.sin(e) *
-                 np.sin(lamd))
+        delta = (np.sin(beta) * np.cos(e) + np.cos(beta) * np.sin(e)
+                 * np.sin(lamd))
         delta = np.degrees(np.arcsin(delta))
 
         return alpha, delta
@@ -755,13 +768,13 @@ class SPA:
         obs_lat = np.radians(obs_lat)
         delta_prime = np.radians(delta_prime)
         H_prime = np.radians(H_prime)
-        e0 = (np.sin(obs_lat) * np.sin(delta_prime) + np.cos(obs_lat) *
-              np.cos(delta_prime) * np.cos(H_prime))
+        e0 = (np.sin(obs_lat) * np.sin(delta_prime) + np.cos(obs_lat)
+              * np.cos(delta_prime) * np.cos(H_prime))
         e0 = np.degrees(np.arcsin(e0))
 
         num = np.sin(H_prime)
-        denom = (np.cos(H_prime) * np.sin(obs_lat) - np.tan(delta_prime) *
-                 np.cos(obs_lat))
+        denom = (np.cos(H_prime) * np.sin(obs_lat) - np.tan(delta_prime)
+                 * np.cos(obs_lat))
         gamma = np.degrees(np.arctan2(num, denom)) % 360
         phi = (gamma + 180) % 360
         return e0, phi
@@ -825,8 +838,8 @@ class SPA:
         # switch sets delta_e when the sun is below the horizon
         switch = e0 >= -1.0 * (0.26667 + atmos_refract)
         angle = np.radians(e0 + 10.3 / (e0 + 5.11))
-        delta_e = ((pres / 1010.0) * (283.0 / (273 + temp)) *
-                   1.02 / (60 * np.tan(angle))) * switch
+        delta_e = ((pres / 1010.0) * (283.0 / (273 + temp))
+                   * 1.02 / (60 * np.tan(angle))) * switch
         return delta_e
 
     @staticmethod
@@ -891,8 +904,8 @@ class SPA:
         M : ndarray
             Mean sun longitude
         """
-        M = (280.4664567 + 360007.6982779 * jme + 0.03032028 * jme**2 +
-             jme**3 / 49931 - jme**4 / 15300 - jme**5 / 2000000)
+        M = (280.4664567 + 360007.6982779 * jme + 0.03032028 * jme**2
+             + jme**3 / 49931 - jme**4 / 15300 - jme**5 / 2000000)
         return M
 
     @staticmethod
@@ -928,7 +941,7 @@ class SPA:
         E = greater * (E - 1440) + less * (E + 1440) + other * E
         return E
 
-    def _temporal_params(self, delta_t=69.3032):
+    def _temporal_params(self, delta_t=None):
         """
         Compute the solely time dependant parameters for SPA:
         - Apparent sidereal time (v)
@@ -939,9 +952,9 @@ class SPA:
 
         Parameters
         ----------
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -956,8 +969,7 @@ class SPA:
         eot : ndarray
             Equation of time values for all timesteps
         """
-        jd, _, jc, jce, jme = self._parse_time(self.time_index,
-                                               delta_t=delta_t)
+        jd, _, jc, jce, jme = self._parse_time(delta_t=delta_t)
         R = self.heliocentric_radius_vector(jme)
         L = self.heliocentric_longitude(jme)
         B = self.heliocentric_latitude(jme)
@@ -976,15 +988,15 @@ class SPA:
 
         return v, alpha, delta, xi, eot
 
-    def _elevation_azimuth(self, delta_t=69.3032):
+    def _elevation_azimuth(self, delta_t=None):
         """
         Compute the solar elevation and azimuth locations and times
 
         Parameters
         ----------
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -999,7 +1011,7 @@ class SPA:
                                                   self.altitude, xi, H, delta)
         return e0, phi
 
-    def solar_position(self, delta_t=69.3032):
+    def solar_position(self, delta_t=None):
         """
         Compute the solar position for all locations and times:
         - elevation (e0)
@@ -1008,9 +1020,9 @@ class SPA:
 
         Parameters
         ----------
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1028,7 +1040,7 @@ class SPA:
 
     def apparent_solar_position(self, pressure=1013.25, temperature=12,
                                 atmospheric_refraction=0.5667,
-                                delta_t=69.3032):
+                                delta_t=None):
         """
         Compute the apparent (atmospheric refraction corrected) solar position
         for all locations and times:
@@ -1043,9 +1055,9 @@ class SPA:
             Temperature at all sites in C
         atmospheric_refract : float
             Atmospheric refraction constant
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1061,7 +1073,7 @@ class SPA:
         return e.T, theta.T
 
     @classmethod
-    def position(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
+    def position(cls, time_index, lat_lon, elev=0, delta_t=None):
         """
         Compute the solar position:
         - elevation
@@ -1076,9 +1088,9 @@ class SPA:
             (latitude, longitude) for site(s) of interest
         elev : ndarray
             Elevation above sea-level for site(s) of interest
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1094,7 +1106,7 @@ class SPA:
         return e0, phi, theta0
 
     @classmethod
-    def elevation(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
+    def elevation(cls, time_index, lat_lon, elev=0, delta_t=None):
         """
         Compute the solar elevation
 
@@ -1106,9 +1118,9 @@ class SPA:
             (latitude, longitude) for site(s) of interest
         elev : ndarray
             Elevation above sea-level for site(s) of interest
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1120,7 +1132,7 @@ class SPA:
         return e0
 
     @classmethod
-    def azimuth(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
+    def azimuth(cls, time_index, lat_lon, elev=0, delta_t=None):
         """
         Compute the solar elevation
 
@@ -1132,9 +1144,9 @@ class SPA:
             (latitude, longitude) for site(s) of interest
         elev : ndarray
             Elevation above sea-level for site(s) of interest
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1146,7 +1158,7 @@ class SPA:
         return phi
 
     @classmethod
-    def zenith(cls, time_index, lat_lon, elev=0, delta_t=69.3032):
+    def zenith(cls, time_index, lat_lon, elev=0, delta_t=None):
         """
         Compute the solar elevation
 
@@ -1158,9 +1170,9 @@ class SPA:
             (latitude, longitude) for site(s) of interest
         elev : ndarray
             Elevation above sea-level for site(s) of interest
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1174,7 +1186,7 @@ class SPA:
     @classmethod
     def apparent_position(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                           temperature=12, atmospheric_refraction=0.5667,
-                          delta_t=69.3032):
+                          delta_t=None):
         """
         Compute the solar position after atmospheric refraction correction
         - elevation
@@ -1194,9 +1206,9 @@ class SPA:
             Temperature at all sites in C
         atmospheric_refract : float
             Atmospheric refraction constant
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1216,7 +1228,7 @@ class SPA:
     @classmethod
     def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                            temperature=12, atmospheric_refraction=0.5667,
-                           delta_t=69.3032):
+                           delta_t=None):
         """
         Compute the solar elevation after atmospheric refraction correction
 
@@ -1234,9 +1246,9 @@ class SPA:
             Temperature at all sites in C
         atmospheric_refract : float
             Atmospheric refraction constant
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
@@ -1254,7 +1266,7 @@ class SPA:
     @classmethod
     def apparent_zenith(cls, time_index, lat_lon, elev=0, pressure=1013.25,
                         temperature=12, atmospheric_refraction=0.5667,
-                        delta_t=69.3032):
+                        delta_t=None):
         """
         Compute the solar zenith angle after atmospheric refraction correction
 
@@ -1272,9 +1284,9 @@ class SPA:
             Temperature at all sites in C
         atmospheric_refract : float
             Atmospheric refraction constant
-        delta_t : float
+        delta_t : float | None
             Difference between terrestrial time and UT1. Dependent on year.
-            Data source: http://maia.usno.navy.mil/ser7/deltat.data
+            None will infer delta_t value from time index (recommended).
 
         Returns
         -------
