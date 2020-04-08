@@ -28,12 +28,14 @@ def runner():
 def test_cli_4km_data(runner):
     """ Test CLI with 4km IMS data """
     with tempfile.TemporaryDirectory() as td:
+        log_file = os.path.join(td, 'test.log')
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
                                           '-i', TEST_DATA_DIR,
                                           '-a', td,
+                                          '--log-file', log_file,
                                           'singleday', '2013001',
                                           '--modis-shape', '122', '120',
-                                          '--ims-shape', '32', '25'])
+                                          '--ims-shape', '32', '25', ])
         assert result.exit_code == 0
 
         # Compare against known output
@@ -58,12 +60,15 @@ def test_cli_4km_data(runner):
 def test_cli_1km_data(runner):
     """ Test CLI with 1km IMS data """
     with tempfile.TemporaryDirectory() as td:
+        log_file = os.path.join(td, 'test2.log')
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
                                           '-i', TEST_DATA_DIR,
                                           '-a', td,
+                                          '--log-file', log_file,
                                           'singleday', '20150101',
                                           '--modis-shape', '60', '61',
-                                          '--ims-shape', '64', '50'])
+                                          '--ims-shape', '64', '50',
+                                          ])
         assert result.exit_code == 0
 
         # Compare against known output
