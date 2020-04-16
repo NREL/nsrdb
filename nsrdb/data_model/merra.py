@@ -249,13 +249,20 @@ class RelativeHumidity:
             convert_t = True
             t -= 273.15
 
-        # determine ps
+        # determine ps (saturation vapor pressure):
+        # Ref: https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
         ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
-        # determine w
+        # determine w (mixing ratio)
+        # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
+        # esci241_lesson06_humidity.pdf
         w = h / (1 - h)
-        # determine ws
+        # determine ws (saturation mixing ratio)
+        # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
+        # esci241_lesson06_humidity.pdf
+        # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
         # determine RH
+        # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         rh = w / ws * 100.
         # check values
         rh[rh > 100] = 100
