@@ -608,7 +608,9 @@ class Spatial:
                     cbar_label='dset', marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
-                    extent=None, axis=None, shape=None, shape_aspect=None,
+                    extent=None, axis=None,
+                    shape=None, shape_aspect=None,
+                    shape_color=(0.2, 0.2, 0.2), shape_line_width=2,
                     bbox_inches='tight'):
         """Plot a dataframe to verify the blending operation.
 
@@ -715,8 +717,8 @@ class Spatial:
                 gdf = gpd.GeoDataFrame.from_file(shape)
                 gdf = gdf.to_crs({'init': 'epsg:4326'})
                 gdf.geometry.boundary.plot(ax=ax, color=None,
-                                           edgecolor=(0.2, 0.2, 0.2),
-                                           linewidth=1)
+                                           edgecolor=shape_color,
+                                           linewidth=shape_line_width)
                 if shape_aspect:
                     ax.set_aspect(shape_aspect)
 
