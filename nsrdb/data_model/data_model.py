@@ -123,7 +123,7 @@ class DataModel:
                          + CLOUD_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
-                 factory_kwargs=None, scale=True):
+                 factory_kwargs=None, scale=True, max_workers=None):
         """
         Parameters
         ----------
@@ -148,6 +148,9 @@ class DataModel:
         scale : bool
             Flag to scale source data to reduced (integer) precision after
             data model processing.
+        max_workers : int | None
+            Maximum number of workers to use in parallel. 1 runs serial,
+            None uses all available workers.
         """
 
         self._nsrdb_data_shape = None
@@ -164,6 +167,7 @@ class DataModel:
         self._processed = {}
         self._ti = None
         self._weights = {}
+        self._max_workers = max_workers
 
     def __getitem__(self, key):
         return self._processed[key]
@@ -547,7 +551,7 @@ class DataModel:
 
         return data
 
-    def _cloud_regrid(self, cloud_vars, parallel=False):
+    def _cloud_regrid(self, cloud_vars):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
 
         (most efficient to process all cloud variables together to minimize
@@ -559,8 +563,6 @@ class DataModel:
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
-        parallel : bool
-            Flag to perform regrid in parallel.
 
         Returns
         -------
@@ -584,7 +586,7 @@ class DataModel:
         logger.debug('Starting cloud data ReGrid with {} futures '
                      '(cloud timesteps).'.format(len(var_obj.flist)))
 
-        if parallel:
+        if self._max_workers != 1:
             regrid_ind = self._cloud_regrid_parallel(var_obj.flist)
         else:
             regrid_ind = {}
@@ -664,11 +666,10 @@ class DataModel:
         logger.debug('Starting cloud ReGrid parallel.')
 
         # start a local cluster
-        max_workers = int(np.min((len(flist), os.cpu_count())))
         logger.debug('Starting local cluster with {} workers.'
-                     .format(max_workers))
+                     .format(self._max_workers))
         regrid_ind = {}
-        with ProcessPoolExecutor(max_workers=max_workers) as exe:
+        with ProcessPoolExecutor(max_workers=self._max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in flist:
                 regrid_ind[fpath] = exe.submit(self.get_cloud_nn, fpath,
@@ -864,7 +865,7 @@ class DataModel:
 
     @classmethod
     def _process_multiple(cls, var_list, date, nsrdb_grid,
-                          nsrdb_freq='5min', var_meta=None, parallel=False,
+                          nsrdb_freq='5min', var_meta=None, max_workers=None,
                           fpath_out=None, factory_kwargs=None):
         """Process ancillary data for multiple variables for a single day.
 
@@ -881,9 +882,9 @@ class DataModel:
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame
             CSV file or dataframe containing meta data for all NSRDB variables.
-        parallel : bool
-            Flag to perform parallel processing with each variable on a
-            seperate process.
+        max_workers : int | None
+            Maximum workers to use in parallel. 1 will run serial, None will
+            use all available parallel workers.
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -905,7 +906,8 @@ class DataModel:
         """
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs,
+                         max_workers=max_workers)
 
         # run pre-flight checks
         data_model.run_pre_flight(var_list)
@@ -939,7 +941,7 @@ class DataModel:
 
         if var_list:
             # run in serial
-            if parallel is False:
+            if max_workers == 1:
                 data = {}
                 for var in var_list:
                     data_model[var] = cls.run_single(
@@ -949,17 +951,24 @@ class DataModel:
             # run in parallel
             else:
                 data = cls._process_parallel(
-                    var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                    var_meta=var_meta, fpath_out=fpath_out,
+                    var_list, date, nsrdb_grid,
+                    max_workers=max_workers,
+                    nsrdb_freq=nsrdb_freq,
+                    var_meta=var_meta,
+                    fpath_out=fpath_out,
                     factory_kwargs=factory_kwargs)
+
                 for k, v in data.items():
                     data_model[k] = v
 
         # process cloud variables together
         if cloud_vars:
             data_model['clouds'] = cls.run_clouds(
-                cloud_vars, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                var_meta=var_meta, parallel=parallel, fpath_out=fpath_out,
+                cloud_vars, date, nsrdb_grid,
+                nsrdb_freq=nsrdb_freq,
+                var_meta=var_meta,
+                max_workers=max_workers,
+                fpath_out=fpath_out,
                 factory_kwargs=factory_kwargs)
 
         # process derived (dependent) variables last using the built
@@ -975,7 +984,8 @@ class DataModel:
         return data_model
 
     @staticmethod
-    def _process_parallel(var_list, date, nsrdb_grid, **kwargs):
+    def _process_parallel(var_list, date, nsrdb_grid, max_workers=None,
+                          **kwargs):
         """Process ancillary variables in parallel.
 
         Parameters
@@ -987,6 +997,9 @@ class DataModel:
         nsrdb_grid : str | pd.DataFrame
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe.
+        max_workers : int | None
+            Optional limit for maximum parallel workers.
+            None will use all available.
         **kwargs : dict
             Keyword args to pass to DataModel.run_single.
 
@@ -999,7 +1012,6 @@ class DataModel:
 
         logger.info('Processing variables in parallel: {}'.format(var_list))
         # start a local cluster
-        max_workers = int(np.min((len(var_list), os.cpu_count())))
         futures = {}
         logger.debug('Starting local cluster with {} workers.'
                      .format(max_workers))
@@ -1171,7 +1183,7 @@ class DataModel:
 
     @classmethod
     def run_clouds(cls, cloud_vars, date, nsrdb_grid,
-                   nsrdb_freq='5min', var_meta=None, parallel=False,
+                   nsrdb_freq='5min', var_meta=None, max_workers=None,
                    fpath_out=None, factory_kwargs=None):
         """Run cloud processing for multiple cloud variables.
 
@@ -1195,8 +1207,9 @@ class DataModel:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
-        parallel : bool
-            Flag to perform regrid in parallel.
+        max_workers : int | None
+            Maximum workers to use in parallel. 1 will run serial,
+            None will use all available.
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
@@ -1218,10 +1231,11 @@ class DataModel:
                     .format(cloud_vars))
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs,
+                         max_workers=max_workers)
 
         try:
-            data = data_model._cloud_regrid(cloud_vars, parallel=parallel)
+            data = data_model._cloud_regrid(cloud_vars)
         except Exception as e:
             logger.exception('Processing method "DataModel._cloud_regrid()" '
                              'failed for "{}"'.format(cloud_vars))
@@ -1246,7 +1260,7 @@ class DataModel:
 
     @classmethod
     def run_multiple(cls, var_list, date, nsrdb_grid,
-                     nsrdb_freq='5min', var_meta=None, parallel=False,
+                     nsrdb_freq='5min', var_meta=None, max_workers=None,
                      return_obj=False, fpath_out=None, factory_kwargs=None):
         """Run ancillary data processing for multiple variables for single day.
 
@@ -1265,9 +1279,9 @@ class DataModel:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
-        parallel : bool
-            Flag to perform parallel processing with each variable on a
-            seperate process.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 will run serial,
+            None will use all available.
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -1312,7 +1326,7 @@ class DataModel:
 
         data_model = cls._process_multiple(
             var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-            var_meta=var_meta, parallel=parallel, fpath_out=fpath_out,
+            var_meta=var_meta, max_workers=max_workers, fpath_out=fpath_out,
             factory_kwargs=factory_kwargs)
 
         # Create an AncillaryDataProcessing object instance for storing data.

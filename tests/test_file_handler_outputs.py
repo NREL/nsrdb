@@ -39,7 +39,7 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
 
     data_model = DataModel.run_multiple(var_list, date,
                                         grid, var_meta=var_meta,
-                                        parallel=False,
+                                        max_workers=1,
                                         return_obj=True)
 
     with Outputs(out_file, mode='w') as fout:

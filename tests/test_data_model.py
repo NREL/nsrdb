@@ -115,7 +115,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
     var_meta['source_directory'] = source_dir
 
     data = DataModel.run_multiple(var_list, date, grid,
-                                  var_meta=var_meta, parallel=True,
+                                  var_meta=var_meta, max_workers=None,
                                   factory_kwargs=factory_kwargs)
 
     for key, value in data.items():

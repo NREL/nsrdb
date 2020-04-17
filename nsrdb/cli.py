@@ -91,7 +91,8 @@ def config(ctx, config_file, command):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
-                       factory_kwargs=cmd_args.get('factory_kwargs', None))
+                       factory_kwargs=cmd_args.get('factory_kwargs', None),
+                       max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
 
     elif command == 'cloud-fill':
@@ -118,14 +119,14 @@ def config(ctx, config_file, command):
                 ctx.invoke(collect_data_model,
                            daily_dir=cmd_args.get('daily_dir', def_dir),
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
-                           n_workers=cmd_args['n_workers'])
+                           max_workers=cmd_args['max_workers'])
                 ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-daily':
         ctx.obj['NAME'] = name + '_collect_daily'
         ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
-                   parallel=cmd_args.get('parallel', True), eagle=True)
+                   max_workers=cmd_args.get('max_workers', None), eagle=True)
         ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-flist':
@@ -133,7 +134,7 @@ def config(ctx, config_file, command):
         ctx.invoke(collect_flist, flist=cmd_args['flist'],
                    collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
-                   parallel=cmd_args.get('parallel', True), eagle=True)
+                   max_workers=cmd_args.get('max_workers', None), eagle=True)
         ctx.invoke(eagle, **eagle_args)
 
     elif command == 'collect-final':
@@ -197,8 +198,10 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               'etc... source_dir for cloud variables can be a normal '
               'directory path or /directory/prefix*suffix where /directory/ '
               'can have more sub dirs.')
+@click.option('--max_workers', '-w', type=INT, default=None,
+              help='Number of workers to use in parallel.')
 @click.pass_context
-def data_model(ctx, doy, var_list, factory_kwargs):
+def data_model(ctx, doy, var_list, factory_kwargs, max_workers):
     """Run the data model for a single day."""
 
     name = ctx.obj['NAME']
@@ -216,10 +219,11 @@ def data_model(ctx, doy, var_list, factory_kwargs):
 
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
-    arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
+    arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, max_workers={}, '
                'log_level="{}", job_name="{}", factory_kwargs={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
-                       var_list, log_level, name, factory_kwargs))
+                       var_list, max_workers, log_level, name,
+                       factory_kwargs))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
@@ -295,10 +299,11 @@ def all_sky(ctx, i_chunk):
               help='Chunk index.')
 @click.option('--i_fname', '-if', type=int, required=True,
               help='Filename index (0: ancillary, 1: clouds, 2: sam vars).')
-@click.option('--n_workers', '-w', type=int, required=True,
+@click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
 @click.pass_context
-def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
+def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
+                       max_workers):
     """Collect data model results into cohesive timseries file chunks."""
 
     name = ctx.obj['NAME']
@@ -313,10 +318,10 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
 
     fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
-               'i_fname={}, freq="{}", parallel={}, '
+               'i_fname={}, freq="{}", max_workers={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
                .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
-                       i_chunk, i_fname, nsrdb_freq, n_workers,
+                       i_chunk, i_fname, nsrdb_freq, max_workers,
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -333,13 +338,13 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname, n_workers):
               help='Output filename to be saved in out_dir.')
 @click.option('--dsets', '-ds', type=STRLIST, required=True,
               help='List of dataset names to collect.')
-@click.option('-p', '--parallel', is_flag=True,
-              help='Flag for parallel daily data model file collection.')
+@click.option('--max_workers', '-w', type=INT, default=None,
+              help='Number of parallel workers to use.')
 @click.option('-e', '--eagle', is_flag=True,
               help='Flag for that this is being used to pass commands to '
               'an Eagle call.')
 @click.pass_context
-def collect_daily(ctx, collect_dir, fn_out, dsets, parallel, eagle):
+def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
     """Run the NSRDB file collection method on a daily directory."""
 
     name = ctx.obj['NAME']
@@ -350,9 +355,9 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, parallel, eagle):
 
     fp_out = os.path.join(out_dir, fn_out)
 
-    arg_str = ('"{}", "{}", {}, parallel={}, log_level="{}", '
+    arg_str = ('"{}", "{}", {}, max_workers={}, log_level="{}", '
                'log_file="{}", write_status=True, job_name="{}"'
-               .format(collect_dir, fp_out, json.dumps(dsets), parallel,
+               .format(collect_dir, fp_out, json.dumps(dsets), max_workers,
                        log_level, log_file, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -366,7 +371,8 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, parallel, eagle):
     if ctx.invoked_subcommand is None and not eagle:
         init_logger('nsrdb.file_handlers', log_level=log_level,
                     log_file=log_file)
-        Collector.collect_daily(collect_dir, fp_out, dsets, parallel=parallel,
+        Collector.collect_daily(collect_dir, fp_out, dsets,
+                                max_workers=max_workers,
                                 var_meta=var_meta)
 
 

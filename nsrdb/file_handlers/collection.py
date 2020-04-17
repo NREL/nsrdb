@@ -343,7 +343,7 @@ class Collector:
 
     @staticmethod
     def collect_flist(flist, collect_dir, f_out, dset, sites=None,
-                      var_meta=None, parallel=True):
+                      var_meta=None, max_workers=None):
         """Collect a dataset from a file list with data pre-init.
 
         Collects data that can be chunked in both space and time.
@@ -363,9 +363,9 @@ class Collector:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
-        parallel : bool | int
-            Flag to do chunk collection in parallel. Can be integer number of
-            workers to use (number of parallel reads).
+        max_workers : int | None
+            Number of workers to use in parallel. 1 runs serial,
+            None uses all available.
         """
 
         time_index, meta, shape, dtype = Collector._get_collection_attrs(
@@ -379,7 +379,7 @@ class Collector:
                     .format(dset, shape, dtype,
                             mem.used / 1e9, mem.total / 1e9))
 
-        if not parallel:
+        if max_workers == 1:
             for i, fname in enumerate(flist):
                 logger.debug('Collecting data from file {} out of {}.'
                              .format(i + 1, len(flist)))
@@ -390,10 +390,6 @@ class Collector:
                                                                   sites=sites)
                 data[row_slice, col_slice] = f_data
         else:
-            if parallel is True:
-                max_workers = os.cpu_count()
-            else:
-                max_workers = parallel
             logger.info('Running parallel collection on {} workers.'
                         .format(max_workers))
 
@@ -511,7 +507,7 @@ class Collector:
 
     @classmethod
     def collect_daily(cls, collect_dir, f_out, dsets, sites=None,
-                      var_meta=None, parallel=True, log_level=None,
+                      var_meta=None, max_workers=None, log_level=None,
                       log_file=None, write_status=False, job_name=None):
         """Collect daily data model files from a dir to one output file.
 
@@ -538,9 +534,9 @@ class Collector:
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo. This is used if
             f_out has not yet been initialized.
-        parallel : bool | int
-            Flag to do chunk collection in parallel. Can be integer number of
-            workers to use (number of parallel reads).
+        max_workers : int | None
+            Number of workers to use in parallel. 1 runs serial,
+            None will use all available workers.
         log_level : str | None
             Desired log level, None will not initialize logging.
         log_file : str | None
@@ -578,7 +574,7 @@ class Collector:
             else:
                 collector.collect_flist(collector.flist, collect_dir, f_out,
                                         dset, sites=sites, var_meta=var_meta,
-                                        parallel=parallel)
+                                        max_workers=max_workers)
 
         if write_status and job_name is not None:
             status = {'out_dir': os.path.dirname(f_out),

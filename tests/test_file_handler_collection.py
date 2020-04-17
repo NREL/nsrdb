@@ -42,11 +42,11 @@ def retrieve_data(fp, dset='air_temperature'):
     return ti, meta, data, attrs
 
 
-@pytest.mark.parametrize(('sites', 'parallel'),
-                         ((None, False),
-                          (None, True),
-                          (np.array([2, 3, 4]), False)))
-def test_collect_daily(sites, parallel):
+@pytest.mark.parametrize(('sites', 'max_workers'),
+                         ((None, 1),
+                          (None, 2),
+                          (np.array([2, 3, 4]), 1)))
+def test_collect_daily(sites, max_workers):
 
     collect_dir = os.path.join(TESTDATADIR, 'data_model_daily_sample_output/')
     f_out = os.path.join(TESTDATADIR, 'temp_out/collected.h5')
@@ -56,7 +56,7 @@ def test_collect_daily(sites, parallel):
         os.remove(f_out)
 
     Collector.collect_daily(collect_dir, f_out, dsets, sites=sites,
-                            parallel=parallel)
+                            max_workers=max_workers)
 
     for dset in dsets:
         b_ti, b_meta, b_data, b_attrs = retrieve_data(BASELINE_4DAY, dset=dset)

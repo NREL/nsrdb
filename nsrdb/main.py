@@ -146,7 +146,7 @@ class NSRDB:
                            .format(sys.maxsize))
 
     def _exe_daily_data_model(self, month, day, var_list=None,
-                              factory_kwargs=None, parallel=True,
+                              factory_kwargs=None, max_workers=None,
                               fpath_out=None):
         """Execute the data model for a single day.
 
@@ -166,8 +166,9 @@ class NSRDB:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
-        parallel : bool
-            Flag to perform data model processing in parallel.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 runs serial,
+            None will use all available workers.
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
@@ -189,7 +190,7 @@ class NSRDB:
         # run data model
         data_model = DataModel.run_multiple(
             var_list, date, self._grid, nsrdb_freq=self._freq,
-            var_meta=self._var_meta, parallel=parallel, return_obj=True,
+            var_meta=self._var_meta, max_workers=max_workers, return_obj=True,
             fpath_out=fpath_out, factory_kwargs=factory_kwargs)
 
         logger.info('Finished daily data model execution for {}-{}-{}'
@@ -421,7 +422,7 @@ class NSRDB:
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
-                       var_meta=None, factory_kwargs=None, parallel=True,
+                       var_meta=None, factory_kwargs=None, max_workers=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
         """Run daily data model, and save output files.
@@ -452,8 +453,9 @@ class NSRDB:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
-        parallel : bool
-            Flag to perform data model processing in parallel.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 runs serial,
+            None uses all available workers.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -482,7 +484,7 @@ class NSRDB:
         data_model = nsrdb._exe_daily_data_model(date.month, date.day,
                                                  var_list=var_list,
                                                  factory_kwargs=factory_kwargs,
-                                                 parallel=parallel,
+                                                 max_workers=max_workers,
                                                  fpath_out=fpath_out)
 
         if fpath_out is None:
@@ -508,7 +510,7 @@ class NSRDB:
                            n_chunks, i_chunk, i_fname,
                            freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
-                           parallel=True, job_name=None):
+                           max_workers=None, job_name=None):
         """Collect daily data model files to a single site-chunked output file.
 
         Parameters
@@ -541,9 +543,9 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
-        parallel : bool | int
-            Flag to do chunk collection in parallel. Can be integer number of
-            workers to use (number of parallel reads).
+        max_workers : int | None
+            Number of workers to run in parallel. 1 runs serial,
+            None uses all available workers.
         job_name : str
             Optional name for pipeline and status identification.
         """
@@ -578,8 +580,10 @@ class NSRDB:
                             meta_chunk['gid'].values[-1], f_out))
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
-        Collector.collect_daily(daily_dir, f_out, dsets, sites=chunk,
-                                var_meta=nsrdb._var_meta, parallel=parallel)
+        Collector.collect_daily(daily_dir, f_out, dsets,
+                                sites=chunk,
+                                var_meta=nsrdb._var_meta,
+                                max_workers=max_workers)
         logger.info('Finished file collection to: {}'.format(f_out))
 
         if job_name is not None:
@@ -758,7 +762,7 @@ class NSRDB:
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
-                    rows=slice(None), cols=slice(None), parallel=True,
+                    rows=slice(None), cols=slice(None), max_workers=None,
                     log_level='DEBUG', log_file='all_sky.log',
                     i_chunk=None, job_name=None):
         """Run the all-sky physics model from .h5 files.
@@ -781,6 +785,9 @@ class NSRDB:
             Subset of rows to run.
         cols : slice
             Subset of columns to run.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 will run serial,
+            None will use all available.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -818,9 +825,9 @@ class NSRDB:
 
         nsrdb._init_output_h5(f_out, irrad_dsets, time_index, meta)
 
-        if parallel:
+        if max_workers != 1:
             out = all_sky_h5_parallel(f_ancillary, f_cloud, rows=rows,
-                                      cols=cols)
+                                      cols=cols, max_workers=max_workers)
         else:
             out = all_sky_h5(f_ancillary, f_cloud, rows=rows, cols=cols)
 

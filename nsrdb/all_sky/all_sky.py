@@ -3,7 +3,6 @@
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import os
 import numpy as np
 import pandas as pd
 import psutil
@@ -262,7 +261,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
 
 
 def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
-                        cols=slice(None), col_chunk=10):
+                        cols=slice(None), col_chunk=10, max_workers=None):
     """Run all-sky from .h5 files.
 
     Parameters
@@ -279,6 +278,8 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
         Number of columns to process on a single core. Larger col_chunk will
         increase the REST2 memory spike substantially, but will be
         significantly faster.
+    max_workers : int | None
+        Number of workers to run in parallel.
 
     Returns
     -------
@@ -318,7 +319,6 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
     out = {}
     completed = 0
 
-    max_workers = int(os.cpu_count())
     logger.info('Running all-sky in parallel on {} workers.'
                 .format(max_workers))
 

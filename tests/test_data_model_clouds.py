@@ -90,7 +90,8 @@ def test_regrid():
 
     data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
                                 nsrdb_freq='1d', var_meta=var_meta,
-                                factory_kwargs=factory_kwargs)
+                                factory_kwargs=factory_kwargs,
+                                max_workers=1)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 
