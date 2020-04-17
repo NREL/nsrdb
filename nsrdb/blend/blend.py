@@ -36,6 +36,7 @@ class Blender:
         lon_seam : int, optional
             Vertical longitude seam at which data transitions from the western
             source to eastern, by default -105 (historical closest to nadir).
+            5min conus data (2019 onward) is typically blended at -113.0.
         """
 
         logger.info('Blender running at longitude seam: {}'.format(lon_seam))
@@ -307,6 +308,7 @@ class Blender:
         lon_seam : int, optional
             Vertical longitude seam at which data transitions from the western
             source to eastern, by default -105 (historical closest to nadir).
+            5min conus data (2019 onward) is typically blended at -113.0.
         chunk_size : int
             Number of sites to read/write at a time.
         """
@@ -348,6 +350,7 @@ class Blender:
         lon_seam : int, optional
             Vertical longitude seam at which data transitions from the western
             source to eastern, by default -105 (historical closest to nadir).
+            5min conus data (2019 onward) is typically blended at -113.0.
         chunk_size : int
             Number of sites to read/write at a time.
         """
