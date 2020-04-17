@@ -7,6 +7,9 @@ dask-worker-space/
 # pytest stuff
 .pytest_cache/
 
+# VIM Tags
+tags
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -119,5 +122,5 @@ ENV/
 nsrdb/albedo/scratch
 scratch
 
-# VSCode config 
+# VSCode config
 .vscode

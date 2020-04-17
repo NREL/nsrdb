@@ -865,7 +865,8 @@ class DataModel:
 
     @classmethod
     def _process_multiple(cls, var_list, date, nsrdb_grid,
-                          nsrdb_freq='5min', var_meta=None, max_workers=None,
+                          nsrdb_freq='5min', var_meta=None,
+                          max_workers=None, max_workers_clouds=None,
                           fpath_out=None, factory_kwargs=None):
         """Process ancillary data for multiple variables for a single day.
 
@@ -885,6 +886,8 @@ class DataModel:
         max_workers : int | None
             Maximum workers to use in parallel. 1 will run serial, None will
             use all available parallel workers.
+        max_workers_clouds : int | None
+            Maximum workers to use in parallel for the cloud regrid algorithm.
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -967,7 +970,7 @@ class DataModel:
                 cloud_vars, date, nsrdb_grid,
                 nsrdb_freq=nsrdb_freq,
                 var_meta=var_meta,
-                max_workers=max_workers,
+                max_workers=max_workers_clouds,
                 fpath_out=fpath_out,
                 factory_kwargs=factory_kwargs)
 
@@ -1260,7 +1263,8 @@ class DataModel:
 
     @classmethod
     def run_multiple(cls, var_list, date, nsrdb_grid,
-                     nsrdb_freq='5min', var_meta=None, max_workers=None,
+                     nsrdb_freq='5min', var_meta=None,
+                     max_workers=None, max_workers_clouds=None,
                      return_obj=False, fpath_out=None, factory_kwargs=None):
         """Run ancillary data processing for multiple variables for single day.
 
@@ -1282,6 +1286,8 @@ class DataModel:
         max_workers : int | None
             Number of workers to run in parallel. 1 will run serial,
             None will use all available.
+        max_workers_clouds : int | None
+            Number of workers to run in parallel for the cloud regrid algorithm
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -1325,8 +1331,12 @@ class DataModel:
                      'factory kwargs: {}'.format(factory_kwargs))
 
         data_model = cls._process_multiple(
-            var_list, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-            var_meta=var_meta, max_workers=max_workers, fpath_out=fpath_out,
+            var_list, date, nsrdb_grid,
+            nsrdb_freq=nsrdb_freq,
+            var_meta=var_meta,
+            max_workers=max_workers,
+            max_workers_clouds=max_workers_clouds,
+            fpath_out=fpath_out,
             factory_kwargs=factory_kwargs)
 
         # Create an AncillaryDataProcessing object instance for storing data.

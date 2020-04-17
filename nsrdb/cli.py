@@ -89,10 +89,12 @@ def config(ctx, config_file, command):
         doy_range = cmd_args['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
+            max_workers_clouds = cmd_args.get('max_workers_clouds', None)
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
-                       max_workers=cmd_args.get('max_workers', None))
+                       max_workers=cmd_args.get('max_workers', None),
+                       max_workers_clouds=max_workers_clouds)
             ctx.invoke(eagle, **eagle_args)
 
     elif command == 'cloud-fill':
@@ -200,8 +202,12 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               'can have more sub dirs.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of workers to use in parallel.')
+@click.option('--max_workers_clouds', '-wc', type=INT, default=None,
+              help='Number of workers to use in parallel for the '
+                   'cloud regrid algorithm.')
 @click.pass_context
-def data_model(ctx, doy, var_list, factory_kwargs, max_workers):
+def data_model(ctx, doy, var_list, factory_kwargs,
+               max_workers, max_workers_clouds):
     """Run the data model for a single day."""
 
     name = ctx.obj['NAME']
@@ -219,10 +225,12 @@ def data_model(ctx, doy, var_list, factory_kwargs, max_workers):
 
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
-    arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, max_workers={}, '
+    arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
+               'max_workers={}, max_workers_clouds={}, '
                'log_level="{}", job_name="{}", factory_kwargs={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
-                       var_list, max_workers, log_level, name,
+                       var_list, max_workers, max_workers_clouds,
+                       log_level, name,
                        factory_kwargs))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
