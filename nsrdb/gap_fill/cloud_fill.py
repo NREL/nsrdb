@@ -239,11 +239,11 @@ class CloudGapFill:
         fill_flag : np.ndarray
             Integer array of flags with missing cloud property flags set.
         """
-
-        missing_prop = (cloud_type.isin(CLOUD_TYPES)
-                        & (cloud_prop <= 0)
-                        & (sza < SZA_LIM))
-        fill_flag[(missing_prop.values & (fill_flag == 0))] = 3
+        missing_prop = (cloud_type.isin(CLOUD_TYPES).values
+                        & (cloud_prop <= 0).values
+                        & (sza < SZA_LIM).values)
+        mask = missing_prop & (fill_flag == 0)
+        fill_flag[mask] = 3
 
         # if full timeseries is missing properties but not type, set 4
         missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag > 0))
@@ -283,10 +283,11 @@ class CloudGapFill:
         logger.debug('Gap filling "{}".'.format(prop_name))
 
         float_convert = False
-        if np.issubdtype(cloud_prop.dtype, np.integer):
-            float_convert = True
-            native_dtype = cloud_prop.dtype
-            cloud_prop = cloud_prop.astype(np.float32)
+        if isinstance(cloud_prop, np.ndarray):
+            if np.issubdtype(cloud_prop.dtype, np.integer):
+                float_convert = True
+                native_dtype = cloud_prop.dtype
+                cloud_prop = cloud_prop.astype(np.float32)
 
         # make dataframes
         df_convert = False
