@@ -24,7 +24,7 @@ with open("README.md", encoding="utf-8") as readme_file:
 
 setup(
     name="nsrdb",
-    version="3.1.0",
+    version="3.1.2",
     description="The National Solar Radiation DataBase",
     long_description=readme,
     author="Grant Buster",
