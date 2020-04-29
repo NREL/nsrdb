@@ -221,8 +221,8 @@ class CloudVarSingleH5(CloudVarSingle):
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
-    @staticmethod
-    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc'),
+    @classmethod
+    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
                     adjust_coords=True):
         """Extract the cloud data grid for the current timestep.
 
@@ -264,11 +264,11 @@ class CloudVarSingleH5(CloudVarSingle):
                     logger.warning(wmsg)
                     dset = dset_out
 
-                grid[dset_out] = CloudVarSingleH5.pre_process(
-                    dset, f[dset][...], dict(f[dset].attrs))
+                grid[dset_out] = cls.pre_process(dset, f[dset][...],
+                                                 dict(f[dset].attrs))
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
-            grid = CloudVarSingleH5.solpo_grid_adjust(fpath, grid)
+            grid = cls.solpo_grid_adjust(fpath, grid)
 
         grid = pd.DataFrame(grid)
 
@@ -277,8 +277,8 @@ class CloudVarSingleH5(CloudVarSingle):
 
         return grid
 
-    @staticmethod
-    def solpo_grid_adjust(fpath, grid):
+    @classmethod
+    def solpo_grid_adjust(cls, fpath, grid):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -298,13 +298,13 @@ class CloudVarSingleH5(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with h5py.File(fpath, 'r') as f:
-            sza = CloudVarSingleH5.pre_process(
+            sza = cls.pre_process(
                 'solar_zenith_angle', f['solar_zenith_angle'][...],
                 dict(f['solar_zenith_angle'].attrs))
-            azi = CloudVarSingleH5.pre_process(
+            azi = cls.pre_process(
                 'solar_azimuth_angle', f['solar_azimuth_angle'][...],
                 dict(f['solar_azimuth_angle'].attrs))
-            cld_height = CloudVarSingleH5.pre_process(
+            cld_height = cls.pre_process(
                 'cld_height_acha', f['cld_height_acha'][...],
                 dict(f['cld_height_acha'].attrs))
 
@@ -447,8 +447,8 @@ class CloudVarSingleNC(CloudVarSingle):
         self._grid, self._sparse_mask = self._parse_grid(
             self._fpath, adjust_coords=adjust_coords)
 
-    @staticmethod
-    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc'),
+    @classmethod
+    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
                     adjust_coords=True):
         """Extract the cloud data grid for the current timestep.
 
@@ -507,7 +507,7 @@ class CloudVarSingleNC(CloudVarSingle):
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
-            grid = CloudVarSingleNC.solpo_grid_adjust(fpath, grid)
+            grid = cls.solpo_grid_adjust(fpath, grid)
 
         grid = pd.DataFrame(grid)
 
@@ -637,7 +637,7 @@ class CloudVar(AncillaryVarHandler):
 
     def __init__(self, name, var_meta, date, source_dir=None, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+                        'cld_press_acha'), adjust_coords=True):
         """
         Parameters
         ----------
@@ -660,6 +660,9 @@ class CloudVar(AncillaryVarHandler):
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
         """
 
         super().__init__(name, var_meta=var_meta, date=date,
@@ -675,6 +678,7 @@ class CloudVar(AncillaryVarHandler):
         self._dsets = dsets
         self._ftype = None
         self._i = None
+        self._adjust_coords = adjust_coords
 
         self._check_freq()
 
@@ -717,9 +721,11 @@ class CloudVar(AncillaryVarHandler):
             if isinstance(fpath, str):
                 # initialize a single timestep helper object
                 if fpath.endswith('.h5'):
-                    obj = CloudVarSingleH5(fpath, dsets=self._dsets)
+                    obj = CloudVarSingleH5(fpath, dsets=self._dsets,
+                                           adjust_coords=self._adjust_coords)
                 elif fpath.endswith('.nc'):
-                    obj = CloudVarSingleNC(fpath, dsets=self._dsets)
+                    obj = CloudVarSingleNC(fpath, dsets=self._dsets,
+                                           adjust_coords=self._adjust_coords)
 
                 logger.info('Cloud data timestep {} has source file: {}'
                             .format(timestamp, os.path.basename(fpath)))
