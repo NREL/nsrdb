@@ -320,10 +320,17 @@ class CloudVarSingleH5(CloudVarSingle):
                 'cld_height_acha', f['cld_height_acha'][...],
                 dict(f['cld_height_acha'].attrs))
 
-        lat, lon = CloudCoords.adjust_coords(grid['latitude'],
-                                             grid['longitude'],
-                                             sza, azi, cld_height)
-        grid['latitude'], grid['longitude'] = lat, lon
+        try:
+            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
+                                                 grid['longitude'],
+                                                 sza, azi, cld_height)
+        except Exception as e:
+            logger.warning('Could not perform cloud coordinate adjustment '
+                           'for: {}, received error: {}'
+                           .format(os.path.basename(fpath), e))
+        else:
+            grid['latitude'], grid['longitude'] = lat, lon
+
         return grid
 
     @staticmethod
@@ -555,10 +562,17 @@ class CloudVarSingleNC(CloudVarSingle):
             azi = f['solar_azimuth_angle'][:].data[sparse_mask]
             cld_height = f['cld_height_acha'][:].data[sparse_mask]
 
-        lat, lon = CloudCoords.adjust_coords(grid['latitude'],
-                                             grid['longitude'],
-                                             sza, azi, cld_height)
-        grid['latitude'], grid['longitude'] = lat, lon
+        try:
+            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
+                                                 grid['longitude'],
+                                                 sza, azi, cld_height)
+        except Exception as e:
+            logger.warning('Could not perform cloud coordinate adjustment '
+                           'for: {}, received error: {}'
+                           .format(os.path.basename(fpath), e))
+        else:
+            grid['latitude'], grid['longitude'] = lat, lon
+
         return grid
 
     @staticmethod
