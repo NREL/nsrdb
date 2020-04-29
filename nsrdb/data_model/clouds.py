@@ -6,6 +6,7 @@ import pandas as pd
 import h5py
 import re
 import os
+import psutil
 import netCDF4
 import logging
 from warnings import warn
@@ -137,6 +138,12 @@ class CloudCoords:
         delta_dist = cld_height * np.tan(sza)
         delta_x = -1 * delta_dist * np.sin(azi)
         delta_y = -1 * delta_dist * np.cos(azi)
+
+        logger.debug('Cloud shading coordinate adjustment has '
+                     'min / mean / max distance adjustment of '
+                     '{:.1f} / {:.1f} / {:.1f} km'
+                     .format(delta_dist.min(), delta_dist.mean(),
+                             delta_dist.max()))
 
         delta_lon = cls.dist_to_longitude(lat, delta_x)
         delta_lat = cls.dist_to_latitude(delta_y)
@@ -727,8 +734,12 @@ class CloudVar(AncillaryVarHandler):
                     obj = CloudVarSingleNC(fpath, dsets=self._dsets,
                                            adjust_coords=self._adjust_coords)
 
-                logger.info('Cloud data timestep {} has source file: {}'
-                            .format(timestamp, os.path.basename(fpath)))
+                    mem = psutil.virtual_memory()
+                    logger.info('Cloud data timestep {} has source file: {}. '
+                                'Memory usage is {:.3f} GB out of '
+                                '{:.3f} GB total.'
+                                .format(timestamp, os.path.basename(fpath),
+                                        mem.used / 1e9, mem.total / 1e9))
 
             else:
                 obj = None
