@@ -97,7 +97,7 @@ class CloudCoords:
 
     @classmethod
     def adjust_coords(cls, lat, lon, sza, azi, cld_height, sza_threshold=85):
-        """Adjust parallax corrected coordinates for sun position.
+        """Adjust parallax corrected coordinates for sun position shading.
 
         Parameters
         ----------
@@ -127,6 +127,17 @@ class CloudCoords:
             so that clouds are mapped to the coordinates they are shading.
         """
 
+        shapes = {'lat': lat.shape, 'lon': lon.shape,
+                  'sza': sza.shape, 'azi': azi.shape,
+                  'cld_height': cld_height.shape}
+        shapes_list = list(shapes.values())
+        check = [shapes_list[0] == x for x in shapes_list[1:]]
+        if not all(check):
+            e = ('Cannot run cloud coordinate shading adjustment. '
+                 'Input shapes: {}'.format(shapes))
+            logger.error(e)
+            raise ValueError(e)
+
         if np.max(cld_height) > 50:
             cld_height /= 1000
 
@@ -138,12 +149,6 @@ class CloudCoords:
         delta_dist = cld_height * np.tan(sza)
         delta_x = -1 * delta_dist * np.sin(azi)
         delta_y = -1 * delta_dist * np.cos(azi)
-
-        logger.debug('Cloud shading coordinate adjustment has '
-                     'min / mean / max distance adjustment of '
-                     '{:.1f} / {:.1f} / {:.1f} km'
-                     .format(delta_dist.min(), delta_dist.mean(),
-                             delta_dist.max()))
 
         delta_lon = cls.dist_to_longitude(lat, delta_x)
         delta_lat = cls.dist_to_latitude(delta_y)
@@ -514,7 +519,7 @@ class CloudVarSingleNC(CloudVarSingle):
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
-            grid = cls.solpo_grid_adjust(fpath, grid)
+            grid = cls.solpo_grid_adjust(fpath, grid, sparse_mask)
 
         grid = pd.DataFrame(grid)
 
@@ -524,7 +529,7 @@ class CloudVarSingleNC(CloudVarSingle):
         return grid, sparse_mask
 
     @staticmethod
-    def solpo_grid_adjust(fpath, grid):
+    def solpo_grid_adjust(fpath, grid, sparse_mask):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -535,6 +540,8 @@ class CloudVarSingleNC(CloudVarSingle):
         grid : dict
             Dictionary with latitude and longitude keys and corresponding
             numpy array values.
+        sparse_mask : np.ndarray
+            Boolean array to mask the native dataset shapes from fpath.
 
         Returns
         -------
@@ -544,12 +551,9 @@ class CloudVarSingleNC(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with netCDF4.Dataset(fpath, 'r') as f:
-            mask = ~f['solar_zenith_angle'][:].mask
-            sza = f['solar_zenith_angle'][:].data[mask]
-            mask = ~f['solar_azimuth_angle'][:].mask
-            azi = f['solar_azimuth_angle'][:].data[mask]
-            mask = ~f['cld_height_acha'][:].mask
-            cld_height = f['cld_height_acha'][:].data[mask]
+            sza = f['solar_zenith_angle'][:].data[sparse_mask]
+            azi = f['solar_azimuth_angle'][:].data[sparse_mask]
+            cld_height = f['cld_height_acha'][:].data[sparse_mask]
 
         lat, lon = CloudCoords.adjust_coords(grid['latitude'],
                                              grid['longitude'],
