@@ -138,7 +138,7 @@ class CloudCoords:
             logger.error(e)
             raise ValueError(e)
 
-        if np.max(cld_height) > 50:
+        if np.nanmax(cld_height) > 1000:
             cld_height /= 1000
 
         cld_height[(cld_height < 0)] = np.nan
