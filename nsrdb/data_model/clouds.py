@@ -150,8 +150,26 @@ class CloudCoords:
         delta_x = -1 * delta_dist * np.sin(azi)
         delta_y = -1 * delta_dist * np.cos(azi)
 
+        logger.debug('Cloud height min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(cld_height),
+                             np.nanmean(cld_height),
+                             np.nanmax(cld_height)))
+        logger.debug('Delta dist min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_dist),
+                             np.nanmean(delta_dist),
+                             np.nanmax(delta_dist)))
+
         delta_lon = cls.dist_to_longitude(lat, delta_x)
         delta_lat = cls.dist_to_latitude(delta_y)
+
+        logger.debug('Delta lon min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_lon),
+                             np.nanmean(delta_lon),
+                             np.nanmax(delta_lon)))
+        logger.debug('Delta lat min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_lat),
+                             np.nanmean(delta_lat),
+                             np.nanmax(delta_lat)))
 
         delta_lon[np.isnan(delta_lon)] = 0.0
         delta_lat[np.isnan(delta_lat)] = 0.0
