@@ -1813,7 +1813,7 @@ class TmyRunner:
         tgy._collect()
 
     @staticmethod
-    def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=240,
+    def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=4,
                feature='--qos=high', node_name='tmy', stdout_path=None):
         """Run a TmyRunner method on an Eagle node.
 
