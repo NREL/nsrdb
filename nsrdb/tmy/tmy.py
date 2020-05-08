@@ -372,7 +372,7 @@ class Cdf:
 class Tmy:
     """NSRDB Typical Meteorological Year (TMY) calculation framework."""
 
-    def __init__(self, nsrdb_dir, years, weights, site_slice=slice(None),
+    def __init__(self, nsrdb_dir, years, weights, site_slice=None,
                  supplemental_dirs=None):
         """
         Parameters
@@ -401,7 +401,9 @@ class Tmy:
         self._dir = nsrdb_dir
         self._years = sorted([int(y) for y in years])
         self._weights = weights
-        self._site_slice = site_slice
+        self._site_slice = slice(None)
+        if site_slice is not None:
+            self._site_slice = site_slice
         self._my_time_index = None
         self._time_index = None
         self._my_daily_time_index = None
@@ -1289,8 +1291,9 @@ class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
     def __init__(self, nsrdb_dir, years, weights, sites_per_worker=100,
-                 n_nodes=1, node_index=0, out_dir='/tmp/scratch/tmy/',
-                 fn_out='tmy.h5', supplemental_dirs=None):
+                 n_nodes=1, node_index=0, site_slice=None,
+                 out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5',
+                 supplemental_dirs=None):
         """
         Parameters
         ----------
@@ -1304,14 +1307,16 @@ class TmyRunner:
             Lookup of {dset: weight} where dset is a variable h5 dset name
             and weight is a fractional TMY weighting. All weights must
             sum to 1.0
-        site_slice : slice
-            Sites to consider in this TMY.
         sites_per_worker : int
             Number of sites to run at once (sites per core/worker).
         n_nodes : int
             Number of nodes being run.
         node_index : int
             Index of this node job.
+        site_slice : slice
+            Sites to consider in the GLOBAL TMY run. If multiple jobs are being
+            run, the site slice should be the same for all jobs, and slices the
+            full spatial extent meta data.
         out_dir : str
             Directory to dump temporary output files.
         fn_out : str
@@ -1335,6 +1340,9 @@ class TmyRunner:
         self._site_chunks = None
         self._site_chunks_index = None
 
+        self._site_slice = slice(None)
+        if site_slice is not None:
+            self._site_slice = site_slice
         self._meta = None
         self._dsets = None
 
@@ -1426,7 +1434,7 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             with Resource(self._tmy_obj._fpaths[0]) as res:
-                self._meta = res.meta
+                self._meta = res.meta.iloc[self._site_slice, :]
         return self._meta
 
     @property
@@ -1439,8 +1447,13 @@ class TmyRunner:
                     if hasattr(res._h5[d], 'shape'):
                         if res._h5[d].shape == res.shape:
                             self._dsets.append(d)
+
+            if self._supplemental_dirs is not None:
+                self._dsets += list(self._supplemental_dirs.keys())
+
             self._dsets.append('tmy_year')
             self._dsets.append('tmy_year_short')
+
         return self._dsets
 
     @property
@@ -1710,7 +1723,8 @@ class TmyRunner:
 
     @classmethod
     def tgy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None, supplemental_dirs=None):
+            log=True, log_level='INFO', log_file=None, site_slice=None,
+            supplemental_dirs=None):
         """Run the TGY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1718,12 +1732,13 @@ class TmyRunner:
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
         tgy._run_parallel()
 
     @classmethod
     def tdy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None, supplemental_dirs=None):
+            log=True, log_level='INFO', log_file=None, site_slice=None,
+            supplemental_dirs=None):
         """Run the TDY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1731,13 +1746,13 @@ class TmyRunner:
         weights = {'sum_dni': 1.0}
         tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
         tdy._run_parallel()
 
     @classmethod
     def tmy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None, n_nodes=1,
             node_index=0, log=True, log_level='INFO', log_file=None,
-            supplemental_dirs=None):
+            site_slice=None, supplemental_dirs=None):
         """Run the TMY. Option for custom weights."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1757,7 +1772,7 @@ class TmyRunner:
 
         tmy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
         tmy._run_parallel()
 
     @classmethod
@@ -1825,7 +1840,8 @@ class TmyRunner:
 
     @classmethod
     def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out,
-                  weights=None, n_nodes=1, supplemental_dirs=None, **kwargs):
+                  weights=None, n_nodes=1, site_slice=None,
+                  supplemental_dirs=None, **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
         for node_index in range(n_nodes):
@@ -1833,11 +1849,13 @@ class TmyRunner:
                        'weights={weights}, '
                        'n_nodes={n_nodes}, '
                        'node_index={node_index}, '
+                       'site_slice={site_slice}, '
                        'supplemental_dirs={sdirs}')
             arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                      out_dir=out_dir, fn_out=fn_out,
                                      weights=weights, n_nodes=n_nodes,
                                      node_index=node_index,
+                                     site_slice=site_slice,
                                      sdirs=supplemental_dirs)
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
             kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
@@ -1845,7 +1863,7 @@ class TmyRunner:
 
     @classmethod
     def eagle_all(cls, nsrdb_dir, years, out_dir, n_nodes=1,
-                  supplemental_dirs=None, **kwargs):
+                  site_slice=None, supplemental_dirs=None, **kwargs):
         """Submit three eagle jobs for TMY, TGY, and TDY."""
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
@@ -1853,7 +1871,7 @@ class TmyRunner:
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
-                          fun_fn_out, n_nodes=n_nodes,
+                          fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
                           supplemental_dirs=supplemental_dirs, **kwargs)
 
     @classmethod
