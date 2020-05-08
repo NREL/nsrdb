@@ -372,13 +372,15 @@ class Cdf:
 class Tmy:
     """NSRDB Typical Meteorological Year (TMY) calculation framework."""
 
-    def __init__(self, nsrdb_dir, years, weights, site_slice=slice(None)):
+    def __init__(self, nsrdb_dir, years, weights, site_slice=slice(None),
+                 supplemental_dirs=None):
         """
         Parameters
         ----------
         nsrdb_dir : str
-            Directory containing annual NSRDB files. All .h5 files with year
-            strings in their names will be used.
+            Directory containing annual NSRDB files. This directory will be
+            parse for .h5 files containing year strings and "nsrdb" but not
+            "tmy", "tdy", or "tgy".
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
@@ -387,6 +389,10 @@ class Tmy:
             sum to 1.0
         site_slice : slice
             Sites to consider in this TMY.
+        supplemental_dirs : None | dict
+            Supplemental data directories for source NSRDB-style datasets
+            that are inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/'}
         """
 
         logger.debug('Initializing TMY algorithm for sites {}...'
@@ -412,7 +418,11 @@ class Tmy:
 
         self._fpaths, self._fpaths_years = self._parse_dir(self._dir,
                                                            self._years)
-        self._check_weights(self._fpaths, self._weights)
+
+        self._supplemental = self._parse_supplemental(supplemental_dirs,
+                                                      self._years)
+
+        self._check_weights(self._fpaths, self._supplemental, self._weights)
         self._init_daily_ghi_temp()
 
     @staticmethod
@@ -422,8 +432,9 @@ class Tmy:
         Parameters
         ----------
         nsrdb_dir : str
-            Directory containing annual NSRDB files. All .h5 files with year
-            strings in their names will be used.
+            Directory containing annual NSRDB files. This directory will be
+            parse for .h5 files containing year strings and "nsrdb" but not
+            "tmy", "tdy", or "tgy".
         years : iterable
             Iterable of years to include in the TMY calculation.
 
@@ -452,13 +463,49 @@ class Tmy:
         return fpaths, fpath_years
 
     @staticmethod
-    def _check_weights(fpaths, weights):
+    def _parse_supplemental(supplemental_dirs, years):
+        """Parse a dict of supplemental source directories for extra datsets.
+
+        Parameters
+        ----------
+        supplemental_dirs : None | dict
+            Supplemental data directories for source NSRDB-style datasets
+            that are inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/'}
+        years : iterable
+            Iterable of years to include in the TMY calculation.
+
+        Returns
+        -------
+        supplemental : dict
+            Dictionary of supplemental source fpaths keyed by supplemental
+            dataset. Example:
+            {'poa': {'fpaths': ['/projects/pxs/poa_h5_dir/nsrdb_poa_1998.h5'],
+                     'fpaths_years': [1998]}}
+        """
+        supplemental = {}
+        if supplemental_dirs is not None:
+            for sdset, sdir in supplemental_dirs.items():
+                temp = Tmy._parse_dir(sdir, years)
+                supplemental[sdset] = {'fpaths': temp[0],
+                                       'fpaths_years': temp[1]}
+
+        return supplemental
+
+    @staticmethod
+    def _check_weights(fpaths, supplemental, weights):
         """Check the weights.
 
         Parameters
         ----------
         fpaths : list
             List of nsrdb .h5 file paths.
+        supplemental : dict
+            Dictionary of supplemental source fpaths keyed by supplemental
+            dataset. Example:
+            {'poa': {'fpaths': ['/projects/pxs/poa_h5_dir/nsrdb_poa_1998.h5'],
+                     'fpaths_years': [1998]}}
+
         weights : dict
             Lookup of {dset: weight} where dset is a variable h5 dset name
             and weight is a fractional TMY weighting. All weights must
@@ -468,7 +515,13 @@ class Tmy:
             raise ValueError('Weights do not sum to 1.0!')
         for dset in weights.keys():
             dset, _ = Tmy._strip_dset_fun(dset)
-            for fpath in fpaths:
+
+            if dset in supplemental:
+                fpaths_iter = supplemental[dset]['fpaths']
+            else:
+                fpaths_iter = fpaths
+
+            for fpath in fpaths_iter:
                 with h5py.File(fpath, 'r') as f:
                     if dset not in list(f):
                         e = ('Weight dset "{}" not found in file: "{}"'
@@ -536,6 +589,31 @@ class Tmy:
             arr = df.values
         return arr
 
+    def _get_fpaths_years(self, dset):
+        """Get a list of filepaths and years for the dataset by first checking
+        the supplemental data sources and then the default source.
+
+        Parameters
+        ----------
+        dset : str
+            Dataset / variable name with optional min_ max_ mean_ sum_ prefix
+
+        Returns
+        -------
+        fpaths : list
+            List of filepaths for dset (considering supplemental data sources)
+        fpaths_years : list
+            List of years corresponding to fpaths
+        """
+
+        dset = self._strip_dset_fun(dset)[0]
+        if dset in self._supplemental:
+            fpaths = self._supplemental[dset]['fpaths']
+            fpaths_years = self._supplemental[dset]['fpaths_years']
+            return fpaths, fpaths_years
+        else:
+            return self._fpaths, self._fpaths_years
+
     def _get_my_arr_raw(self, dset, unscale=True):
         """Get a multi-year 2D numpy array for a given dataset at source
         temporal resolution.
@@ -560,8 +638,10 @@ class Tmy:
         else:
             dtype = np.int32
 
-        for i, fpath in enumerate(self._fpaths):
-            fpath_year = self._fpaths_years[i]
+        fpaths, fpaths_years = self._get_fpaths_years(dset)
+
+        for i, fpath in enumerate(fpaths):
+            fpath_year = fpaths_years[i]
 
             with Resource(fpath, unscale=unscale) as res:
                 temp = res[dset, :, self._site_slice]
@@ -1127,7 +1207,8 @@ class Tmy:
         self._tmy_years_long = None
 
         for year in year_set:
-            fpath = [f for f in self._fpaths if str(year) in f][0]
+            fpaths = self._get_fpaths_years(dset)[0]
+            fpath = [f for f in fpaths if str(year) in f][0]
             with Resource(fpath, unscale=unscale) as res:
                 ti = res.time_index
                 temp = res[dset, :, self._site_slice]
@@ -1214,8 +1295,9 @@ class TmyRunner:
         Parameters
         ----------
         nsrdb_dir : str
-            Directory containing annual NSRDB files. All .h5 files with year
-            strings in their names will be used.
+            Directory containing annual NSRDB files. This directory will be
+            parse for .h5 files containing year strings and "nsrdb" but not
+            "tmy", "tdy", or "tgy".
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
@@ -1543,8 +1625,9 @@ class TmyRunner:
         Parameters
         ----------
         nsrdb_dir : str
-            Directory containing annual NSRDB files. All .h5 files with year
-            strings in their names will be used.
+            Directory containing annual NSRDB files. This directory will be
+            parse for .h5 files containing year strings and "nsrdb" but not
+            "tmy", "tdy", or "tgy".
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
