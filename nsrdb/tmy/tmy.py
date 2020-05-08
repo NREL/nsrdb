@@ -1293,7 +1293,7 @@ class TmyRunner:
     def __init__(self, nsrdb_dir, years, weights, sites_per_worker=100,
                  n_nodes=1, node_index=0, site_slice=None,
                  out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5',
-                 supplemental_dirs=None):
+                 supplemental_dirs=None, var_meta=None):
         """
         Parameters
         ----------
@@ -1325,6 +1325,9 @@ class TmyRunner:
             Supplemental data directories for source NSRDB-style datasets
             that are inputs to the TMY calculation. For example:
             {'poa': '/projects/pxs/poa_h5_dir/'}
+        var_meta : str
+            CSV filepath containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
 
         logger.info('Initializing TMY runner for years: {}'.format(years))
@@ -1351,6 +1354,7 @@ class TmyRunner:
         self._final_fpath = os.path.join(self._out_dir, self._fn_out)
 
         self._supplemental_dirs = supplemental_dirs
+        self._var_meta = var_meta
 
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
@@ -1462,13 +1466,16 @@ class TmyRunner:
         return self._site_chunks
 
     @staticmethod
-    def get_dset_attrs(dsets):
+    def get_dset_attrs(dsets, var_meta=None):
         """Get output file dataset attributes for a set of datasets.
 
         Parameters
         ----------
         dsets : list
             List of dataset / variable names.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
 
         Returns
         -------
@@ -1485,7 +1492,7 @@ class TmyRunner:
         dtypes = {}
 
         for dset in dsets:
-            var_obj = VarFactory.get_base_handler(dset)
+            var_obj = VarFactory.get_base_handler(dset, var_meta=var_meta)
             attrs[dset] = var_obj.attrs
             chunks[dset] = var_obj.chunks
             dtypes[dset] = var_obj.final_dtype
@@ -1575,10 +1582,11 @@ class TmyRunner:
     def _init_final_fout(self):
         """Initialize the final output file."""
         self._init_file(self._final_fpath, self.dsets,
-                        self._tmy_obj.time_index, self.meta)
+                        self._tmy_obj.time_index, self.meta,
+                        var_meta=self._var_meta)
 
     @staticmethod
-    def _init_file(f_out, dsets, time_index, meta):
+    def _init_file(f_out, dsets, time_index, meta, var_meta=None):
         """Initialize an output file.
 
         Parameters
@@ -1591,11 +1599,15 @@ class TmyRunner:
             Time index to init to file.
         meta : pd.DataFrame
             Meta data to init to file.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
 
         if not os.path.isfile(f_out):
             dsets_mod = [d for d in dsets if 'tmy_year' not in d]
-            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets_mod)
+            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets_mod,
+                                                             var_meta=var_meta)
             dsets_mod.append('tmy_year')
             attrs['tmy_year'] = {'units': 'selected_year',
                                  'scale_factor': 1,
@@ -1615,7 +1627,7 @@ class TmyRunner:
                 f[d].attrs['psm_scale_factor'] = 1
 
     @staticmethod
-    def _write_output(f_out, data_dict, time_index, meta):
+    def _write_output(f_out, data_dict, time_index, meta, var_meta=None):
         """Initialize and write an output file chunk.
 
         Parameters
@@ -1628,11 +1640,15 @@ class TmyRunner:
             Time index to init to file.
         meta : pd.DataFrame
             Meta data to init to file.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
 
         logger.debug('Saving TMY results to: {}'.format(f_out))
 
-        TmyRunner._init_file(f_out, list(data_dict.keys()), time_index, meta)
+        TmyRunner._init_file(f_out, list(data_dict.keys()), time_index, meta,
+                             var_meta=var_meta)
 
         with Outputs(f_out, mode='a') as f:
             for dset, arr in data_dict.items():
@@ -1640,7 +1656,7 @@ class TmyRunner:
 
     @staticmethod
     def run_single(nsrdb_dir, years, weights, site_slice, dsets, f_out,
-                   supplemental_dirs=None):
+                   supplemental_dirs=None, var_meta=None):
         """Run TMY for a single site chunk (slice) and save to disk.
 
         Parameters
@@ -1665,6 +1681,9 @@ class TmyRunner:
             Supplemental data directories for source NSRDB-style datasets
             that are inputs to the TMY calculation. For example:
             {'poa': '/projects/pxs/poa_h5_dir/'}
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
 
         Returns
         -------
@@ -1676,7 +1695,8 @@ class TmyRunner:
                   supplemental_dirs=supplemental_dirs)
         for dset in dsets:
             data_dict[dset] = tmy.get_tmy_timeseries(dset)
-        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta)
+        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
+                                var_meta=var_meta)
         return True
 
     def _run_serial(self):
@@ -1688,7 +1708,8 @@ class TmyRunner:
             if not os.path.exists(f_out):
                 self.run_single(self._nsrdb_dir, self._years, self._weights,
                                 site_slice, self.dsets, f_out,
-                                supplemental_dirs=self._supplemental_dirs)
+                                supplemental_dirs=self._supplemental_dirs,
+                                var_meta=self._var_meta)
             else:
                 logger.info('Skipping, already exists: {}'.format(f_out))
             logger.info('{} out of {} TMY chunks completed.'
@@ -1707,7 +1728,8 @@ class TmyRunner:
                     future = exe.submit(
                         self.run_single, self._nsrdb_dir, self._years,
                         self._weights, site_slice, self.dsets, f_out,
-                        supplemental_dirs=self._supplemental_dirs)
+                        supplemental_dirs=self._supplemental_dirs,
+                        var_meta=self._var_meta)
                     futures[future] = i
                 else:
                     logger.info('Skipping, already exists: {}'.format(f_out))
@@ -1724,7 +1746,7 @@ class TmyRunner:
     @classmethod
     def tgy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
             log=True, log_level='INFO', log_file=None, site_slice=None,
-            supplemental_dirs=None):
+            supplemental_dirs=None, var_meta=None):
         """Run the TGY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1732,13 +1754,14 @@ class TmyRunner:
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  var_meta=var_meta)
         tgy._run_parallel()
 
     @classmethod
     def tdy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
             log=True, log_level='INFO', log_file=None, site_slice=None,
-            supplemental_dirs=None):
+            supplemental_dirs=None, var_meta=None):
         """Run the TDY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1746,13 +1769,14 @@ class TmyRunner:
         weights = {'sum_dni': 1.0}
         tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  var_meta=var_meta)
         tdy._run_parallel()
 
     @classmethod
     def tmy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None, n_nodes=1,
             node_index=0, log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_dirs=None):
+            site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TMY. Option for custom weights."""
         if log:
             from nsrdb.utilities.loggers import init_logger
@@ -1772,7 +1796,8 @@ class TmyRunner:
 
         tmy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  var_meta=var_meta)
         tmy._run_parallel()
 
     @classmethod
@@ -1841,7 +1866,7 @@ class TmyRunner:
     @classmethod
     def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out,
                   weights=None, n_nodes=1, site_slice=None,
-                  supplemental_dirs=None, **kwargs):
+                  supplemental_dirs=None, var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
         for node_index in range(n_nodes):
@@ -1850,20 +1875,23 @@ class TmyRunner:
                        'n_nodes={n_nodes}, '
                        'node_index={node_index}, '
                        'site_slice={site_slice}, '
-                       'supplemental_dirs={sdirs}')
+                       'supplemental_dirs={sdirs}, '
+                       'var_meta={var_meta}')
             arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                      out_dir=out_dir, fn_out=fn_out,
                                      weights=weights, n_nodes=n_nodes,
                                      node_index=node_index,
                                      site_slice=site_slice,
-                                     sdirs=supplemental_dirs)
+                                     sdirs=supplemental_dirs,
+                                     var_meta=var_meta)
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
             kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
             cls._eagle(fun_str, arg_str, **kwargs)
 
     @classmethod
     def eagle_all(cls, nsrdb_dir, years, out_dir, n_nodes=1,
-                  site_slice=None, supplemental_dirs=None, **kwargs):
+                  site_slice=None, supplemental_dirs=None, var_meta=None,
+                  **kwargs):
         """Submit three eagle jobs for TMY, TGY, and TDY."""
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
@@ -1872,7 +1900,8 @@ class TmyRunner:
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
                           fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
-                          supplemental_dirs=supplemental_dirs, **kwargs)
+                          supplemental_dirs=supplemental_dirs,
+                          var_meta=var_meta, **kwargs)
 
     @classmethod
     def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out, **kwargs):
