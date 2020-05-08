@@ -5,6 +5,7 @@ Created on Wed Oct 23 10:55:23 2019
 
 @author: gbuster
 """
+import json
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 import h5py
@@ -513,7 +514,7 @@ class Tmy:
             and weight is a fractional TMY weighting. All weights must
             sum to 1.0
         """
-        if sum(list(weights.values())) != 1.0:
+        if np.abs(sum(list(weights.values())) - 1) > 1e5:
             raise ValueError('Weights do not sum to 1.0!')
         for dset in weights.keys():
             dset, _ = Tmy._strip_dset_fun(dset)
@@ -653,7 +654,19 @@ class Tmy:
                 arr = np.zeros(shape, dtype=dtype)
 
             mask = self.time_masks[fpath_year]
+
+            if len(temp) < mask.sum():
+                ind = int(mask.sum() % 8760)
+                temp2 = temp[:ind, :].copy()
+                temp = np.vstack((temp, temp2))
+
+            elif len(temp) != mask.sum():
+                with Resource(fpath, unscale=False) as res:
+                    ti = res.time_index
+                temp = self.drop_leap(temp, ti)[0]
+
             arr[mask, :] = temp
+
         return arr
 
     def _get_my_arr(self, dset, unscale=True):
@@ -887,10 +900,11 @@ class Tmy:
         time_index : pd.datetimeindex
             Datetime index corresponding to the rows in arr, without leap days.
         """
-        leap_day = (time_index.month == 2) & (time_index.day == 29)
-        if any(leap_day):
-            arr = arr[~leap_day]
-            time_index = time_index[~leap_day]
+        if len(arr) % 8760 != 0:
+            leap_day = (time_index.month == 2) & (time_index.day == 29)
+            if any(leap_day):
+                arr = arr[~leap_day]
+                time_index = time_index[~leap_day]
         return arr, time_index
 
     @property
@@ -1414,7 +1428,7 @@ class TmyRunner:
         """
 
         arr = np.arange(len(meta))
-        tmp = np.array_split(arr, (len(arr) / sites_per_worker))
+        tmp = np.array_split(arr, np.ceil(len(arr) / sites_per_worker))
         site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
         site_chunks_index = list(range(len(site_chunks)))
 
@@ -1869,6 +1883,11 @@ class TmyRunner:
                   supplemental_dirs=None, var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
+        if isinstance(weights, dict):
+            weights = json.dumps(weights)
+        if isinstance(supplemental_dirs, dict):
+            supplemental_dirs = json.dumps(supplemental_dirs)
+
         for node_index in range(n_nodes):
             arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
                        'weights={weights}, '
@@ -1876,7 +1895,7 @@ class TmyRunner:
                        'node_index={node_index}, '
                        'site_slice={site_slice}, '
                        'supplemental_dirs={sdirs}, '
-                       'var_meta={var_meta}')
+                       'var_meta="{var_meta}"')
             arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                      out_dir=out_dir, fn_out=fn_out,
                                      weights=weights, n_nodes=n_nodes,
