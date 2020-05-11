@@ -1897,6 +1897,9 @@ class TmyRunner:
             weights = json.dumps(weights)
         if isinstance(supplemental_dirs, dict):
             supplemental_dirs = json.dumps(supplemental_dirs)
+        node_name = None
+        if 'node_name' in kwargs:
+            node_name = kwargs['node_name']
 
         for node_index in range(n_nodes):
             arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
@@ -1913,8 +1916,14 @@ class TmyRunner:
                                      site_slice=site_slice,
                                      sdirs=supplemental_dirs,
                                      var_meta=var_meta)
-            kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
-            kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
+
+            if 'stdout_path' not in kwargs:
+                kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
+            if node_name is None:
+                kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
+            else:
+                kwargs['node_name'] = '{}{}'.format(node_name, node_index)
+
             cls._eagle(fun_str, arg_str, **kwargs)
 
     @classmethod
