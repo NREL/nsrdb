@@ -1825,7 +1825,8 @@ class TmyRunner:
         tmy._run_parallel()
 
     @classmethod
-    def collect(cls, nsrdb_dir, years, out_dir, fn_out, var_meta=None,
+    def collect(cls, nsrdb_dir, years, out_dir, fn_out,
+                site_slice=None, var_meta=None,
                 log=True, log_level='INFO', log_file=None):
         """Run TMY collection."""
         if log:
@@ -1833,7 +1834,8 @@ class TmyRunner:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
-                  fn_out=fn_out, n_nodes=1, node_index=0, var_meta=var_meta)
+                  fn_out=fn_out, n_nodes=1, node_index=0,
+                  site_slice=site_slice, var_meta=var_meta)
         tgy._collect()
 
     @staticmethod
@@ -1942,15 +1944,15 @@ class TmyRunner:
                           var_meta=var_meta, **kwargs)
 
     @classmethod
-    def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out, var_meta=None,
-                      **kwargs):
+    def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out,
+                      site_slice=None, var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY file collection job on an Eagle node."""
 
         arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
-                   'var_meta="{var_meta}"')
+                   'site_slice={site_slice}, var_meta="{var_meta}"')
         arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                  out_dir=out_dir, fn_out=fn_out,
-                                 var_meta=var_meta)
+                                 site_slice=site_slice, var_meta=var_meta)
         if 'stdout_path' not in kwargs:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         if 'node_name' not in kwargs:
@@ -1960,8 +1962,8 @@ class TmyRunner:
         cls._eagle('collect', arg_str, **kwargs)
 
     @classmethod
-    def eagle_collect_all(cls, nsrdb_dir, years, out_dir, var_meta=None,
-                          **kwargs):
+    def eagle_collect_all(cls, nsrdb_dir, years, out_dir,
+                          site_slice=None, var_meta=None, **kwargs):
         """Submit three eagle jobs to collect TMY, TGY, and TDY
         (directory setup depends on having run eagle_all() first)."""
 
@@ -1970,4 +1972,5 @@ class TmyRunner:
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_collect(nsrdb_dir, years, fun_out_dir,
-                              fun_fn_out, var_meta=var_meta, **kwargs)
+                              fun_fn_out, site_slice=site_slice,
+                              var_meta=var_meta, **kwargs)
