@@ -1704,13 +1704,23 @@ class TmyRunner:
         True
         """
 
-        data_dict = {}
-        tmy = Tmy(nsrdb_dir, years, weights, site_slice,
-                  supplemental_dirs=supplemental_dirs)
-        for dset in dsets:
-            data_dict[dset] = tmy.get_tmy_timeseries(dset)
-        TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
-                                var_meta=var_meta)
+        run = True
+        if os.path.exists(f_out):
+            size = os.path.getsize(f_out)
+            if size > 1e6:
+                logger.info('Skipping chunk, f_out already exists: {}'
+                            .format(f_out))
+                run = False
+
+        if run:
+            data_dict = {}
+            tmy = Tmy(nsrdb_dir, years, weights, site_slice,
+                      supplemental_dirs=supplemental_dirs)
+            for dset in dsets:
+                data_dict[dset] = tmy.get_tmy_timeseries(dset)
+            TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
+                                    var_meta=var_meta)
+
         return True
 
     def _run_serial(self):
