@@ -386,8 +386,12 @@ class CloudGapFill:
             with Resource(f_cloud) as f:
                 cloud_type = f['cloud_type', rows, cols]
                 sza = f['solar_zenith_angle', rows, cols]
+                fill_flag = None
+                if 'fill_flag' in dsets:
+                    fill_flag = f['fill_flag', rows, cols]
 
-            cloud_type, fill_flag = cls.fill_cloud_type(cloud_type)
+            cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
+                                                        fill_flag=fill_flag)
 
             with Outputs(f_cloud, mode='a') as f:
                 f['cloud_type', rows, cols] = cloud_type
