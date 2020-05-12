@@ -4,6 +4,7 @@ Created on Fri April 26 2019
 
 @author: gbuster
 """
+import os
 from copy import deepcopy
 import logging
 import numpy as np
@@ -182,6 +183,8 @@ class CloudGapFill:
             Integer array of flags showing what data was filled and why.
         """
 
+        logger.info('Filling cloud types.')
+
         df_convert = False
         if isinstance(cloud_type, np.ndarray):
             df_convert = True
@@ -213,6 +216,18 @@ class CloudGapFill:
                 .fillna(method='ffill').fillna(method='bfill')
 
             cloud_type = cloud_type.astype(np.int8)
+
+        if missing < 0:
+            # everything less than zero is a missing value usually
+            missing_mask = (cloud_type.values < 0)
+        else:
+            missing_mask = (cloud_type.values == missing)
+        if any(missing_mask):
+            e = ('Cloud type fill failed! {} cloud types are '
+                 'still missing out of shape {}'
+                 .format(missing_mask.sum(), missing_mask.shape))
+            logger.error(e)
+            raise RuntimeError(e)
 
         if df_convert:
             cloud_type = cloud_type.values
@@ -324,6 +339,12 @@ class CloudGapFill:
         cloud_prop = cls.handle_persistent_nan(prop_name, cloud_prop,
                                                cloud_type)
 
+        if np.isnan(cloud_prop).sum() > 0:
+            e = ('Cloud property still has {} nan values out of shape {}!'
+                 .format(np.isnan(cloud_prop).sum(), cloud_prop.shape))
+            logger.error(e)
+            raise RuntimeError(e)
+
         if df_convert:
             cloud_prop = cloud_prop.values
 
@@ -394,7 +415,10 @@ class CloudGapFill:
                                                         fill_flag=fill_flag)
 
             with Outputs(f_cloud, mode='a') as f:
+                logger.debug('Writing filled cloud types to {}'
+                             .format(os.path.basename(f_cloud)))
                 f['cloud_type', rows, cols] = cloud_type
+                logger.debug('Write complete.')
 
             for dset in dsets:
                 if 'cld_' in dset:
@@ -405,7 +429,13 @@ class CloudGapFill:
                         dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag)
 
                     with Outputs(f_cloud, mode='a') as f:
+                        logger.debug('Writing filled {} to {}'
+                                     .format(dset, os.path.basename(f_cloud)))
                         f[dset, rows, cols] = cloud_prop
+                        logger.debug('Write complete.')
 
             with Outputs(f_cloud, mode='a') as f:
+                logger.debug('Writing fill flag to {}'
+                             .format(os.path.basename(f_cloud)))
                 f['fill_flag', rows, cols] = fill_flag
+                logger.debug('Write complete')
