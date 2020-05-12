@@ -94,8 +94,8 @@ def run_checks(fp, i0, iend, step=1000):
                     print(m)
                     warn(m)
                     time.sleep(.2)
-                else:
-                    i0 += step
 
                 if i0 > iend or (i0 + step) > iend:
                     break
+                else:
+                    i0 += step
