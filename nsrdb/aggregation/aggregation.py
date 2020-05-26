@@ -44,7 +44,8 @@ NSRDB = {'full_disk': {'data_sub_dir': 'blended_full',
                    'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
                    'meta_file': 'nsrdb_meta_4km.csv',
                    'spatial': '4km',
-                   'temporal': '30min'},
+                   'temporal': '30min',
+                   'source_priority': ['conus', 'full_disk']},
          }
 
 
@@ -114,7 +115,7 @@ class MetaManager:
     """Framework to parse the final meta data for contributing sources."""
 
     @staticmethod
-    def meta_sources(fpath_final, source_tree_fpaths):
+    def meta_sources(fpath_final, source_tree_fpaths, source_priority=None):
         """Make a final meta data with data source columns (full_disk/conus).
 
         Parameters
@@ -124,6 +125,8 @@ class MetaManager:
         source_tree_fpaths : dict
             Dictionary mapping the source name to pickled meta kdtree
             pickle filepaths.
+        source_priority : list
+            Priority list (high to low) for meta sources.
 
         Returns
         -------
@@ -140,11 +143,18 @@ class MetaManager:
         meta = pd.read_csv(fpath_final, index_col=0)
         meta['source'] = 'null'
 
+        source_iter = source_tree_fpaths.keys()
+        if source_priority is not None:
+            source_iter = source_priority
+
         d_last = np.ones(len(meta)) * 1e6
-        for source_name, tree_fpath in source_tree_fpaths.items():
+        for source_name in source_iter:
+            tree_fpath = source_tree_fpaths[source_name]
             tree = MetaManager.load_pickle_tree(tree_fpath)
             d = tree.query(meta[['latitude', 'longitude']].values)[0]
             mask = (d < d_last)
+            logger.debug('Source "{}" found {} locations in final meta'
+                         .format(source_name, mask.sum()))
             ind = meta.index[mask]
             meta.loc[ind, 'source'] = source_name
             d_last = d
@@ -261,15 +271,13 @@ class MetaManager:
         return tree
 
     @staticmethod
-    def plot_meta_source_2018(fpath_4km, fname, out_dir, **kwargs):
+    def plot_meta_source(fpath_meta, fname, out_dir, **kwargs):
         """Make a map plot of the NSRDB Meta source data (west/east/conus).
-
-        This method is specifically for the special 2018 meta data sources
 
         Parameters
         ----------
-        fpath_4km : str
-            File path to full 4km meta data.
+        fpath_meta : str
+            File path to aggregation meta with source column
         fname : str
             Filename for output map image file.
         out_dir : str
@@ -278,7 +286,7 @@ class MetaManager:
             Keyword args for spatial plotting utility.
         """
 
-        meta = MetaManager.meta_sources_2018(fpath_4km)
+        meta = pd.read_csv(fpath_meta)
         sources = list(set(meta.source.unique()))
         meta['isource'] = np.nan
         for i, source in enumerate(sources):
@@ -975,8 +983,10 @@ class Manager:
                 self._meta = MetaManager.simple(final_meta_path)
 
             else:
-                self._meta = MetaManager.meta_sources(final_meta_path,
-                                                      source_tree_fpaths)
+                priority = self.data['final'].get('source_priority', None)
+                self._meta = MetaManager.meta_sources(
+                    final_meta_path, source_tree_fpaths,
+                    source_priority=priority)
 
         return self._meta
 
