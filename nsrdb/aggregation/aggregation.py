@@ -1637,7 +1637,7 @@ class Manager:
 
 def run():
     """2018 aggregation run script"""
-    data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
+    data_dir = '/projects/pxs/processing/2018/'
     meta_dir = '/projects/pxs/reference_grids/'
     n_chunks = 32
     year = 2018
