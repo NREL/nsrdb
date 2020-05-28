@@ -1826,7 +1826,7 @@ class TmyRunner:
 
     @classmethod
     def collect(cls, nsrdb_dir, years, out_dir, fn_out,
-                site_slice=None, var_meta=None,
+                site_slice=None, supplemental_dirs=None, var_meta=None,
                 log=True, log_level='INFO', log_file=None):
         """Run TMY collection."""
         if log:
@@ -1835,7 +1835,8 @@ class TmyRunner:
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=1, node_index=0,
-                  site_slice=site_slice, var_meta=var_meta)
+                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  var_meta=var_meta)
         tgy._collect()
 
     @staticmethod
@@ -1945,14 +1946,21 @@ class TmyRunner:
 
     @classmethod
     def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out,
-                      site_slice=None, var_meta=None, **kwargs):
+                      site_slice=None, supplemental_dirs=None,
+                      var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY file collection job on an Eagle node."""
 
+        if isinstance(supplemental_dirs, dict):
+            supplemental_dirs = json.dumps(supplemental_dirs)
+
         arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
-                   'site_slice={site_slice}, var_meta="{var_meta}"')
+                   'site_slice={site_slice}, supplemental_dirs={supp_dirs}, '
+                   'var_meta="{var_meta}"')
         arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
                                  out_dir=out_dir, fn_out=fn_out,
-                                 site_slice=site_slice, var_meta=var_meta)
+                                 site_slice=site_slice,
+                                 supp_dirs=supplemental_dirs,
+                                 var_meta=var_meta)
         if 'stdout_path' not in kwargs:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         if 'node_name' not in kwargs:
