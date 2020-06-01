@@ -1200,6 +1200,8 @@ class Manager:
         elif final_tres == '30min':
             if tres == '15min':
                 w = 3
+            elif tres == '10min':
+                w = 3
             elif tres == '5min':
                 w = 7
             else:
