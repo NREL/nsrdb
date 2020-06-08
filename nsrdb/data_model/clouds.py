@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class CloudCoords:
-    """Class to correct cloud coordinates based on solar position."""
+    """Class to correct cloud coordinates based on solar position / shading."""
 
     EARTH_RADIUS = 6371
     TO_RAD = math.pi / 180
@@ -228,7 +228,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
@@ -253,7 +253,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True):
+                    adjust_coords=False):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -462,7 +462,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
@@ -486,7 +486,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True):
+                    adjust_coords=False):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -680,7 +680,7 @@ class CloudVar(AncillaryVarHandler):
 
     def __init__(self, name, var_meta, date, source_dir=None, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
