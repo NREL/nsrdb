@@ -24,55 +24,30 @@ from nsrdb.utilities.interpolation import temporal_step
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.execution import SLURM
 
+
 logger = logging.getLogger(__name__)
 
 
 # Standard configs.
-NSRDB_4km_30min = {'east': {'data_sub_dir': 'east',
-                            'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                            'meta_file': 'nsrdb_meta_2km_east.csv',
-                            'spatial': '2km',
-                            'temporal': '15min'},
-                   'west': {'data_sub_dir': 'west',
-                            'tree_file': 'kdtree_west_psm_extent.pkl',
-                            'meta_file': 'west_psm_extent.csv',
-                            'spatial': '4km',
-                            'temporal': '30min'},
-                   'conus': {'data_sub_dir': 'conus',
-                             'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                             'meta_file': 'nsrdb_meta_2km_conus.csv',
-                             'spatial': '2km',
-                             'temporal': '5min'},
-                   'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                             'fout': 'nsrdb_2018.h5',
-                             'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
-                             'meta_file': 'nsrdb_meta_4km.csv',
-                             'spatial': '4km',
-                             'temporal': '30min'},
-                   }
+NSRDB = {'full_disk': {'data_sub_dir': 'blended_full',
+                       'tree_file': 'kdtree_nsrdb_meta_2km.pkl',
+                       'meta_file': 'nsrdb_meta_2km.csv',
+                       'spatial': '2km',
+                       'temporal': '10min'},
+         'conus': {'data_sub_dir': 'blended_conus',
+                   'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                   'meta_file': 'nsrdb_meta_2km_conus.csv',
+                   'spatial': '2km',
+                   'temporal': '5min'},
+         'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                   'fout': 'nsrdb.h5',
+                   'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+                   'meta_file': 'nsrdb_meta_4km.csv',
+                   'spatial': '4km',
+                   'temporal': '30min',
+                   'source_priority': ['conus', 'full_disk']},
+         }
 
-SURFRAD = {'east': {'data_sub_dir': 'east',
-                    'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                    'meta_file': 'nsrdb_meta_2km_east.csv',
-                    'spatial': '2km',
-                    'temporal': '15min'},
-           'west': {'data_sub_dir': 'west',
-                    'tree_file': 'kdtree_west_psm_extent.pkl',
-                    'meta_file': 'west_psm_extent.csv',
-                    'spatial': '4km',
-                    'temporal': '30min'},
-           'conus': {'data_sub_dir': 'conus',
-                     'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                     'meta_file': 'nsrdb_meta_2km_conus.csv',
-                     'spatial': '2km',
-                     'temporal': '5min'},
-           'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                     'fout': 'nsrdb_surfrad_2018.h5',
-                     'tree_file': 'kdtree_surfrad_meta.pkl',
-                     'meta_file': 'surfrad_meta.csv',
-                     'spatial': '4km',
-                     'temporal': '30min'},
-           }
 
 SIMPLE = {'source': {'data_sub_dir': 'east',
                      'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
@@ -88,8 +63,113 @@ SIMPLE = {'source': {'data_sub_dir': 'east',
           }
 
 
+NSRDB_2018 = {'east': {'data_sub_dir': 'east',
+                       'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                       'meta_file': 'nsrdb_meta_2km_east.csv',
+                       'spatial': '2km',
+                       'temporal': '15min'},
+              'west': {'data_sub_dir': 'west',
+                       'tree_file': 'kdtree_west_psm_extent.pkl',
+                       'meta_file': 'west_psm_extent.csv',
+                       'spatial': '4km',
+                       'temporal': '30min'},
+              'conus': {'data_sub_dir': 'conus',
+                        'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                        'meta_file': 'nsrdb_meta_2km_conus.csv',
+                        'spatial': '2km',
+                        'temporal': '5min'},
+              'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                        'fout': 'nsrdb_2018.h5',
+                        'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+                        'meta_file': 'nsrdb_meta_4km.csv',
+                        'spatial': '4km',
+                        'temporal': '30min'},
+              }
+
+
+SURFRAD_2018 = {'east': {'data_sub_dir': 'east',
+                         'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+                         'meta_file': 'nsrdb_meta_2km_east.csv',
+                         'spatial': '2km',
+                         'temporal': '15min'},
+                'west': {'data_sub_dir': 'west',
+                         'tree_file': 'kdtree_west_psm_extent.pkl',
+                         'meta_file': 'west_psm_extent.csv',
+                         'spatial': '4km',
+                         'temporal': '30min'},
+                'conus': {'data_sub_dir': 'conus',
+                          'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+                          'meta_file': 'nsrdb_meta_2km_conus.csv',
+                          'spatial': '2km',
+                          'temporal': '5min'},
+                'final': {'data_sub_dir': 'nsrdb_4km_30min',
+                          'fout': 'nsrdb_surfrad_2018.h5',
+                          'tree_file': 'kdtree_surfrad_meta.pkl',
+                          'meta_file': 'surfrad_meta.csv',
+                          'spatial': '4km',
+                          'temporal': '30min'},
+                }
+
+
 class MetaManager:
     """Framework to parse the final meta data for contributing sources."""
+
+    @staticmethod
+    def meta_sources(fpath_final, source_tree_fpaths, source_priority=None):
+        """Make a final meta data with data source columns (full_disk/conus).
+
+        Parameters
+        ----------
+        fpath_final : str
+            File path to final output grid (usually full 4km meta data).
+        source_tree_fpaths : dict
+            Dictionary mapping the source name to pickled meta kdtree
+            pickle filepaths.
+        source_priority : list
+            Priority list (high to low) for meta sources.
+
+        Returns
+        -------
+        meta : pd.DataFrame
+            DataFrame based on fpath_4km but with a "source" column containing
+            the data source string.
+        """
+        logger.info('Making aggregation meta data from {} sources to '
+                    'final meta: {}'
+                    .format(len(source_tree_fpaths), fpath_final))
+        logger.info('Aggregation meta data sources: {}'
+                    .format(source_tree_fpaths))
+
+        meta = pd.read_csv(fpath_final, index_col=0)
+        meta['source'] = 'null'
+
+        source_iter = source_tree_fpaths.keys()
+        if source_priority is not None:
+            source_iter = source_priority
+
+        d_last = np.ones(len(meta)) * 1e6
+        for source_name in source_iter:
+            tree_fpath = source_tree_fpaths[source_name]
+            tree = MetaManager.load_pickle_tree(tree_fpath)
+            d = tree.query(meta[['latitude', 'longitude']].values)[0]
+            mask = (d < d_last)
+            logger.debug('Source "{}" found {} locations in final meta'
+                         .format(source_name, mask.sum()))
+            ind = meta.index[mask]
+            meta.loc[ind, 'source'] = source_name
+            d_last = d
+
+        for name in pd.unique(meta['source']):
+            count = (meta['source'] == name).sum()
+            logger.info('Aggregated NSRDB meta data has {} sites with '
+                        'aggregation source "{}"'.format(count, name))
+
+        if any(meta['source'] == 'null'):
+            e = 'Null source values persisted in aggregation meta'
+            logger.error(e)
+            raise RuntimeError(e)
+
+        return meta
 
     @staticmethod
     def meta_sources_2018(fpath_4km):
@@ -111,6 +191,8 @@ class MetaManager:
             DataFrame based on fpath_4km but with a "source" column containing
             the data source string.
         """
+        logger.info('Making meta data for custom 2018 setup with 4km '
+                    'source file: {}'.format(fpath_4km))
 
         meta = pd.read_csv(fpath_4km, index_col=0)
         meta['source'] = 'west'
@@ -150,18 +232,52 @@ class MetaManager:
             the data source string 'source'.
         """
 
+        logger.info('Making simple meta data with final meta: {}'
+                    .format(fpath_meta))
         meta = pd.read_csv(fpath_meta, index_col=0)
         meta['source'] = 'source'
         return meta
 
     @staticmethod
-    def plot_meta_source(fpath_4km, fname, out_dir, **kwargs):
+    def load_pickle_tree(fpath):
+        """Load a pickled ckdtree and raise exception if not loadable
+
+        Parameters
+        ----------
+        fpath : str
+            Full filepath to pickle file.
+
+        Returns
+        -------
+        tree : ckdtree
+            Un-pickled ckdtree to query.
+        """
+
+        if not os.path.exists(fpath):
+            e = 'Could not load pickle file, does not exist: {}'.format(fpath)
+            logger.error(e)
+            raise FileNotFoundError(e)
+
+        try:
+            with open(fpath, 'rb') as pkl:
+                tree = pickle.load(pkl)
+        except Exception as e:
+            m = ('Could not load pickle file. May have been generated '
+                 'with a different python version. Try recreating the file: {}'
+                 .format(e))
+            logger.error(m)
+            raise e
+
+        return tree
+
+    @staticmethod
+    def plot_meta_source(fpath_meta, fname, out_dir, **kwargs):
         """Make a map plot of the NSRDB Meta source data (west/east/conus).
 
         Parameters
         ----------
-        fpath_4km : str
-            File path to full 4km meta data.
+        fpath_meta : str
+            File path to aggregation meta with source column
         fname : str
             Filename for output map image file.
         out_dir : str
@@ -170,7 +286,7 @@ class MetaManager:
             Keyword args for spatial plotting utility.
         """
 
-        meta = MetaManager.meta_sources_2018(fpath_4km)
+        meta = pd.read_csv(fpath_meta)
         sources = list(set(meta.source.unique()))
         meta['isource'] = np.nan
         for i, source in enumerate(sources):
@@ -851,13 +967,26 @@ class Manager:
         """
 
         if self._meta is None:
-            meta_path = os.path.join(self.meta_dir,
-                                     self.data['final']['meta_file'])
+            final_meta_path = os.path.join(self.meta_dir,
+                                           self.data['final']['meta_file'])
+
+            source_tree_fpaths = {}
+            for source_name, attrs in self.data.items():
+                if source_name.lower() != 'final':
+                    p = os.path.join(self.meta_dir, attrs['tree_file'])
+                    source_tree_fpaths[source_name] = p
 
             if self.data['final']['fout'] == 'nsrdb_2018.h5':
-                self._meta = MetaManager.meta_sources_2018(meta_path)
+                self._meta = MetaManager.meta_sources_2018(final_meta_path)
+
+            elif len(source_tree_fpaths) == 1:
+                self._meta = MetaManager.simple(final_meta_path)
+
             else:
-                self._meta = MetaManager.simple(meta_path)
+                priority = self.data['final'].get('source_priority', None)
+                self._meta = MetaManager.meta_sources(
+                    final_meta_path, source_tree_fpaths,
+                    source_priority=priority)
 
         return self._meta
 
@@ -1071,6 +1200,8 @@ class Manager:
         elif final_tres == '30min':
             if tres == '15min':
                 w = 3
+            elif tres == '10min':
+                w = 3
             elif tres == '5min':
                 w = 7
             else:
@@ -1171,21 +1302,14 @@ class Manager:
         """
 
         if os.path.exists(tree_fpath):
-            try:
-                with open(tree_fpath, 'rb') as pkl:
-                    tree = pickle.load(pkl)
-            except Exception as e:
-                m = ('Could not load pickle file. May have been generated '
-                     'with a different python version. Try deleting the file '
-                     'and rerunning the agg code: {}'.format(e))
-                logger.error(m)
-                logger.exception(e)
-                raise e
+            tree = MetaManager.load_pickle_tree(tree_fpath)
+
         elif os.path.exists(meta_fpath):
             meta_source = pd.read_csv(meta_fpath)
             tree = cKDTree(meta_source[['latitude', 'longitude']])
             with open(tree_fpath, 'wb') as pkl:
                 pickle.dump(tree, pkl)
+
         else:
             e = ('Missing both meta source tree file and meta source csv '
                  'file: {}, {}'.format(tree_fpath, meta_fpath))
@@ -1515,11 +1639,11 @@ class Manager:
 
 def run():
     """2018 aggregation run script"""
-    data_dir = '/projects/pxs/processing/2018/nsrdb_output_final/'
+    data_dir = '/projects/pxs/processing/2018/'
     meta_dir = '/projects/pxs/reference_grids/'
     n_chunks = 32
     year = 2018
-    Manager.eagle(NSRDB_4km_30min, data_dir, meta_dir, year, n_chunks,
+    Manager.eagle(NSRDB_2018, data_dir, meta_dir, year, n_chunks,
                   alloc='pxs', memory=90, walltime=40, feature='--qos=high',
                   node_name='agg',
                   stdout_path=os.path.join(data_dir, 'stdout/'))
