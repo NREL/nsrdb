@@ -222,7 +222,8 @@ class CloudGapFill:
             missing_mask = (cloud_type.values < 0)
         else:
             missing_mask = (cloud_type.values == missing)
-        if any(missing_mask):
+
+        if missing_mask.sum() > 0:
             e = ('Cloud type fill failed! {} cloud types are '
                  'still missing out of shape {}'
                  .format(missing_mask.sum(), missing_mask.shape))
@@ -339,7 +340,7 @@ class CloudGapFill:
         cloud_prop = cls.handle_persistent_nan(prop_name, cloud_prop,
                                                cloud_type)
 
-        if np.isnan(cloud_prop).sum() > 0:
+        if np.isnan(cloud_prop.values).sum() > 0:
             e = ('Cloud property still has {} nan values out of shape {}!'
                  .format(np.isnan(cloud_prop).sum(), cloud_prop.shape))
             logger.error(e)
