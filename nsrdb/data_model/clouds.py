@@ -853,8 +853,13 @@ class CloudVar(AncillaryVarHandler):
             doy = str(self._date.timetuple().tm_yday).zfill(3)
 
             dirsearch = '/{}/'.format(doy)
+
             fsearch1 = '{}{}'.format(self._date.year, doy)
             fsearch2 = '{}_{}'.format(self._date.year, doy)
+            fsearch3 = '{}{}{}'.format(self._date.year,
+                                       str(self._date.month).zfill(2),
+                                       str(self._date.day).zfill(2))
+            fsearch = [fsearch1, fsearch2, fsearch3]
 
             # walk through current directory looking for day directory
             for dirpath, _, _ in os.walk(self._source_dir):
@@ -863,7 +868,7 @@ class CloudVar(AncillaryVarHandler):
                     dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in os.listdir(dirpath):
-                        if fsearch1 in fn or fsearch2 in fn:
+                        if any([tag in fn for tag in fsearch]):
                             self._path = dirpath
                             break
                 if self._path is not None:
@@ -871,9 +876,9 @@ class CloudVar(AncillaryVarHandler):
 
             if self._path is None:
                 msg = ('Could not find cloud data dir for date {} in '
-                       'source_dir {}. Looked for {}, {}, and {}'
+                       'source_dir {}. Looked for {} and any of: {}'
                        .format(self._date, self._source_dir, dirsearch,
-                               fsearch1, fsearch2))
+                               fsearch))
                 logger.exception(msg)
                 raise IOError(msg)
             else:
@@ -904,17 +909,19 @@ class CloudVar(AncillaryVarHandler):
         return missing
 
     @staticmethod
-    def get_timestamp(fstr):
+    def get_timestamp(fstr, integer=True):
         """Extract the cloud file timestamp.
 
         Parameters
         ----------
         fstr : str
             File path or file name with timestamp.
+        integer : bool
+            Flag to convert string match to integer.
 
         Returns
         -------
-        time : int | None
+        time : int | str | None
             Integer timestamp of format:
                 YYYYDDDHHMMSSS (YYYY DDD HH MM SSS) (for .nc files)
                 YYYYDDDHHMM (YYYY DDD HH MM) (for .h5 files)
@@ -923,13 +930,19 @@ class CloudVar(AncillaryVarHandler):
 
         match_nc = re.match(r".*s([1-2][0-9]{13})", fstr)
         match_h5 = re.match(r".*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})", fstr)
+        match_other = re.match(r".*_([0-2][0-9][0-5][0-9]_)", fstr)
 
         if match_nc:
-            time = int(match_nc.group(1))
+            time = match_nc.group(1)
         elif match_h5:
-            time = int(match_h5.group(1).replace('_', ''))
+            time = match_h5.group(1).replace('_', '')
+        elif match_other:
+            time = match_other.group(1).replace('_', '')
         else:
             time = None
+
+        if time is not None and integer:
+            time = int(time)
 
         return time
 
@@ -961,8 +974,7 @@ class CloudVar(AncillaryVarHandler):
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.h5')
-                 and str(date.year) in str(CloudVar.get_timestamp(f))]
+                 if f.endswith('.h5') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
@@ -997,8 +1009,7 @@ class CloudVar(AncillaryVarHandler):
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
         flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.nc')
-                 and str(date.year) in str(CloudVar.get_timestamp(f))]
+                 if f.endswith('.nc') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
@@ -1031,8 +1042,11 @@ class CloudVar(AncillaryVarHandler):
                                                 suffix=self._suffix)
                 self._ftype = '.nc'
             if not self._flist:
-                raise IOError('Could not find .h5 or .nc files for {} in '
-                              'directory: {}'.format(self._date, self.path))
+                raise IOError('Could not find .h5 or .nc files for {} '
+                              'with prefix "{}" and suffix "{}" in '
+                              'directory: {}'
+                              .format(self._date, self._prefix, self._suffix,
+                                      self.path))
         return self._flist
 
     @property
@@ -1111,8 +1125,25 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime index based on the actual file timestamps.
         """
 
-        strtime = [str(CloudVar.get_timestamp(fstr))[:11] for fstr in flist]
-        time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
+        time_str_0 = CloudVar.get_timestamp(flist[0], integer=False)
+
+        if len(time_str_0) >= 10:
+            strtime = [CloudVar.get_timestamp(fstr, integer=False)[:11]
+                       for fstr in flist]
+            time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
+
+        elif len(time_str_0) == 4:
+            strtime = [CloudVar.get_timestamp(fstr, integer=False)
+                       for fstr in flist]
+            time_index = pd.to_datetime(strtime, format='%H%M')
+
+        else:
+            msg = ('Could not infer data time index with sample '
+                   'file "{}" and timestamp "{}"'
+                   .format(flist[0], time_str_0))
+            logger.error(msg)
+            raise RuntimeError(msg)
+
         return time_index
 
     @staticmethod
