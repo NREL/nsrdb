@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """A framework for handling UW/GOES source data."""
-
+import math
 import numpy as np
 import pandas as pd
 import h5py
 import re
 import os
+import psutil
 import netCDF4
 import logging
 from warnings import warn
@@ -14,6 +15,169 @@ from nsrdb.data_model.base_handler import AncillaryVarHandler
 
 
 logger = logging.getLogger(__name__)
+
+
+class CloudCoords:
+    """Class to correct cloud coordinates based on solar position / shading."""
+
+    EARTH_RADIUS = 6371
+    TO_RAD = math.pi / 180
+    TO_DEG = 180 / math.pi
+
+    REQUIRED = ('latitude_pc',
+                'longitude_pc',
+                'solar_zenith_angle',
+                'solar_azimuth_angle',
+                'cld_height_acha')
+
+    @staticmethod
+    def check_file(fp):
+        """Check if file has required vars for cloud coord correction"""
+
+        if fp.endswith('.nc'):
+            with netCDF4.Dataset(fp, 'r') as f:
+                dsets = sorted(list(f.variables.keys()))
+
+        elif fp.endswith('.h5'):
+            with h5py.File(fp, 'r') as f:
+                dsets = list(f)
+
+        else:
+            e = ('Could not parse cloud file, expecting .h5 or .nc but '
+                 'received: {}'.format(os.path.basename(fp)))
+            logger.error(e)
+            raise IOError(e)
+
+        check = [d in dsets for d in CloudCoords.REQUIRED]
+
+        if all(check):
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def dist_to_latitude(dist):
+        """Calculate change in latitude in decimal degrees given distance
+        differences north/south in km..
+
+        Parameters
+        ----------
+        dist : np.ndarray
+            Array of change in east/west location in km.
+
+        Returns
+        -------
+        delta_lat : np.ndarray
+            Array of change in north/south location in decimal degrees.
+        """
+        delta_lat = (dist / CloudCoords.EARTH_RADIUS) * CloudCoords.TO_DEG
+        return delta_lat
+
+    @staticmethod
+    def dist_to_longitude(latitude, dist):
+        """Calculate change in longitude in decimal degrees given a latitude
+        and distance differences east/west in km.
+
+        Parameters
+        ----------
+        latitude : np.ndarray
+            Array of latitude values in decimal degrees.
+        dist : np.ndarray
+            Array of change in east/west location in km.
+
+        Returns
+        -------
+        delta_lon : np.ndarray
+            Array of change in east/west location in decimal degrees.
+        """
+        # Find the radius of a circle around the earth at given latitude.
+        r = CloudCoords.EARTH_RADIUS * np.cos(latitude * CloudCoords.TO_RAD)
+        delta_lon = (dist / r) * CloudCoords.TO_DEG
+        return delta_lon
+
+    @classmethod
+    def adjust_coords(cls, lat, lon, sza, azi, cld_height, sza_threshold=85):
+        """Adjust parallax corrected coordinates for sun position shading.
+
+        Parameters
+        ----------
+        lat : np.ndarray
+            Latitude values in decimal degrees
+        lon : np.ndarray
+            Longitude values in decimal degrees
+        sza : np.ndarray
+            Solar zenith angle for every lat/lon value for one timestep
+            in degrees.
+        azi : np.ndarray
+            Solar azimuth angle for every lat/lon value for one timestep
+            in degrees.
+        cld_height : np.ndarray
+            Cloud height in km.
+        sza_threshold : float | int
+            Thresold over which coordinate adjustments are truncated.
+            Coordinate solar adjustments to to infinity at sza of 90.
+
+        Returns
+        -------
+        lat : np.ndarray
+            Latitude values in decimal degrees adjusted for the sun position
+            so that clouds are mapped to the coordinates they are shading.
+        lon : np.ndarray
+            Longitude values in decimal degrees adjusted for the sun position
+            so that clouds are mapped to the coordinates they are shading.
+        """
+
+        shapes = {'lat': lat.shape, 'lon': lon.shape,
+                  'sza': sza.shape, 'azi': azi.shape,
+                  'cld_height': cld_height.shape}
+        shapes_list = list(shapes.values())
+        check = [shapes_list[0] == x for x in shapes_list[1:]]
+        if not all(check):
+            e = ('Cannot run cloud coordinate shading adjustment. '
+                 'Input shapes: {}'.format(shapes))
+            logger.error(e)
+            raise ValueError(e)
+
+        if np.nanmax(cld_height) > 1000:
+            cld_height /= 1000
+
+        cld_height[(cld_height < 0)] = np.nan
+        sza[(sza > sza_threshold)] = sza_threshold
+        sza *= cls.TO_RAD
+        azi *= cls.TO_RAD
+
+        delta_dist = cld_height * np.tan(sza)
+        delta_x = -1 * delta_dist * np.sin(azi)
+        delta_y = -1 * delta_dist * np.cos(azi)
+
+        logger.debug('Cloud height min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(cld_height),
+                             np.nanmean(cld_height),
+                             np.nanmax(cld_height)))
+        logger.debug('Delta dist min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_dist),
+                             np.nanmean(delta_dist),
+                             np.nanmax(delta_dist)))
+
+        delta_lon = cls.dist_to_longitude(lat, delta_x)
+        delta_lat = cls.dist_to_latitude(delta_y)
+
+        logger.debug('Delta lon min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_lon),
+                             np.nanmean(delta_lon),
+                             np.nanmax(delta_lon)))
+        logger.debug('Delta lat min / mean / max: {} / {} / {}'
+                     .format(np.nanmin(delta_lat),
+                             np.nanmean(delta_lat),
+                             np.nanmax(delta_lat)))
+
+        delta_lon[np.isnan(delta_lon)] = 0.0
+        delta_lat[np.isnan(delta_lat)] = 0.0
+
+        lon += delta_lon
+        lat += delta_lat
+
+        return lat, lon
 
 
 class CloudVarSingle:
@@ -64,7 +228,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
@@ -76,16 +240,20 @@ class CloudVarSingleH5(CloudVarSingle):
             Nearest neighbor results array to extract a subset of the data.
         dsets : tuple | list
             Source datasets to extract.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
         """
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
-        self._grid = self._parse_grid(self._fpath)
+        self._grid = self._parse_grid(self._fpath, adjust_coords=adjust_coords)
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
-    @staticmethod
-    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc')):
+    @classmethod
+    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
+                    adjust_coords=False):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -96,6 +264,9 @@ class CloudVarSingleH5(CloudVarSingle):
             Latitude, longitude datasets to retrieve from cloud file. H5
             files have parallax corrected datasets (*_pc). Output dataset
             names will always be 'latitude' and 'longitude'.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
 
         Returns
         -------
@@ -104,7 +275,7 @@ class CloudVarSingleH5(CloudVarSingle):
             None if bad dataset
         """
 
-        grid = pd.DataFrame()
+        grid = {}
         with h5py.File(fpath, 'r') as f:
             for dset in dsets:
 
@@ -123,11 +294,60 @@ class CloudVarSingleH5(CloudVarSingle):
                     logger.warning(wmsg)
                     dset = dset_out
 
-                grid[dset_out] = CloudVarSingleH5.pre_process(
-                    dset, f[dset][...], dict(f[dset].attrs))
+                grid[dset_out] = cls.pre_process(dset, f[dset][...],
+                                                 dict(f[dset].attrs))
+
+        if grid and CloudCoords.check_file(fpath) and adjust_coords:
+            grid = cls.solpo_grid_adjust(fpath, grid)
+
+        grid = pd.DataFrame(grid)
 
         if grid.empty:
             grid = None
+
+        return grid
+
+    @classmethod
+    def solpo_grid_adjust(cls, fpath, grid):
+        """Adjust grid lat/lon values based on solar position
+
+        Parameters
+        ----------
+        fpath : str
+            Filepath to cloud h5 file containing required datasets for solpo
+            coodinate adjustment.
+        grid : dict
+            Dictionary with latitude and longitude keys and corresponding
+            numpy array values.
+
+        Returns
+        -------
+        grid : dict
+            Dictionary with latitude and longitude keys and corresponding
+            numpy array values. Coordinates are adjusted for solar position
+            so that clouds are linked to the coordinate that they are shading.
+        """
+        with h5py.File(fpath, 'r') as f:
+            sza = cls.pre_process(
+                'solar_zenith_angle', f['solar_zenith_angle'][...],
+                dict(f['solar_zenith_angle'].attrs))
+            azi = cls.pre_process(
+                'solar_azimuth_angle', f['solar_azimuth_angle'][...],
+                dict(f['solar_azimuth_angle'].attrs))
+            cld_height = cls.pre_process(
+                'cld_height_acha', f['cld_height_acha'][...],
+                dict(f['cld_height_acha'].attrs))
+
+        try:
+            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
+                                                 grid['longitude'],
+                                                 sza, azi, cld_height)
+        except Exception as e:
+            logger.warning('Could not perform cloud coordinate adjustment '
+                           'for: {}, received error: {}'
+                           .format(os.path.basename(fpath), e))
+        else:
+            grid['latitude'], grid['longitude'] = lat, lon
 
         return grid
 
@@ -242,7 +462,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
@@ -254,14 +474,19 @@ class CloudVarSingleNC(CloudVarSingle):
             Nearest neighbor results array to extract a subset of the data.
         dsets : tuple | list
             Source datasets to extract.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
         """
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
-        self._grid, self._sparse_mask = self._parse_grid(self._fpath)
+        self._grid, self._sparse_mask = self._parse_grid(
+            self._fpath, adjust_coords=adjust_coords)
 
-    @staticmethod
-    def _parse_grid(fpath, dsets=('latitude_pc', 'longitude_pc')):
+    @classmethod
+    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
+                    adjust_coords=False):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -272,6 +497,9 @@ class CloudVarSingleNC(CloudVarSingle):
             Latitude, longitude datasets to retrieve from cloud file. NetCDF4
             files have parallax corrected datasets (*_pc). Output dataset
             names will always be 'latitude' and 'longitude'.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
 
         Returns
         -------
@@ -283,8 +511,8 @@ class CloudVarSingleNC(CloudVarSingle):
         """
 
         sparse_mask = None
+        grid = {}
 
-        grid = pd.DataFrame()
         with netCDF4.Dataset(fpath, 'r') as f:
             for dset in dsets:
 
@@ -315,10 +543,55 @@ class CloudVarSingleNC(CloudVarSingle):
                         raise RuntimeError(msg)
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
+        if grid and CloudCoords.check_file(fpath) and adjust_coords:
+            grid = cls.solpo_grid_adjust(fpath, grid, sparse_mask)
+
+        grid = pd.DataFrame(grid)
+
         if grid.empty:
             grid = None
 
         return grid, sparse_mask
+
+    @staticmethod
+    def solpo_grid_adjust(fpath, grid, sparse_mask):
+        """Adjust grid lat/lon values based on solar position
+
+        Parameters
+        ----------
+        fpath : str
+            Filepath to cloud nc file containing required datasets for solpo
+            coodinate adjustment.
+        grid : dict
+            Dictionary with latitude and longitude keys and corresponding
+            numpy array values.
+        sparse_mask : np.ndarray
+            Boolean array to mask the native dataset shapes from fpath.
+
+        Returns
+        -------
+        grid : dict
+            Dictionary with latitude and longitude keys and corresponding
+            numpy array values. Coordinates are adjusted for solar position
+            so that clouds are linked to the coordinate that they are shading.
+        """
+        with netCDF4.Dataset(fpath, 'r') as f:
+            sza = f['solar_zenith_angle'][:].data[sparse_mask]
+            azi = f['solar_azimuth_angle'][:].data[sparse_mask]
+            cld_height = f['cld_height_acha'][:].data[sparse_mask]
+
+        try:
+            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
+                                                 grid['longitude'],
+                                                 sza, azi, cld_height)
+        except Exception as e:
+            logger.warning('Could not perform cloud coordinate adjustment '
+                           'for: {}, received error: {}'
+                           .format(os.path.basename(fpath), e))
+        else:
+            grid['latitude'], grid['longitude'] = lat, lon
+
+        return grid
 
     @staticmethod
     def pre_process(dset, data, fill_value=None, sparse_mask=None, index=None):
@@ -407,7 +680,7 @@ class CloudVar(AncillaryVarHandler):
 
     def __init__(self, name, var_meta, date, source_dir=None, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+                        'cld_press_acha'), adjust_coords=False):
         """
         Parameters
         ----------
@@ -430,6 +703,9 @@ class CloudVar(AncillaryVarHandler):
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
+        adjust_coords : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
         """
 
         super().__init__(name, var_meta=var_meta, date=date,
@@ -445,6 +721,7 @@ class CloudVar(AncillaryVarHandler):
         self._dsets = dsets
         self._ftype = None
         self._i = None
+        self._adjust_coords = adjust_coords
 
         self._check_freq()
 
@@ -487,12 +764,18 @@ class CloudVar(AncillaryVarHandler):
             if isinstance(fpath, str):
                 # initialize a single timestep helper object
                 if fpath.endswith('.h5'):
-                    obj = CloudVarSingleH5(fpath, dsets=self._dsets)
+                    obj = CloudVarSingleH5(fpath, dsets=self._dsets,
+                                           adjust_coords=self._adjust_coords)
                 elif fpath.endswith('.nc'):
-                    obj = CloudVarSingleNC(fpath, dsets=self._dsets)
+                    obj = CloudVarSingleNC(fpath, dsets=self._dsets,
+                                           adjust_coords=self._adjust_coords)
 
-                logger.info('Cloud data timestep {} has source file: {}'
-                            .format(timestamp, os.path.basename(fpath)))
+                    mem = psutil.virtual_memory()
+                    logger.info('Cloud data timestep {} has source file: {}. '
+                                'Memory usage is {:.3f} GB out of '
+                                '{:.3f} GB total.'
+                                .format(timestamp, os.path.basename(fpath),
+                                        mem.used / 1e9, mem.total / 1e9))
 
             else:
                 obj = None

@@ -690,8 +690,11 @@ class DataModel:
                         running += 1
                     elif future.done():
                         complete += 1
-                logger.debug('{} ReGrid futures are running, {} are complete.'
-                             .format(running, complete))
+                logger.info('{} ReGrid futures are running, {} are complete. '
+                            'Memory usage is {:.3f} GB '
+                            'out of {:.3f} GB total.'
+                            .format(running, complete, mem.used / 1e9,
+                                    mem.total / 1e9))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -1038,10 +1041,10 @@ class DataModel:
                     if future.running():
                         running += 1
                         keys += [key]
-                logger.debug('{} DataModel processing futures are running: {} '
-                             'memory usage is {:.3f} GB out of {:.3f} GB total'
-                             .format(running, keys, mem.used / 1e9,
-                                     mem.total / 1e9))
+                logger.info('{} DataModel processing futures are running: {} '
+                            'memory usage is {:.3f} GB out of {:.3f} GB total'
+                            .format(running, keys, mem.used / 1e9,
+                                    mem.total / 1e9))
 
             logger.info('Futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
@@ -1084,7 +1087,7 @@ class DataModel:
                 fpath_out = fpath_out.format(var=var,
                                              i=self.nsrdb_grid.index[0])
 
-            logger.debug('Writing: {}'.format(os.path.basename(fpath_out)))
+            logger.info('Writing: {}'.format(os.path.basename(fpath_out)))
 
             # make file for each var
             with Outputs(fpath_out, mode='w') as fout:
