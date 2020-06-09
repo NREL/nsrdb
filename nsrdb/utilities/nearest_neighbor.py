@@ -91,6 +91,8 @@ def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
 
     Returns
     -------
+    dist : ndarray
+        Distance array in decimal degrees.
     indicies : ndarray
         1D array of row indicies in df1 that match df2.
         df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
@@ -105,9 +107,10 @@ def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
     tree = cKDTree(df1[labels].values)
     logger.debug('Querying cKDTrees for {} coordinates.'
                  .format(len(df2)))
-    _, ind = tree.query(df2[labels].values, k=k)
+    dist, ind = tree.query(df2[labels].values, k=k)
+    dist = dist.astype(np.float32)
     ind = ind.astype(np.uint32)
-    return ind
+    return dist, ind
 
 
 def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):

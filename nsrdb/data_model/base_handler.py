@@ -19,6 +19,9 @@ class AncillaryVarHandler:
     # default source data directory
     DEFAULT_DIR = DATADIR
 
+    # nearest neighbor tree method for this variable
+    NN_METHOD = 'haversine'
+
     def __init__(self, name, var_meta=None, date=None, source_dir=None):
         """
         Parameters

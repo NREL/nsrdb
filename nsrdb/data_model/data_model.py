@@ -45,7 +45,7 @@ from warnings import warn
 from nsrdb import DATADIR
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
-from nsrdb.utilities.nearest_neighbor import geo_nn
+from nsrdb.utilities.nearest_neighbor import geo_nn, knn
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 
@@ -273,8 +273,8 @@ class DataModel:
         """
         return self._processed
 
-    def get_geo_nn(self, df1, df2, method, labels=('latitude', 'longitude'),
-                   cache=False):
+    def get_geo_nn(self, df1, df2, interp_method='NN', nn_method='haversine',
+                   labels=('latitude', 'longitude'), cache=False):
         """Get the geographic nearest neighbor distances (km) and indices.
 
         Parameters
@@ -282,10 +282,13 @@ class DataModel:
         df1/df2 : pd.DataFrame:
             Dataframes containing coodinate columns with the corresponding
             labels.
+        interp_method : str
+            Spatial interpolation method - either NN or IDW
+        nn_method : str | None
+            NSRDB nearest_neighbor tree search method, either
+            "haversine" or "kdtree". None defaults to geo_nn.
         labels : tuple | list
             Column labels corresponding to the lat/lon columns in df1/df2.
-        method : str
-            Spatial interpolation method - either NN or IDW
         cache : bool | str
             Flag to cache nearest neighbor results or retrieve cached results
             instead of performing NN query. Strings are evaluated as the csv
@@ -299,20 +302,32 @@ class DataModel:
             1D array of row indicies in df1 that match df2.
             df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
         """
-        if 'NN' in method.upper():
+
+        if nn_method.lower() == 'haversine':
+            nn_method = geo_nn
+        elif nn_method.lower() == 'kdtree':
+            nn_method = knn
+        else:
+            e = 'Did not recognize nn_method "{}"'.format(nn_method)
+            logger.error(e)
+            raise ValueError(e)
+
+        if 'NN' in interp_method.upper():
             # always get 1 nearest neighbor for NN data copy
             k = 1
-        elif 'IDW' in method.upper():
-            # always get 4 nearest neighbors for dist interp method
+        elif 'IDW' in interp_method.upper():
+            # always get 4 nearest neighbors for dist interp interp_method
             k = 4
-        elif 'AGG' in method.upper():
+        elif 'AGG' in interp_method.upper():
             # aggregation can be from any number of neighbors, default to 4
-            k = parse_method(method)
+            k = parse_method(interp_method)
             if k is None:
                 k = 4
         else:
-            raise ValueError('Did not recognize spatial interp method: "{}"'
-                             .format(method))
+            e = ('Did not recognize spatial interp_method: "{}"'
+                 .format(interp_method))
+            logger.error(e)
+            raise ValueError(e)
 
         # Do not cache results if the intended Cache directory isn't available
         if not os.path.exists(self.CACHE_DIR):
@@ -342,14 +357,15 @@ class DataModel:
                 ind = np.genfromtxt(cache_i, dtype=np.uint32, delimiter=',')
 
             else:
-                dist, ind = geo_nn(df1, df2, labels=labels, k=k)
+                dist, ind = nn_method(df1, df2, labels=labels, k=k)
                 logger.info('Saving nearest neighbor indices to: {}'
                             .format(cache_i))
                 np.savetxt(cache_d, dist, delimiter=',')
                 np.savetxt(cache_i, ind, delimiter=',')
 
         else:
-            dist, ind = geo_nn(df1, df2, labels=labels, k=k)
+            print(nn_method, labels)
+            dist, ind = nn_method(df1, df2, labels=labels, k=k)
 
         return dist, ind
 
@@ -418,7 +434,9 @@ class DataModel:
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_geo_nn(weights, var_obj.grid, 'NN')
+            _, i_nn = self.get_geo_nn(weights, var_obj.grid,
+                                      interp_method='NN',
+                                      nn_method='haversine')
 
             df_w = weights.iloc[i_nn.ravel()]
             df_w = df_w[df_w.columns[2:-1]].T.set_index(
@@ -827,7 +845,8 @@ class DataModel:
 
         # get mapping from source data grid to NSRDB
         dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
-                                    var_obj.spatial_method,
+                                    interp_method=var_obj.spatial_method,
+                                    nn_method=var_obj.NN_METHOD,
                                     cache=var_obj.cache_file)
 
         # perform weighting if applicable
