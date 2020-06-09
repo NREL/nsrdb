@@ -334,7 +334,6 @@ class DataModel:
             cache = False
 
         if isinstance(cache, str):
-
             if not cache.endswith('.csv'):
                 # cache file must be csv
                 cache += '.csv'
@@ -364,8 +363,16 @@ class DataModel:
                 np.savetxt(cache_i, ind, delimiter=',')
 
         else:
-            print(nn_method, labels)
             dist, ind = nn_method(df1, df2, labels=labels, k=k)
+
+        if (dist.shape[0] != len(df2) or ind.shape[0] != len(df2)
+                or dist.shape[1] != k or ind.shape[1] != k):
+            e = ('NSRDB DataModel.get_geo_nn() method returned dist of '
+                 'shape {} and ind of shape {} while the query dataframe '
+                 'is of shape {} and k is {}. Maybe check the cached NN file.'
+                 .format(dist.shape, ind.shape, df2.shape, k))
+            logger.error(e)
+            raise RuntimeError(e)
 
         return dist, ind
 

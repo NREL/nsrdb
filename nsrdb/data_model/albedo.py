@@ -126,18 +126,22 @@ class AlbedoVar(AncillaryVarHandler):
                   np.max(nsrdb_grid['latitude']) + margin)
         lat_ex = None
 
-        # the full NSRDB lon extent requires a specific exclusion region
-        # longitude exclusion window is max/min around 50 degrees.
-        mask1 = (nsrdb_grid['longitude'] < 50.0)
-        mask2 = (nsrdb_grid['longitude'] > 50.0)
+        # get boolean flags for longitude bins of width 10 degrees
+        # boolean flag is true if nsrdb grid has data in lon bin
+        bin_bool = [any((nsrdb_grid['longitude'] > lon)
+                        & (nsrdb_grid['longitude'] < (lon + 10)))
+                    for lon in range(-180, 180, 10)]
 
-        if np.sum(mask1) != 0 and np.sum(mask2) != 0:
-            # Likely the full NSRDB, use complicated exclusion region
+        if bin_bool[0] and bin_bool[-1]:
+            # grid extends from -180 to +180, use complicated exclusion region:
+            # exclude everything between the max lon<0 and min lon>0
             lon_in = None
+            mask1 = (nsrdb_grid['longitude'] < 0.0)
+            mask2 = (nsrdb_grid['longitude'] > 0.0)
             lon_ex = (np.max(nsrdb_grid.loc[mask1, 'longitude']) + margin,
                       np.min(nsrdb_grid.loc[mask2, 'longitude']) - margin)
         else:
-            # likely a sub extent, use simple inclusion region
+            # likely a simple longitude extent without longitude gaps
             lon_ex = None
             lon_in = (np.min(nsrdb_grid['longitude']) - margin,
                       np.max(nsrdb_grid['longitude']) + margin)
