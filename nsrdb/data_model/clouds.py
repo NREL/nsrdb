@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """A framework for handling UW/GOES source data."""
+import datetime
 import math
 import numpy as np
 import pandas as pd
@@ -922,24 +923,36 @@ class CloudVar(AncillaryVarHandler):
         Returns
         -------
         time : int | str | None
-            Integer timestamp of format:
-                YYYYDDDHHMMSSS (YYYY DDD HH MM SSS) (for .nc files)
-                YYYYDDDHHMM (YYYY DDD HH MM) (for .h5 files)
-            None if not found
+            Integer timestamp of format: YYYYDDDHHMM (YYYY DDD HH MM)
+            where DDD is day of year (1 through 366). None if not found
         """
 
+        # YYYYDDDHHMMSSS
         match_nc = re.match(r".*s([1-2][0-9]{13})", fstr)
+
+        # YYYY_DDD_HHMM
         match_h5 = re.match(r".*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})", fstr)
-        match_other = re.match(r".*_([0-2][0-9][0-5][0-9]_)", fstr)
+
+        # YYYYMMDD_HHMM_
+        s = r".*([1-2][0-9]{3}[0-1][0-9]{3}_[0-2][0-9][0-5][0-9]_)"
+        match_himawari = re.match(s, fstr)
 
         if match_nc:
             time = match_nc.group(1)
         elif match_h5:
             time = match_h5.group(1).replace('_', '')
-        elif match_other:
-            time = match_other.group(1).replace('_', '')
+        elif match_himawari:
+            time = str(match_himawari.group(1).replace('_', ''))
+            date = datetime.date(year=int(time[0:4]),
+                                 month=int(time[4:6]),
+                                 day=int(time[6:8]))
+            doy = date.timetuple().tm_yday
+            time = time[0:4] + str(doy).zfill(3) + time[8:]
         else:
             time = None
+
+        if time is not None:
+            time = time[:11]
 
         if time is not None and integer:
             time = int(time)
@@ -1125,24 +1138,9 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime index based on the actual file timestamps.
         """
 
-        time_str_0 = CloudVar.get_timestamp(flist[0], integer=False)
-
-        if len(time_str_0) >= 10:
-            strtime = [CloudVar.get_timestamp(fstr, integer=False)[:11]
-                       for fstr in flist]
-            time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
-
-        elif len(time_str_0) == 4:
-            strtime = [CloudVar.get_timestamp(fstr, integer=False)
-                       for fstr in flist]
-            time_index = pd.to_datetime(strtime, format='%H%M')
-
-        else:
-            msg = ('Could not infer data time index with sample '
-                   'file "{}" and timestamp "{}"'
-                   .format(flist[0], time_str_0))
-            logger.error(msg)
-            raise RuntimeError(msg)
+        strtime = [CloudVar.get_timestamp(fstr, integer=False)
+                   for fstr in flist]
+        time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
 
         return time_index
 
