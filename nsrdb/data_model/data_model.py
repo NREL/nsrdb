@@ -1182,8 +1182,13 @@ class DataModel:
                               'format keywords: {}'.format(fpath_out))
             fpath_out = fpath_out.format(var=var,
                                          i=data_model.nsrdb_grid.index[0])
-            logger.info('Processing data for "{}" with fpath_out: {}'
-                        .format(var, fpath_out))
+            if os.path.exists(fpath_out):
+                logger.info('Skipping DataModel for "{}" with existing '
+                            'fpath_out: {}'.format(var, fpath_out))
+                return fpath_out
+            else:
+                logger.info('Processing DataModel for "{}" with fpath_out: {}'
+                            .format(var, fpath_out))
 
         handler = data_model._factory_kwargs.get('cv', {})
         handler = handler.get('handler', '')
@@ -1265,6 +1270,22 @@ class DataModel:
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta, factory_kwargs=factory_kwargs,
                          max_workers=max_workers)
+
+        if fpath_out is not None:
+            data = {}
+            skip_list = []
+            for var in cloud_vars:
+                fpath_out_var = fpath_out.format(
+                    var=var, i=data_model.nsrdb_grid.index[0])
+                if os.path.exists(fpath_out_var):
+                    logger.info('Skipping DataModel for "{}" with existing '
+                                'fpath_out: {}'.format(var, fpath_out_var))
+                    skip_list.append(var)
+                    data[var] = fpath_out_var
+            if any(skip_list):
+                cloud_vars = [cv for cv in cloud_vars if cv not in skip_list]
+            if not any(cloud_vars):
+                return data
 
         try:
             data = data_model._cloud_regrid(cloud_vars)
