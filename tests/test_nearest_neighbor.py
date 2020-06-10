@@ -96,7 +96,7 @@ def test_regular_grid_nn():
     """Test a nearest neighbor lookup on a regular grid and compare to knn."""
     ind = reg_grid_nn(latitude, longitude, nsrdb_meta)
     coords_closest_reg = source_meta.values[ind]
-    ind = knn(source_meta, nsrdb_meta, k=1)[1]
+    ind = knn(source_meta, nsrdb_meta, k=1)[1].flatten()
     coords_closest_knn = source_meta.values[ind]
     msg = 'Regular grid NN failed!'
     assert np.allclose(coords_closest_knn, coords_closest_reg), msg

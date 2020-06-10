@@ -434,28 +434,26 @@ class DataModel:
 
         if var_obj.name in self.WEIGHTS and var_obj.name not in self._weights:
             logger.debug('Extracting weights for "{}"'.format(var_obj.name))
-            weights = pd.read_csv(self.WEIGHTS[var_obj.name], sep=' ',
-                                  skiprows=4, skipinitialspace=1)
-            weights = weights.rename(
-                {'Lat.': 'latitude', 'Long.': 'longitude'}, axis='columns')
+            wdf = pd.read_csv(self.WEIGHTS[var_obj.name], sep=' ',
+                              skiprows=4, skipinitialspace=1)
+
+            # use lat/lon and the current month and drop everything else
+            current_col = str(self.date.month).zfill(2)
+            wdf = wdf.rename({'Lat.': 'latitude', 'Long.': 'longitude',
+                              current_col: 'weights'}, axis='columns')
+            wdf = wdf[['latitude', 'longitude', 'weights']]
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_geo_nn(weights, var_obj.grid,
-                                      interp_method='NN',
+            _, i_nn = self.get_geo_nn(wdf, var_obj.grid, interp_method='NN',
                                       nn_method='haversine')
 
-            df_w = weights.iloc[i_nn.ravel()]
-            df_w = df_w[df_w.columns[2:-1]].T.set_index(
-                pd.date_range(str(self.date.year), freq='M', periods=12))
-            df_w[df_w < 0] = 1
-
-            self._weights[var_obj.name] = df_w
+            weight_arr = wdf['weights'].values[i_nn.ravel()]
+            weight_arr[(weight_arr < 0)] = 1
+            self._weights[var_obj.name] = weight_arr
 
         if var_obj.name in self._weights:
-            mask = (self._weights[var_obj.name].index.month
-                    == self.date.month)
-            weights = self._weights[var_obj.name][mask].values[0]
+            weights = self._weights[var_obj.name]
         else:
             weights = None
 
