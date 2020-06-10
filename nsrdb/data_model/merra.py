@@ -237,6 +237,8 @@ class RelativeHumidity:
         rh : np.ndarray
             Relative humidity in %.
         """
+        logger.info('Deriving Relative Humidity from temperature, '
+                    'humidity, and pressure')
 
         # ensure that Pressure is in Pa (scale from mbar if not)
         convert_p = False
@@ -299,6 +301,8 @@ class DewPoint:
         dp : np.ndarray
             Dew point in Celsius.
         """
+        logger.info('Deriving Dew Point from temperature, '
+                    'humidity, and pressure')
 
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False

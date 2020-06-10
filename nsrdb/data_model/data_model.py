@@ -781,6 +781,16 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
+        if fpath_out is not None:
+            fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
+            if os.path.exists(fpath_out):
+                logger.info('Skipping DataModel for "{}" with existing '
+                            'fpath_out: {}'.format(var, fpath_out))
+                return fpath_out
+            else:
+                logger.info('Processing DataModel for "{}" with fpath_out: {}'
+                            .format(var, fpath_out))
+
         if var in self.DEPENDENCIES:
             dependencies = self.DEPENDENCIES[var]
 
@@ -794,15 +804,21 @@ class DataModel:
         # get the derivation object from the var factory
         obj = self._var_factory.get(var)
 
-        if var == 'solar_zenith_angle':
-            data = obj.derive(
-                self.nsrdb_ti,
-                self.nsrdb_grid[['latitude', 'longitude']].values,
-                self.nsrdb_grid['elevation'].values,
-                self['surface_pressure'],
-                self['air_temperature'])
-        else:
-            data = obj.derive(*[self[k] for k in dependencies])
+        try:
+            if var == 'solar_zenith_angle':
+                data = obj.derive(
+                    self.nsrdb_ti,
+                    self.nsrdb_grid[['latitude', 'longitude']].values,
+                    self.nsrdb_grid['elevation'].values,
+                    self['surface_pressure'],
+                    self['air_temperature'])
+            else:
+                data = obj.derive(*[self[k] for k in dependencies])
+
+        except Exception as e:
+            logger.exception('Could not derive "{}", received the exception: '
+                             '{}'.format(var, e))
+            raise e
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
@@ -816,7 +832,6 @@ class DataModel:
             self[dep] = self.scale_data(dep, self[dep])
 
         if fpath_out is not None:
-            fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
             data = self._dump(var, fpath_out, data)
 
         logger.info('Finished "{}".'.format(var))
