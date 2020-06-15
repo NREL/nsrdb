@@ -334,11 +334,11 @@ class Spatial:
     """Framework to perform NSRDB spatial QA via map plots."""
 
     EXTENTS = {'conus': {'xlim': (-127, -65),
-                         'ylim': (24, 50),
-                         'figsize': (10, 5)},
+                         'ylim': (13, 50),
+                         'figsize': (10, 6)},
                'nsrdb': {'xlim': (-190, -20),
-                         'ylim': (-62, 65),
-                         'figsize': (10, 8)},
+                         'ylim': (-23, 61),
+                         'figsize': (10, 6)},
                'canada': {'xlim': (-140, -50),
                           'ylim': (43, 68),
                           'figsize': (12, 7)},
@@ -348,6 +348,9 @@ class Spatial:
                'west': {'xlim': (-180, -100),
                         'ylim': (-60, 62),
                         'figsize': (7, 8)},
+               'full': {'xlim': (-170, -20),
+                        'ylim': (-62, 62),
+                        'figsize': (10, 7)},
                'wecc': {'xlim': (-127, -100),
                         'ylim': (29, 50),
                         'figsize': (8, 6)},
@@ -357,6 +360,12 @@ class Spatial:
                'global': {'xlim': (-180, 180),
                           'ylim': (-90, 90),
                           'figsize': (120, 80)},
+               'meteosat': {'xlim': (-24, 108),
+                            'ylim': (-54, 60),
+                            'figsize': (10, 7)},
+               'himawari': {'xlim': (55, 180),
+                            'ylim': (-60, 60),
+                            'figsize': (9, 7)},
                }
 
     @staticmethod
