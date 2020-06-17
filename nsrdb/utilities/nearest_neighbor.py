@@ -91,8 +91,10 @@ def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
 
     Returns
     -------
+    dist : ndarray
+        Distance array in decimal degrees.
     indicies : ndarray
-        1D array of row indicies in df1 that match df2.
+        2D array of row indicies in df1 that match df2.
         df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
     """
 
@@ -103,11 +105,19 @@ def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
     logger.debug('Building cKDTrees for {} coordinates.'
                  .format(len(df1)))
     tree = cKDTree(df1[labels].values)
+
     logger.debug('Querying cKDTrees for {} coordinates.'
                  .format(len(df2)))
-    _, ind = tree.query(df2[labels].values, k=k)
+    dist, ind = tree.query(df2[labels].values, k=k)
+
+    dist = dist.astype(np.float32)
     ind = ind.astype(np.uint32)
-    return ind
+
+    if len(dist.shape) == 1:
+        dist = np.expand_dims(dist, axis=1)
+        ind = np.expand_dims(ind, axis=1)
+
+    return dist, ind
 
 
 def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
@@ -127,7 +137,7 @@ def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
     dist : ndarray
         Distance array in km.
     indicies : ndarray
-        1D array of row indicies in df1 that match df2.
+        2D array of row indicies in df1 that match df2.
         df1[df1.index[indicies[i]]] is closest to df2[df2.index[i]]
     """
 
@@ -137,13 +147,22 @@ def geo_nn(df1, df2, labels=('latitude', 'longitude'), k=4):
 
     coords1 = to_rads(df1[labels].values)
     coords2 = to_rads(df2[labels].values)
+
     logger.debug('Building Haversine BallTree for {} coordinates.'
                  .format(len(df1)))
     tree = BallTree(coords1, metric='haversine')
+
     logger.debug('Querying Haversine BallTree for {} coordinates.'
                  .format(len(df2)))
     dist, ind = tree.query(coords2, return_distance=True, k=k)
+
     dist = rad_to_dist(dist)
+
     dist = dist.astype(np.float32)
     ind = ind.astype(np.uint32)
+
+    if len(dist.shape) == 1:
+        dist = np.expand_dims(dist, axis=1)
+        ind = np.expand_dims(ind, axis=1)
+
     return dist, ind

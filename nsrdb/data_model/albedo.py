@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 class AlbedoVar(AncillaryVarHandler):
     """Framework for Albedo data extraction."""
 
+    # nearest neighbor tree method for this variable
+    NN_METHOD = 'kdtree'
+
     def __init__(self, name, var_meta, date, source_dir=None):
         """
         Parameters
@@ -110,27 +113,45 @@ class AlbedoVar(AncillaryVarHandler):
             Decimal degree margin for exclusion.
         """
 
+        logger.info('Albedo is applying exclusions so global albedo is not '
+                    'queried. NSRDB grid lat min/max is {:.2f}/{:.2f} and '
+                    'lon min/max is {:.2f}/{:.2f}'
+                    .format(np.min(nsrdb_grid['latitude']),
+                            np.max(nsrdb_grid['latitude']),
+                            np.min(nsrdb_grid['longitude']),
+                            np.max(nsrdb_grid['longitude'])))
+
         # albedo is global 1km. Set exclusions to reduce data import load.
         lat_in = (np.min(nsrdb_grid['latitude']) - margin,
                   np.max(nsrdb_grid['latitude']) + margin)
+        lat_ex = None
 
-        # the full NSRDB lon extent requires a specific exclusion region
-        # longitude exclusion window is max/min around 50 degrees.
-        mask1 = (nsrdb_grid['longitude'] < 50.0)
-        mask2 = (nsrdb_grid['longitude'] > 50.0)
+        # get boolean flags for longitude bins of width 10 degrees
+        # boolean flag is true if nsrdb grid has data in lon bin
+        bin_bool = [any((nsrdb_grid['longitude'] > lon)
+                        & (nsrdb_grid['longitude'] < (lon + 10)))
+                    for lon in range(-180, 180, 10)]
 
-        if np.sum(mask1) != 0 and np.sum(mask2) != 0:
-            # Likely the full NSRDB, use complicated exclusion region
+        if bin_bool[0] and bin_bool[-1]:
+            # grid extends from -180 to +180, use complicated exclusion region:
+            # exclude everything between the max lon<0 and min lon>0
             lon_in = None
+            mask1 = (nsrdb_grid['longitude'] < 0.0)
+            mask2 = (nsrdb_grid['longitude'] > 0.0)
             lon_ex = (np.max(nsrdb_grid.loc[mask1, 'longitude']) + margin,
                       np.min(nsrdb_grid.loc[mask2, 'longitude']) - margin)
         else:
-            # likely a sub extent, use simple inclusion region
+            # likely a simple longitude extent without longitude gaps
             lon_ex = None
             lon_in = (np.min(nsrdb_grid['longitude']) - margin,
                       np.max(nsrdb_grid['longitude']) + margin)
 
-        self.set_exclusions(lat_in=lat_in, lon_in=lon_in, lon_ex=lon_ex)
+        logger.info('Albedo is initializing source data with lat_in "{}", '
+                    'lat_ex "{}", lon_in "{}", lon_ex "{}".'
+                    .format(lat_in, lat_ex, lon_in, lon_ex))
+
+        self.set_exclusions(lat_in=lat_in, lat_ex=lat_ex,
+                            lon_in=lon_in, lon_ex=lon_ex)
 
     def set_exclusions(self, lat_in=None, lat_ex=None, lon_in=None,
                        lon_ex=None):
@@ -154,10 +175,6 @@ class AlbedoVar(AncillaryVarHandler):
         with h5py.File(self.file, 'r') as f:
             latitude = f['latitude'][...]
             longitude = f['longitude'][...]
-
-        logger.debug('"surface_albedo" initializing with lat_in "{}", '
-                     'lat_ex "{}", lon_in "{}", lon_ex "{}".'
-                     .format(lat_in, lat_ex, lon_in, lon_ex))
 
         logger.debug('"surface_albedo" native has {} latitudes and {} '
                      'longitudes.'.format(len(latitude), len(longitude)))

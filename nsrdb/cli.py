@@ -223,14 +223,16 @@ def data_model(ctx, doy, var_list, factory_kwargs,
     if factory_kwargs is not None:
         factory_kwargs = json.dumps(factory_kwargs)
 
+    log_file = 'logs_data_model/data_model.log'
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
                'max_workers={}, max_workers_clouds={}, '
-               'log_level="{}", job_name="{}", factory_kwargs={}'
+               'log_level="{}", log_file="{}", '
+               'job_name="{}", factory_kwargs={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
                        var_list, max_workers, max_workers_clouds,
-                       log_level, name,
+                       log_level, log_file, name,
                        factory_kwargs))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -254,7 +256,7 @@ def cloud_fill(ctx, i_chunk, col_chunk):
     out_dir = ctx.obj['OUT_DIR']
     log_level = ctx.obj['LOG_LEVEL']
     var_meta = ctx.obj['VAR_META']
-    log_file = 'cloud_fill_{}.log'.format(i_chunk)
+    log_file = 'logs_gap_fill/cloud_fill_{}.log'.format(i_chunk)
 
     fun_str = 'NSRDB.gap_fill_clouds'
     arg_str = ('"{}", {}, {}, col_chunk={}, log_file="{}", '
@@ -284,7 +286,7 @@ def all_sky(ctx, i_chunk):
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
-    log_file = 'all_sky_{}.log'.format(i_chunk)
+    log_file = 'logs_all_sky/all_sky_{}.log'.format(i_chunk)
     fun_str = 'NSRDB.run_all_sky'
     arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
@@ -322,7 +324,7 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
-    log_file = 'collect_{}_{}.log'.format(i_fname, i_chunk)
+    log_file = 'logs_collect/collect_{}_{}.log'.format(i_fname, i_chunk)
 
     fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
@@ -359,7 +361,7 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
     out_dir = ctx.obj['OUT_DIR']
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
-    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
+    log_file = os.path.join(out_dir, 'logs_collect_daily/{}.log'.format(name))
 
     fp_out = os.path.join(out_dir, fn_out)
 
@@ -406,7 +408,7 @@ def collect_flist(ctx, flist, collect_dir, fn_out, dsets, eagle):
     out_dir = ctx.obj['OUT_DIR']
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
-    log_file = os.path.join(out_dir, 'logs/{}.log'.format(name))
+    log_file = os.path.join(out_dir, 'logs_collect/{}.log'.format(name))
 
     fp_out = os.path.join(out_dir, fn_out)
 
@@ -448,7 +450,7 @@ def collect_final(ctx, collect_dir, i_fname):
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
-    log_file = 'final_collection_{}.log'.format(i_fname)
+    log_file = 'logs_collect/final_collection_{}.log'.format(i_fname)
 
     fun_str = 'NSRDB.collect_final'
     arg_str = ('"{}", "{}", {}, "{}", freq="{}", '

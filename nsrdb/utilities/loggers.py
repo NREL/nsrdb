@@ -79,7 +79,10 @@ def setup_logger(logger_name, log_level="INFO", log_file=None,
 
     if log_file is not None:
         if not os.path.exists(os.path.dirname(log_file)):
-            os.makedirs(os.path.dirname(log_file))
+            try:
+                os.makedirs(os.path.dirname(log_file))
+            except FileExistsError:
+                pass
 
     logger = logging.getLogger(logger_name)
     current_handlers = [str(h) for h in logger.handlers]

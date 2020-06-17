@@ -679,6 +679,13 @@ class NSRDB:
                         .format(len(flist), np.min(fids), np.max(fids)))
                 raise FileNotFoundError(emsg)
 
+            if job_name is not None:
+                if job_name.endswith('_{}'.format(i_fname)):
+                    f_out = f_out.replace('nsrdb_', '{}_'.format(
+                        job_name.replace('_{}'.format(i_fname), '')))
+                else:
+                    f_out = f_out.replace('nsrdb_', '{}_'.format(job_name))
+
             if any(flist):
                 nsrdb._init_output_h5(f_out, dsets, ti, nsrdb.meta)
                 logger.info('Collecting {} files in list: {}'
