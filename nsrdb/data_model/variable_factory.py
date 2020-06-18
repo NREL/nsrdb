@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Factory pattern for retrieving NSRDB data source handlers."""
-
 import logging
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
@@ -215,7 +214,7 @@ class VarFactory:
         return attrs, chunks, dtypes
 
     @staticmethod
-    def get_cloud_handler(fpath, dsets=None):
+    def get_cloud_handler(fpath, dsets=None, **kwargs):
         """Get a cloud data file handler object.
 
         Parameters
@@ -233,10 +232,18 @@ class VarFactory:
             fpath.
         """
 
+        kwarg_ignore = ('handler',)
+        kwargs = {k: v for k, v in kwargs.items()
+                  if k not in kwarg_ignore}
+
+        if kwargs:
+            logger.debug('Initializing cloud handler with kwargs: {}'
+                         .format(kwargs))
+
         if fpath.endswith('.h5'):
-            return CloudVarSingleH5(fpath, dsets=dsets)
+            return CloudVarSingleH5(fpath, dsets=dsets, **kwargs)
         elif fpath.endswith('.nc'):
-            return CloudVarSingleNC(fpath, dsets=dsets)
+            return CloudVarSingleNC(fpath, dsets=dsets, **kwargs)
         else:
             raise TypeError('Did not recognize cloud file type as .nc or '
                             '.h5: {}'.format(fpath))
