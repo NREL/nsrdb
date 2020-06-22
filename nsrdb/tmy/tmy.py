@@ -1768,14 +1768,16 @@ class TmyRunner:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
-    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None, site_slice=None,
-            supplemental_dirs=None, var_meta=None):
+    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None,
+            n_nodes=1, node_index=0,
+            log=True, log_level='INFO', log_file=None,
+            site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TGY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
-        weights = {'sum_ghi': 1.0}
+        if weights is None:
+            weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
                   site_slice=site_slice, supplemental_dirs=supplemental_dirs,
@@ -1783,14 +1785,16 @@ class TmyRunner:
         tgy._run_parallel()
 
     @classmethod
-    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None, site_slice=None,
-            supplemental_dirs=None, var_meta=None):
+    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None,
+            n_nodes=1, node_index=0,
+            log=True, log_level='INFO', log_file=None,
+            site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TDY."""
         if log:
             from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
-        weights = {'sum_dni': 1.0}
+        if weights is None:
+            weights = {'sum_dni': 1.0}
         tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
                   site_slice=site_slice, supplemental_dirs=supplemental_dirs,
