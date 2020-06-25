@@ -1601,7 +1601,7 @@ class Manager:
 
     @classmethod
     def collect(cls, meta_final, collect_dir, collect_tag, fout,
-                parallel=False):
+                max_workers=None):
         """Perform final collection of chunk-aggregated files.
 
         Parameters
@@ -1615,6 +1615,9 @@ class Manager:
         fout : str
             File path to the output collected file (will be initialized by
             this method).
+        max_workers : int | None
+            Number of workers to use in parallel. 1 runs serial,
+            None uses all available.
         """
 
         if isinstance(meta_final, str):
@@ -1634,7 +1637,7 @@ class Manager:
 
         for dset in dsets:
             Collector.collect_flist(flist, collect_dir, fout, dset,
-                                    parallel=parallel)
+                                    max_workers=max_workers)
 
 
 def run():
