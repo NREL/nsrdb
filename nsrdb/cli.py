@@ -85,11 +85,14 @@ def config(ctx, config_file, command):
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
 
+    init_logger('nsrdb.cli', log_level=direct_args['log_level'], log_file=None)
+
     if command == 'data-model':
         doy_range = cmd_args['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             max_workers_clouds = cmd_args.get('max_workers_clouds', None)
+
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
@@ -222,6 +225,9 @@ def data_model(ctx, doy, var_list, factory_kwargs,
         var_list = json.dumps(var_list)
     if factory_kwargs is not None:
         factory_kwargs = json.dumps(factory_kwargs)
+        factory_kwargs = factory_kwargs.replace('true', 'True')
+        factory_kwargs = factory_kwargs.replace('false', 'False')
+        factory_kwargs = factory_kwargs.replace('null', 'None')
 
     log_file = 'logs_data_model/data_model.log'
     date = NSRDB.doy_to_datestr(year, doy)
@@ -234,6 +240,7 @@ def data_model(ctx, doy, var_list, factory_kwargs,
                        var_list, max_workers, max_workers_clouds,
                        log_level, log_file, name,
                        factory_kwargs))
+
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'

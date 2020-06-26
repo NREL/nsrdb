@@ -348,6 +348,8 @@ class CloudVarSingleH5(CloudVarSingle):
                            'for: {}, received error: {}'
                            .format(os.path.basename(fpath), e))
         else:
+            logger.debug('Successfully performed solar position shading '
+                         'adjustment of cloud coordinates')
             grid['latitude'], grid['longitude'] = lat, lon
 
         return grid
@@ -590,6 +592,8 @@ class CloudVarSingleNC(CloudVarSingle):
                            'for: {}, received error: {}'
                            .format(os.path.basename(fpath), e))
         else:
+            logger.debug('Successfully performed solar position shading '
+                         'adjustment of cloud coordinates')
             grid['latitude'], grid['longitude'] = lat, lon
 
         return grid
@@ -723,6 +727,10 @@ class CloudVar(AncillaryVarHandler):
         self._ftype = None
         self._i = None
         self._adjust_coords = adjust_coords
+
+        if self._adjust_coords:
+            logger.info('Cloud coordinate adjustment based on solar '
+                        'position shading is active.')
 
         self._check_freq()
 

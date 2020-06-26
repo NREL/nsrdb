@@ -50,6 +50,7 @@ class Pipeline:
 
         # init logger for pipeline module if requested in input config
         if 'logging' in self._config:
+            init_logger('nsrdb.cli', **self._config['logging'])
             init_logger('nsrdb.pipeline', **self._config['logging'])
 
     def _init_status(self):

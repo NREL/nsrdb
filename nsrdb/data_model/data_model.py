@@ -377,7 +377,8 @@ class DataModel:
         return dist, ind
 
     @staticmethod
-    def get_cloud_nn(fpath, nsrdb_grid, labels=('latitude', 'longitude')):
+    def get_cloud_nn(fpath, nsrdb_grid, labels=('latitude', 'longitude'),
+                     var_kwargs=None):
         """Nearest neighbors computation for cloud data regrid.
 
         Parameters
@@ -388,6 +389,8 @@ class DataModel:
             Reference grid data for NSRDB.
         labels : list | tuple
             lat/lon column lables for the NSRDB grid and the cloud grid
+        var_kwargs : dict | None
+            Optional kwargs for the instantiation of the cloud var handler
 
         Returns
         -------
@@ -399,9 +402,12 @@ class DataModel:
         if isinstance(labels, tuple):
             labels = list(labels)
 
+        if var_kwargs is None:
+            var_kwargs = {}
+
         # Build NN tree based on the unique cloud grid at single timestep
         try:
-            grid = VarFactory.get_cloud_handler(fpath).grid
+            grid = VarFactory.get_cloud_handler(fpath, **var_kwargs).grid
         except Exception as e:
             msg = ('Exception building cloud NN '
                    'tree for {}: {}'.format(fpath, e))
@@ -597,6 +603,7 @@ class DataModel:
 
         # use the first cloud var name to get object,
         # full cloud_var list is passed in kwargs
+        logger.info('Starting DataModel Cloud Regrid process')
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
         var_obj = self._var_factory.get(cloud_vars[0],
                                         var_meta=self._var_meta,
@@ -606,18 +613,22 @@ class DataModel:
                                         freq=self.nsrdb_ti.freqstr,
                                         **var_kwargs)
 
-        logger.debug('Starting cloud data ReGrid with {} futures '
-                     '(cloud timesteps).'.format(len(var_obj.flist)))
-
         if self._max_workers != 1:
-            regrid_ind = self._cloud_regrid_parallel(var_obj.flist)
+            logger.debug('Starting cloud data ReGrid with {} futures '
+                         '(cloud timesteps).'.format(len(var_obj.flist)))
+            regrid_ind = self._cloud_regrid_parallel(
+                var_obj.flist, var_kwargs=var_kwargs)
         else:
+            logger.debug('Starting cloud data ReGrid with {} iterations '
+                         '(cloud timesteps) in serial.'
+                         .format(len(var_obj.flist)))
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in var_obj.flist:
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
-                regrid_ind[fpath] = self.get_cloud_nn(fpath, self.nsrdb_grid)
+                regrid_ind[fpath] = self.get_cloud_nn(
+                    fpath, self.nsrdb_grid, var_kwargs=var_kwargs)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
@@ -670,7 +681,7 @@ class DataModel:
 
         return data
 
-    def _cloud_regrid_parallel(self, flist):
+    def _cloud_regrid_parallel(self, flist, var_kwargs=None):
         """Perform the ReGrid nearest neighbor calculations in parallel.
 
         Parameters
@@ -678,6 +689,8 @@ class DataModel:
         flist : list
             List of full file paths to cloud data files. Grid data from each
             file is mapped to the NSRDB grid in parallel.
+        var_kwargs : dict | None
+            Optional kwargs for the instantiation of the cloud var handler
 
         Returns
         -------
@@ -696,7 +709,8 @@ class DataModel:
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in flist:
                 regrid_ind[fpath] = exe.submit(self.get_cloud_nn, fpath,
-                                               self.nsrdb_grid)
+                                               self.nsrdb_grid,
+                                               var_kwargs=var_kwargs)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -1203,7 +1217,7 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        handler = data_model._factory_kwargs.get('cv', {})
+        handler = data_model._factory_kwargs.get(var, {})
         handler = handler.get('handler', '')
 
         if var in cls.CLOUD_VARS or 'cloud' in handler.lower():
