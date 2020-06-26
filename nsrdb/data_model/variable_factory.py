@@ -232,7 +232,7 @@ class VarFactory:
             fpath.
         """
 
-        kwarg_ignore = ('handler',)
+        kwarg_ignore = ('handler', 'source_dir')
         kwargs = {k: v for k, v in kwargs.items()
                   if k not in kwarg_ignore}
 
