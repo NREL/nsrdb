@@ -1,8 +1,8 @@
 ﻿var,units,final_dtype,scale_factor,min,max,spatial_interp,elevation_correct,temporal_interp,merra_dset,merra_name,data_source,source_directory,row_chunks,col_chunks
-air_temperature,Celsius,int16,10,-100,70,IDW2,TRUE,linear,tavg1_2d_slv_Nx,T2M,MERRA2,/projects/pxs/ancillary/source,2000,500
-alpha,unitless,uint8,100,0,2.5,IDW2,FALSE,nearest,tavg1_2d_aer_Nx,TOTANGSTR,MERRA2,/projects/pxs/ancillary/source,2000,1000
-aod,unitless,uint16,10000,0.01,1.5,IDW2,TRUE,nearest,tavg1_2d_aer_Nx,TOTEXTTAU,MERRA2,/projects/pxs/ancillary/source,2000,500
-asymmetry,unitless,int8,100,-1,1,NN,FALSE,nearest,,,climatology,/projects/pxs/ancillary/source/asymmetry,2000,1000
+air_temperature,Celsius,int16,10,-100,70,IDW2,TRUE,linear,tavg1_2d_slv_Nx,T2M,MERRA2,/projects/pxs/ancillary/merra,2000,500
+alpha,unitless,uint8,100,0,2.5,IDW2,FALSE,nearest,tavg1_2d_aer_Nx,TOTANGSTR,MERRA2,/projects/pxs/ancillary/merra,2000,1000
+aod,unitless,uint16,10000,0.01,1.5,IDW2,TRUE,nearest,tavg1_2d_aer_Nx,TOTEXTTAU,MERRA2,/projects/pxs/ancillary/merra,2000,500
+asymmetry,unitless,int8,100,-1,1,NN,FALSE,nearest,,,climatology,/projects/pxs/ancillary/asymmetry,2000,1000
 cld_opd_dcomp,unitless,uint16,100,0,80,,,,,,UW-GOES,,2000,500
 cld_press_acha,hPa,uint16,1,0,1100,,,,,,UW-GOES,,2000,500
 cloud_press_acha,hPa,uint16,1,0,1100,,,,,,UW-GOES,,2000,500
@@ -16,13 +16,13 @@ dhi,W/m2,uint16,1,0,800,,,,,,output,,2000,500
 dni,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
 fill_flag,"0: no fill, 1: missing cloud type, 2: full timeseries missing cloud type, 3: missing cloud prop, 4: full timeseries missing cloud prop, 5: ghi exceeds clearsky, 6: neg or missing irrad",uint8,1,0,100,,,,,,output,,2000,1000
 ghi,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
-ozone,atm-cm,uint16,1000,0.2,0.5,IDW2,FALSE,linear,tavg1_2d_slv_Nx,TO3,MERRA2,/projects/pxs/ancillary/source,2000,500
+ozone,atm-cm,uint16,1000,0.2,0.5,IDW2,FALSE,linear,tavg1_2d_slv_Nx,TO3,MERRA2,/projects/pxs/ancillary/merra,2000,500
 relative_humidity,%,uint16,100,0,100,,,,,,derived,,2000,500
 solar_zenith_angle,degrees,uint16,100,0,180,,,,,,calculated,,2000,500
-specific_humidity,kg kg-1,float32,1,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/projects/pxs/ancillary/source,2000,250
-ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/projects/pxs/ancillary/source,2000,1000
-surface_albedo,unitless,uint8,100,0,1,AGG4,FALSE,nearest,,,MODIS-IMS,/projects/pxs/albedo,2000,1000
-surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/projects/pxs/ancillary/source,2000,500
-total_precipitable_water,cm,uint8,10,0,15,IDW2,TRUE,linear,tavg1_2d_slv_Nx,TQV,MERRA2,/projects/pxs/ancillary/source,2000,1000
-wind_direction,degrees,uint16,1,0,360,NN,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/projects/pxs/ancillary/source,2000,500
-wind_speed,m/s,uint16,10,0,40,IDW4,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/projects/pxs/ancillary/source,2000,500
+specific_humidity,kg kg-1,float32,1,,,IDW2,FALSE,nearest,tavg1_2d_slv_Nx,QV2M,MERRA2,/projects/pxs/ancillary/merra,2000,250
+ssa,unitless,uint8,100,0,1,NN,FALSE,linear,tavg1_2d_aer_Nx,TOTSCATAU,MERRA2,/projects/pxs/ancillary/merra,2000,1000
+surface_albedo,unitless,uint8,100,0,1,AGG4,FALSE,nearest,,,MODIS-IMS,/projects/pxs/ancillary/albedo,2000,1000
+surface_pressure,hPa,uint16,1,300,1100,IDW2,TRUE,linear,tavg1_2d_slv_Nx,PS,MERRA2,/projects/pxs/ancillary/merra,2000,500
+total_precipitable_water,cm,uint8,10,0,15,IDW2,TRUE,linear,tavg1_2d_slv_Nx,TQV,MERRA2,/projects/pxs/ancillary/merra,2000,1000
+wind_direction,degrees,uint16,1,0,360,NN,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/projects/pxs/ancillary/merra,2000,500
+wind_speed,m/s,uint16,10,0,40,IDW4,FALSE,linear,tavg1_2d_slv_Nx,,MERRA2,/projects/pxs/ancillary/merra,2000,500

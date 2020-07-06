@@ -98,7 +98,10 @@ class NSRDB:
                     self._collect_dir, self._final_dir]
         for d in all_dirs:
             if not os.path.exists(d):
-                os.makedirs(d)
+                try:
+                    os.makedirs(d)
+                except FileExistsError:
+                    pass
 
     @property
     def time_index_year(self):
