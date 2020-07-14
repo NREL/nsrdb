@@ -884,7 +884,7 @@ class DataModel:
                                     cache=var_obj.cache_file)
 
         # perform weighting if applicable
-        if var in self.WEIGHTS:
+        if var in self.WEIGHTS and 'merra' in str(type(var_obj)).lower():
             weights = self.get_weights(var_obj)
             if weights is not None:
                 logger.debug('Applying weights to "{}".'.format(var))

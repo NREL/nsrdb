@@ -128,14 +128,16 @@ class MaiacVar(AncillaryVarHandler):
         data = []
         for fp in self.files:
             with Resource(fp) as res:
+                logger.debug('Getting MAIAC aod from {}'
+                             .format(os.path.basename(fp)))
                 data.append(res['aod', :, :, self.doy_index].flatten())
-                assert len(data[-1].shape) == 2
                 L += len(data[-1])
 
+        logger.debug('Stacking {} MAIAC aod data arrays'.format(len(data)))
         data = np.hstack(data)
         data = np.expand_dims(data, axis=0)
 
-        assert data.shape[1].shape == len(self.grid)
+        assert data.shape[1] == len(self.grid)
 
         return data
 
@@ -159,5 +161,8 @@ class MaiacVar(AncillaryVarHandler):
                         self._grid = temp
                     else:
                         self._grid = self._grid.append(temp, ignore_index=True)
+
+            logger.debug('MAIAC AOD grid has {} coordinates'
+                         .format(len(self._grid)))
 
         return self._grid
