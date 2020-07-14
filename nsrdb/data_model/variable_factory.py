@@ -6,6 +6,7 @@ from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
 from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
+from nsrdb.data_model.maiac_aod import MaiacVar
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
@@ -43,6 +44,7 @@ class VarFactory:
                      'AlbedoVar': AlbedoVar,
                      'CloudVar': CloudVar,
                      'MerraVar': MerraVar,
+                     'MaiacVar': MaiacVar,
                      'DewPoint': DewPoint,
                      'RelativeHumidity': RelativeHumidity,
                      'SolarZenithAngle': SolarZenithAngle,
