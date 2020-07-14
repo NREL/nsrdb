@@ -136,6 +136,7 @@ class MaiacVar(AncillaryVarHandler):
         logger.debug('Stacking {} MAIAC aod data arrays'.format(len(data)))
         data = np.hstack(data)
         data = np.expand_dims(data, axis=0)
+        data[np.isnan(data)] = 0.0
 
         assert data.shape[1] == len(self.grid)
 
