@@ -981,8 +981,8 @@ class DataModel:
         cloud_vars = []
         for cv in var_list:
             handler = data_model._factory_kwargs.get(cv, {})
-            handler = handler.get('handler', '')
-            if cv in cls.CLOUD_VARS or 'cloud' in handler.lower():
+            handler = handler.get('handler', 'cloud')
+            if cv in cls.CLOUD_VARS and 'cloud' in handler.lower():
                 cloud_vars.append(cv)
         var_list = [v for v in var_list if v not in cloud_vars]
 
@@ -1218,9 +1218,9 @@ class DataModel:
                             .format(var, fpath_out))
 
         handler = data_model._factory_kwargs.get(var, {})
-        handler = handler.get('handler', '')
+        handler = handler.get('handler', 'cloud')
 
-        if var in cls.CLOUD_VARS or 'cloud' in handler.lower():
+        if var in cls.CLOUD_VARS and 'cloud' in handler.lower():
             method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
             method = data_model._derive
