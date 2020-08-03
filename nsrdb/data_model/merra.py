@@ -147,6 +147,10 @@ class MerraVar(AncillaryVarHandler):
             2D numpy array (time X space) of MERRA data for the specified var.
         """
 
+        # cloud variables when satellite data is not available
+        cld_vars = ['cloud_type', 'cld_press_acha', 'cloud_press_acha',
+                    'cld_opd_dcomp', 'cld_reff_dcomp']
+
         # open NetCDF file
         with netCDF4.Dataset(self.file, 'r') as f:
 
@@ -163,6 +167,30 @@ class MerraVar(AncillaryVarHandler):
             elif self.merra_name == 'TOTSCATAU':
                 # Single scatter albedo is total scatter / aod
                 data = f[self.merra_name][:] / f['TOTEXTTAU'][:]
+
+            elif self.name in cld_vars:
+                # Special handling of cloud properties when
+                # satellite data is not available.
+                opd = f['TAUTOT'][:]
+
+                if self.name == 'cld_opd_dcomp':
+                    data = opd
+                else:
+                    opd_hi = f['TAUHGH'][:]
+                    ctype = np.zeros_like(opd)
+                    ctype = np.where((opd > 0) & (opd_hi <= 0), 3, ctype)
+                    ctype = np.where((opd > 0) & (opd_hi > 0), 6, ctype)
+
+                    if self.name == 'cloud_type':
+                        data = ctype
+                    elif self.name == 'cld_reff_dcomp':
+                        data = np.zeros_like(opd)
+                        data = np.where(ctype == 3, 8.0, data)
+                        data = np.where(ctype == 6, 20.0, data)
+                    elif self.name in ['cld_press_acha', 'cloud_press_acha']:
+                        data = np.zeros_like(opd)
+                        data = np.where(ctype == 3, 800.0, data)
+                        data = np.where(ctype == 6, 250.0, data)
 
             else:
                 data = f[self.merra_name][:]
