@@ -980,10 +980,17 @@ class DataModel:
         # number of kdtrees during regrid)
         cloud_vars = []
         for cv in var_list:
-            handler = data_model._factory_kwargs.get(cv, {})
-            handler = handler.get('handler', 'cloud')
-            if cv in cls.CLOUD_VARS and 'cloud' in handler.lower():
+            is_cv = True if cv in cls.CLOUD_VARS else False
+            var_fact_kwargs = data_model._factory_kwargs.get(cv, {})
+            if 'handler' in var_fact_kwargs:
+                if var_fact_kwargs['handler'].lower() == 'cloudvar':
+                    is_cv = True
+                else:
+                    is_cv = False
+
+            if is_cv:
                 cloud_vars.append(cv)
+
         var_list = [v for v in var_list if v not in cloud_vars]
 
         # remove derived (dependent) variables from var_list to be processed
@@ -1217,10 +1224,15 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        handler = data_model._factory_kwargs.get(var, {})
-        handler = handler.get('handler', 'cloud')
+        is_cv = True if var in cls.CLOUD_VARS else False
+        var_fact_kwargs = data_model._factory_kwargs.get(var, {})
+        if 'handler' in var_fact_kwargs:
+            if var_fact_kwargs['handler'].lower() == 'cloudvar':
+                is_cv = True
+            else:
+                is_cv = False
 
-        if var in cls.CLOUD_VARS and 'cloud' in handler.lower():
+        if is_cv:
             method = data_model._cloud_regrid
         elif var in cls.DERIVED_VARS:
             method = data_model._derive
