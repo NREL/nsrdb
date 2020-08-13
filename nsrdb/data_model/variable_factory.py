@@ -234,13 +234,13 @@ class VarFactory:
             fpath.
         """
 
+        if kwargs:
+            logger.debug('Initializing cloud handler with kwargs: {} '
+                         'and fpath: {}'.format(kwargs, fpath))
+
         kwarg_ignore = ('handler', 'source_dir')
         kwargs = {k: v for k, v in kwargs.items()
                   if k not in kwarg_ignore}
-
-        if kwargs:
-            logger.debug('Initializing cloud handler with kwargs: {}'
-                         .format(kwargs))
 
         if fpath.endswith('.h5'):
             return CloudVarSingleH5(fpath, dsets=dsets, **kwargs)

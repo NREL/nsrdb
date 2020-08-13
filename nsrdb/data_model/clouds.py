@@ -772,6 +772,7 @@ class CloudVar(AncillaryVarHandler):
 
             if isinstance(fpath, str):
                 # initialize a single timestep helper object
+
                 if fpath.endswith('.h5'):
                     obj = CloudVarSingleH5(fpath, dsets=self._dsets,
                                            adjust_coords=self._adjust_coords)
@@ -779,12 +780,12 @@ class CloudVar(AncillaryVarHandler):
                     obj = CloudVarSingleNC(fpath, dsets=self._dsets,
                                            adjust_coords=self._adjust_coords)
 
-                    mem = psutil.virtual_memory()
-                    logger.info('Cloud data timestep {} has source file: {}. '
-                                'Memory usage is {:.3f} GB out of '
-                                '{:.3f} GB total.'
-                                .format(timestamp, os.path.basename(fpath),
-                                        mem.used / 1e9, mem.total / 1e9))
+                mem = psutil.virtual_memory()
+                logger.info('Cloud data timestep {} has source file: {}. '
+                            'Memory usage is {:.3f} GB out of '
+                            '{:.3f} GB total.'
+                            .format(timestamp, os.path.basename(fpath),
+                                    mem.used / 1e9, mem.total / 1e9))
 
             else:
                 obj = None
