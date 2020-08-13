@@ -186,17 +186,17 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
 
         logger.debug(f'command for slurm: {cmd}')
 
-        name = dt.strftime(date, 'albedo_%Y%j')
+        name = dt.strftime(date, 'a%Y%j')
         logger.info('Running composite albedo processing on Eagle with '
                     f'name "{name}" for {date}')
         slurm = SLURM(cmd, alloc=alloc, memory=memory,
                       walltime=walltime, feature=feature,
                       name=name, stdout_path=stdout_path)
         if slurm.id:
-            msg = (f'Kicked off reV SC aggregation job "{name}" (SLURM '
+            msg = (f'Kicked off NSRDB albedo job "{name}" (SLURM '
                    f'jobid #{slurm.id}) on Eagle.')
         else:
-            msg = (f'Was unable to kick off reV SC job "{name}". '
+            msg = (f'Was unable to kick off NSRDB albedo job "{name}". '
                    'Please see the stdout error messages')
         click.echo(msg)
         logger.info(msg)
