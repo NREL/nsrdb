@@ -15,6 +15,10 @@ MODIS_NODATA = 32767
 # appropriate day from this year.
 LAST_YEAR = 2017
 
+# First available MODIS data is 3/3/2000.
+FIRST_YEAR = 2000
+FIRST_DAY = 63
+
 
 class ModisError(Exception):
     pass
@@ -166,10 +170,20 @@ class ModisFileAcquisition:
         # Check if data exists for requested year.
         if date.year > LAST_YEAR:
             self.date = get_dt(LAST_YEAR, date.timetuple().tm_yday)
-            logger.info(f'MODIS albedo data does not yet exist for '
-                        f'{date.year}. Using data for {self.date} instead.')
+        elif date < get_dt(FIRST_YEAR, FIRST_DAY):
+            if date.timetuple().tm_yday < FIRST_DAY:
+                self.date = get_dt(FIRST_YEAR + 1, date.timetuple().tm_yday)
+            else:
+                self.date = get_dt(FIRST_YEAR, date.timetuple().tm_yday)
         else:
             self.date = date
+
+        if self.date != date:
+            logger.info('MODIS albedo data does not yet exist for '
+                        '{}/{}. Using data for {}/{} instead.'
+                        ''.format(date.year, date.timetuple().tm_yday,
+                                  self.date.year,
+                                  self.date.timetuple().tm_yday))
 
         self.path = path
 
