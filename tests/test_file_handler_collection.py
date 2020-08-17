@@ -70,7 +70,8 @@ def test_collect_daily(sites, max_workers):
         assert_frame_equal(b_meta, t_meta)
         assert np.allclose(b_data, t_data)
         for k, v in b_attrs.items():
-            assert str(v) == str(t_attrs[k])
+            if k != 'source_dir':  # source dirs have changed during re-orgs
+                assert str(v) == str(t_attrs[k])
 
     if PURGE_OUT:
         os.remove(f_out)
@@ -89,16 +90,16 @@ def test_collect_lowmem():
 
         ti, meta, data, attrs = retrieve_data(BASELINE_ANNUAL, dset=dset)
 
-        with Outputs(os.path.join(collect_dir, flist[1]), mode='r') as f:
+        with Outputs(f_out, mode='r') as f:
             attrs = f.get_attrs(dset=dset)
-            meta_chunk = f.meta
-            data_chunk = f[dset]
+            meta_collected = f.meta
+            data_collected = f[dset]
 
         assert 'scale_factor' in attrs
         assert 'data_source' in attrs
         assert 'spatial_interp_method' in attrs
-        assert_frame_equal(meta.iloc[5:].reset_index(drop=True), meta_chunk)
-        assert np.allclose(data[:, 5:], data_chunk)
+        assert_frame_equal(meta, meta_collected)
+        assert np.allclose(data, data_collected)
         assert len(ti) == 105120
 
     if PURGE_OUT:
