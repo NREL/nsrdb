@@ -2,6 +2,7 @@
 """A framework for handling UW/GOES source data."""
 import datetime
 import math
+import statistics
 import numpy as np
 import pandas as pd
 import h5py
@@ -1173,14 +1174,15 @@ class CloudVar(AncillaryVarHandler):
         if len(flist) == 1:
             freq = '1d'
         else:
-            for i in range(0, len(data_ti), 10):
-                freq = pd.infer_freq(data_ti[i:i + 5])
-
-                if freq is not None:
-                    break
-
-        if freq is None:
-            raise ValueError('Could not infer cloud data timestep frequency.')
+            ti_deltas = data_ti - np.roll(data_ti, 1)
+            ti_deltas_minutes = ti_deltas.seconds / 60
+            ti_delta_minutes = int(statistics.mode(ti_deltas_minutes))
+            freq = '{}T'.format(ti_delta_minutes)
+            if len(flist) < 5:
+                w = ('File list contains less than 5 files. Inferred '
+                     'frequency of "{}", but may not be accurate'.format(freq))
+                logger.warning(w)
+                warn(w)
 
         return freq
 
