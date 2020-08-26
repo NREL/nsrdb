@@ -666,9 +666,9 @@ class NSRDB:
             fname = fname.format(y=year)
 
             if tmp:
-                f_out = os.path.join('/tmp/scratch/', fname)
+                dir_out = '/tmp/scratch/'
             else:
-                f_out = os.path.join(nsrdb._final_dir, fname)
+                dir_out = nsrdb._final_dir
 
             flist = [fn for fn in os.listdir(collect_dir)
                      if fn.endswith('.h5')
@@ -684,10 +684,12 @@ class NSRDB:
 
             if job_name is not None:
                 if job_name.endswith('_{}'.format(i_fname)):
-                    f_out = f_out.replace('nsrdb_', '{}_'.format(
+                    fname = fname.replace('nsrdb_', '{}_'.format(
                         job_name.replace('_{}'.format(i_fname), '')))
                 else:
-                    f_out = f_out.replace('nsrdb_', '{}_'.format(job_name))
+                    fname = fname.replace('nsrdb_', '{}_'.format(job_name))
+
+                f_out = os.path.join(dir_out, fname)
 
             if any(flist):
                 nsrdb._init_output_h5(f_out, dsets, ti, nsrdb.meta)
