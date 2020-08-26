@@ -2,6 +2,7 @@
 """A framework for handling UW/GOES source data."""
 import datetime
 import math
+import statistics
 import numpy as np
 import pandas as pd
 import h5py
@@ -767,12 +768,18 @@ class CloudVar(AncillaryVarHandler):
         # iterate through all timesteps (one file per timestep)
         if self._i < len(self.file_df):
 
+            obj = None
             timestamp = self.file_df.index[self._i]
             fpath = self.file_df.iloc[self._i, 0]
 
-            if isinstance(fpath, str):
-                # initialize a single timestep helper object
+            if not isinstance(fpath, str) or not os.path.exists(fpath):
+                msg = ('Cloud data timestep {} is missing its '
+                       'source file.'.format(timestamp))
+                warn(msg)
+                logger.warning(msg)
 
+            else:
+                # initialize a single timestep helper object
                 if fpath.endswith('.h5'):
                     obj = CloudVarSingleH5(fpath, dsets=self._dsets,
                                            adjust_coords=self._adjust_coords)
@@ -787,15 +794,9 @@ class CloudVar(AncillaryVarHandler):
                             .format(timestamp, os.path.basename(fpath),
                                     mem.used / 1e9, mem.total / 1e9))
 
-            else:
-                obj = None
-                msg = ('Cloud data timestep {} is missing its '
-                       'source file.'.format(timestamp))
-                warn(msg)
-                logger.warning(msg)
-
             self._i += 1
             return timestamp, obj
+
         else:
             raise StopIteration
 
@@ -1058,18 +1059,49 @@ class CloudVar(AncillaryVarHandler):
                                             prefix=self._prefix,
                                             suffix=self._suffix)
             self._ftype = '.h5'
+
             if not self._flist:
                 self._flist = self.get_nc_flist(self.path, self._date,
                                                 prefix=self._prefix,
                                                 suffix=self._suffix)
                 self._ftype = '.nc'
+
             if not self._flist:
                 raise IOError('Could not find .h5 or .nc files for {} '
                               'with prefix "{}" and suffix "{}" in '
                               'directory: {}'
                               .format(self._date, self._prefix, self._suffix,
                                       self.path))
+
+            self._flist = self._remove_bad_files(self._flist)
+
         return self._flist
+
+    @staticmethod
+    def _remove_bad_files(flist):
+        """Parse the filelist and remove any filepaths less than 1MB.
+
+        Parameters
+        ----------
+        flist : list
+            List of .h5 or .nc full file paths to clean.
+
+        Returns
+        -------
+        flist : list
+            List of .h5 or .nc full file paths with bad files removed.
+        """
+
+        for fp in flist:
+            if os.path.getsize(fp) < 1e6:
+                msg = ('Cloud data source file is less than 1MB, skipping: {}'
+                       .format(fp))
+                warn(msg)
+                logger.warning(msg)
+
+        flist = [fp for fp in flist if os.path.getsize(fp) > 1e6]
+
+        return flist
 
     @property
     def inferred_freq(self):
@@ -1173,14 +1205,15 @@ class CloudVar(AncillaryVarHandler):
         if len(flist) == 1:
             freq = '1d'
         else:
-            for i in range(0, len(data_ti), 10):
-                freq = pd.infer_freq(data_ti[i:i + 5])
-
-                if freq is not None:
-                    break
-
-        if freq is None:
-            raise ValueError('Could not infer cloud data timestep frequency.')
+            ti_deltas = data_ti - np.roll(data_ti, 1)
+            ti_deltas_minutes = ti_deltas.seconds / 60
+            ti_delta_minutes = int(statistics.mode(ti_deltas_minutes))
+            freq = '{}T'.format(ti_delta_minutes)
+            if len(flist) < 5:
+                w = ('File list contains less than 5 files. Inferred '
+                     'frequency of "{}", but may not be accurate'.format(freq))
+                logger.warning(w)
+                warn(w)
 
         return freq
 
