@@ -402,7 +402,14 @@ class CloudVarSingleH5(CloudVarSingle):
             data += attrs['add_offset']
 
         if sparse_mask is not None:
-            data = data[sparse_mask]
+            if data.shape != sparse_mask.shape:
+                msg = ('Data model failed while processing "{}" which has '
+                       'shape {} while the coordinate grid mask has shape {}'
+                       .format(dset, data.shape, sparse_mask.shape))
+                logger.error(msg)
+                raise RuntimeError(msg)
+            else:
+                data = data[sparse_mask]
 
         if index is not None:
             data = data[index]
@@ -633,7 +640,14 @@ class CloudVarSingleNC(CloudVarSingle):
         """
 
         if sparse_mask is not None:
-            data = data[sparse_mask]
+            if data.shape != sparse_mask.shape:
+                msg = ('Data model failed while processing "{}" which has '
+                       'shape {} while the coordinate grid mask has shape {}'
+                       .format(dset, data.shape, sparse_mask.shape))
+                logger.error(msg)
+                raise RuntimeError(msg)
+            else:
+                data = data[sparse_mask]
 
         data = data.ravel()
 
