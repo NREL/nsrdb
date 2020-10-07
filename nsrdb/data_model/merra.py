@@ -68,10 +68,20 @@ class MerraVar(AncillaryVarHandler):
 
         path = os.path.join(self.source_dir, self.dset)
         flist = os.listdir(path)
+        fmerra = None
+
         for f in flist:
             if self.date_stamp in f:
                 fmerra = os.path.join(path, f)
                 break
+
+        if fmerra is None:
+            emsg = ('Could not find MERRA source file for dataset "{}" with '
+                    'date stamp {} in dir: {}'
+                    .format(self.name, self.date_stamp, path))
+            logger.error(emsg)
+            raise FileNotFoundError(emsg)
+
         return fmerra
 
     def pre_flight(self):
