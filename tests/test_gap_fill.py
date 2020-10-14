@@ -12,7 +12,7 @@ import numpy as np
 import os
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 
-CLOUD_TYPE = np.array([[0, 0, -15, 0],
+CLOUD_TYPE = np.array([[0, 0, -128, 0],
                        [1, 1, -15, 0],
                        [7, 3, -15, 0],
                        [7, -15, -15, 0],

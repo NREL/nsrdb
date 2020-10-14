@@ -136,7 +136,9 @@ class CloudGapFill:
 
         if np.sum(np.isnan(cloud_prop.values)) > 0:
             loc = np.where(np.sum(np.isnan(cloud_prop.values), axis=0) > 0)[0]
-            warn('NaN values persist at {} sites.'.format(len(loc)))
+            msg = ('NaN values persist at {} sites.'.format(len(loc)))
+            logger.warning(msg)
+            warn(msg)
 
             # do a hard fix of remaining nan values
             for cat, types in CloudGapFill.CATS.items():
@@ -204,10 +206,16 @@ class CloudGapFill:
             # full timeseries with no cloud type. set to clear and warn
             fill_flag[:, missing_mask.all(axis=0)] = 2
             cloud_type.loc[:, missing_mask.all(axis=0)] = 0
-            warn('{} sites have missing cloud types for the '
-                 'entire year.'.format(np.sum(missing_mask.all(axis=0))))
+            msg = ('{} sites have missing cloud types for the '
+                   'entire year.'.format(np.sum(missing_mask.all(axis=0))))
+            logger.warning(msg)
+            warn(msg)
             # reset missing mask
-            missing_mask = (cloud_type.values == missing)
+            if missing < 0:
+                # everything less than zero is a missing value usually
+                missing_mask = (cloud_type.values < 0)
+            else:
+                missing_mask = (cloud_type.values == missing)
 
         if missing_mask.any():
             cloud_type = cloud_type.astype(np.float32)
