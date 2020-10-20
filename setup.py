@@ -32,6 +32,11 @@ setup(
     url="https://github.nrel.gov/PXS/nsrdb",
     packages=find_packages(),
     package_dir={"nsrdb": "nsrdb"},
+    entry_points={
+        "console_scripts": [
+            "nsrdb=nsrdb.cli:main",
+        ],
+    },
     include_package_data=True,
     license="BSD license",
     zip_safe=False,

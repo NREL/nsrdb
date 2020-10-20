@@ -9,7 +9,7 @@ import os
 import json
 import logging
 import click
-from nsrdb.main import NSRDB
+from nsrdb.nsrdb import NSRDB
 from nsrdb.utilities.cli_dtypes import STR, INT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
 from nsrdb.utilities.execution import SLURM
