@@ -4,8 +4,6 @@
 """
 import os
 
-__version__ = "3.1.1"
-
 NSRDBDIR = os.path.dirname(os.path.realpath(__file__))
 DATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'data')
 CONFIGDIR = os.path.join(os.path.dirname(NSRDBDIR), 'config')
