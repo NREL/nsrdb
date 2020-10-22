@@ -119,7 +119,7 @@ class Collector:
 
         flist = []
         temp = os.listdir(d)
-        flist = [f for f in flist if f.endswith('.h5')]
+        temp = [f for f in temp if f.endswith('.h5')]
 
         for fn in temp:
             fp = os.path.join(d, fn)

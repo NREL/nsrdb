@@ -56,7 +56,14 @@ class Outputs(Resource):
             Mode to instantiate h5py.File instance
         """
         self._h5_file = h5_file
-        self._h5 = h5py.File(h5_file, mode=mode)
+
+        try:
+            self._h5 = h5py.File(h5_file, mode=mode)
+        except OSError as e:
+            msg = 'OSError trying to read h5 file {}'.format(h5_file)
+            logger.exception(msg)
+            raise e
+
         self._unscale = unscale
         self._mode = mode
         self._meta = None
