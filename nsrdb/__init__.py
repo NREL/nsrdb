@@ -3,8 +3,7 @@
 @author: gbuster
 """
 import os
-
-__version__ = "3.1.1"
+from nsrdb.version import __version__
 
 NSRDBDIR = os.path.dirname(os.path.realpath(__file__))
 DATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'data')
