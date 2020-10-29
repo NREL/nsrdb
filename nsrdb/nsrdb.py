@@ -33,32 +33,33 @@ logger = logging.getLogger(__name__)
 class NSRDB:
     """Entry point for NSRDB data pipeline execution."""
 
-    OUTS = {'nsrdb_ancillary_a_{y}.h5': ('alpha',
-                                         'aod',
-                                         'asymmetry',
-                                         'ssa'),
-            'nsrdb_ancillary_b_{y}.h5': ('ozone',
-                                         'surface_albedo',
-                                         'total_precipitable_water'),
-            'nsrdb_clearsky_{y}.h5': ('clearsky_dhi',
-                                      'clearsky_dni',
-                                      'clearsky_ghi',
-                                      'solar_zenith_angle'),
+    OUTS = {'nsrdb_ancillary_{y}.h5': ('alpha',
+                                       'aod',
+                                       'asymmetry',
+                                       'ozone',
+                                       'ssa',
+                                       'surface_albedo',
+                                       'surface_pressure',
+                                       'total_precipitable_water'),
+            'nsrdb_sam_{y}.h5': ('dew_point',
+                                 'relative_humidity',
+                                 'air_temperature',
+                                 'surface_pressure',
+                                 'wind_direction',
+                                 'wind_speed'),
             'nsrdb_clouds_{y}.h5': ('cloud_type',
                                     'cld_opd_dcomp',
                                     'cld_reff_dcomp',
-                                    'cld_press_acha',  # not in final data?
-                                    'cloud_fill_flag',),
-            'nsrdb_csp_{y}.h5': ('dew_point',
-                                 'relative_humidity',
-                                 'surface_pressure'),
+                                    'cld_press_acha',
+                                    'fill_flag',
+                                    'solar_zenith_angle'),
             'nsrdb_irradiance_{y}.h5': ('dhi',
                                         'dni',
                                         'ghi',
-                                        'fill_flag'),
-            'nsrdb_pv_{y}.h5': ('air_temperature',
-                                'wind_direction',
-                                'wind_speed')}
+                                        'clearsky_dhi',
+                                        'clearsky_dni',
+                                        'clearsky_ghi',
+                                        'fill_flag')}
 
     def __init__(self, out_dir, year, grid, freq='5min', var_meta=None):
         """
