@@ -10,3 +10,5 @@ DATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'data')
 CONFIGDIR = os.path.join(os.path.dirname(NSRDBDIR), 'config')
 TESTDATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'tests', 'data')
 DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+
+from nsrdb.nsrdb import NSRDB
