@@ -22,8 +22,7 @@ class PhygnnCloudFill:
     Use phygnn to fill missing cloud data
     """
     def __init__(self, model_path, h5_source, filter_daylight=True,
-                 filter_clear=True, sza_lim=89,
-                 nan_option='interp'):
+                 filter_clear=True, sza_lim=89):
         """
         Parameters
         ----------
@@ -40,8 +39,6 @@ class PhygnnCloudFill:
             Flag to filter clear sky timesteps, by default True
         sza_lim : int, optional
             Solar zenith angle limit, by default 89
-        nan_option : str, optional
-            Method to handle nan values, by default 'interp'
         """
         self._phygnn_model = PhygnnModel.load(model_path)
         feature_data, self._dset_map = self._parse_data(h5_source)
@@ -49,7 +46,7 @@ class PhygnnCloudFill:
             feature_data,
             filter_daylight=filter_daylight,
             filter_clear=filter_clear,
-            sza_lim=sza_lim, nan_option=nan_option)
+            sza_lim=sza_lim)
 
     @property
     def phygnn_model(self):
@@ -87,7 +84,7 @@ class PhygnnCloudFill:
     @staticmethod
     def _clean_feature_data(feature_raw, filter_daylight=True,
                             filter_clear=True, add_feature_flag=True,
-                            sza_lim=89, nan_option='interp'):
+                            sza_lim=89):
         """
         Clean feature data
 
@@ -103,8 +100,6 @@ class PhygnnCloudFill:
             Flag to add cloud type flag dataset, by default True
         sza_lim : int, optional
             Solar zenith angle limit, by default 89
-        nan_option : str, optional
-            Method to handle nan values, by default 'interp'
 
         Returns
         -------
@@ -118,10 +113,10 @@ class PhygnnCloudFill:
         cloud_type = feature_data['cloud_type']
         day_missing_ctype = day & (cloud_type < 0)
         mask = cloud_type < 0
-        day_mask = mask.all(axis=0)
-        if any(day_mask):
-            mask[:, day_mask] = False
-            cloud_type[:, day_mask] = 0
+        full_missing_ctype_mask = mask.all(axis=0)
+        if any(full_missing_ctype_mask):
+            mask[:, full_missing_ctype_mask] = False
+            cloud_type[:, full_missing_ctype_mask] = 0
 
         cloud_type[mask] = np.nan
         cloud_type = pd.DataFrame(cloud_type).interpolate(
@@ -156,14 +151,13 @@ class PhygnnCloudFill:
             pnan = 100 * np.isna(d).sum() / len(d)
             logger.debug('\t"{}" has {:.2f}% NaN values'.format(c, pnan))
 
-        if 'interp' in nan_option.lower():
-            logger.debug('Interpolating opd and reff')
-            for c, d in feature_data.items():
-                feature_data[c] = pd.DataFrame(d).interpolate(
-                    'nearest').ffill().bfill().values
+        logger.debug('Interpolating opd and reff')
+        for c, d in feature_data.items():
+            feature_data[c] = pd.DataFrame(d).interpolate(
+                'nearest').ffill().bfill().values
 
-            feature_data['cld_opd_dcomp'][~cloudy] = 0.0
-            feature_data['cld_reff_dcomp'][~cloudy] = 0.0
+        feature_data['cld_opd_dcomp'][~cloudy] = 0.0
+        feature_data['cld_reff_dcomp'][~cloudy] = 0.0
 
         assert ~any(feature_data['cloud_type'] < 0)
         assert ~any(np.isna(d) for d in feature_data.values())
@@ -339,7 +333,7 @@ class PhygnnCloudFill:
 
     @classmethod
     def fill(cls, model_path, h5_dir, day=None, filter_daylight=True,
-             filter_clear=True, sza_lim=89, nan_option='interp'):
+             filter_clear=True, sza_lim=89):
         """
         Fill cloud properties using phygnn predictions
 
@@ -347,22 +341,20 @@ class PhygnnCloudFill:
         ----------
         model_path : str
             Directory to load phygnn model from
-        h5_dir : str
-            Directory containing NSRDB .h5 files
-        day : str, optional
-            Date in YYYYMMDD format for day to be gap filled, by default None
+        h5_source : str
+            Path to directory containing multi-file resource file sets.
+            Available formats:
+                /h5_dir/
+                /h5_dir/prefix*suffix
         filter_daylight : bool, optional
             Flag to filter daylight timesteps, by default True
         filter_clear : bool, optional
             Flag to filter clear sky timesteps, by default True
         sza_lim : int, optional
             Solar zenith angle limit, by default 89
-        nan_option : str, optional
-            Method to handle nan values, by default 'interp'
         """
         p_fill = cls(model_path, h5_dir, day=day,
                      filter_daylight=filter_daylight,
                      filter_clear=filter_clear,
-                     sza_lim=sza_lim,
-                     nan_option=nan_option)
+                     sza_lim=sza_lim)
         p_fill.fill_cld_properties()
