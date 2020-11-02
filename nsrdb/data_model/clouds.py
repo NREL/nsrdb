@@ -1221,13 +1221,19 @@ class CloudVar(AncillaryVarHandler):
         else:
             ti_deltas = data_ti - np.roll(data_ti, 1)
             ti_deltas_minutes = ti_deltas.seconds / 60
-            ti_delta_minutes = int(statistics.mode(ti_deltas_minutes))
-            freq = '{}T'.format(ti_delta_minutes)
-            if len(flist) < 5:
-                w = ('File list contains less than 5 files. Inferred '
-                     'frequency of "{}", but may not be accurate'.format(freq))
-                logger.warning(w)
-                warn(w)
+
+            if len(flist) <= 3:
+                ti_delta_minutes = int(ti_deltas_minutes[0])
+                freq = '{}T'.format(ti_delta_minutes)
+            else:
+                ti_delta_minutes = int(statistics.mode(ti_deltas_minutes))
+                freq = '{}T'.format(ti_delta_minutes)
+                if len(flist) < 5:
+                    w = ('File list contains less than 5 files. Inferred '
+                         'frequency of "{}", but may not be accurate'
+                         .format(freq))
+                    logger.warning(w)
+                    warn(w)
 
         return freq
 

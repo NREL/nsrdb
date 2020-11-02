@@ -243,7 +243,7 @@ def data_model(ctx, doy, var_list, factory_kwargs,
 
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'data-model'
@@ -272,7 +272,7 @@ def cloud_fill(ctx, i_chunk, col_chunk):
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'cloud-fill'
@@ -301,7 +301,7 @@ def all_sky(ctx, i_chunk):
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'all-sky'
@@ -342,7 +342,7 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-data-model'
@@ -467,7 +467,7 @@ def collect_final(ctx, collect_dir, i_fname):
                        i_fname, log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
-    ctx.obj['IMPORT_STR'] = 'from nsrdb.main import NSRDB'
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-final'
