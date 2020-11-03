@@ -60,7 +60,7 @@ setup(
                       "click>=7.0",
                       "scipy>=1.3",
                       "pyhdf",
-                      "h5py>=2.9",
+                      "h5py!=3.0.0",
                       "scikit-learn>=0.21",
                       "netcdf4>=1.4",
                       "matplotlib>=3.1",
