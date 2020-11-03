@@ -117,14 +117,14 @@ def ti_to_radius(time_index, n_cols=1):
     # Merge JME with Periodic Table
     df_merge = pd.merge(df_jme, df, on='key')
     # 3.2.1 (9). Heliocentric radius vector.
-    df_merge['r'] = df_merge['a'] * np.cos(df_merge['b'] + df_merge['c'] *
-                                           df_merge['jme'])
+    df_merge['r'] = df_merge['a'] * np.cos(df_merge['b'] + df_merge['c']
+                                           * df_merge['jme'])
     # 3.2.2 (10).
     dfs = df_merge.groupby(by=['uid', 'term'])['r'].sum().unstack()
     # 3.2.4 (11). Earth Heliocentric radius vector
-    radius = ((dfs['R0'] + dfs['R1'] * j + dfs['R2'] * np.power(j, 2) +
-               dfs['R3'] * np.power(j, 3) + dfs['R4'] * np.power(j, 4) +
-               dfs['R5'] * np.power(j, 5)) / np.power(10, 8)).values
+    radius = ((dfs['R0'] + dfs['R1'] * j + dfs['R2'] * np.power(j, 2)
+               + dfs['R3'] * np.power(j, 3) + dfs['R4'] * np.power(j, 4)
+               + dfs['R5'] * np.power(j, 5)) / np.power(10, 8)).values
     radius = radius.reshape((len(time_index), 1))
     radius = np.tile(radius, n_cols)
     return radius
@@ -316,7 +316,8 @@ def dark_night(irrad_data, sza, lim=SZA_LIM):
 
 
 def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
-                      option='tri', random_seed=123):
+                      distribution='uniform', option='tri', tri_center=0.9,
+                      random_seed=123):
     """Add syntehtic variability to irradiance when it's cloudy.
 
     Parameters
@@ -328,7 +329,11 @@ def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
     cloud_type : np.ndarray
         Array of numerical cloud types.
     var_frac : float
-        Maximum variability fraction.
+        Maximum variability fraction (0.05 is 5% variability) or if
+        distribution is "normal" this is the maximum relative standard
+        deviation of the Variability.
+    distribution : str
+        Distribution shape of the Variability. Can be uniform or normal.
     option : str
         Variability function option ('tri' or 'linear').
     random_seed : int | NoneType
@@ -355,70 +360,178 @@ def cloud_variability(irrad, cs_irrad, cloud_type, var_frac=0.05,
         # Set the cloud/clear ratio to zero when it's nighttime
         csr[(cs_irrad == 0)] = 0
 
-        if option == 'linear':
-            var_frac_arr = linear_variability(csr, var_frac)
-        elif option == 'tri':
-            var_frac_arr = tri_variability(csr, var_frac)
+        if distribution == 'uniform':
+            variability_scalar = uniform_variability(csr, cloud_type, var_frac,
+                                                     option=option,
+                                                     tri_center=tri_center)
+        elif distribution == 'normal':
+            variability_scalar = normal_variability(csr, cloud_type, var_frac,
+                                                    option=option,
+                                                    tri_center=tri_center)
+        else:
+            raise ValueError('Did not recognize distribution: {}'
+                             .format(distribution))
 
-        # get a uniform random scalar array 0 to 1 with data shape
-        rand_arr = np.random.rand(irrad.shape[0], irrad.shape[1])
-        # Center the random array at 1 +/- var_perc_arr (with csr scaling)
-        rand_arr = 1 + var_frac_arr * (rand_arr * 2 - 1)
-
-        # only apply rand to the applicable cloudy timesteps
-        rand_arr = np.where(np.isin(cloud_type, CLOUD_TYPES), rand_arr, 1)
-        irrad *= rand_arr
+        irrad *= variability_scalar
 
     return irrad
 
 
-def linear_variability(csr, var_frac):
-    """Return an array with a linear relation between clearsky ratio and
-    maximum variability fraction.
+def uniform_variability(csr, cloud_type, var_frac, option='tri',
+                        tri_center=0.9):
+    """Get an array with uniform variability scalars centered at 1 that can be
+    multiplied by a irradiance array with the same shape as csr.
 
     Parameters
     ----------
     csr : np.ndarray
         REST2 clearsky irradiance without bad or missing data.
+        This is a 2D array with (time, sites).
+    cloud_type : np.ndarray
+        Array of numerical cloud types.
     var_frac : float
-        Maximum variability fraction.
+        Maximum variability fraction (0.05 is 5% variability).
+    option : str
+        Variability function option ('tri' or 'linear').
+    tri_center : float
+        Value of the clearsky ratio at which there is maximum variability
+        (only used for the triangular distribution).
+
+    Returns
+    -------
+    variability_scalar : np.ndarray
+        Array with shape matching csr with uniform random numbers centered at
+        1 with range (1 - var_frac) to (1 + var_frac). This array can be
+        multiplied by an irradiance array with the same shape as csr
+    """
+
+    if option == 'linear':
+        var_frac_arr = linear_variability(csr, var_frac)
+    elif option == 'tri':
+        var_frac_arr = tri_variability(csr, var_frac, tri_center=tri_center)
+    else:
+        raise ValueError('Did not recognize variability option: {}'
+                         .format(option))
+
+    # get a uniform random scalar array 0 to 1 with data shape
+    rand_arr = np.random.rand(csr.shape[0], csr.shape[1])
+
+    # Center the random array at 1 +/- var_frac_arr (with csr scaling)
+    variability_scalar = 1 + var_frac_arr * (rand_arr * 2 - 1)
+
+    # only apply rand to the applicable cloudy timesteps
+    variability_scalar = np.where(np.isin(cloud_type, CLOUD_TYPES),
+                                  variability_scalar, 1)
+
+    return variability_scalar
+
+
+def normal_variability(csr, cloud_type, var_frac, option='tri',
+                       tri_center=0.9):
+    """Get an array with a normal distribution of variability scalars centered
+    at 1 that can be multiplied by a irradiance array with the same shape as
+    csr.
+
+    Parameters
+    ----------
+    csr : np.ndarray
+        REST2 clearsky irradiance without bad or missing data.
+        This is a 2D array with (time, sites).
+    cloud_type : np.ndarray
+        Array of numerical cloud types.
+    var_frac : float
+        One relative standard deviation variability (0.05 is a relative
+        standard deviation of 5% variability).
+    option : str
+        Variability function option ('tri' or 'linear').
+    tri_center : float
+        Value of the clearsky ratio at which there is maximum variability
+        (only used for the triangular distribution).
+
+    Returns
+    -------
+    variability_scalar : np.ndarray
+        Array with shape matching csr with normally distributed random numbers
+        centered at 1 with range (1 - var_frac) to (1 + var_frac). This array
+        can be multiplied by an irradiance array with the same shape as csr
+    """
+
+    if option == 'linear':
+        var_frac_arr = linear_variability(csr, var_frac)
+    elif option == 'tri':
+        var_frac_arr = tri_variability(csr, var_frac, tri_center=tri_center)
+    else:
+        raise ValueError('Did not recognize variability option: {}'
+                         .format(option))
+
+    # get a normal distribution of data centered at 0 with stdev 1
+    rand_arr = np.random.normal(loc=0.0, scale=1.0, size=csr.shape)
+
+    # Center the random array at 1 +/- var_frac_arr (with csr scaling)
+    variability_scalar = 1 + var_frac_arr * rand_arr
+
+    # only apply rand to the applicable cloudy timesteps
+    variability_scalar = np.where(np.isin(cloud_type, CLOUD_TYPES),
+                                  variability_scalar, 1)
+
+    return variability_scalar
+
+
+def linear_variability(csr, var_frac):
+    """Return an array with a linear relation between clearsky ratio and
+    maximum variability fraction. Each value in the array is the maximum
+    variability fraction for the corresponding clearsky ratio.
+
+    Parameters
+    ----------
+    csr : np.ndarray
+        REST2 clearsky irradiance without bad or missing data.
+        This is a 2D array with (time, sites).
+    var_frac : float
+        Maximum variability fraction (0.05 is 5% variability).
 
     Returns
     -------
     out : np.ndarray
         Array with shape matching csr with maximum variability (var_frac)
-        when the csr = 1 (clear or thin clouds).
+        when the csr = 1 (clear or thin clouds). Each value in the array is
+        the maximum variability fraction for the corresponding clearsky ratio.
+
     """
 
     return var_frac * csr
 
 
-def tri_variability(csr, var_frac, center=0.9):
+def tri_variability(csr, var_frac, tri_center=0.9):
     """Return an array with a triangular distribution between clearsky ratio
-    and maximum variability fraction.
+    and maximum variability fraction. Each value in the array is
+    the maximum variability fraction for the corresponding clearsky ratio.
 
-    The max variability occurs when csr==center, and zero variability when
+
+    The max variability occurs when csr==tri_center, and zero variability when
     csr==0 or csr==1
 
     Parameters
     ----------
     csr : np.ndarray
         REST2 clearsky irradiance without bad or missing data.
+        This is a 2D array with (time, sites).
     var_frac : float
-        Maximum variability fraction.
-    center : float
+        Maximum variability fraction (0.05 is 5% variability).
+    tri_center : float
         Value of the clearsky ratio at which there is maximum variability.
 
     Returns
     -------
     tri : np.ndarray
         Array with shape matching csr with maximum variability (var_frac)
-        when the csr==center.
+        when the csr==tri_center. Each value in the array is the maximum
+        variability fraction for the corresponding clearsky ratio.
     """
 
     tri_left = var_frac * csr * 1.11111
-    slope = -1 / (1 - center)
-    yint = center * 10 + 1
+    slope = -1 / (1 - tri_center)
+    yint = tri_center * 10 + 1
     tri_right = var_frac * (slope * csr + yint)
-    tri = np.where(csr < center, tri_left, tri_right)
+    tri = np.where(csr < tri_center, tri_left, tri_right)
     return tri

@@ -46,7 +46,7 @@ ALL_SKY_ARGS = ('alpha',
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
             time_index, total_precipitable_water, cloud_fill_flag=None,
-            ghi_variability=None, scale_outputs=True):
+            variability_kwargs=None, scale_outputs=True):
     """Calculate the all-sky irradiance.
 
     Parameters
@@ -94,9 +94,10 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         None will create a new fill flag initialized as all zeros.
         An array input will be interpreted as flags showing which cloud
         properties have already been filled.
-    ghi_variability : NoneType | float
-        Variability fraction to apply to GHI. Provides synthetic variability
-        for cloudy irradiance when downscaling data.
+    variability_kwargs : NoneType | dict
+        Variability key word args to apply to GHI. Provides synthetic
+        variability for cloudy irradiance when downscaling data. See
+        nsrdb.all_sky.utilities.cloud_variability for kwarg definitions.
     scale_outputs : bool
         Flag to safely scale and dtype convert output arrays.
 
@@ -166,9 +167,9 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ghi = merge_rest_farms(rest_data.ghi, ghi, cloud_type)
 
     # option to add synthetic variability to cloudy ghi
-    if ghi_variability is not None:
+    if variability_kwargs is not None:
         ghi = cloud_variability(ghi, rest_data.ghi, cloud_type,
-                                var_frac=ghi_variability, option='tri')
+                                **variability_kwargs)
 
     # calculate the DNI using the DISC model
     dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,
