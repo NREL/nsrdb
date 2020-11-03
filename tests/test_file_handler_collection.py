@@ -52,6 +52,9 @@ def test_collect_daily(sites, max_workers):
     f_out = os.path.join(TESTDATADIR, 'temp_out/collected.h5')
     dsets = ['air_temperature', 'alpha']
 
+    if not os.path.exists(os.path.dirname(f_out)):
+        os.makedirs(os.path.dirname(f_out))
+
     if os.path.exists(f_out):
         os.remove(f_out)
 
@@ -83,6 +86,9 @@ def test_collect_lowmem():
              'nsrdb_ancillary_2018_1.h5']
     collect_dir = os.path.join(TESTDATADIR, 'data_model_annual_sample_output/')
     f_out = os.path.join(TESTDATADIR, 'temp_out/collected.h5')
+
+    if not os.path.exists(os.path.dirname(f_out)):
+        os.makedirs(os.path.dirname(f_out))
 
     dsets = ['surface_albedo', 'alpha', 'aod', 'surface_pressure']
     for dset in dsets:
