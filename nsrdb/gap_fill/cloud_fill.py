@@ -365,7 +365,8 @@ class CloudGapFill:
         return cloud_prop, fill_flag
 
     @classmethod
-    def fill_file(cls, f_cloud, rows=slice(None), cols=slice(None),
+    def fill_file(cls, f_cloud, f_ancillary,
+                  rows=slice(None), cols=slice(None),
                   col_chunk=None):
         """Gap fill cloud properties in an h5 file.
 
@@ -373,8 +374,10 @@ class CloudGapFill:
         ----------
         f_cloud : str
             File path to a cloud file with datasets 'cloud_type',
-            'solar_zenith_angle', 'fill_flag', and some cloud property
+            'cloud_fill_flag', and some cloud property
             dataset(s) with prefix 'cld_'.
+        f_ancillary : str
+            File path containing solar_zenith_angle
         rows : slice
             Subset of rows to gap fill.
         cols : slice
@@ -413,12 +416,14 @@ class CloudGapFill:
                 logger.debug('Patching cloud properties: {} through {}'
                              .format(i0, i1))
 
+            with Resource(f_ancillary) as f:
+                sza = f['solar_zenith_angle', rows, cols]
+
             with Resource(f_cloud) as f:
                 cloud_type = f['cloud_type', rows, cols]
-                sza = f['solar_zenith_angle', rows, cols]
                 fill_flag = None
-                if 'fill_flag' in dsets:
-                    fill_flag = f['fill_flag', rows, cols]
+                if 'cloud_fill_flag' in dsets:
+                    fill_flag = f['cloud_fill_flag', rows, cols]
 
             cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
                                                         fill_flag=fill_flag)
@@ -446,5 +451,5 @@ class CloudGapFill:
             with Outputs(f_cloud, mode='a') as f:
                 logger.debug('Writing fill flag to {}'
                              .format(os.path.basename(f_cloud)))
-                f['fill_flag', rows, cols] = fill_flag
+                f['cloud_fill_flag', rows, cols] = fill_flag
                 logger.debug('Write complete')

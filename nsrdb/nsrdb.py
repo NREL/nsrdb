@@ -17,6 +17,8 @@ import sys
 import shutil
 import time
 
+from rex import MultiFileResource
+
 from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
@@ -33,33 +35,32 @@ logger = logging.getLogger(__name__)
 class NSRDB:
     """Entry point for NSRDB data pipeline execution."""
 
-    OUTS = {'nsrdb_ancillary_{y}.h5': ('alpha',
-                                       'aod',
-                                       'asymmetry',
-                                       'ozone',
-                                       'ssa',
-                                       'surface_albedo',
-                                       'surface_pressure',
-                                       'total_precipitable_water'),
-            'nsrdb_sam_{y}.h5': ('dew_point',
-                                 'relative_humidity',
-                                 'air_temperature',
-                                 'surface_pressure',
-                                 'wind_direction',
-                                 'wind_speed'),
+    OUTS = {'nsrdb_ancillary_a_{y}.h5': ('alpha',
+                                         'aod',
+                                         'asymmetry',
+                                         'ssa'),
+            'nsrdb_ancillary_b_{y}.h5': ('ozone',
+                                         'solar_zenith_angle',
+                                         'surface_albedo',
+                                         'total_precipitable_water'),
+            'nsrdb_clearsky_{y}.h5': ('clearsky_dhi',
+                                      'clearsky_dni',
+                                      'clearsky_ghi'),
             'nsrdb_clouds_{y}.h5': ('cloud_type',
                                     'cld_opd_dcomp',
                                     'cld_reff_dcomp',
                                     'cld_press_acha',
-                                    'fill_flag',
-                                    'solar_zenith_angle'),
+                                    'cloud_fill_flag'),
+            'nsrdb_csp_{y}.h5': ('dew_point',
+                                 'relative_humidity',
+                                 'surface_pressure'),
             'nsrdb_irradiance_{y}.h5': ('dhi',
                                         'dni',
                                         'ghi',
-                                        'clearsky_dhi',
-                                        'clearsky_dni',
-                                        'clearsky_ghi',
-                                        'fill_flag')}
+                                        'fill_flag'),
+            'nsrdb_pv_{y}.h5': ('air_temperature',
+                                'wind_direction',
+                                'wind_speed')}
 
     def __init__(self, out_dir, year, grid, freq='5min', var_meta=None):
         """
@@ -541,10 +542,7 @@ class NSRDB:
         i_chunks : int
             Chunk index (indexing n_chunks) to run.
         i_fname : int
-            File name index from NSRDB.OUTS to run collection for:
-                0 - ancillary
-                1 - clouds
-                2 - sam vars
+            File name index from sorted NSRDB.OUTS keys to run collection for.
         freq : str
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame | None
@@ -570,7 +568,8 @@ class NSRDB:
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
         fnames = sorted(list(cls.OUTS.keys()))
-        fnames = [fn for fn in fnames if 'irradiance' not in fn]
+        fnames = [fn for fn in fnames if 'irradiance' not in fn
+                  and 'clear' not in fn]
 
         chunk = chunks[i_chunk]
         fname = fnames[i_fname]
@@ -762,12 +761,17 @@ class NSRDB:
         t0 = time.time()
         nsrdb = cls(out_dir, year, None, var_meta=var_meta)
 
-        fname = [fn for fn in nsrdb.OUTS if 'cloud' in fn][0].format(y=year)
-        f_cloud = os.path.join(nsrdb._collect_dir, fname)
+        fname_clouds = [fn for fn in nsrdb.OUTS
+                        if 'cloud' in fn][0].format(y=year)
+        fname_ancillary = [fn for fn in nsrdb.OUTS
+                           if 'ancillary_b' in fn][0].format(y=year)
+        f_cloud = os.path.join(nsrdb._collect_dir, fname_clouds)
         f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
+        f_ancillary = os.path.join(nsrdb._collect_dir, fname_ancillary)
+        f_ancillary = f_ancillary.replace('.h5', '_{}.h5'.format(i_chunk))
 
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
-        CloudGapFill.fill_file(f_cloud, rows=rows, cols=cols,
+        CloudGapFill.fill_file(f_cloud, f_ancillary, rows=rows, cols=cols,
                                col_chunk=col_chunk)
         logger.info('Finished cloud gap fill.')
 
@@ -828,6 +832,10 @@ class NSRDB:
                 f_out = os.path.join(nsrdb._collect_dir,
                                      fname.format(y=year))
                 irrad_dsets = dsets
+            elif 'clear' in fname:
+                f_out_cs = os.path.join(nsrdb._collect_dir,
+                                     fname.format(y=year))
+                cs_irrad_dsets = dsets
             elif 'ancil' in fname:
                 f_ancillary = os.path.join(nsrdb._collect_dir,
                                            fname.format(y=year))
@@ -835,30 +843,39 @@ class NSRDB:
                 f_cloud = os.path.join(nsrdb._collect_dir,
                                        fname.format(y=year))
 
+        f_source = os.path.join(nsrdb._collect_dir, 'nsrdb*{}.h5'.format(year))
+
         if i_chunk is not None:
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
-            f_ancillary = f_ancillary.replace('.h5', '_{}.h5'.format(i_chunk))
-            f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_out_cs = f_out_cs.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_source = f_source.replace('.h5', '_{}.h5'.format(i_chunk))
 
-        with Outputs(f_ancillary) as out:
-            meta = out.meta
-            time_index = out.time_index
+        with MultiFileResource(f_source) as source:
+            meta = source.meta
+            time_index = source.time_index.tz_convert(None)
 
         nsrdb._init_output_h5(f_out, irrad_dsets, time_index, meta)
+        nsrdb._init_output_h5(f_out_cs, cs_irrad_dsets, time_index, meta)
 
         if max_workers != 1:
-            out = all_sky_h5_parallel(f_ancillary, f_cloud, rows=rows,
-                                      cols=cols, max_workers=max_workers)
+            out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
+                                      max_workers=max_workers)
         else:
-            out = all_sky_h5(f_ancillary, f_cloud, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols)
 
-        logger.info('Finished all-sky. Writing results to: {}'.format(f_out))
-
+        logger.info('Finished all-sky. Writing to: {}'.format(f_out))
         with Outputs(f_out, mode='a') as f:
             for dset, arr in out.items():
-                f[dset, rows, cols] = arr
+                if dset in f.dsets:
+                    f[dset, rows, cols] = arr
 
-        logger.info('Finished writing results to: {}'.format(f_out))
+        logger.info('Finished all-sky. Writing to: {}'.format(f_out_cs))
+        with Outputs(f_out_cs, mode='a') as f:
+            for dset, arr in out.items():
+                if dset in f.dsets:
+                   f[dset, rows, cols] = arr
+
+        logger.info('Finished writing all-sky results.')
 
         if job_name is not None:
             runtime = (time.time() - t0) / 60

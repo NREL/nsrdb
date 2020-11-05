@@ -118,8 +118,9 @@ def config(ctx, config_file, command):
     elif command == 'collect-data-model':
         n_chunks = cmd_args['n_chunks']
         def_dir = os.path.join(direct_args['out_dir'], 'daily/')
+        n_files = len(NSRDB.OUTS) - 2  # all files minus irrad and clearsky
         for i_chunk in range(n_chunks):
-            for i_fname in range(3):
+            for i_fname in range(n_files):
                 ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
                 ctx.invoke(collect_data_model,
                            daily_dir=cmd_args.get('daily_dir', def_dir),
@@ -144,7 +145,8 @@ def config(ctx, config_file, command):
 
     elif command == 'collect-final':
         def_dir = os.path.join(direct_args['out_dir'], 'collect/')
-        for i_fname in range(4):
+        n_files = len(NSRDB.OUTS)
+        for i_fname in range(n_files):
             ctx.obj['NAME'] = name + '_{}'.format(i_fname)
             ctx.invoke(collect_final,
                        collect_dir=cmd_args.get('collect_dir', def_dir),
