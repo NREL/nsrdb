@@ -40,7 +40,7 @@ def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
 
 
 def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
-                   fill_flag=None):
+                   cloud_fill_flag=None):
     """Make a dataset indicating where to fill bad irradiance data.
 
     Parameters
@@ -53,7 +53,7 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
         Array of numerical cloud types.
     missing_cld_props : np.ndarray
         Boolean array flagging timesteps with missing cloud properties.
-    fill_flag : None | np.ndarray
+    cloud_fill_flag : None | np.ndarray
         Integer array of flags showing what data was previously filled and why.
         None will create a new fill flag initialized as all zeros.
         An array input will be interpreted as flags showing which cloud
@@ -77,8 +77,8 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
     # clearsky limit (fill flag 5) is filled in enforce_clearsky()
     new_fill_flag[np.isnan(irrad) | (irrad < 0)] = 6
 
-    if fill_flag is not None:
-        return np.where(new_fill_flag == 0, fill_flag, new_fill_flag)
+    if cloud_fill_flag is not None:
+        return np.where(new_fill_flag == 0, cloud_fill_flag, new_fill_flag)
     else:
         return new_fill_flag
 

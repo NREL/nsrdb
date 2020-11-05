@@ -3,13 +3,15 @@
 """
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import os
 import numpy as np
 import pandas as pd
 import psutil
 import logging
 from warnings import warn
 
-from nsrdb.file_handlers.resource import Resource
+from rex import MultiFileResource, Resource
+
 from nsrdb.all_sky.disc import disc
 from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
 from nsrdb.all_sky.farms import farms
@@ -26,9 +28,24 @@ from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
 logger = logging.getLogger(__name__)
 
 
+ALL_SKY_ARGS = ('alpha',
+                'aod',
+                'asymmetry',
+                'cloud_type',
+                'cld_opd_dcomp',
+                'cld_reff_dcomp',
+                'ozone',
+                'solar_zenith_angle',
+                'ssa',
+                'surface_albedo',
+                'surface_pressure',
+                'total_precipitable_water',
+                'cloud_fill_flag')
+
+
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
-            time_index, total_precipitable_water, fill_flag=None,
+            time_index, total_precipitable_water, cloud_fill_flag=None,
             ghi_variability=None, scale_outputs=True):
     """Calculate the all-sky irradiance.
 
@@ -72,7 +89,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         Time index.
     total_precipitable_water : np.ndarray
         Total precip. water (cm).
-    fill_flag : None | np.ndarray
+    cloud_fill_flag : None | np.ndarray
         Integer array of flags showing what data was previously filled and why.
         None will create a new fill flag initialized as all zeros.
         An array input will be interpreted as flags showing which cloud
@@ -102,8 +119,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # do not all-sky irradiance gap fill previously filled cloud props
     flags_to_fill = list(range(1, 7))
-    if fill_flag is not None:
-        already_filled = np.unique(fill_flag)
+    if cloud_fill_flag is not None:
+        already_filled = np.unique(cloud_fill_flag)
         flags_to_fill = list(set(flags_to_fill) - set(already_filled))
 
     # calculate derived variables
@@ -162,7 +179,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # make a fill flag where bad data exists in the GHI irradiance
     fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,
-                               fill_flag=fill_flag)
+                               cloud_fill_flag=cloud_fill_flag)
 
     # Gap fill bad data in ghi and dni using the fill flag and cloud type
     ghi = gap_fill_irrad(ghi, rest_data.ghi, fill_flag, return_csr=False,
@@ -206,15 +223,14 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     return output
 
 
-def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
+def all_sky_h5(f_source, rows=slice(None), cols=slice(None)):
     """Run all-sky from .h5 files.
 
     Parameters
     ----------
-    f_ancillary : str
-        File path to ancillary data file.
-    f_cloud : str
-        File path the cloud data file.
+    f_source : str
+        File path to source data file containing all sky inputs. Can be a
+        single h5 file or MultiFileResource with format: /dir/prefix*suffix.h5
     rows : slice
         Subset of rows to run.
     cols : slice
@@ -234,25 +250,18 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
             'fill_flag'
     """
 
+    if os.path.exists(f_source):
+        Handler = Resource
+    else:
+        Handler = MultiFileResource
+
+    with Handler(f_source) as source:
+        all_sky_input = {dset: source[dset, rows, cols]
+                         for dset in ALL_SKY_ARGS}
+        all_sky_input['time_index'] = source.time_index[rows].tz_convert(None)
+
     try:
-        with Resource(f_ancillary) as fa:
-            with Resource(f_cloud) as fc:
-                out = all_sky(
-                    alpha=fa['alpha', rows, cols],
-                    aod=fa['aod', rows, cols],
-                    asymmetry=fa['asymmetry', rows, cols],
-                    cloud_type=fc['cloud_type', rows, cols],
-                    cld_opd_dcomp=fc['cld_opd_dcomp', rows, cols],
-                    cld_reff_dcomp=fc['cld_reff_dcomp', rows, cols],
-                    ozone=fa['ozone', rows, cols],
-                    solar_zenith_angle=fc['solar_zenith_angle', rows, cols],
-                    ssa=fa['ssa', rows, cols],
-                    surface_albedo=fa['surface_albedo', rows, cols],
-                    surface_pressure=fa['surface_pressure', rows, cols],
-                    time_index=fc.time_index[rows],
-                    total_precipitable_water=fa['total_precipitable_water',
-                                                rows, cols],
-                    fill_flag=fc['cloud_fill_flag', rows, cols])
+        out = all_sky(**all_sky_input)
     except Exception as e:
         logger.exception('All-Sky failed!')
         raise e
@@ -260,16 +269,15 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
     return out
 
 
-def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
-                        cols=slice(None), col_chunk=10, max_workers=None):
+def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
+                        col_chunk=10, max_workers=None):
     """Run all-sky from .h5 files.
 
     Parameters
     ----------
-    f_ancillary : str
-        File path to ancillary data file.
-    f_cloud : str
-        File path the cloud data file.
+    f_source : str
+        File path to source data file containing all sky inputs. Can be a
+        single h5 file or MultiFileResource with format: /dir/prefix*suffix.h5
     rows : slice
         Subset of rows to run.
     cols : slice
@@ -295,18 +303,31 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
             'fill_flag'
     """
 
+    if os.path.exists(f_source):
+        Handler = Resource
+    else:
+        Handler = MultiFileResource
+
+    with Handler(f_source) as res:
+        data_shape = res.shape
+        missing = [arg not in res.dsets for arg in ALL_SKY_ARGS]
+        if any(missing):
+            msg = ('Cannot run all_sky, missing datasets {} from source: {}'
+                   .format(missing, f_source))
+            logger.error(msg)
+            raise KeyError(msg)
+
     if rows.start is None:
         rows = slice(0, rows.stop)
     if rows.stop is None:
-        with Resource(f_cloud) as res:
-            rows = slice(rows.start, res.shape[0])
-    logger.info('Running all-sky for rows: {}'.format(rows))
+        rows = slice(rows.start, data_shape[0])
 
     if cols.start is None:
         cols = slice(0, cols.stop)
     if cols.stop is None:
-        with Resource(f_cloud) as res:
-            cols = slice(cols.start, res.shape[1])
+        cols = slice(cols.start, data_shape[1])
+
+    logger.info('Running all-sky for rows: {}'.format(rows))
     logger.info('Running all-sky for cols: {}'.format(cols))
 
     out_shape = (rows.stop - rows.start, cols.stop - cols.start)
@@ -323,9 +344,8 @@ def all_sky_h5_parallel(f_ancillary, f_cloud, rows=slice(None),
                 .format(max_workers))
 
     with ProcessPoolExecutor(max_workers=max_workers) as exe:
-
-        futures = {exe.submit(all_sky_h5, f_ancillary, f_cloud,
-                   rows=rows, cols=c_slices_all[c]): c for c in c_range}
+        futures = {exe.submit(all_sky_h5, f_source, rows=rows,
+                              cols=c_slices_all[c]): c for c in c_range}
 
         for future in as_completed(futures):
 
