@@ -446,5 +446,5 @@ class CloudGapFill:
             with Outputs(f_cloud, mode='a') as f:
                 logger.debug('Writing fill flag to {}'
                              .format(os.path.basename(f_cloud)))
-                f['fill_flag', rows, cols] = fill_flag
+                f['cloud_fill_flag', rows, cols] = fill_flag
                 logger.debug('Write complete')

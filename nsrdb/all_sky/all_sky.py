@@ -252,7 +252,7 @@ def all_sky_h5(f_ancillary, f_cloud, rows=slice(None), cols=slice(None)):
                     time_index=fc.time_index[rows],
                     total_precipitable_water=fa['total_precipitable_water',
                                                 rows, cols],
-                    fill_flag=fc['fill_flag', rows, cols])
+                    fill_flag=fc['cloud_fill_flag', rows, cols])
     except Exception as e:
         logger.exception('All-Sky failed!')
         raise e
