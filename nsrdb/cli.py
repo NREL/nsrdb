@@ -145,7 +145,7 @@ def config(ctx, config_file, command):
 
     elif command == 'collect-final':
         def_dir = os.path.join(direct_args['out_dir'], 'collect/')
-        n_files = len(NSRDB.OUTS) - 1
+        n_files = len(NSRDB.OUTS)
         for i_fname in range(n_files):
             ctx.obj['NAME'] = name + '_{}'.format(i_fname)
             ctx.invoke(collect_final,
