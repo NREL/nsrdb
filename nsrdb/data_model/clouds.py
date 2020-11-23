@@ -253,6 +253,14 @@ class CloudVarSingleH5(CloudVarSingle):
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
+    @property
+    def dsets(self):
+        """Get a list of the available datasets in the cloud file."""
+        with h5py.File(self._fpath, 'r') as f:
+            out = list(f)
+
+        return out
+
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
                     adjust_coords=False):
@@ -494,6 +502,14 @@ class CloudVarSingleNC(CloudVarSingle):
                          dsets=dsets)
         self._grid, self._sparse_mask = self._parse_grid(
             self._fpath, adjust_coords=adjust_coords)
+
+    @property
+    def dsets(self):
+        """Get a list of the available datasets in the cloud file."""
+        with netCDF4.Dataset(self._fpath, 'r') as f:
+            out = list(f.variables.keys())
+
+        return out
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
