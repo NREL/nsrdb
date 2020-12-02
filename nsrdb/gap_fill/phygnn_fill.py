@@ -2,7 +2,6 @@
 """
 Cloud Properties filling using phgynn
 """
-import h5py
 import logging
 import numpy as np
 import pandas as pd
@@ -11,6 +10,8 @@ import shutil
 import time
 
 from nsrdb.all_sky import ICE_TYPES, WATER_TYPES
+from nsrdb.gap_fill.cloud_fill import CloudGapFill
+from nsrdb.file_handlers.outputs import Outputs
 from phgynn import PhygnnModel, PreProcess
 from rex import MultiFileNSRDB
 
@@ -21,8 +22,7 @@ class PhygnnCloudFill:
     """
     Use phygnn to fill missing cloud data
     """
-    def __init__(self, model_path, h5_source, filter_daylight=True,
-                 filter_clear=True, sza_lim=89):
+    def __init__(self, model_path, h5_source):
         """
         Parameters
         ----------
@@ -33,20 +33,11 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
-        filter_daylight : bool, optional
-            Flag to filter daylight timesteps, by default True
-        filter_clear : bool, optional
-            Flag to filter clear sky timesteps, by default True
-        sza_lim : int, optional
-            Solar zenith angle limit, by default 89
         """
+
+        self._dset_map = None
+        self._h5_source = h5_source
         self._phygnn_model = PhygnnModel.load(model_path)
-        feature_data, self._dset_map = self._parse_data(h5_source)
-        self._feature_data = self._clean_feature_data(
-            feature_data,
-            filter_daylight=filter_daylight,
-            filter_clear=filter_clear,
-            sza_lim=sza_lim)
 
     @property
     def phygnn_model(self):
@@ -60,6 +51,20 @@ class PhygnnCloudFill:
         return self._phygnn_model
 
     @property
+    def h5_source(self):
+        """
+        Path to directory containing multi-file resource file sets.
+        Available formats:
+            /h5_dir/
+            /h5_dir/prefix*suffix
+
+        Returns
+        -------
+        str
+        """
+        return self._h5_source
+
+    @property
     def dset_map(self):
         """
         Mapping of datasets to .h5 files
@@ -68,44 +73,61 @@ class PhygnnCloudFill:
         -------
         dict
         """
+        if self._dset_map is None:
+            with MultiFileNSRDB(self.h5_source) as res:
+                self._dset_map = res.h5._dset_map
+
         return self._dset_map
 
-    @property
-    def feature_data(self):
+    def parse_feature_data(self, feature_data=None):
         """
-        Feature data arrays
+        Parse raw feature data from .h5 files (will have gaps!)
+
+        Parameters
+        ----------
+        feature_data : dict | None
+            Pre-loaded feature data to add to (optional). Keys are the feature
+            names (nsrdb dataset names), values are 2D numpy arrays
+            (time x sites). Any dsets already in this input won't be re-read.
 
         Returns
         -------
-        dict
+        feature_data : dict
+            Raw feature data with gaps. keys are the feature names (nsrdb
+            dataset names), values are 2D numpy arrays (time x sites).
         """
-        return self._feature_data
+        if feature_data is None:
+            feature_data = {}
+
+        with MultiFileNSRDB(self.h5_source) as res:
+            for dset in self._phygnn_model.feature_names:
+                if dset not in feature_data:
+                    logger.debug('Loading {} data'.format(dset))
+                    feature_data[dset] = res[dset]
+
+        return feature_data
 
     @staticmethod
-    def _clean_feature_data(feature_raw, filter_daylight=True,
-                            filter_clear=True, add_feature_flag=True,
-                            sza_lim=89):
+    def clean_feature_data(feature_raw, sza_lim=90):
         """
         Clean feature data
 
         Parameters
         ----------
         feature_raw : dict
-            Dictionary of feature data arrays
-        filter_daylight : bool, optional
-            Flag to filter daylight timesteps, by default True
-        filter_clear : bool, optional
-            Flag to filter clear sky timesteps, by default True
-        add_feature_flag : bool, optional
-            Flag to add cloud type flag dataset, by default True
+            Raw feature data with gaps. keys are the feature names (nsrdb
+            dataset names), values are 2D numpy arrays (time x sites).
         sza_lim : int, optional
-            Solar zenith angle limit, by default 89
+            Solar zenith angle limit below which missing cloud property data
+            will be gap filled. By default 90 to fill all missing daylight data
 
         Returns
         -------
-        feature_data : ndarray
-            Clean feature data
+        feature_data : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
         """
+
         t0 = time.time()
         feature_data = feature_raw.copy()
         day = (feature_data['solar_zenith_angle'] < sza_lim)
@@ -118,10 +140,11 @@ class PhygnnCloudFill:
             mask[:, full_missing_ctype_mask] = False
             cloud_type[:, full_missing_ctype_mask] = 0
 
-        cloud_type[mask] = np.nan
-        cloud_type = pd.DataFrame(cloud_type).interpolate(
-            'nearest').ffill().bfill().values
-        feature_data['cloud_type'] = cloud_type
+        if any(mask):
+            cloud_type[mask] = np.nan
+            cloud_type = pd.DataFrame(cloud_type).interpolate(
+                'nearest').ffill().bfill().values
+            feature_data['cloud_type'] = cloud_type
 
         cloudy = np.isin(cloud_type, ICE_TYPES + WATER_TYPES)
         day_clouds = day & cloudy
@@ -148,7 +171,7 @@ class PhygnnCloudFill:
 
         logger.debug('Column NaN values:')
         for c, d in feature_data.items():
-            pnan = 100 * np.isna(d).sum() / len(d)
+            pnan = 100 * np.isna(d).sum() / (d.shape[0] * d.shape[1])
             logger.debug('\t"{}" has {:.2f}% NaN values'.format(c, pnan))
 
         logger.debug('Interpolating opd and reff')
@@ -162,70 +185,31 @@ class PhygnnCloudFill:
         assert ~any(feature_data['cloud_type'] < 0)
         assert ~any(np.isna(d) for d in feature_data.values())
         assert ~any(cloudy & (feature_data['cld_opd_dcomp'] <= 0))
+        assert ~any(cloudy & (feature_data['cld_reff_dcomp'] <= 0))
 
-        if add_feature_flag:
-            logger.debug('Adding feature flag')
-            ice_clouds = feature_data['cloud_type'].isin(ICE_TYPES)
-            water_clouds = feature_data['cloud_type'].isin(WATER_TYPES)
-            flag = np.full(ice_clouds.shape, 'night')
-            flag[day] = 'clear'
-            flag[ice_clouds] = 'ice_cloud'
-            flag[water_clouds] = 'water_cloud'
-            flag[day_missing_ctype] = 'bad_cloud'
-            flag[day_missing_opd] = 'bad_cloud'
-            flag[day_missing_reff] = 'bad_cloud'
-            feature_data['flag'] = flag
+        logger.debug('Adding feature flag')
+        ice_clouds = feature_data['cloud_type'].isin(ICE_TYPES)
+        water_clouds = feature_data['cloud_type'].isin(WATER_TYPES)
+        flag = np.full(ice_clouds.shape, 'night')
+        flag[day] = 'clear'
+        flag[ice_clouds] = 'ice_cloud'
+        flag[water_clouds] = 'water_cloud'
+        flag[day_missing_ctype] = 'bad_cloud'
+        flag[day_missing_opd] = 'bad_cloud'
+        flag[day_missing_reff] = 'bad_cloud'
+        feature_data['flag'] = flag
 
-        mask = np.full(day.shape, True)
-        if filter_daylight:
-            mask &= day
-
-        if filter_clear:
-            mask &= cloudy
-
-        if filter_daylight or filter_clear:
-            logger.info('Data reduced from '
-                        '{} rows to {} after filters ({:.2f}% of original)'
-                        .format(len(mask), mask.sum(),
-                                100 * mask.sum() / len(feature_data)))
-            for c, d in feature_data.items():
-                feature_data[c] = d[mask]
-
+        logger.debug('Cleaned feature data dict has these keys: {}'
+                     .format(feature_data.keys()))
+        logger.debug('Cleaned feature data dict values have these shapes: {}'
+                     .format([d.shape for d in feature_data.values()]))
         logger.debug('Feature flag column has these values: {}'
                      .format(np.unique(feature_data['flag'])))
         logger.info('Cleaning took {:.1f} seconds'.format(time.time() - t0))
 
         return feature_data
 
-    def _parse_data(self, h5_source):
-        """
-        Parse feature data from .h5 files
-
-        Parameters
-        ----------
-        h5_source : str
-            Path to directory containing multi-file resource file sets.
-            Available formats:
-                /h5_dir/
-                /h5_dir/prefix*suffix
-
-        Returns
-        -------
-        feature_data : dict
-            Dictionary of feature data arrays
-        dset_map : dict
-            Mapping of datasets to source .h5 files
-        """
-        with MultiFileNSRDB(h5_source) as res:
-            dset_map = res.h5._dset_map
-            feature_data = {}
-            for dset in self._phygnn_model.feature_names:
-                logger.debug('Loading {} data'.format(dset))
-                feature_data[dset] = res[dset]
-
-            return feature_data, dset_map
-
-    def _archive_cld_properties(self):
+    def archive_cld_properties(self):
         """
         Archive original cloud property (cld_*) .h5 files
         """
@@ -249,30 +233,40 @@ class PhygnnCloudFill:
                              .format(src_fpath, dst_fpath))
                 shutil.copy(src_fpath, dst_fpath + '.tmp')
 
-    def _predict_cld_properties(self):
+    def _predict_cld_properties(self, feature_data):
         """
         Predict cloud properties with phygnn
+
+        Parameters
+        ----------
+        feature_data : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
 
         Returns
         -------
         predicted_data : dict
-            Dictionary of predicted cloud properties
+            Dictionary of predicted cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays of phygnn-predicted values
+            (time x sites).
         """
-        shape = (self.feature_data['flag'].size,
+        shape = (feature_data['flag'].size,
                  self.phygnn_model.feature_dims)
         features = np.full(shape, np.nan, dtype=np.float32)
         logger.debug('Feature data shape: {}'.format(shape))
         for i, dset in enumerate(self.phygnn_model.feature_names):
-            data = self.feature_data[dset].flatten(order='F')
+            data = feature_data[dset].flatten(order='F')
             data = PreProcess.one_hot(data, convert_int=False, categories=None,
                                       return_ind=False)
             features[:, i] = data
 
+        logger.info('Predicting gap filled cloud data...')
         labels = self.phygnn_model.predict(features,
                                            table=False)
+        logger.info('Prediction complete.')
         logger.debug('Label data shape: {}'.format(labels.shape))
 
-        shape = self.feature_data['flag'].shape
+        shape = feature_data['flag'].shape
         predicted_data = {}
         for i, dset in enumerate(self.phygnn_model.label_names):
             logger.debug('Reshaping predicted {} to {}'
@@ -281,49 +275,66 @@ class PhygnnCloudFill:
 
         return predicted_data
 
-    def _fill_bad_cld_properties(self, predicted_data):
+    @staticmethod
+    def _fill_bad_cld_properties(predicted_data, feature_data):
         """
         Fill bad cloud properties from predicted data
 
         Parameters
         ----------
         predicted_data : dict
-            Dictionary of phygnn predicted cloud properties
+            Dictionary of predicted cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays of phygnn-predicted values
+            (time x sites).
+        feature_data : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
 
         Returns
         -------
         filled_data : dict
-            Dictionary of filled cld property data
+            Dictionary of filled cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays of phygnn-predicted values
+            (time x sites). The filled data is a combination of the input
+            predicted_data and feature_data. The datasets in the predicted_data
+            input are used to fill the feature_data input where:
+            (feature_data['flag'] == "bad_cloud")
         """
-        mask = self.feature_data['flag'] == 'bad_cloud'
+        mask = feature_data['flag'] == 'bad_cloud'
         logger.debug('Filling {} values using phygnn predictions'
                      .format(np.sum(mask)))
         filled_data = {}
         for dset, arr in predicted_data.items():
             logger.debug('Filling {} data'.format(dset))
-            cld_data = self.feature_data[dset]
+            cld_data = feature_data[dset]
             cld_data[mask] = arr[mask]
             filled_data[dset] = cld_data
 
         return filled_data
 
-    def fill_cld_properties(self):
+    def fill_cld_properties(self, feature_data):
         """
         Fill bad cloud properties using phygnn predicitons and save to disc
-        in original files. Original files will be archived to a new "raw/"
-        sub-directory
+        in original files.
+
+        Parameters
+        ----------
+        feature_data : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
         """
         logger.info('Filling bad cloud properties using phygnn predicitons')
-        self._archive_cld_properties()
-        filled_data = \
-            self._fill_bad_cld_properties(self._predict_cld_properties())
+        predicted_data = self._predict_cld_properties(feature_data)
+        filled_data = self._fill_bad_cld_properties(predicted_data,
+                                                    feature_data)
 
         for dset, arr in filled_data.items():
             fpath = self.dset_map[dset]
-            logger.info('Updating {} data in {} with gap-filled data'
-                        .format(dset, fpath))
-            with h5py.File(fpath, mode='a') as f:
-                f[dset][...] = arr
+            with Outputs(fpath, mode='a') as f:
+                logger.info('Writing filled "{}" to: {}'
+                            .format(dset, os.path.basename(fpath)))
+                f[dset] = arr
+                logger.debug('Finished writing "{}".'.format(dset))
 
             src_dir, f_name = os.path.split(fpath)
             raw_path = os.path.join(src_dir, 'raw', f_name)
@@ -331,11 +342,83 @@ class PhygnnCloudFill:
                          .format(raw_path))
             os.rename(raw_path + '.tmp', raw_path)
 
-    @classmethod
-    def fill(cls, model_path, h5_dir, day=None, filter_daylight=True,
-             filter_clear=True, sza_lim=89):
+        logger.info('Cloud gap fill with phygnn is complete.')
+
+    def fill_ctype_press(self, h5_source):
+        """Fill cloud type and pressure using simple NN.
+
+        Parameters
+        ----------
+        h5_source : str
+            Path to directory containing multi-file resource file sets.
+            Available formats:
+                /h5_dir/
+                /h5_dir/prefix*suffix
+
+        Returns
+        -------
+        cloud_type : np.ndarray
+            2D array (time x sites) of gap-filled cloud type data.
+        cloud_pres : np.ndarray
+            2D array (time x sites) of gap-filled cld_press_acha data.
+        sza : np.ndarray
+            2D array (time x sites) of solar zenith angle data.
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         """
-        Fill cloud properties using phygnn predictions
+
+        fill_flag = None
+        with MultiFileNSRDB(h5_source) as f:
+            cloud_type = f['cloud_type']
+            cloud_pres = f['cld_press_acha']
+            sza = f['solar_zenith_angle']
+
+        cloud_type, fill_flag = CloudGapFill.fill_cloud_type(
+            cloud_type, fill_flag=fill_flag)
+
+        cloud_pres, fill_flag = CloudGapFill.fill_cloud_prop(
+            'cld_press_acha', cloud_pres, cloud_type, sza, fill_flag=fill_flag)
+
+        iter_dict = {'cloud_type': cloud_type, 'cld_press_acha': cloud_pres}
+        for dset, data in iter_dict.items():
+            fpath = self._dset_map[dset]
+            with Outputs(fpath, mode='a') as f:
+                logger.info('Writing filled "{}" to: {}'
+                            .format(dset, os.path.basename(fpath)))
+                f[dset] = data
+                logger.debug('Finished writing "{}".'.format(dset))
+
+        return cloud_type, cloud_pres, sza, fill_flag
+
+    def _run(self, sza_lim=90):
+        """
+        Fill cloud properties using phygnn predictions. Original files will be
+        archived to a new "raw/" sub-directory
+
+        Parameters
+        ----------
+        sza_lim : int, optional
+            Solar zenith angle limit below which missing cloud property data
+            will be gap filled. By default 90 to fill all missing daylight data
+        """
+        self.archive_cld_properties()
+        ctype, cpres, sza, fill_flag = self.fill_ctype_press(self.h5_source)
+        feature_data = {'cloud_type': ctype,
+                        'cld_press_acha': cpres,
+                        'solar_zenith_angle': sza}
+        feature_data = self.parse_feature_data(feature_data=feature_data)
+
+        feature_data = self.clean_feature_data(feature_data, sza_lim=sza_lim)
+
+        self.fill_cld_properties(feature_data)
+
+        return fill_flag
+
+    @classmethod
+    def run(cls, model_path, h5_source, sza_lim=90):
+        """
+        Fill cloud properties using phygnn predictions. Original files will be
+        archived to a new "raw/" sub-directory
 
         Parameters
         ----------
@@ -346,15 +429,9 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
-        filter_daylight : bool, optional
-            Flag to filter daylight timesteps, by default True
-        filter_clear : bool, optional
-            Flag to filter clear sky timesteps, by default True
         sza_lim : int, optional
-            Solar zenith angle limit, by default 89
+            Solar zenith angle limit below which missing cloud property data
+            will be gap filled. By default 90 to fill all missing daylight data
         """
-        p_fill = cls(model_path, h5_dir, day=day,
-                     filter_daylight=filter_daylight,
-                     filter_clear=filter_clear,
-                     sza_lim=sza_lim)
-        p_fill.fill_cld_properties()
+        obj = cls(model_path, h5_source)
+        obj._run(sza_lim=sza_lim)
