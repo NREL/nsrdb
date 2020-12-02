@@ -8,11 +8,12 @@ import pandas as pd
 import os
 import shutil
 import time
+from warnings import warn
 
 from nsrdb.all_sky import ICE_TYPES, WATER_TYPES
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
-from phgynn import PhygnnModel, PreProcess
+from phygnn import PhygnnModel
 from rex import MultiFileNSRDB
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,10 @@ class PhygnnCloudFill:
     """
     Use phygnn to fill missing cloud data
     """
+
+    VALID_RANGES = {'cld_opd_dcomp': (0, 160),
+                    'cld_reff_dcomp': (0, 160)}
+
     def __init__(self, model_path, h5_source):
         """
         Parameters
@@ -96,12 +101,17 @@ class PhygnnCloudFill:
             Raw feature data with gaps. keys are the feature names (nsrdb
             dataset names), values are 2D numpy arrays (time x sites).
         """
+
+        logger.info('Loading feature data.')
         if feature_data is None:
             feature_data = {}
 
+        dsets = (self._phygnn_model.feature_names
+                 + self._phygnn_model.label_names)
+
         with MultiFileNSRDB(self.h5_source) as res:
-            for dset in self._phygnn_model.feature_names:
-                if dset not in feature_data:
+            for dset in dsets:
+                if dset not in feature_data and dset in res.dsets:
                     logger.debug('Loading {} data'.format(dset))
                     feature_data[dset] = res[dset]
 
@@ -137,10 +147,18 @@ class PhygnnCloudFill:
         mask = cloud_type < 0
         full_missing_ctype_mask = mask.all(axis=0)
         if any(full_missing_ctype_mask):
+            msg = ('Some sites ({} out of {}) have full timeseries of missing '
+                   'cloud type!'
+                   .format(full_missing_ctype_mask, mask.shape[1]))
+            warn(msg)
+            logger.warning(msg)
             mask[:, full_missing_ctype_mask] = False
             cloud_type[:, full_missing_ctype_mask] = 0
 
-        if any(mask):
+        if mask.any():
+            logger.info('There are {} missing cloud type observations '
+                        'out of {}. Interpolating with Nearest Neighbor.'
+                        .format(mask.sum(), mask.shape[0] * mask.shape[1]))
             cloud_type[mask] = np.nan
             cloud_type = pd.DataFrame(cloud_type).interpolate(
                 'nearest').ffill().bfill().values
@@ -157,7 +175,7 @@ class PhygnnCloudFill:
         feature_data['cld_reff_dcomp'][mask] = np.nan
 
         logger.info('{:.2f}% of timesteps are daylight'
-                    .format(100 * day.sum() / len(day)))
+                    .format(100 * day.sum() / (day.shape[0] * day.shape[1])))
         logger.info('{:.2f}% of daylight timesteps are cloudy'
                     .format(100 * day_clouds.sum() / day.sum()))
         logger.info('{:.2f}% of daylight timesteps are missing cloud type'
@@ -171,7 +189,7 @@ class PhygnnCloudFill:
 
         logger.debug('Column NaN values:')
         for c, d in feature_data.items():
-            pnan = 100 * np.isna(d).sum() / (d.shape[0] * d.shape[1])
+            pnan = 100 * np.isnan(d).sum() / (d.shape[0] * d.shape[1])
             logger.debug('\t"{}" has {:.2f}% NaN values'.format(c, pnan))
 
         logger.debug('Interpolating opd and reff')
@@ -182,15 +200,15 @@ class PhygnnCloudFill:
         feature_data['cld_opd_dcomp'][~cloudy] = 0.0
         feature_data['cld_reff_dcomp'][~cloudy] = 0.0
 
-        assert ~any(feature_data['cloud_type'] < 0)
-        assert ~any(np.isna(d) for d in feature_data.values())
-        assert ~any(cloudy & (feature_data['cld_opd_dcomp'] <= 0))
-        assert ~any(cloudy & (feature_data['cld_reff_dcomp'] <= 0))
+        assert ~(feature_data['cloud_type'] < 0).any()
+        assert ~any([np.isnan(d).any() for d in feature_data.values()])
+        assert ~(cloudy & (feature_data['cld_opd_dcomp'] <= 0)).any()
+        assert ~(cloudy & (feature_data['cld_reff_dcomp'] <= 0)).any()
 
         logger.debug('Adding feature flag')
-        ice_clouds = feature_data['cloud_type'].isin(ICE_TYPES)
-        water_clouds = feature_data['cloud_type'].isin(WATER_TYPES)
-        flag = np.full(ice_clouds.shape, 'night')
+        ice_clouds = np.isin(feature_data['cloud_type'], ICE_TYPES)
+        water_clouds = np.isin(feature_data['cloud_type'], WATER_TYPES)
+        flag = np.full(ice_clouds.shape, 'night', dtype=object)
         flag[day] = 'clear'
         flag[ice_clouds] = 'ice_cloud'
         flag[water_clouds] = 'water_cloud'
@@ -198,6 +216,8 @@ class PhygnnCloudFill:
         flag[day_missing_opd] = 'bad_cloud'
         flag[day_missing_reff] = 'bad_cloud'
         feature_data['flag'] = flag
+        logger.debug('Created the "flag" dataset with the following unique '
+                     'values: {}'.format(np.unique(flag)))
 
         logger.debug('Cleaned feature data dict has these keys: {}'
                      .format(feature_data.keys()))
@@ -211,7 +231,10 @@ class PhygnnCloudFill:
 
     def archive_cld_properties(self):
         """
-        Archive original cloud property (cld_*) .h5 files
+        Archive original cloud property (cld_*) .h5 files. This method creates
+        .tmp files in a ./raw/ sub directory. mark_complete_archived_files()
+        should be run at the end to remove the .tmp designation. This will
+        signify that the cloud fill was completed successfully.
         """
         cld_dsets = ['cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
                      'cloud_type']
@@ -224,14 +247,34 @@ class PhygnnCloudFill:
 
             dst_fpath = os.path.join(dst_dir, f_name)
             if os.path.exists(dst_fpath):
-                msg = ("{} already exists, this suggests gap fill "
-                       "has already been run!")
+                msg = ("A raw cloud file already exists, this suggests "
+                       "phygnn gap fill has already been run: {}"
+                       .format(dst_fpath))
                 logger.error(msg)
                 raise RuntimeError(msg)
             else:
                 logger.debug('Archiving {} to {}'
-                             .format(src_fpath, dst_fpath))
+                             .format(src_fpath, dst_fpath + '.tmp'))
                 shutil.copy(src_fpath, dst_fpath + '.tmp')
+
+    def mark_complete_archived_files(self):
+        """Remove the .tmp marker from the archived files once PhygnnCloudFill
+        is complete"""
+        cld_dsets = ['cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
+                     'cloud_type']
+        for dset in cld_dsets:
+            fpath = self.dset_map[dset]
+            src_dir, f_name = os.path.split(fpath)
+            raw_path = os.path.join(src_dir, 'raw', f_name)
+            logger.debug('Renaming .tmp raw file to {}'.format(raw_path))
+            if os.path.exists(raw_path + '.tmp'):
+                os.rename(raw_path + '.tmp', raw_path)
+            else:
+                msg = ('Something went wrong. The .tmp file created at the '
+                       'beginning of PhygnnCloudFill no longer exists: {}'
+                       .format(raw_path + '.tmp'))
+                logger.error(msg)
+                raise FileNotFoundError(msg)
 
     def _predict_cld_properties(self, feature_data):
         """
@@ -250,18 +293,25 @@ class PhygnnCloudFill:
             names, values are 2D arrays of phygnn-predicted values
             (time x sites).
         """
-        shape = (feature_data['flag'].size,
-                 self.phygnn_model.feature_dims)
-        features = np.full(shape, np.nan, dtype=np.float32)
-        logger.debug('Feature data shape: {}'.format(shape))
-        for i, dset in enumerate(self.phygnn_model.feature_names):
-            data = feature_data[dset].flatten(order='F')
-            data = PreProcess.one_hot(data, convert_int=False, categories=None,
-                                      return_ind=False)
-            features[:, i] = data
+
+        L = feature_data['flag'].shape[0] * feature_data['flag'].shape[1]
+        cols = [k for k in feature_data.keys()
+                if k in self.phygnn_model.feature_names
+                or k == 'flag']
+        feature_df = pd.DataFrame(index=np.arange(L), columns=cols)
+        for dset, arr in feature_data.items():
+            if dset in feature_df:
+                feature_df[dset] = arr.flatten(order='F')
+
+        # Predict on night timesteps as if they were clear
+        # the phygnn model wont be trained with the night category
+        # so this is an easy way to keep the full data shape and
+        # cooperate with the feature names that phygnn expects
+        night_mask = feature_df['flag'] == 'night'
+        feature_df.loc[night_mask, 'flag'] = 'clear'
 
         logger.info('Predicting gap filled cloud data...')
-        labels = self.phygnn_model.predict(features,
+        labels = self.phygnn_model.predict(feature_df,
                                            table=False)
         logger.info('Prediction complete.')
         logger.debug('Label data shape: {}'.format(labels.shape))
@@ -273,10 +323,19 @@ class PhygnnCloudFill:
                          .format(dset, shape))
             predicted_data[dset] = labels[:, i].reshape(shape, order='F')
 
+        for dset, arr in predicted_data.items():
+            nnan = np.isnan(arr).sum()
+            ntot = arr.shape[0] * arr.shape[1]
+            logger.info('Raw predicted data for {} has mean: {:.2f}, '
+                        'median: {:.2f}, range: ({:.2f}, {:.2f}) and '
+                        '{} NaN values out of {} ({:.2f}%)'
+                        .format(dset, np.nanmean(arr), np.median(arr),
+                                np.nanmin(arr), np.nanmax(arr),
+                                nnan, ntot, 100 * nnan / ntot))
+
         return predicted_data
 
-    @staticmethod
-    def _fill_bad_cld_properties(predicted_data, feature_data):
+    def _fill_bad_cld_properties(self, predicted_data, feature_data):
         """
         Fill bad cloud properties from predicted data
 
@@ -305,10 +364,24 @@ class PhygnnCloudFill:
                      .format(np.sum(mask)))
         filled_data = {}
         for dset, arr in predicted_data.items():
+            if dset in self.VALID_RANGES:
+                dset_range = self.VALID_RANGES[dset]
+                arr = np.maximum(arr, np.min(dset_range))
+                arr = np.minimum(arr, np.max(dset_range))
+
             logger.debug('Filling {} data'.format(dset))
             cld_data = feature_data[dset]
             cld_data[mask] = arr[mask]
             filled_data[dset] = cld_data
+
+            nnan = np.isnan(arr).sum()
+            ntot = arr.shape[0] * arr.shape[1]
+            logger.info('Final cleaned data for {} has mean: {:.2f}, '
+                        'median: {:.2f}, range: ({:.2f}, {:.2f}) and '
+                        '{} NaN values out of {} ({:.2f}%)'
+                        .format(dset, np.nanmean(arr), np.median(arr),
+                                np.nanmin(arr), np.nanmax(arr),
+                                nnan, ntot, 100 * nnan / ntot))
 
         return filled_data
 
@@ -323,7 +396,7 @@ class PhygnnCloudFill:
             Clean feature data without gaps. keys are the feature names
             (nsrdb dataset names), values are 2D numpy arrays (time x sites).
         """
-        logger.info('Filling bad cloud properties using phygnn predicitons')
+        logger.info('Filling bad cloud properties using phygnn predictions')
         predicted_data = self._predict_cld_properties(feature_data)
         filled_data = self._fill_bad_cld_properties(predicted_data,
                                                     feature_data)
@@ -335,12 +408,6 @@ class PhygnnCloudFill:
                             .format(dset, os.path.basename(fpath)))
                 f[dset] = arr
                 logger.debug('Finished writing "{}".'.format(dset))
-
-            src_dir, f_name = os.path.split(fpath)
-            raw_path = os.path.join(src_dir, 'raw', f_name)
-            logger.debug('renaming .tmp raw file to {}'
-                         .format(raw_path))
-            os.rename(raw_path + '.tmp', raw_path)
 
         logger.info('Cloud gap fill with phygnn is complete.')
 
@@ -411,6 +478,8 @@ class PhygnnCloudFill:
         feature_data = self.clean_feature_data(feature_data, sza_lim=sza_lim)
 
         self.fill_cld_properties(feature_data)
+
+        self.mark_complete_archived_files()
 
         return fill_flag
 
