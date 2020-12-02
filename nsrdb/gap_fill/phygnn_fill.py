@@ -12,7 +12,8 @@ from warnings import warn
 
 from nsrdb.all_sky import ICE_TYPES, WATER_TYPES
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
-from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.file_handlers.outputs import Outputs, Resource
+from nsrdb.data_model.variable_factory import VarFactory
 from phygnn import PhygnnModel
 from rex import MultiFileNSRDB
 
@@ -24,10 +25,7 @@ class PhygnnCloudFill:
     Use phygnn to fill missing cloud data
     """
 
-    VALID_RANGES = {'cld_opd_dcomp': (0, 160),
-                    'cld_reff_dcomp': (0, 160)}
-
-    def __init__(self, model_path, h5_source):
+    def __init__(self, model_path, h5_source, var_meta=None):
         """
         Parameters
         ----------
@@ -38,10 +36,14 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
 
         self._dset_map = None
         self._h5_source = h5_source
+        self._var_meta = var_meta
         self._phygnn_model = PhygnnModel.load(model_path)
 
     @property
@@ -364,10 +366,9 @@ class PhygnnCloudFill:
                      .format(np.sum(mask)))
         filled_data = {}
         for dset, arr in predicted_data.items():
-            if dset in self.VALID_RANGES:
-                dset_range = self.VALID_RANGES[dset]
-                arr = np.maximum(arr, np.min(dset_range))
-                arr = np.minimum(arr, np.max(dset_range))
+            varobj = VarFactory.get_base_handler(dset, var_meta=self._var_meta)
+            arr = np.maximum(arr, varobj.physical_min)
+            arr = np.minimum(arr, varobj.physical_max)
 
             logger.debug('Filling {} data'.format(dset))
             cld_data = feature_data[dset]
@@ -408,8 +409,6 @@ class PhygnnCloudFill:
                             .format(dset, os.path.basename(fpath)))
                 f[dset] = arr
                 logger.debug('Finished writing "{}".'.format(dset))
-
-        logger.info('Cloud gap fill with phygnn is complete.')
 
     def fill_ctype_press(self, h5_source):
         """Fill cloud type and pressure using simple NN.
@@ -457,6 +456,34 @@ class PhygnnCloudFill:
 
         return cloud_type, cloud_pres, sza, fill_flag
 
+    def write_fill_flag(self, fill_flag):
+        """Write the fill flag dataset to its daily file next to the cloud
+        property files.
+
+        Parameters
+        ----------
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+        """
+        fpath_opd = self._dset_map['cld_opd_dcomp']
+        fpath = fpath_opd.replace('cld_opd_dcomp', 'cloud_fill_flag')
+        var_obj = VarFactory.get_base_handler('cloud_fill_flag',
+                                              var_meta=self._var_meta)
+
+        with Resource(fpath_opd) as res:
+            ti = res.time_index
+            meta = res.meta
+
+        logger.info('Writing cloud_fill_flag to: {}'
+                    .format(os.path.basename(fpath)))
+        with Outputs(fpath, mode='w') as fout:
+            fout.time_index = ti
+            fout.meta = meta
+            fout._add_dset(dset_name='cloud_fill_flag', data=fill_flag,
+                           dtype=var_obj.final_dtype,
+                           chunks=var_obj.chunks, attrs=var_obj.attrs)
+            logger.debug('Write complete')
+
     def _run(self, sza_lim=90):
         """
         Fill cloud properties using phygnn predictions. Original files will be
@@ -474,17 +501,14 @@ class PhygnnCloudFill:
                         'cld_press_acha': cpres,
                         'solar_zenith_angle': sza}
         feature_data = self.parse_feature_data(feature_data=feature_data)
-
         feature_data = self.clean_feature_data(feature_data, sza_lim=sza_lim)
-
         self.fill_cld_properties(feature_data)
-
+        self.write_fill_flag(fill_flag)
         self.mark_complete_archived_files()
-
-        return fill_flag
+        logger.info('Cloud gap fill with phygnn is complete.')
 
     @classmethod
-    def run(cls, model_path, h5_source, sza_lim=90):
+    def run(cls, model_path, h5_source, var_meta=None, sza_lim=90):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -498,9 +522,12 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         sza_lim : int, optional
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
         """
-        obj = cls(model_path, h5_source)
+        obj = cls(model_path, h5_source, var_meta=var_meta)
         obj._run(sza_lim=sza_lim)
