@@ -120,7 +120,7 @@ class PhygnnCloudFill:
         return feature_data
 
     @staticmethod
-    def clean_feature_data(feature_raw, sza_lim=90):
+    def clean_feature_data(feature_raw, fill_flag, sza_lim=90):
         """
         Clean feature data
 
@@ -129,6 +129,8 @@ class PhygnnCloudFill:
         feature_raw : dict
             Raw feature data with gaps. keys are the feature names (nsrdb
             dataset names), values are 2D numpy arrays (time x sites).
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         sza_lim : int, optional
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
@@ -138,6 +140,8 @@ class PhygnnCloudFill:
         feature_data : dict
             Clean feature data without gaps. keys are the feature names
             (nsrdb dataset names), values are 2D numpy arrays (time x sites).
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         """
 
         t0 = time.time()
@@ -145,6 +149,7 @@ class PhygnnCloudFill:
         day = (feature_data['solar_zenith_angle'] < sza_lim)
 
         cloud_type = feature_data['cloud_type']
+        assert cloud_type.shape == fill_flag.shape
         day_missing_ctype = day & (cloud_type < 0)
         mask = cloud_type < 0
         full_missing_ctype_mask = mask.all(axis=0)
@@ -156,12 +161,14 @@ class PhygnnCloudFill:
             logger.warning(msg)
             mask[:, full_missing_ctype_mask] = False
             cloud_type[:, full_missing_ctype_mask] = 0
+            fill_flag[:, full_missing_ctype_mask] = 2
 
         if mask.any():
             logger.info('There are {} missing cloud type observations '
                         'out of {}. Interpolating with Nearest Neighbor.'
                         .format(mask.sum(), mask.shape[0] * mask.shape[1]))
             cloud_type[mask] = np.nan
+            fill_flag[mask] = 1
             cloud_type = pd.DataFrame(cloud_type).interpolate(
                 'nearest').ffill().bfill().values
             feature_data['cloud_type'] = cloud_type
@@ -171,10 +178,12 @@ class PhygnnCloudFill:
         day_missing_opd = day_clouds & (feature_data['cld_opd_dcomp'] <= 0)
         day_missing_reff = day_clouds & (feature_data['cld_reff_dcomp'] <= 0)
 
-        mask = feature_data['cld_opd_dcomp'] <= 0
-        feature_data['cld_opd_dcomp'][mask] = np.nan
-        mask = feature_data['cld_reff_dcomp'] <= 0
-        feature_data['cld_reff_dcomp'][mask] = np.nan
+        mask_all_bad_opd = (day_missing_opd | ~day).all(axis=0)
+        mask_all_bad_reff = (day_missing_reff | ~day).all(axis=0)
+        fill_flag[day_missing_opd] = 3
+        fill_flag[day_missing_reff] = 3
+        fill_flag[:, mask_all_bad_opd] = 4
+        fill_flag[:, mask_all_bad_reff] = 4
 
         logger.info('{:.2f}% of timesteps are daylight'
                     .format(100 * day.sum() / (day.shape[0] * day.shape[1])))
@@ -189,12 +198,17 @@ class PhygnnCloudFill:
                     'reff'
                     .format(100 * day_missing_reff.sum() / day_clouds.sum()))
 
+        mask = feature_data['cld_opd_dcomp'] <= 0
+        feature_data['cld_opd_dcomp'][mask] = np.nan
+        mask = feature_data['cld_reff_dcomp'] <= 0
+        feature_data['cld_reff_dcomp'][mask] = np.nan
+
         logger.debug('Column NaN values:')
         for c, d in feature_data.items():
             pnan = 100 * np.isnan(d).sum() / (d.shape[0] * d.shape[1])
             logger.debug('\t"{}" has {:.2f}% NaN values'.format(c, pnan))
 
-        logger.debug('Interpolating opd and reff')
+        logger.debug('Interpolating feature data using nearest neighbor.')
         for c, d in feature_data.items():
             feature_data[c] = pd.DataFrame(d).interpolate(
                 'nearest').ffill().bfill().values
@@ -229,7 +243,7 @@ class PhygnnCloudFill:
                      .format(np.unique(feature_data['flag'])))
         logger.info('Cleaning took {:.1f} seconds'.format(time.time() - t0))
 
-        return feature_data
+        return feature_data, fill_flag
 
     def archive_cld_properties(self):
         """
@@ -484,6 +498,13 @@ class PhygnnCloudFill:
                            chunks=var_obj.chunks, attrs=var_obj.attrs)
             logger.debug('Write complete')
 
+        logger.info('Final cloud_fill_flag counts:')
+        ntot = fill_flag.shape[0] * fill_flag.shape[1]
+        for n in range(10):
+            count = (fill_flag == n).sum()
+            logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
+                        .format(n, count, ntot, 100 * count / ntot))
+
     def _run(self, sza_lim=90):
         """
         Fill cloud properties using phygnn predictions. Original files will be
@@ -501,7 +522,9 @@ class PhygnnCloudFill:
                         'cld_press_acha': cpres,
                         'solar_zenith_angle': sza}
         feature_data = self.parse_feature_data(feature_data=feature_data)
-        feature_data = self.clean_feature_data(feature_data, sza_lim=sza_lim)
+        feature_data, fill_flag = self.clean_feature_data(feature_data,
+                                                          fill_flag,
+                                                          sza_lim=sza_lim)
         self.fill_cld_properties(feature_data)
         self.write_fill_flag(fill_flag)
         self.mark_complete_archived_files()

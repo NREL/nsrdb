@@ -156,12 +156,12 @@ class CloudGapFill:
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
         """
-        msg = ('Fill flag results for shape {}:\n'.format(fill_flag.shape))
+        logger.info('Fill flag results for shape {}:'.format(fill_flag.shape))
+        ntot = fill_flag.shape[0] * fill_flag.shape[1]
         for i in range(10):
-            m = '\tFlag {} has {} counts\n'.format(i, np.sum(fill_flag == i))
-            msg += m
-
-        logger.info(msg)
+            count = (fill_flag == i).sum()
+            logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
+                        .format(i, count, ntot, 100 * count / ntot))
 
     @staticmethod
     def fill_cloud_type(cloud_type, fill_flag=None, missing=-15):
