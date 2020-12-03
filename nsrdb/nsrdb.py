@@ -23,7 +23,6 @@ from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
-from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
@@ -817,6 +816,7 @@ class NSRDB:
         job_name : str
             Optional name for pipeline and status identification.
         """
+        from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
         t0 = time.time()
         assert len(str(date)) == 8
         nsrdb = cls(out_dir, str(date)[0:4], None, var_meta=var_meta)
