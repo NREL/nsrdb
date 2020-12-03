@@ -788,7 +788,7 @@ class NSRDB:
                                  job_name, status)
 
     @classmethod
-    def ml_cloud_fill(cls, out_dir, date, model_path, var_meta=None,
+    def ml_cloud_fill(cls, out_dir, date, model_path=None, var_meta=None,
                       log_level='DEBUG', log_file='cloud_fill.log',
                       job_name=None):
         """Gap fill cloud properties using a physics-guided neural
@@ -801,9 +801,11 @@ class NSRDB:
         date : datetime.date | str | int
             Single day data model output to run cloud fill on.
             Can be str or int in YYYYMMDD format.
-        model_path : str
+        model_path : str | None
             Directory to load phygnn model from. This is typically a fpath to
             a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -821,7 +823,8 @@ class NSRDB:
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        PhygnnCloudFill.run(model_path, h5_source, var_meta=var_meta)
+        PhygnnCloudFill.run(h5_source, model_path=model_path,
+                            var_meta=var_meta)
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:

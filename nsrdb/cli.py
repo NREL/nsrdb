@@ -192,7 +192,7 @@ class ConfigRunners:
             Dictionary of the full nsrdb config file. Used here to extract
             inputs from the data-model input block.
         """
-        model_path = cmd_args['model_path']
+        model_path = cmd_args.get('model_path', None)
         if 'doy_range' in cmd_args:
             doy_range = cmd_args['doy_range']
         else:
@@ -494,7 +494,7 @@ def cloud_fill(ctx, i_chunk, col_chunk):
 @click.option('--date', '-d', type=str, required=True,
               help='Single day data model output to run cloud fill on.'
               'Must be str in YYYYMMDD format.')
-@click.option('--model_path', '-mp', type=str, required=True,
+@click.option('--model_path', '-mp', type=STR, default=None,
               help='Directory to load phygnn model from. This is typically '
               'a fpath to a .pkl file with an accompanying .json file in the '
               'same directory.')
@@ -509,8 +509,11 @@ def ml_cloud_fill(ctx, date, model_path):
     var_meta = ctx.obj['VAR_META']
     log_file = 'logs_gap_fill/cloud_fill_{}.log'.format(date)
 
+    if isinstance(model_path, str):
+        model_path = '"{}"'.format(model_path)
+
     fun_str = 'NSRDB.ml_cloud_fill'
-    arg_str = ('"{}", {}, {}, log_file="{}", '
+    arg_str = ('"{}", "{}", model_path={}, log_file="{}", '
                'log_level="{}", job_name="{}"'
                .format(out_dir, date, model_path, log_file, log_level, name))
     if var_meta is not None:

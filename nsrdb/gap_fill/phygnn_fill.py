@@ -15,6 +15,7 @@ from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs, Resource
 from nsrdb.data_model.variable_factory import VarFactory
 from phygnn import PhygnnModel
+from mlclouds import MODEL_FPATH
 from rex import MultiFileNSRDB
 
 logger = logging.getLogger(__name__)
@@ -24,19 +25,22 @@ class PhygnnCloudFill:
     """
     Use phygnn to fill missing cloud data
     """
+    DEFAULT_MODEL = MODEL_FPATH
 
-    def __init__(self, model_path, h5_source, var_meta=None):
+    def __init__(self, h5_source, model_path=None, var_meta=None):
         """
         Parameters
         ----------
-        model_path : str
-            Directory to load phygnn model from. This is typically a fpath to
-            a .pkl file with an accompanying .json file in the same directory.
         h5_source : str
             Path to directory containing multi-file resource file sets.
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -45,7 +49,29 @@ class PhygnnCloudFill:
         self._dset_map = None
         self._h5_source = h5_source
         self._var_meta = var_meta
+        if model_path is None:
+            model_path = self.DEFAULT_MODEL
+
+        logger.info('Initializing PhygnnCloudFill with h5_source: {}'
+                    .format(self._h5_source))
+        logger.info('Initializing PhygnnCloudFill with model: {}'
+                    .format(model_path))
         self._phygnn_model = PhygnnModel.load(model_path)
+
+        with MultiFileNSRDB(self.h5_source) as res:
+            self._dset_map = res.h5._dset_map
+
+        missing = []
+        for dset in self._phygnn_model.feature_names:
+            if (dset not in ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
+                    and dset not in self._dset_map):
+                missing.append(dset)
+
+        if any(missing):
+            msg = ('The following datasets were missing in the h5_source '
+                   'directory: {}'.format(missing))
+            logger.error(msg)
+            raise FileNotFoundError(msg)
 
     @property
     def phygnn_model(self):
@@ -81,10 +107,6 @@ class PhygnnCloudFill:
         -------
         dict
         """
-        if self._dset_map is None:
-            with MultiFileNSRDB(self.h5_source) as res:
-                self._dset_map = res.h5._dset_map
-
         return self._dset_map
 
     def parse_feature_data(self, feature_data=None):
@@ -546,21 +568,23 @@ class PhygnnCloudFill:
         logger.info('Cloud gap fill with phygnn is complete.')
 
     @classmethod
-    def run(cls, model_path, h5_source, var_meta=None, sza_lim=90):
+    def run(cls, h5_source, model_path=None, var_meta=None, sza_lim=90):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
 
         Parameters
         ----------
-        model_path : str
-            Directory to load phygnn model from. This is typically a fpath to
-            a .pkl file with an accompanying .json file in the same directory.
         h5_source : str
             Path to directory containing multi-file resource file sets.
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -568,5 +592,5 @@ class PhygnnCloudFill:
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
         """
-        obj = cls(model_path, h5_source, var_meta=var_meta)
+        obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
         obj._run(sza_lim=sza_lim)
