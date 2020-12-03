@@ -23,6 +23,7 @@ from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
+from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
@@ -779,6 +780,55 @@ class NSRDB:
             runtime = (time.time() - t0) / 60
             status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_cloud,
+                      'gap_fill_method': 'legacy_nn',
+                      'job_status': 'successful',
+                      'runtime': runtime,
+                      }
+            Status.make_job_file(nsrdb._out_dir, 'cloud-fill',
+                                 job_name, status)
+
+    @classmethod
+    def ml_cloud_fill(cls, out_dir, date, model_path, var_meta=None,
+                      log_level='DEBUG', log_file='cloud_fill.log',
+                      job_name=None):
+        """Gap fill cloud properties using a physics-guided neural
+        network (phygnn).
+
+        Parameters
+        ----------
+        out_dir : str
+            Project directory.
+        date : datetime.date | str | int
+            Single day data model output to run cloud fill on.
+            Can be str or int in YYYYMMDD format.
+        model_path : str
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+        job_name : str
+            Optional name for pipeline and status identification.
+        """
+        t0 = time.time()
+        assert len(str(date)) == 8
+        nsrdb = cls(out_dir, str(date)[0:4], None, var_meta=var_meta)
+        h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
+
+        PhygnnCloudFill.run(model_path, h5_source, var_meta=var_meta)
+        logger.info('Finished mlclouds gap fill.')
+
+        if job_name is not None:
+            runtime = (time.time() - t0) / 60
+            status = {'out_dir': nsrdb._daily_dir,
+                      'h5_source': h5_source,
+                      'gap_fill_method': 'mlclouds',
                       'job_status': 'successful',
                       'runtime': runtime,
                       }
@@ -834,14 +884,8 @@ class NSRDB:
                 irrad_dsets = dsets
             elif 'clear' in fname:
                 f_out_cs = os.path.join(nsrdb._collect_dir,
-                                     fname.format(y=year))
+                                        fname.format(y=year))
                 cs_irrad_dsets = dsets
-            elif 'ancil' in fname:
-                f_ancillary = os.path.join(nsrdb._collect_dir,
-                                           fname.format(y=year))
-            elif 'cloud' in fname:
-                f_cloud = os.path.join(nsrdb._collect_dir,
-                                       fname.format(y=year))
 
         f_source = os.path.join(nsrdb._collect_dir, 'nsrdb*{}.h5'.format(year))
 
@@ -873,7 +917,7 @@ class NSRDB:
         with Outputs(f_out_cs, mode='a') as f:
             for dset, arr in out.items():
                 if dset in f.dsets:
-                   f[dset, rows, cols] = arr
+                    f[dset, rows, cols] = arr
 
         logger.info('Finished writing all-sky results.')
 

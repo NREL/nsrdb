@@ -30,7 +30,8 @@ class PhygnnCloudFill:
         Parameters
         ----------
         model_path : str
-            Directory to load phygnn model from
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
         h5_source : str
             Path to directory containing multi-file resource file sets.
             Available formats:
@@ -553,7 +554,8 @@ class PhygnnCloudFill:
         Parameters
         ----------
         model_path : str
-            Directory to load phygnn model from
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
         h5_source : str
             Path to directory containing multi-file resource file sets.
             Available formats:
