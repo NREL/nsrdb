@@ -280,7 +280,7 @@ class CloudGapFill:
 
     @classmethod
     def fill_cloud_prop(cls, prop_name, cloud_prop, cloud_type, sza,
-                        fill_flag=None):
+                        fill_flag=None, cloud_type_is_clean=False):
         """Perform full cloud property fill.
 
         Parameters
@@ -295,6 +295,9 @@ class CloudGapFill:
             DataFrame of solar zenith angle values to determine nighttime.
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
+        cloud_type_is_clean : bool
+            Flag to show if cloud_type input has already been cleaned. default
+            is False so cloud_type will be cleaned in this method
 
         Returns
         -------
@@ -326,9 +329,10 @@ class CloudGapFill:
         if fill_flag is None:
             fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
 
-        # fill cloud types.
-        cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
-                                                    fill_flag=fill_flag)
+        if not cloud_type_is_clean:
+            # fill cloud types.
+            cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
+                                                        fill_flag=fill_flag)
 
         fill_flag = cls.flag_missing_properties(cloud_prop, cloud_type, sza,
                                                 fill_flag)
@@ -440,7 +444,8 @@ class CloudGapFill:
                         cloud_prop = f[dset, rows, cols]
 
                     cloud_prop, fill_flag = cls.fill_cloud_prop(
-                        dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag)
+                        dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag,
+                        cloud_type_is_clean=True)
 
                     with Outputs(f_cloud, mode='a') as f:
                         logger.debug('Writing filled {} to {}'

@@ -457,7 +457,8 @@ class PhygnnCloudFill:
             cloud_type, fill_flag=fill_flag)
 
         cloud_pres, fill_flag = CloudGapFill.fill_cloud_prop(
-            'cld_press_acha', cloud_pres, cloud_type, sza, fill_flag=fill_flag)
+            'cld_press_acha', cloud_pres, cloud_type, sza, fill_flag=fill_flag,
+            cloud_type_is_clean=True)
 
         iter_dict = {'cloud_type': cloud_type, 'cld_press_acha': cloud_pres}
         for dset, data in iter_dict.items():
