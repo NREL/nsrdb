@@ -102,7 +102,7 @@ def config(ctx, config_file, command):
                                                direct_args, run_config)
     elif command == 'collect-data-model':
         ConfigRunners.run_collect_data_model_config(ctx, name, cmd_args,
-                                                    eagle_args, direct_args)
+                                                    eagle_args)
     elif command == 'collect-daily':
         ConfigRunners.run_collect_daily_config(ctx, name, cmd_args, eagle_args)
     elif command == 'collect-flist':
@@ -261,8 +261,7 @@ class ConfigRunners:
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
-    def run_collect_data_model_config(ctx, name, cmd_args, eagle_args,
-                                      direct_args):
+    def run_collect_data_model_config(ctx, name, cmd_args, eagle_args):
         """Run collection of daily data model outputs to multiple files
         chunked by sites (n_chunks argument in cmd_args)
 
@@ -277,20 +276,32 @@ class ConfigRunners:
             this command block.
         eagle_args : dict
             Dictionary of kwargs from the nsrdb config to make eagle submission
-        direct_args : dict
-            Dictionary of kwargs from the nsrdb config file under the "direct"
-            key that are common to all command blocks.
         """
         n_chunks = cmd_args['n_chunks']
-        def_dir = os.path.join(direct_args['out_dir'], 'daily/')
-        n_files = len(NSRDB.OUTS) - 2  # all files minus irrad and clearsky
+        n_files_tot = len(NSRDB.OUTS)
+        n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
+        i_files = cmd_args.get('collect_files', n_files_default)
+        final = cmd_args.get('final', False)
+        fnames = sorted(list(NSRDB.OUTS.keys()))
+        if i_files is None or i_files.lower == 'all' or final:
+            i_files = range(n_files_tot)
+
+        if final and n_chunks != 1:
+            msg = 'Collect data model was marked as final but n_chunks != 1'
+            logger.error(msg)
+            raise ValueError(msg)
+
         for i_chunk in range(n_chunks):
-            for i_fname in range(n_files):
-                ctx.obj['NAME'] = name + '_{}_{}'.format(i_fname, i_chunk)
+            for i_fname in i_files:
+                if not final or n_chunks > 1:
+                    fn_tag = fnames[i_fname].split('_')[1]
+                    tag = '_{}_{}_{}'.format(i_fname, fn_tag, i_chunk)
+                    ctx.obj['NAME'] = name + tag
+
                 ctx.invoke(collect_data_model,
-                           daily_dir=cmd_args.get('daily_dir', def_dir),
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
-                           max_workers=cmd_args['max_workers'])
+                           max_workers=cmd_args['max_workers'],
+                           final=final)
                 ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -585,19 +596,20 @@ def daily_all_sky(ctx, date):
 
 
 @direct.group()
-@click.option('--daily_dir', '-d', type=str, required=True,
-              help='Data model output directory to collect to out_dir.')
 @click.option('--n_chunks', '-n', type=int, required=True,
               help='Number of chunks to collect into.')
 @click.option('--i_chunk', '-ic', type=int, required=True,
               help='Chunk index.')
 @click.option('--i_fname', '-if', type=int, required=True,
-              help='Filename index (0: ancillary, 1: clouds, 2: sam vars).')
+              help='Filename index: 0: ancillary_a, 1: ancillary_b, '
+              '2: clearsky, 3: clouds, 4: csp, 5: irrad, 6: pv.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
+@click.option('-f', '--final', is_flag=True,
+              help='Flag for final collection. Will put collected files in '
+              'the final directory instead of in the collect directory.')
 @click.pass_context
-def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
-                       max_workers):
+def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final):
     """Collect data model results into cohesive timseries file chunks."""
 
     name = ctx.obj['NAME']
@@ -608,15 +620,18 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
-    log_file = 'logs_collect/collect_{}_{}.log'.format(i_fname, i_chunk)
+    fnames = sorted(list(NSRDB.OUTS.keys()))
+    fn_tag = fnames[i_fname].split('_')[1]
+    log_file = ('logs_collect/collect_{}_{}_{}.log'
+                .format(i_fname, fn_tag, i_chunk))
 
     fun_str = 'NSRDB.collect_data_model'
-    arg_str = ('"{}", "{}", {}, "{}", n_chunks={}, i_chunk={}, '
+    arg_str = ('"{}", {}, "{}", n_chunks={}, i_chunk={}, '
                'i_fname={}, freq="{}", max_workers={}, '
-               'log_file="{}", log_level="{}", job_name="{}"'
-               .format(daily_dir, out_dir, year, nsrdb_grid, n_chunks,
+               'log_file="{}", log_level="{}", job_name="{}", final={}'
+               .format(out_dir, year, nsrdb_grid, n_chunks,
                        i_chunk, i_fname, nsrdb_freq, max_workers,
-                       log_file, log_level, name))
+                       log_file, log_level, name, final))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -639,7 +654,8 @@ def collect_data_model(ctx, daily_dir, n_chunks, i_chunk, i_fname,
               'an Eagle call.')
 @click.pass_context
 def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
-    """Run the NSRDB file collection method on a daily directory."""
+    """Run the NSRDB file collection method on a specific daily directory
+    for specific datasets to a single output file."""
 
     name = ctx.obj['NAME']
     out_dir = ctx.obj['OUT_DIR']

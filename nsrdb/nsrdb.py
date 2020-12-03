@@ -519,17 +519,14 @@ class NSRDB:
                                  job_name, status)
 
     @classmethod
-    def collect_data_model(cls, daily_dir, out_dir, year, grid,
-                           n_chunks, i_chunk, i_fname,
-                           freq='5min', var_meta=None,
+    def collect_data_model(cls, out_dir, year, grid, n_chunks, i_chunk,
+                           i_fname, freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
-                           max_workers=None, job_name=None):
+                           max_workers=None, job_name=None, final=False):
         """Collect daily data model files to a single site-chunked output file.
 
         Parameters
         ----------
-        daily_dir : str
-            Directory with daily files to be collected.
         out_dir : str
             Project directory.
         year : int | str
@@ -558,6 +555,10 @@ class NSRDB:
             None uses all available workers.
         job_name : str
             Optional name for pipeline and status identification.
+        final : bool
+            Flag signifying that this is the last step in the NSRDB pipeline.
+            this will collect the data to the out_dir/final/ directory instead
+            of the out_dir/collect Directory.
         """
 
         t0 = time.time()
@@ -568,8 +569,6 @@ class NSRDB:
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
         fnames = sorted(list(cls.OUTS.keys()))
-        fnames = [fn for fn in fnames if 'irradiance' not in fn
-                  and 'clear' not in fn]
 
         chunk = chunks[i_chunk]
         fname = fnames[i_fname]
@@ -578,8 +577,13 @@ class NSRDB:
         if '{y}' in fname:
             fname = fname.format(y=year)
 
-        f_out = os.path.join(nsrdb._collect_dir, fname)
-        f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
+        if final:
+            f_out = os.path.join(nsrdb._collect_dir, fname)
+            if job_name is not None:
+                f_out = f_out.replace('nsrdb_', '{}_'.format(job_name))
+        else:
+            f_out = os.path.join(nsrdb._collect_dir, fname)
+            f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
         if 'gid' not in meta_chunk:
@@ -591,7 +595,7 @@ class NSRDB:
                             meta_chunk['gid'].values[-1], f_out))
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
-        Collector.collect_daily(daily_dir, f_out, dsets,
+        Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
                                 sites=chunk,
                                 var_meta=nsrdb._var_meta,
                                 max_workers=max_workers)
