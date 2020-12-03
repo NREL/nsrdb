@@ -178,10 +178,14 @@ class PhygnnCloudFill:
         day_missing_opd = day_clouds & (feature_data['cld_opd_dcomp'] <= 0)
         day_missing_reff = day_clouds & (feature_data['cld_reff_dcomp'] <= 0)
 
-        mask_all_bad_opd = (day_missing_opd | ~day).all(axis=0)
-        mask_all_bad_reff = (day_missing_reff | ~day).all(axis=0)
-        fill_flag[day_missing_opd] = 3
-        fill_flag[day_missing_reff] = 3
+        mask_fill_flag_opd = day_missing_opd & (fill_flag == 0)
+        mask_fill_flag_reff = day_missing_reff & (fill_flag == 0)
+        mask_all_bad_opd = ((day_missing_opd | ~day).all(axis=0)
+                            & (fill_flag < 2).all(axis=0))
+        mask_all_bad_reff = ((day_missing_reff | ~day).all(axis=0)
+                             & (fill_flag < 2).all(axis=0))
+        fill_flag[mask_fill_flag_opd] = 3
+        fill_flag[mask_fill_flag_reff] = 3
         fill_flag[:, mask_all_bad_opd] = 4
         fill_flag[:, mask_all_bad_reff] = 4
 
@@ -353,7 +357,7 @@ class PhygnnCloudFill:
 
     def _fill_bad_cld_properties(self, predicted_data, feature_data):
         """
-        Fill bad cloud properties from predicted data
+        Fill bad cloud properties in the feature data from predicted data
 
         Parameters
         ----------
@@ -375,9 +379,18 @@ class PhygnnCloudFill:
             input are used to fill the feature_data input where:
             (feature_data['flag'] == "bad_cloud")
         """
+
         mask = feature_data['flag'] == 'bad_cloud'
-        logger.debug('Filling {} values using phygnn predictions'
-                     .format(np.sum(mask)))
+        if mask.sum() == 0:
+            msg = ('No "bad_cloud" flags were detected in the feature_data '
+                   '"flag" dataset. Something went wrong! '
+                   'The cloud data is never perfect...')
+            logger.warning(msg)
+            warn(msg)
+        else:
+            logger.debug('Filling {} values using phygnn predictions'
+                         .format(np.sum(mask)))
+
         filled_data = {}
         for dset, arr in predicted_data.items():
             varobj = VarFactory.get_base_handler(dset, var_meta=self._var_meta)
