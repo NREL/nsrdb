@@ -97,6 +97,9 @@ def config(ctx, config_file, command):
                                                run_config)
     elif command == 'all-sky':
         ConfigRunners.run_all_sky_config(ctx, name, cmd_args, eagle_args)
+    elif command == 'daily-all-sky':
+        ConfigRunners.run_daily_all_sky_config(ctx, name, cmd_args, eagle_args,
+                                               direct_args, run_config)
     elif command == 'collect-data-model':
         ConfigRunners.run_collect_data_model_config(ctx, name, cmd_args,
                                                     eagle_args, direct_args)
@@ -220,6 +223,41 @@ class ConfigRunners:
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
             ctx.invoke(all_sky, i_chunk=i_chunk)
+            ctx.invoke(eagle, **eagle_args)
+
+    @staticmethod
+    def run_daily_all_sky_config(ctx, name, cmd_args, eagle_args,
+                                 direct_args, run_config):
+        """Run the all sky module to produce irradiance outputs using daily
+        data model outputs as source.
+
+        Parameters
+        ----------
+        ctx : click.pass_context
+            Click context object.
+        name : str
+            Base jobname.
+        cmd_args : dict
+            Dictionary of kwargs from the nsrdb config file specifically for
+            this command block.
+        eagle_args : dict
+            Dictionary of kwargs from the nsrdb config to make eagle submission
+        direct_args : dict
+            Dictionary of kwargs from the nsrdb config file under the "direct"
+            key that are common to all command blocks.
+        run_config : dict
+            Dictionary of the full nsrdb config file. Used here to extract
+            inputs from the data-model input block.
+        """
+        if 'doy_range' in cmd_args:
+            doy_range = cmd_args['doy_range']
+        else:
+            doy_range = run_config['data-model']['doy_range']
+        for doy in range(doy_range[0], doy_range[1]):
+            ctx.obj['NAME'] = name + '_{}'.format(doy)
+            date = NSRDB.doy_to_datestr(direct_args['year'], doy)
+            ctx.obj['NAME'] = name + '_{}'.format(date)
+            ctx.invoke(daily_all_sky, date=date)
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -510,6 +548,37 @@ def all_sky(ctx, i_chunk):
     ctx.obj['FUN_STR'] = fun_str
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'all-sky'
+
+
+@direct.group()
+@click.option('--date', '-d', type=str, required=True,
+              help='Single day data model output to run cloud fill on.'
+              'Must be str in YYYYMMDD format.')
+@click.pass_context
+def daily_all_sky(ctx, date):
+    """Run allsky for a single day using daily data model output files as
+    source data"""
+
+    name = ctx.obj['NAME']
+    year = ctx.obj['YEAR']
+    out_dir = ctx.obj['OUT_DIR']
+    nsrdb_grid = ctx.obj['NSRDB_GRID']
+    nsrdb_freq = ctx.obj['NSRDB_FREQ']
+    var_meta = ctx.obj['VAR_META']
+    log_level = ctx.obj['LOG_LEVEL']
+
+    log_file = 'logs_all_sky/all_sky_{}.log'.format(date)
+    fun_str = 'NSRDB.run_daily_all_sky'
+    arg_str = ('"{}", {}, "{}", "{}", freq="{}", '
+               'log_file="{}", log_level="{}", job_name="{}"'
+               .format(out_dir, year, nsrdb_grid, date, nsrdb_freq,
+                       log_file, log_level, name))
+    if var_meta is not None:
+        arg_str += ', var_meta="{}"'.format(var_meta)
+    ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
+    ctx.obj['FUN_STR'] = fun_str
+    ctx.obj['ARG_STR'] = arg_str
+    ctx.obj['COMMAND'] = 'daily-all-sky'
 
 
 @direct.group()

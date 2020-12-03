@@ -840,7 +840,7 @@ class NSRDB:
                     rows=slice(None), cols=slice(None), max_workers=None,
                     log_level='DEBUG', log_file='all_sky.log',
                     i_chunk=None, job_name=None):
-        """Run the all-sky physics model from .h5 files.
+        """Run the all-sky physics model from collected .h5 files
 
         Parameters
         ----------
@@ -930,5 +930,83 @@ class NSRDB:
                       'grid': grid,
                       'freq': freq,
                       }
-            Status.make_job_file(nsrdb._out_dir, 'all-sky',
-                                 job_name, status)
+            Status.make_job_file(nsrdb._out_dir, 'all-sky', job_name, status)
+
+    @classmethod
+    def run_daily_all_sky(cls, out_dir, year, grid, date, freq='5min',
+                          var_meta=None, rows=slice(None), cols=slice(None),
+                          max_workers=None, log_level='DEBUG',
+                          log_file='all_sky.log', job_name=None):
+        """Run the all-sky physics model from daily data model output files.
+
+        Parameters
+        ----------
+        out_dir : str
+            Project directory.
+        year : int | str
+            Year of analysis
+        grid : str
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
+        date : datetime.date | str | int
+            Single day data model output to run cloud fill on.
+            Can be str or int in YYYYMMDD format.
+        freq : str
+            Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        rows : slice
+            Subset of rows to run.
+        cols : slice
+            Subset of columns to run.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 will run serial,
+            None will use all available.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+        job_name : str
+            Optional name for pipeline and status identification.
+        """
+        t0 = time.time()
+        assert len(str(date)) == 8
+        nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
+
+        f_source = os.path.join(nsrdb._daily_dir, '{}*.h5'.format(date))
+
+        with MultiFileResource(f_source) as source:
+            meta = source.meta
+            time_index = source.time_index.tz_convert(None)
+
+        if max_workers != 1:
+            out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
+                                      max_workers=max_workers)
+        else:
+            out = all_sky_h5(f_source, rows=rows, cols=cols)
+
+        logger.info('Finished all-sky compute.')
+        for dset, arr in out.items():
+            fn = '{}_{}_0.h5'.format(date, dset)
+            f_out = os.path.join(nsrdb._daily_dir, fn)
+            logger.info('Writing {} to: {}'.format(dset, f_out))
+            nsrdb._init_output_h5(f_out, [dset], time_index, meta)
+            with Outputs(f_out, mode='a') as f:
+                f[dset, rows, cols] = arr
+
+        logger.info('Finished writing all-sky results.')
+
+        if job_name is not None:
+            runtime = (time.time() - t0) / 60
+            status = {'out_dir': nsrdb._daily_dir,
+                      'f_source': f_source,
+                      'f_out': '{}_*_0.h5'.format(date),
+                      'job_status': 'successful',
+                      'runtime': runtime,
+                      'grid': grid,
+                      'freq': freq,
+                      }
+            Status.make_job_file(nsrdb._out_dir, 'all-sky', job_name, status)
