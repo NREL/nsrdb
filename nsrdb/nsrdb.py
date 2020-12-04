@@ -578,7 +578,7 @@ class NSRDB:
             fname = fname.format(y=year)
 
         if final:
-            f_out = os.path.join(nsrdb._collect_dir, fname)
+            f_out = os.path.join(nsrdb._final_dir, fname)
             if job_name is not None:
                 f_out = f_out.replace('nsrdb_', '{}_'.format(job_name))
         else:
