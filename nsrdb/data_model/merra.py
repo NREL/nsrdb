@@ -18,7 +18,7 @@ class MerraVar(AncillaryVarHandler):
     """Framework for MERRA source data extraction."""
 
     # default MERRA paths.
-    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
+    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats.pkl')
 
     def __init__(self, name, var_meta, date, source_dir=None):
         """
