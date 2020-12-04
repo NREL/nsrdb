@@ -32,7 +32,7 @@ GRID = os.path.join(PROJECT_DIR, 'surfrad_meta.csv')
 def test_collect(dates=('20190102', '20190103', '20190104')):
     """Test the mlclouds gap fill, allsky, and final collection."""
     if os.path.exists(DAILY_DIR):
-        shutil.rmtree(DAILY_DIR)
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
     shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
 
     for date in dates:
@@ -91,7 +91,7 @@ def test_collect(dates=('20190102', '20190103', '20190104')):
     p2 = os.path.join(PROJECT_DIR, 'logs/')
     for path in (p1, p2, FINAL_DIR, DAILY_DIR):
         if os.path.exists(path):
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
     fp = os.path.join(PROJECT_DIR, 'jobstatus_mlclouds_test.json')
     if os.path.exists(fp):

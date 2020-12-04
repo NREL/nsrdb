@@ -31,7 +31,7 @@ GRID = os.path.join(PROJECT_DIR, 'surfrad_meta.csv')
 def test_all_sky_daily(date='20190102'):
     """Test the mlclouds fill on daily files then all sky from those files."""
     if os.path.exists(DAILY_DIR):
-        shutil.rmtree(DAILY_DIR)
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
     shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
 
     h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
@@ -72,7 +72,7 @@ def test_all_sky_daily(date='20190102'):
     p3 = os.path.join(PROJECT_DIR, 'logs/')
     for path in (p1, p2, p3, DAILY_DIR):
         if os.path.exists(path):
-            shutil.rmtree(path)
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

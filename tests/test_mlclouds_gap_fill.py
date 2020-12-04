@@ -31,7 +31,7 @@ def test_missing_file(date='20190102'):
     fp_refl = os.path.join(DAILY_DIR, '{}_refl_0_65um_nom_0.h5'.format(date))
     fp_temp = os.path.join(DAILY_DIR, '{}_temp_11_0um_nom_0.h5'.format(date))
     if os.path.exists(DAILY_DIR):
-        shutil.rmtree(DAILY_DIR)
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
     shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
     os.remove(fp_refl)
     os.remove(fp_temp)
@@ -40,14 +40,14 @@ def test_missing_file(date='20190102'):
     with pytest.raises(FileNotFoundError) as e:
         PhygnnCloudFill.run(h5_source)
 
-    shutil.rmtree(DAILY_DIR)
+    shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
 
 def test_mlclouds_fill(date='20190102'):
     """Test the mlclouds fill process on a daily output from the data model."""
     fp_ctype = os.path.join(DAILY_DIR, '{}_cloud_type_0.h5'.format(date))
     if os.path.exists(DAILY_DIR):
-        shutil.rmtree(DAILY_DIR)
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
     shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
 
     with h5py.File(fp_ctype, 'a') as res:
@@ -93,7 +93,7 @@ def test_mlclouds_fill(date='20190102'):
 
     assert all(np.unique(fill_flag) == np.arange(4))
 
-    shutil.rmtree(DAILY_DIR)
+    shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
 
 def execute_pytest(capture='all', flags='-rapP'):
