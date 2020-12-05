@@ -243,8 +243,9 @@ class VarFactory:
         """
 
         if kwargs:
-            logger.debug('Initializing cloud handler with kwargs: {} '
-                         'and fpath: {}'.format(kwargs, fpath))
+            logger.debug('Initializing cloud handler for datasets "{}" '
+                         'with kwargs: {} and fpath: {}'
+                         .format(dsets, kwargs, fpath))
 
         kwarg_ignore = ('handler', 'source_dir')
         kwargs = {k: v for k, v in kwargs.items()

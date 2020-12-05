@@ -237,6 +237,19 @@ class PhygnnCloudFill:
 
         logger.debug('Interpolating feature data using nearest neighbor.')
         for c, d in feature_data.items():
+            all_bad = (~np.isnan(d)).sum(axis=0) < 3
+            if any(all_bad):
+                mean_impute = np.nanmean(d)
+                count = all_bad.sum()
+                msg = ('Feature dataset "{0}" has {1} rows with all NaN '
+                       'values ({1} rows out of {2}, {3:.2f}%). Filling with '
+                       'mean value of {4}.'
+                       .format(c, count, d.shape[1], 100 * count / d.shape[1],
+                               mean_impute))
+                logger.warning(msg)
+                warn(msg)
+                d[:, all_bad] = mean_impute
+
             feature_data[c] = pd.DataFrame(d).interpolate(
                 'nearest').ffill().bfill().values
 

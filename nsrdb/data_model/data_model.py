@@ -96,9 +96,17 @@ class DataModel:
 
     # cloud variables from UW/GOES
     CLOUD_VARS = ('cloud_type',
+                  'cloud_fraction',
+                  'cloud_probability',
                   'cld_opd_dcomp',
                   'cld_reff_dcomp',
                   'cld_press_acha',
+                  'temp_3_75um_nom',
+                  'temp_11_0um_nom',
+                  'temp_11_0um_nom_stddev_3x3',
+                  'refl_0_65um_nom',
+                  'refl_0_65um_nom_stddev_3x3',
+                  'refl_3_75um_nom',
                   )
 
     # derived variables
@@ -980,14 +988,10 @@ class DataModel:
         # number of kdtrees during regrid)
         cloud_vars = []
         for cv in var_list:
-            is_cv = True if cv in cls.CLOUD_VARS else False
+            is_cv = cv in cls.CLOUD_VARS
             var_fact_kwargs = data_model._factory_kwargs.get(cv, {})
             if 'handler' in var_fact_kwargs:
-                if var_fact_kwargs['handler'].lower() == 'cloudvar':
-                    is_cv = True
-                else:
-                    is_cv = False
-
+                is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
             if is_cv:
                 cloud_vars.append(cv)
 
@@ -1224,13 +1228,10 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        is_cv = True if var in cls.CLOUD_VARS else False
+        is_cv = var in cls.CLOUD_VARS
         var_fact_kwargs = data_model._factory_kwargs.get(var, {})
         if 'handler' in var_fact_kwargs:
-            if var_fact_kwargs['handler'].lower() == 'cloudvar':
-                is_cv = True
-            else:
-                is_cv = False
+            is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
 
         if is_cv:
             method = data_model._cloud_regrid

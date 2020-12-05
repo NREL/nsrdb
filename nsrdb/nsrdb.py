@@ -839,7 +839,7 @@ class NSRDB:
                       'job_status': 'successful',
                       'runtime': runtime,
                       }
-            Status.make_job_file(nsrdb._out_dir, 'cloud-fill',
+            Status.make_job_file(nsrdb._out_dir, 'ml-cloud-fill',
                                  job_name, status)
 
     @classmethod
@@ -1016,4 +1016,5 @@ class NSRDB:
                       'grid': grid,
                       'freq': freq,
                       }
-            Status.make_job_file(nsrdb._out_dir, 'all-sky', job_name, status)
+            Status.make_job_file(nsrdb._out_dir, 'daily-all-sky',
+                                 job_name, status)

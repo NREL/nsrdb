@@ -22,7 +22,9 @@ class Pipeline:
 
     COMMANDS = ('data-model',
                 'cloud-fill',
+                'ml-cloud-fill',
                 'all-sky',
+                'daily-all-sky',
                 'collect-data-model',
                 'collect-daily',
                 'collect-flist',

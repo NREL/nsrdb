@@ -283,7 +283,7 @@ class ConfigRunners:
         i_files = cmd_args.get('collect_files', n_files_default)
         final = cmd_args.get('final', False)
         fnames = sorted(list(NSRDB.OUTS.keys()))
-        if i_files is None or i_files.lower == 'all' or final:
+        if final:
             i_files = range(n_files_tot)
 
         if final and n_chunks != 1:
