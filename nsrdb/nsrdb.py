@@ -522,7 +522,8 @@ class NSRDB:
     def collect_data_model(cls, out_dir, year, grid, n_chunks, i_chunk,
                            i_fname, freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
-                           max_workers=None, job_name=None, final=False):
+                           max_workers=None, job_name=None, final=False,
+                           final_file_name=None):
         """Collect daily data model files to a single site-chunked output file.
 
         Parameters
@@ -559,6 +560,9 @@ class NSRDB:
             Flag signifying that this is the last step in the NSRDB pipeline.
             this will collect the data to the out_dir/final/ directory instead
             of the out_dir/collect Directory.
+        final_file_name : str | None
+            Final file name for filename outputs if this is the
+            terminal job.
         """
 
         t0 = time.time()
@@ -579,8 +583,8 @@ class NSRDB:
 
         if final:
             f_out = os.path.join(nsrdb._final_dir, fname)
-            if job_name is not None:
-                f_out = f_out.replace('nsrdb_', '{}_'.format(job_name))
+            if final_file_name is not None:
+                f_out = f_out.replace('nsrdb_', '{}_'.format(final_file_name))
         else:
             f_out = os.path.join(nsrdb._collect_dir, fname)
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))

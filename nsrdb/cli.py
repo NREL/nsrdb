@@ -293,15 +293,15 @@ class ConfigRunners:
 
         for i_chunk in range(n_chunks):
             for i_fname in i_files:
-                if not final or n_chunks > 1:
-                    fn_tag = fnames[i_fname].split('_')[1]
-                    tag = '_{}_{}_{}'.format(i_fname, fn_tag, i_chunk)
-                    ctx.obj['NAME'] = name + tag
+                final_file_name = name
+                fn_tag = fnames[i_fname].split('_')[1]
+                tag = '_{}_{}_{}'.format(i_fname, fn_tag, i_chunk)
+                ctx.obj['NAME'] = name + tag
 
                 ctx.invoke(collect_data_model,
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
                            max_workers=cmd_args['max_workers'],
-                           final=final)
+                           final=final, final_file_name=final_file_name)
                 ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -608,8 +608,13 @@ def daily_all_sky(ctx, date):
 @click.option('-f', '--final', is_flag=True,
               help='Flag for final collection. Will put collected files in '
               'the final directory instead of in the collect directory.')
+@click.option('--final_file_name', '-pn', type=STR, default=None,
+              help='Final file name for filename outputs if this is the '
+              'terminal job. None will default to the name in ctx which is '
+              'usually the slurm job name.')
 @click.pass_context
-def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final):
+def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
+                       final_file_name):
     """Collect data model results into cohesive timseries file chunks."""
 
     name = ctx.obj['NAME']
@@ -620,6 +625,9 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final):
     var_meta = ctx.obj['VAR_META']
     log_level = ctx.obj['LOG_LEVEL']
 
+    if final_file_name is None:
+        final_file_name = name
+
     fnames = sorted(list(NSRDB.OUTS.keys()))
     fn_tag = fnames[i_fname].split('_')[1]
     log_file = ('logs_collect/collect_{}_{}_{}.log'
@@ -628,10 +636,11 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final):
     fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", {}, "{}", n_chunks={}, i_chunk={}, '
                'i_fname={}, freq="{}", max_workers={}, '
-               'log_file="{}", log_level="{}", job_name="{}", final={}'
+               'log_file="{}", log_level="{}", job_name="{}", '
+               'final={}, final_file_name="{}"'
                .format(out_dir, year, nsrdb_grid, n_chunks,
                        i_chunk, i_fname, nsrdb_freq, max_workers,
-                       log_file, log_level, name, final))
+                       log_file, log_level, name, final, final_file_name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
