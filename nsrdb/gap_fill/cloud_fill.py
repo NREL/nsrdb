@@ -11,10 +11,14 @@ import numpy as np
 import pandas as pd
 from warnings import warn
 
-from nsrdb.all_sky import (WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES,
-                           SZA_LIM)
+from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES
+
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
+
+
+# clean all cloud properties when SZA < 90 (any possibility of daylight)
+SZA_LIM = 90
 
 
 logger = logging.getLogger(__name__)
@@ -144,9 +148,12 @@ class CloudGapFill:
             loc = np.where(np.sum(np.isnan(cloud_prop.values), axis=0) > 0)[0]
             count = np.isnan(cloud_prop.values).sum()
             n_tot = cloud_prop.shape[0] * cloud_prop.shape[1]
-            msg = ('NaN values persist in "{}" at {} sites ({} NaN values '
-                   'remain out of {} total observations, {:.2f}%).'
-                   .format(dset, len(loc), count, n_tot, 100 * count / n_tot))
+            msg = ('NaN values persist in "{}" at {} sites out of {} '
+                   '({:.2f}%) - {} total NaN values '
+                   'out of {} total observations, {:.2f}%).'
+                   .format(dset, len(loc), cloud_prop.shape[1],
+                           100 * len(loc) / cloud_prop.shape[1],
+                           count, n_tot, 100 * count / n_tot))
             logger.warning(msg)
             warn(msg)
             ind = np.where(np.isnan(cloud_prop.values).any(axis=0))[0]
@@ -312,6 +319,12 @@ class CloudGapFill:
                                  mask_full.shape[0] * mask_full.shape[1],
                                  100 * mask_full.sum()
                                  / (mask_full.shape[0] * mask_full.shape[1])))
+            logger.debug('Cloud property "{}" is being cleaned with {} sites '
+                         'with fill_flag=4 out of {} total sites ({:.2f}%)'
+                         .format(prop_name, mask_full.any(axis=0).sum(),
+                                 mask_full.shape[1],
+                                 100 * mask_full.any(axis=0).sum()
+                                 / mask_full.shape[1]))
 
         return fill_flag
 

@@ -242,9 +242,9 @@ class PhygnnCloudFill:
             if any(all_bad):
                 mean_impute = np.nanmean(d)
                 count = all_bad.sum()
-                msg = ('Feature dataset "{0}" has {1} rows with all NaN '
-                       'values ({1} rows out of {2}, {3:.2f}%). Filling with '
-                       'mean value of {4}.'
+                msg = ('Feature dataset "{}" has {} columns with all NaN '
+                       'values out of {} ({:.2f}%). Filling with '
+                       'mean value of {}.'
                        .format(c, count, d.shape[1], 100 * count / d.shape[1],
                                mean_impute))
                 logger.warning(msg)
