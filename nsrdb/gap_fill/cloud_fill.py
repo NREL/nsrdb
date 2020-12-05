@@ -66,19 +66,25 @@ class CloudGapFill:
         # set other locations to nan to not impede gap fill
         cloud_prop_fill[~type_mask] = np.nan
 
-        # patch sites with all NaN or just one non-NaN but warn
-        all_na = (np.isnan(cloud_prop_fill).sum(axis=0)
-                  >= (cloud_prop_fill.shape[0] - 1))
-        if any(all_na):
-            cloud_prop_fill.loc[:, all_na] = -999
+        # patch sites with just one good value (need this for short
+        # timeseries with just one or two good values)
+        good_values = (~np.isnan(cloud_prop_fill)).sum(axis=0)
+        almost_all_nan = (good_values < 3) & (good_values >= 1)
+        if any(almost_all_nan):
+            cloud_prop_fill.loc[:, almost_all_nan] = \
+                cloud_prop_fill.loc[:, almost_all_nan].ffill().bfill()
+
+        # patch sites with all missing values
+        all_nan = good_values == 0
+        if any(all_nan):
+            cloud_prop_fill.loc[:, all_nan] = -999
 
         # gap fill all missing values
         cloud_prop_fill = cloud_prop_fill.interpolate(
-            method='nearest', axis=0)\
-            .fillna(method='ffill').fillna(method='bfill')
+            method='nearest', axis=0).ffill().bfill()
 
         # Make sure sites with only NaN props stay as nan
-        cloud_prop_fill.loc[:, all_na] = np.nan
+        cloud_prop_fill.loc[:, all_nan] = np.nan
 
         # fill values for the specified cloud type
         cloud_prop[type_mask] = cloud_prop_fill[type_mask].values
@@ -136,14 +142,28 @@ class CloudGapFill:
 
         if np.sum(np.isnan(cloud_prop.values)) > 0:
             loc = np.where(np.sum(np.isnan(cloud_prop.values), axis=0) > 0)[0]
-            msg = ('NaN values persist at {} sites.'.format(len(loc)))
+            count = np.isnan(cloud_prop.values).sum()
+            n_tot = cloud_prop.shape[0] * cloud_prop.shape[1]
+            msg = ('NaN values persist in "{}" at {} sites ({} NaN values '
+                   'remain out of {} total observations, {:.2f}%).'
+                   .format(dset, len(loc), count, n_tot, 100 * count / n_tot))
             logger.warning(msg)
             warn(msg)
+            ind = np.where(np.isnan(cloud_prop.values).any(axis=0))[0]
+            logger.debug('These site indices have persistent NaN values: {}'
+                         .format(ind))
 
             # do a hard fix of remaining nan values
             for cat, types in CloudGapFill.CATS.items():
                 mask = (cloud_type.isin(types) & cloud_prop.isnull())
-                cloud_prop[mask] = CloudGapFill.FILL[cat][dset]
+                fill_val = CloudGapFill.FILL[cat][dset]
+                cloud_prop[mask] = fill_val
+                msg = ('Filling {} persistent NaN values of "{}" with '
+                       'a climatalogical average value {} for cloud '
+                       'category "{}".'
+                       .format(mask.values.sum(), dset, fill_val, cat))
+                logger.warning(msg)
+                warn(msg)
 
         return cloud_prop
 
@@ -244,11 +264,14 @@ class CloudGapFill:
         return cloud_type, fill_flag
 
     @staticmethod
-    def flag_missing_properties(cloud_prop, cloud_type, sza, fill_flag):
+    def flag_missing_properties(prop_name, cloud_prop, cloud_type, sza,
+                                fill_flag):
         """Look for missing cloud properties and set fill_flag accordingly.
 
         Parameters
         ----------
+        prop_name : str
+            Name of the cloud property being filled.
         cloud_prop : pd.DataFrame
             DataFrame of cloud property values.
         cloud_type : pd.DataFrame
@@ -269,12 +292,26 @@ class CloudGapFill:
         mask = missing_prop & (fill_flag == 0)
         fill_flag[mask] = 3
 
+        logger.debug('Cloud property "{}" is being cleaned with {} '
+                     'fill_flag=3 out of {} total observations ({:.2f}%)'
+                     .format(prop_name, mask.sum(),
+                             mask.shape[0] * mask.shape[1],
+                             100 * mask.sum()
+                             / (mask.shape[0] * mask.shape[1])))
+
         # if full timeseries is missing properties but not type, set 4
         missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag > 0))
                         | (cloud_type.isin(CLEAR_TYPES) | (sza >= SZA_LIM)))
         if missing_full.all(axis=0).any():
-            mask = (fill_flag == 3) & missing_full.values.all(axis=0)
-            fill_flag[mask] = 4
+            mask_full = (fill_flag == 3) & missing_full.values.all(axis=0)
+            fill_flag[mask_full] = 4
+
+            logger.debug('Cloud property "{}" is being cleaned with {} '
+                         'fill_flag=4 out of {} total observations ({:.2f}%)'
+                         .format(prop_name, mask_full.sum(),
+                                 mask_full.shape[0] * mask_full.shape[1],
+                                 100 * mask_full.sum()
+                                 / (mask_full.shape[0] * mask_full.shape[1])))
 
         return fill_flag
 
@@ -334,10 +371,10 @@ class CloudGapFill:
             cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
                                                         fill_flag=fill_flag)
 
-        fill_flag = cls.flag_missing_properties(cloud_prop, cloud_type, sza,
-                                                fill_flag)
+        fill_flag = cls.flag_missing_properties(prop_name, cloud_prop,
+                                                cloud_type, sza, fill_flag)
 
-        # set missing property values to NaN. Clear will be reset later.
+        # set missing property values to NaN.
         cloud_prop[(cloud_prop <= 0)] = np.nan
 
         # perform gap fill for each cloud category seperately
