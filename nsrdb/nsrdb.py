@@ -151,7 +151,8 @@ class NSRDB:
 
     def _exe_daily_data_model(self, month, day, var_list=None,
                               factory_kwargs=None, fpath_out=None,
-                              max_workers=None, max_workers_clouds=None):
+                              max_workers=None, max_workers_clouds=None,
+                              mlclouds=False):
         """Execute the data model for a single day.
 
         Parameters
@@ -178,6 +179,9 @@ class NSRDB:
             None will use all available workers.
         max_workers_clouds : int | None
             Number of workers to run in parallel for the cloud regrid algorithm
+        mlclouds : bool
+            Flag to add extra variables to the variable processing list of
+            mlclouds gap fill is expected to be run as the next pipeline step.
 
         Returns
         -------
@@ -187,7 +191,9 @@ class NSRDB:
 
         date = datetime.date(year=self._year, month=int(month), day=int(day))
 
-        if var_list is None:
+        if var_list is None and mlclouds:
+            var_list = DataModel.ALL_VARS_ML
+        if var_list is None and not mlclouds:
             var_list = DataModel.ALL_VARS
 
         logger.info('Starting daily data model execution for {}-{}-{}'
@@ -433,7 +439,7 @@ class NSRDB:
 
     @classmethod
     def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
-                       var_meta=None, factory_kwargs=None,
+                       var_meta=None, factory_kwargs=None, mlclouds=False,
                        max_workers=None, max_workers_clouds=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
@@ -465,6 +471,9 @@ class NSRDB:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
+        mlclouds : bool
+            Flag to add extra variables to the variable processing list of
+            mlclouds gap fill is expected to be run as the next pipeline step.
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None uses all available workers.
@@ -498,7 +507,8 @@ class NSRDB:
         data_model = nsrdb._exe_daily_data_model(
             date.month, date.day, var_list=var_list,
             factory_kwargs=factory_kwargs, max_workers=max_workers,
-            max_workers_clouds=max_workers_clouds, fpath_out=fpath_out)
+            max_workers_clouds=max_workers_clouds, fpath_out=fpath_out,
+            mlclouds=mlclouds)
 
         if fpath_out is None:
             nsrdb._exe_fout(data_model)

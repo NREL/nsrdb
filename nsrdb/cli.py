@@ -143,7 +143,8 @@ class ConfigRunners:
                        var_list=cmd_args.get('var_list', None),
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
                        max_workers=cmd_args.get('max_workers', None),
-                       max_workers_clouds=max_workers_clouds)
+                       max_workers_clouds=max_workers_clouds,
+                       mlclouds=cmd_args.get('mlclouds', False))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -431,9 +432,12 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
 @click.option('--max_workers_clouds', '-wc', type=INT, default=None,
               help='Number of workers to use in parallel for the '
                    'cloud regrid algorithm.')
+@click.option('-ml', '--mlclouds', is_flag=True,
+              help='Flag to process additional variables if mlclouds gap fill'
+              'is going to be run after the data_model step.')
 @click.pass_context
 def data_model(ctx, doy, var_list, factory_kwargs,
-               max_workers, max_workers_clouds):
+               max_workers, max_workers_clouds, mlclouds):
     """Run the data model for a single day."""
 
     name = ctx.obj['NAME']
@@ -458,11 +462,11 @@ def data_model(ctx, doy, var_list, factory_kwargs,
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
                'max_workers={}, max_workers_clouds={}, '
                'log_level="{}", log_file="{}", '
-               'job_name="{}", factory_kwargs={}'
+               'job_name="{}", factory_kwargs={}, mlclouds={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
                        var_list, max_workers, max_workers_clouds,
                        log_level, log_file, name,
-                       factory_kwargs))
+                       factory_kwargs, mlclouds))
 
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
