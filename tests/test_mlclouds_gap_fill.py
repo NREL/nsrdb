@@ -75,21 +75,26 @@ def test_mlclouds_fill(date='20190102'):
         fill_flag = res['cloud_fill_flag']
         sza = res['solar_zenith_angle']
 
-    missing = (sza < 90) & (raw_ctype < 0)
+    day = (sza < 90)
+
+    missing = day & (raw_ctype < 0)
     assert missing.any()
     assert (fill_ctype >= 0).all()
 
-    missing = (sza < 90) & (raw_press <= 0)
+    missing = day & (raw_press <= 0)
     assert missing.any()
     assert (fill_press >= 0).all() & (np.isnan(fill_press).sum() == 0)
 
-    missing = (sza < 90) & np.isin(fill_ctype, CLOUD_TYPES) & (raw_opd <= 0)
+    missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_opd <= 0)
     assert missing.any()
     assert (fill_opd[missing] > 0).all() & (np.isnan(fill_opd).sum() == 0)
 
-    missing = (sza < 90) & np.isin(fill_ctype, CLOUD_TYPES) & (raw_reff <= 0)
+    missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_reff <= 0)
     assert missing.any()
     assert (fill_reff[missing] > 0).all() & (np.isnan(fill_reff).sum() == 0)
+
+    assert fill_opd[~day].sum() == 0
+    assert fill_reff[~day].sum() == 0
 
     assert all(np.unique(fill_flag) == np.arange(4))
 

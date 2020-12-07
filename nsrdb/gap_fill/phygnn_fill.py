@@ -154,8 +154,7 @@ class PhygnnCloudFill:
 
         return feature_data
 
-    @staticmethod
-    def clean_feature_data(feature_raw, fill_flag, sza_lim=90):
+    def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90):
         """
         Clean feature data
 
@@ -249,22 +248,23 @@ class PhygnnCloudFill:
 
         logger.debug('Interpolating feature data using nearest neighbor.')
         for c, d in feature_data.items():
-            any_bad = np.isnan(d).any()
-            all_bad = (~np.isnan(d)).sum(axis=0) < 3
-            if any(all_bad):
-                mean_impute = np.nanmean(d)
-                count = all_bad.sum()
-                msg = ('Feature dataset "{}" has {} columns with all NaN '
-                       'values out of {} ({:.2f}%). Filling with '
-                       'mean value of {}.'
-                       .format(c, count, d.shape[1],
-                               100 * count / d.shape[1], mean_impute))
-                logger.warning(msg)
-                warn(msg)
-                d[:, all_bad] = mean_impute
-            if any_bad:
-                feature_data[c] = pd.DataFrame(d).interpolate(
-                    'nearest').ffill().bfill().values
+            if c not in self.phygnn_model.label_names:
+                any_bad = np.isnan(d).any()
+                all_bad = (~np.isnan(d)).sum(axis=0) < 3
+                if any(all_bad):
+                    mean_impute = np.nanmean(d)
+                    count = all_bad.sum()
+                    msg = ('Feature dataset "{}" has {} columns with all NaN '
+                           'values out of {} ({:.2f}%). Filling with '
+                           'mean value of {}.'
+                           .format(c, count, d.shape[1],
+                                   100 * count / d.shape[1], mean_impute))
+                    logger.warning(msg)
+                    warn(msg)
+                    d[:, all_bad] = mean_impute
+                if any_bad:
+                    feature_data[c] = pd.DataFrame(d).interpolate(
+                        'nearest').ffill().bfill().values
 
         feature_data['cld_opd_dcomp'][~cloudy] = 0.0
         feature_data['cld_reff_dcomp'][~cloudy] = 0.0
@@ -438,8 +438,9 @@ class PhygnnCloudFill:
             (feature_data['flag'] == "bad_cloud")
         """
 
-        mask = feature_data['flag'] == 'bad_cloud'
-        if mask.sum() == 0:
+        fill_mask = feature_data['flag'] == 'bad_cloud'
+        night_mask = feature_data['flag'] == 'night'
+        if fill_mask.sum() == 0:
             msg = ('No "bad_cloud" flags were detected in the feature_data '
                    '"flag" dataset. Something went wrong! '
                    'The cloud data is never perfect...')
@@ -447,7 +448,7 @@ class PhygnnCloudFill:
             warn(msg)
         else:
             logger.debug('Filling {} values using phygnn predictions'
-                         .format(np.sum(mask)))
+                         .format(np.sum(fill_mask)))
 
         filled_data = {}
         for dset, arr in predicted_data.items():
@@ -457,7 +458,8 @@ class PhygnnCloudFill:
 
             logger.debug('Filling {} data'.format(dset))
             cld_data = feature_data[dset]
-            cld_data[mask] = arr[mask]
+            cld_data[fill_mask] = arr[fill_mask]
+            cld_data[night_mask] = 0
             filled_data[dset] = cld_data
 
             nnan = np.isnan(arr).sum()
