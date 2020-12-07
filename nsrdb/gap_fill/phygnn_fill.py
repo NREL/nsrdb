@@ -154,7 +154,8 @@ class PhygnnCloudFill:
 
         return feature_data
 
-    def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90):
+    @staticmethod
+    def clean_feature_data(feature_raw, fill_flag, sza_lim=90):
         """
         Clean feature data
 
@@ -248,23 +249,22 @@ class PhygnnCloudFill:
 
         logger.debug('Interpolating feature data using nearest neighbor.')
         for c, d in feature_data.items():
-            if c not in self.phygnn_model.label_names:
-                any_bad = np.isnan(d).any()
-                all_bad = (~np.isnan(d)).sum(axis=0) < 3
-                if any(all_bad):
-                    mean_impute = np.nanmean(d)
-                    count = all_bad.sum()
-                    msg = ('Feature dataset "{}" has {} columns with all NaN '
-                           'values out of {} ({:.2f}%). Filling with '
-                           'mean value of {}.'
-                           .format(c, count, d.shape[1],
-                                   100 * count / d.shape[1], mean_impute))
-                    logger.warning(msg)
-                    warn(msg)
-                    d[:, all_bad] = mean_impute
-                if any_bad:
-                    feature_data[c] = pd.DataFrame(d).interpolate(
-                        'nearest').ffill().bfill().values
+            any_bad = np.isnan(d).any()
+            all_bad = (~np.isnan(d)).sum(axis=0) < 3
+            if any(all_bad):
+                mean_impute = np.nanmean(d)
+                count = all_bad.sum()
+                msg = ('Feature dataset "{}" has {} columns with all NaN '
+                       'values out of {} ({:.2f}%). Filling with '
+                       'mean value of {}.'
+                       .format(c, count, d.shape[1],
+                               100 * count / d.shape[1], mean_impute))
+                logger.warning(msg)
+                warn(msg)
+                d[:, all_bad] = mean_impute
+            if any_bad:
+                feature_data[c] = pd.DataFrame(d).interpolate(
+                    'nearest').ffill().bfill().values
 
         feature_data['cld_opd_dcomp'][~cloudy] = 0.0
         feature_data['cld_reff_dcomp'][~cloudy] = 0.0
@@ -468,6 +468,12 @@ class PhygnnCloudFill:
                         .format(dset, np.nanmean(arr), np.median(arr),
                                 np.nanmin(arr), np.nanmax(arr),
                                 nnan, ntot, 100 * nnan / ntot))
+
+            if nnan > 0:
+                msg = ('Gap filled cloud property "{}" still had '
+                       '{} NaN values!'.format(dset, nnan))
+                logger.error(msg)
+                raise RuntimeError(msg)
 
         return filled_data
 
