@@ -573,16 +573,17 @@ class PhygnnCloudFill:
         logger.info('Writing cloud_fill_flag to: {}'
                     .format(os.path.basename(fpath)))
 
-        if os.path.exists(fpath):
-            with Outputs(fpath, mode='a') as fout:
-                fout['cloud_fill_flag', :, col_slice] = fill_flag
-        else:
+        if not os.path.exists(fpath):
             with Outputs(fpath, mode='w') as fout:
                 fout.time_index = ti
                 fout.meta = meta
-                fout._add_dset(dset_name='cloud_fill_flag', data=fill_flag,
-                               dtype=var_obj.final_dtype,
+                init_data = np.zeros((len(ti), len(meta)))
+                fout._add_dset(dset_name='cloud_fill_flag',
+                               dtype=var_obj.final_dtype, data=init_data,
                                chunks=var_obj.chunks, attrs=var_obj.attrs)
+
+        with Outputs(fpath, mode='a') as fout:
+            fout['cloud_fill_flag', :, col_slice] = fill_flag
 
         logger.debug('Write complete')
         logger.info('Final cloud_fill_flag counts:')
@@ -611,13 +612,14 @@ class PhygnnCloudFill:
         if col_chunk is None:
             slices = [slice(None)]
         else:
-            columns = np.arange(self._res_shape)
+            columns = np.arange(self._res_shape[1])
             N = np.ceil(len(columns) / col_chunk)
             arrays = np.array_split(columns, N)
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.debug('Gap fill will be run in {} column chunks with '
-                         'approximately {} sites per chunk'
-                         .format(len(slices), col_chunk))
+            logger.debug('Gap fill will be run across the full data column '
+                         'shape {} in {} column chunks with approximately {} '
+                         'sites per chunk'
+                         .format(len(columns), len(slices), col_chunk))
 
         self.archive_cld_properties()
         for col_slice in slices:

@@ -265,6 +265,14 @@ class CloudGapFill:
             logger.error(e)
             raise RuntimeError(e)
 
+        bad = (set(np.unique(cloud_type.values))
+               - set(CLOUD_TYPES + CLEAR_TYPES))
+        if any(bad):
+            e = ('Unknown cloud types have appeared! These are not '
+                 'recognized: {}'.format(list(bad)))
+            logger.error(e)
+            raise ValueError(e)
+
         if df_convert:
             cloud_type = cloud_type.values
 
@@ -404,7 +412,7 @@ class CloudGapFill:
 
         if np.isnan(cloud_prop.values).sum() > 0:
             e = ('Cloud property still has {} nan values out of shape {}!'
-                 .format(np.isnan(cloud_prop).sum(), cloud_prop.shape))
+                 .format(np.isnan(cloud_prop).values.sum(), cloud_prop.shape))
             logger.error(e)
             raise RuntimeError(e)
 
@@ -456,9 +464,10 @@ class CloudGapFill:
             N = np.ceil(len(columns) / col_chunk)
             arrays = np.array_split(columns, N)
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.debug('Gap fill will be run in {} column chunks with '
-                         'approximately {} sites per chunk'
-                         .format(len(slices), col_chunk))
+            logger.debug('Gap fill will be run across the full data column '
+                         'shape {} in {} column chunks with approximately {} '
+                         'sites per chunk'
+                         .format(len(columns), len(slices), col_chunk))
 
         for cols in slices:
             logger.info('Patching cloud properties for column slice: {}'

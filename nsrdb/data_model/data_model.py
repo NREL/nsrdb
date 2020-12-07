@@ -660,7 +660,7 @@ class DataModel:
         for dset in cloud_vars:
             if dset == 'cloud_type':
                 data[dset] = np.full(self.nsrdb_data_shape, -15,
-                                     dtype=np.int8)
+                                     dtype=np.int16)
             else:
                 data[dset] = np.full(self.nsrdb_data_shape, np.nan,
                                      dtype=np.float32)
