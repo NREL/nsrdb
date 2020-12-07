@@ -151,8 +151,8 @@ class NSRDB:
 
     def _exe_daily_data_model(self, month, day, var_list=None,
                               factory_kwargs=None, fpath_out=None,
-                              max_workers=None, max_workers_clouds=None,
-                              mlclouds=False):
+                              max_workers=None, max_workers_regrid=None,
+                              max_workers_cloud_io=None, mlclouds=False):
         """Execute the data model for a single day.
 
         Parameters
@@ -177,8 +177,12 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None will use all available workers.
-        max_workers_clouds : int | None
-            Number of workers to run in parallel for the cloud regrid algorithm
+        max_workers_regrid : None | int
+            Max parallel workers allowed for cloud regrid processing. None uses
+            all available workers. 1 runs regrid in serial.
+        max_workers_cloud_io : None | int
+            Max parallel workers allowed for cloud data io. None uses all
+            available workers. 1 runs io in serial.
         mlclouds : bool
             Flag to add extra variables to the variable processing list of
             mlclouds gap fill is expected to be run as the next pipeline step.
@@ -205,7 +209,8 @@ class NSRDB:
             nsrdb_freq=self._freq,
             var_meta=self._var_meta,
             max_workers=max_workers,
-            max_workers_clouds=max_workers_clouds,
+            max_workers_regrid=max_workers_regrid,
+            max_workers_cloud_io=max_workers_cloud_io,
             return_obj=True,
             fpath_out=fpath_out,
             factory_kwargs=factory_kwargs)
@@ -440,7 +445,8 @@ class NSRDB:
     @classmethod
     def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
                        var_meta=None, factory_kwargs=None, mlclouds=False,
-                       max_workers=None, max_workers_clouds=None,
+                       max_workers=None, max_workers_regrid=None,
+                       max_workers_cloud_io=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
         """Run daily data model, and save output files.
@@ -477,8 +483,12 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None uses all available workers.
-        max_workers_clouds : int | None
-            Number of workers to run in parallel for the cloud regrid algorithm
+        max_workers_regrid : None | int
+            Max parallel workers allowed for cloud regrid processing. None uses
+            all available workers. 1 runs regrid in serial.
+        max_workers_cloud_io : None | int
+            Max parallel workers allowed for cloud data io. None uses all
+            available workers. 1 runs io in serial.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -505,9 +515,13 @@ class NSRDB:
             var_list = json.loads(var_list)
 
         data_model = nsrdb._exe_daily_data_model(
-            date.month, date.day, var_list=var_list,
-            factory_kwargs=factory_kwargs, max_workers=max_workers,
-            max_workers_clouds=max_workers_clouds, fpath_out=fpath_out,
+            date.month, date.day,
+            var_list=var_list,
+            factory_kwargs=factory_kwargs,
+            max_workers=max_workers,
+            max_workers_regrid=max_workers_regrid,
+            max_workers_cloud_io=max_workers_cloud_io,
+            fpath_out=fpath_out,
             mlclouds=mlclouds)
 
         if fpath_out is None:
