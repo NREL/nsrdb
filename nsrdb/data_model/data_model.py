@@ -37,10 +37,9 @@ import pandas as pd
 import os
 import logging
 import psutil
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
 from scipy.spatial import cKDTree
-from warnings import warn
 
 from nsrdb import DATADIR
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
@@ -628,14 +627,15 @@ class DataModel:
                                         **var_kwargs)
 
         if self._max_workers != 1:
-            logger.debug('Starting cloud data ReGrid with {} futures '
-                         '(cloud timesteps).'.format(len(var_obj.flist)))
+            logger.info('Starting cloud data ReGrid with {} futures '
+                        '(cloud timesteps) with {} parallel workers.'
+                        .format(len(var_obj.flist), self._max_workers))
             regrid_ind = self._cloud_regrid_parallel(
                 var_obj.flist, var_kwargs=var_kwargs)
         else:
-            logger.debug('Starting cloud data ReGrid with {} iterations '
-                         '(cloud timesteps) in serial.'
-                         .format(len(var_obj.flist)))
+            logger.info('Starting cloud data ReGrid with {} iterations '
+                        '(cloud timesteps) in serial.'
+                        .format(len(var_obj.flist)))
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in var_obj.flist:
@@ -648,38 +648,66 @@ class DataModel:
                      'to extract and map cloud data to the NSRDB grid.')
 
         data = {}
-        # extract the regrided data for all timesteps
-        for i, (timestamp, obj) in enumerate(var_obj):
+        # initialize all datasets
+        for dset in cloud_vars:
+            if dset == 'cloud_type':
+                data[dset] = np.full(self.nsrdb_data_shape, -15,
+                                     dtype=np.int8)
+            else:
+                data[dset] = np.full(self.nsrdb_data_shape, np.nan,
+                                     dtype=np.float32)
 
-            if timestamp != self.nsrdb_ti[i]:
-                raise ValueError('Cloud iteration timestamp "{}" did not '
-                                 'match NSRDB timestamp "{}" at index #{}'
-                                 .format(timestamp, self.nsrdb_ti[i], i))
+        if self._max_workers != 1:
+            futures = {}
+            completed = 0
+            logger.info('Starting cloud data retrieval with {} futures '
+                        '(cloud timesteps) with {} parallel workers.'
+                        .format(len(var_obj.flist), self._max_workers))
+            with ProcessPoolExecutor(max_workers=self._max_workers) as exe:
+                # extract the regrided data for all timesteps
+                for i, (timestamp, obj) in enumerate(var_obj):
+                    assert timestamp == self.nsrdb_ti[i]
 
-            # obj is None if cloud data file is missing
-            if obj is not None:
+                    # obj is None if cloud data file is missing
+                    if obj is not None:
+                        assert regrid_ind[obj.fpath] is not None
+                        future = exe.submit(self._cloud_get_data, obj,
+                                            regrid_ind[obj.fpath])
+                        futures[future] = i
 
-                # save all datasets
-                for dset, array in obj.source_data.items():
+                for future in as_completed(futures):
+                    i = futures[future]
+                    single_data = future.result()
+                    for dset, array in single_data.items():
+                        # write single timestep with NSRDB sites to row
+                        data[dset][i, :] = array
 
-                    # initialize array based on time index and NN index result
-                    if dset not in data:
-                        if np.issubdtype(array.dtype, np.float):
-                            data[dset] = np.full(self.nsrdb_data_shape, np.nan,
-                                                 dtype=array.dtype)
-                        else:
-                            data[dset] = np.full(self.nsrdb_data_shape, -15,
-                                                 dtype=array.dtype)
+                    completed += 1
+                    mem = psutil.virtual_memory()
+                    logger.info('Cloud data retrieval futures completed: '
+                                '{0} out of {1}. '
+                                'Current memory usage is '
+                                '{2:.3f} GB out of {3:.3f} GB total.'
+                                .format(completed, len(futures),
+                                        mem.used / 1e9, mem.total / 1e9))
 
-                    # write single timestep with NSRDB sites to appropriate row
-                    # map the regridded data using the regrid NN indices
-                    if regrid_ind[obj.fpath] is not None:
-                        data[dset][i, :] = array[regrid_ind[obj.fpath]]
-                    else:
-                        wmsg = ('Cloud data does not appear to have valid '
-                                'coordinates: {}'.format(obj.fpath))
-                        warn(wmsg)
-                        logger.warning(wmsg)
+        else:
+            logger.info('Starting cloud data retrieval with {} iterations '
+                        '(cloud timesteps) in serial.'
+                        .format(len(var_obj.flist)))
+            # extract the regrided data for all timesteps
+            for i, (timestamp, obj) in enumerate(var_obj):
+                assert timestamp == self.nsrdb_ti[i]
+
+                # obj is None if cloud data file is missing
+                if obj is not None:
+                    assert regrid_ind[obj.fpath] is not None
+                    single_data = self._cloud_get_data(
+                        obj, regrid_ind[obj.fpath])
+
+                    for dset, array in single_data.items():
+                        # write single timestep with NSRDB sites to row
+                        data[dset][i, :] = array
 
         # scale if requested
         if self._scale:
@@ -761,6 +789,34 @@ class DataModel:
                 regrid_ind[k] = v.result()
 
         return regrid_ind
+
+    @staticmethod
+    def _cloud_get_data(cloud_obj, regrid_ind):
+        """
+        Parameters
+        ----------
+        cloud_obj : CloudVarSingleH5 | CloudVarSingleNC
+            Single-timestep cloud variable data handler.
+        regrid_ind : np.ndarray
+            Single-timestep NN index results output by _cloud_regrid_parallel
+            and retrieved for the single-timestep cloud_obj
+
+        Returns
+        -------
+        data : dict
+            Dictionary of data extracted from the single-timestep cloud_obj
+            and re-gridded using the regrid_ind indices. Keys are cloud
+            variable names and values are 1D numpy arrays for the single
+            timestep for all sites.
+        """
+
+        data = {}
+        for dset, array in cloud_obj.source_data.items():
+            # write single timestep with NSRDB sites to appropriate row
+            # map the regridded data using the regrid NN indices
+            data[dset] = array[regrid_ind]
+
+        return data
 
     def _process_dependencies(self, dependencies):
         """Ensure that all dependencies have been processed and set to self.

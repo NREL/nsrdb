@@ -364,11 +364,11 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
 
             completed += 1
             mem = psutil.virtual_memory()
-            logger.debug('All-sky futures completed: '
-                         '{0} out of {1}. '
-                         'Current memory usage is '
-                         '{2:.3f} GB out of {3:.3f} GB total.'
-                         .format(completed, len(futures),
-                                 mem.used / 1e9, mem.total / 1e9))
+            logger.info('All-sky futures completed: '
+                        '{0} out of {1}. '
+                        'Current memory usage is '
+                        '{2:.3f} GB out of {3:.3f} GB total.'
+                        .format(completed, len(futures),
+                                mem.used / 1e9, mem.total / 1e9))
 
     return out
