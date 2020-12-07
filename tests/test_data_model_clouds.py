@@ -37,7 +37,7 @@ def cloud_data():
 
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data/016/',
-                         'goes12_2007_016_1915.level2.h5')
+                         'goes12_2007_016_0000.level2.h5')
     c = CloudVarSingleH5(fpath)
     grid = c.grid
     data = c.source_data
@@ -111,6 +111,7 @@ def test_regrid():
                 var_obj = VarFactory.get_base_handler(
                     key, var_meta=var_meta, date=date)
                 data_baseline = var_obj.scale_data(data_baseline)
+
             assert np.allclose(data_baseline, value,
                                atol=ATOL, rtol=RTOL)
 
