@@ -746,7 +746,7 @@ class NSRDB:
     @classmethod
     def gap_fill_clouds(cls, out_dir, year, i_chunk,
                         rows=slice(None), cols=slice(None),
-                        col_chunk=1000, var_meta=None, log_level='DEBUG',
+                        col_chunk=None, var_meta=None, log_level='DEBUG',
                         log_file='cloud_fill.log', job_name=None):
         """Gap fill cloud properties in a collected data model output file.
 
@@ -762,9 +762,10 @@ class NSRDB:
             Subset of rows to gap fill.
         cols : slice
             Subset of columns to gap fill.
-        col_chunks : None
-            Optional chunking method to gap fill a few chunks at a time
-            to reduce memory requirements.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -807,7 +808,7 @@ class NSRDB:
     @classmethod
     def ml_cloud_fill(cls, out_dir, date, model_path=None, var_meta=None,
                       log_level='DEBUG', log_file='cloud_fill.log',
-                      job_name=None):
+                      job_name=None, col_chunk=None):
         """Gap fill cloud properties using a physics-guided neural
         network (phygnn).
 
@@ -833,6 +834,10 @@ class NSRDB:
             File to log to. Will be put in output directory.
         job_name : str
             Optional name for pipeline and status identification.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
         """
         from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
         t0 = time.time()
@@ -842,7 +847,7 @@ class NSRDB:
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         PhygnnCloudFill.run(h5_source, model_path=model_path,
-                            var_meta=var_meta)
+                            var_meta=var_meta, col_chunk=col_chunk)
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:

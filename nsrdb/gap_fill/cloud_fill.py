@@ -436,9 +436,10 @@ class CloudGapFill:
             Subset of rows to gap fill.
         cols : slice
             Subset of columns to gap fill.
-        col_chunks : None
-            Optional chunking method to gap fill a few chunks at a time
-            to reduce memory requirements.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
         """
         logger.info('Patching cloud properties in file: "{}"'.format(f_cloud))
 
@@ -446,29 +447,22 @@ class CloudGapFill:
             dsets = f.dsets
             shape = f.shape
 
-        start = cols.start
-        stop = cols.stop
-        if start is None:
-            start = 0
-        if stop is None:
-            stop = shape[1]
-
         if col_chunk is None:
-            col_chunk = stop - start
+            slices = [cols]
+        else:
+            start = 0 if cols.start is None else cols.start
+            stop = shape[1] if cols.stop is None else cols.stop
+            columns = np.arange(start, stop)
+            N = np.ceil(len(columns) / col_chunk)
+            arrays = np.array_split(columns, N)
+            slices = [slice(a[0], 1 + a[-1]) for a in arrays]
+            logger.debug('Gap fill will be run in {} column chunks with '
+                         'approximately {} sites per chunk'
+                         .format(len(slices), col_chunk))
 
-        last = start
-
-        while True:
-            i0 = last
-            i1 = np.min((i0 + col_chunk, shape[1]))
-            cols = slice(i0, i1)
-            last = i1
-            if i0 == i1:
-                logger.debug('Job complete at index {}'.format(i0))
-                break
-            else:
-                logger.debug('Patching cloud properties: {} through {}'
-                             .format(i0, i1))
+        for cols in slices:
+            logger.info('Patching cloud properties for column slice: {}'
+                        .format(cols))
 
             with Resource(f_ancillary) as f:
                 sza = f['solar_zenith_angle', rows, cols]
@@ -508,3 +502,5 @@ class CloudGapFill:
                              .format(os.path.basename(f_cloud)))
                 f['cloud_fill_flag', rows, cols] = fill_flag
                 logger.debug('Write complete')
+
+            logger.info('Job complete for columns: {}'.format(cols))

@@ -167,7 +167,7 @@ class ConfigRunners:
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
             ctx.invoke(cloud_fill, i_chunk=i_chunk,
-                       col_chunk=cmd_args['col_chunk'])
+                       col_chunk=cmd_args.get('col_chunk', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -201,7 +201,8 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.invoke(ml_cloud_fill, date=date, model_path=model_path)
+            ctx.invoke(ml_cloud_fill, date=date, model_path=model_path,
+                       col_chunk=cmd_args.get('col_chunk', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -479,8 +480,10 @@ def data_model(ctx, doy, var_list, factory_kwargs,
 @direct.group()
 @click.option('--i_chunk', '-i', type=int, required=True,
               help='Chunked file index in out_dir to run cloud fill for.')
-@click.option('--col_chunk', '-ch', type=int, required=True, default=10000,
-              help='Column chunk to process at one time.')
+@click.option('--col_chunk', '-ch', type=INT, required=True, default=None,
+              help='Optional chunking method to gap fill one column chunk at '
+              'a time to reduce memory requirements. If provided, this should '
+              'be an int specifying how many columns to work on at one time.')
 @click.pass_context
 def cloud_fill(ctx, i_chunk, col_chunk):
     """Gap fill a cloud data file."""
@@ -513,8 +516,12 @@ def cloud_fill(ctx, i_chunk, col_chunk):
               help='Directory to load phygnn model from. This is typically '
               'a fpath to a .pkl file with an accompanying .json file in the '
               'same directory.')
+@click.option('--col_chunk', '-ch', type=INT, required=True, default=None,
+              help='Optional chunking method to gap fill one column chunk at '
+              'a time to reduce memory requirements. If provided, this should '
+              'be an int specifying how many columns to work on at one time.')
 @click.pass_context
-def ml_cloud_fill(ctx, date, model_path):
+def ml_cloud_fill(ctx, date, model_path, col_chunk):
     """Gap fill cloud properties in daily data model outputs using a physics
     guided neural network (phgynn)."""
 
@@ -529,8 +536,9 @@ def ml_cloud_fill(ctx, date, model_path):
 
     fun_str = 'NSRDB.ml_cloud_fill'
     arg_str = ('"{}", "{}", model_path={}, log_file="{}", '
-               'log_level="{}", job_name="{}"'
-               .format(out_dir, date, model_path, log_file, log_level, name))
+               'log_level="{}", job_name="{}", col_chunk={}'
+               .format(out_dir, date, model_path, log_file, log_level,
+                       name, col_chunk))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
