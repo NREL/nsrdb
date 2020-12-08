@@ -13,7 +13,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.pipeline.status import Status
+from nsrdb.pipeline import Status
 from nsrdb.utilities.loggers import init_logger
 
 

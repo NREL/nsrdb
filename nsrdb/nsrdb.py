@@ -26,7 +26,7 @@ from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.pipeline.status import Status
+from nsrdb.pipeline import Status
 
 
 logger = logging.getLogger(__name__)

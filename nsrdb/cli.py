@@ -9,12 +9,11 @@ import os
 import json
 import logging
 import click
+from rex.utilities.hpc import SLURM
 from nsrdb.nsrdb import NSRDB
 from nsrdb.utilities.cli_dtypes import STR, INT, FLOAT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
-from nsrdb.utilities.execution import SLURM
-from nsrdb.pipeline.status import Status
-from nsrdb.pipeline.pipeline import Pipeline
+from nsrdb.pipeline import Status, NsrdbPipeline
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
 
@@ -44,9 +43,9 @@ def pipeline(ctx, config_file, cancel, monitor):
 
     ctx.ensure_object(dict)
     if cancel:
-        Pipeline.cancel_all(config_file)
+        NsrdbPipeline.cancel_all(config_file)
     else:
-        Pipeline.run(config_file, monitor=monitor)
+        NsrdbPipeline.run(config_file, monitor=monitor)
 
 
 @main.command()
@@ -84,6 +83,7 @@ def config(ctx, config_file, command):
     ctx.obj['VAR_META'] = direct_args.get('var_meta', None)
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
+    ctx.obj['SLURM_MANAGER'] = SLURM()
 
     init_logger('nsrdb.cli', log_level=direct_args['log_level'], log_file=None)
 
@@ -823,36 +823,43 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
     fun_str = ctx.obj['FUN_STR']
     arg_str = ctx.obj['ARG_STR']
     command = ctx.obj['COMMAND']
+    slurm_manager = ctx.obj['SLURM_MANAGER']
 
     if stdout_path is None:
         stdout_path = os.path.join(out_dir, 'stdout/')
 
-    status = Status.retrieve_job_status(out_dir, command, name)
+    status = Status.retrieve_job_status(out_dir, command, name,
+                                        hardware='eagle',
+                                        subprocess_manager=slurm_manager)
+
     if status == 'successful':
         msg = ('Job "{}" is successful in status json found in "{}", '
                'not re-running.'.format(name, out_dir))
-        click.echo(msg)
-        logger.info(msg)
+    elif 'fail' not in str(status).lower() and status is not None:
+        msg = ('Job "{}" was found with status "{}", not resubmitting'
+               'not re-running.'.format(name, status))
     else:
         cmd = ("python -c '{import_str};{f}({a})'"
                .format(import_str=import_str, f=fun_str, a=arg_str))
-        print('cmd: {}'.format(cmd))
-        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      feature=feature, name=name, stdout_path=stdout_path)
+        out = slurm_manager.sbatch(cmd,
+                                   alloc=alloc,
+                                   memory=memory,
+                                   walltime=walltime,
+                                   feature=feature,
+                                   name=name,
+                                   stdout_path=stdout_path)[0]
 
-        if slurm.id:
+        if out:
             msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
-                   .format(name, slurm.id))
+                   .format(name, out))
             Status.add_job(
                 out_dir, command, name, replace=True,
-                job_attrs={'job_id': slurm.id,
+                job_attrs={'job_id': out,
                            'hardware': 'eagle',
                            'out_dir': out_dir})
-        else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(name))
-        print(msg)
+
+    click.echo(msg)
+    logger.info(msg)
 
 
 collect_data_model.add_command(eagle)
