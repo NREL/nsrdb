@@ -16,13 +16,14 @@ from scipy.stats import mode
 from scipy.spatial import cKDTree
 from warnings import warn
 
+from rex.utilities.hpc import SLURM
+
 from nsrdb.all_sky.utilities import calc_dhi
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.plots import Spatial
 from nsrdb.utilities.interpolation import temporal_step
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.utilities.execution import SLURM
 
 
 logger = logging.getLogger(__name__)
@@ -1094,7 +1095,7 @@ class Manager:
                             x = out.get_dset_properties(d)
                         except Exception as e:
                             m = ('Could not get dataset "{}" properties from '
-                                 'file: {}'.format(os.path.join(h5dir, fn)))
+                                 'file: {}'.format(d, os.path.join(h5dir, fn)))
                             logger.error(m)
                             logger.exception(m)
                             raise e
@@ -1576,6 +1577,8 @@ class Manager:
         cmd = ("python -c \'from nsrdb.aggregation.aggregation import Manager;"
                "Manager.run_chunk({})\'")
 
+        slurm_manager = SLURM()
+
         for i_chunk in range(n_chunks):
             i_node_name = node_name + '_{}'.format(i_chunk)
             a = ('{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
@@ -1584,15 +1587,19 @@ class Manager:
                          i_chunk, n_chunks, year))
             icmd = cmd.format(a)
 
-            slurm = SLURM(icmd, alloc=alloc, memory=memory, walltime=walltime,
-                          feature=feature, name=i_node_name,
-                          stdout_path=stdout_path)
+            out = slurm_manager.sbatch(icmd,
+                                       alloc=alloc,
+                                       memory=memory,
+                                       walltime=walltime,
+                                       feature=feature,
+                                       name=i_node_name,
+                                       stdout_path=stdout_path)[0]
 
             print('\ncmd:\n{}\n'.format(icmd))
 
-            if slurm.id:
+            if out:
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'Eagle.'.format(i_node_name, slurm.id))
+                       'Eagle.'.format(i_node_name, out))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'

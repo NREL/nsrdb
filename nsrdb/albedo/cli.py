@@ -12,7 +12,7 @@ import logging
 from datetime import datetime as dt
 from datetime import timedelta
 
-from nsrdb.utilities.execution import SLURM
+from rex.utilities.hpc import SLURM
 from nsrdb.utilities.cli_dtypes import STR, INT
 
 from nsrdb.utilities.loggers import init_logger
@@ -173,6 +173,7 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
         sys.exit(1)
 
     logger.info(f'Calculating composite albedo from {start} to {end}.')
+    slurm_manager = SLURM()
 
     for date in daterange(start, end):
         log_file = ctx.obj['log_file']
@@ -189,12 +190,16 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
         name = dt.strftime(date, 'a%Y%j')
         logger.info('Running composite albedo processing on Eagle with '
                     f'name "{name}" for {date}')
-        slurm = SLURM(cmd, alloc=alloc, memory=memory,
-                      walltime=walltime, feature=feature,
-                      name=name, stdout_path=stdout_path)
-        if slurm.id:
+        out = slurm_manager.sbatch(cmd,
+                                   alloc=alloc,
+                                   memory=memory,
+                                   walltime=walltime,
+                                   feature=feature,
+                                   name=name,
+                                   stdout_path=stdout_path)[0]
+        if out:
             msg = (f'Kicked off NSRDB albedo job "{name}" (SLURM '
-                   f'jobid #{slurm.id}) on Eagle.')
+                   f'jobid #{out}) on Eagle.')
         else:
             msg = (f'Was unable to kick off NSRDB albedo job "{name}". '
                    'Please see the stdout error messages')

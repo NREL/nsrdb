@@ -7,9 +7,10 @@ import click
 import logging
 import time
 
+from rex.utilities.hpc import SLURM
+
 from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.cli_dtypes import STR, INT
-from nsrdb.utilities.execution import SLURM
 from nsrdb.blend.blend import Blender
 
 
@@ -211,15 +212,21 @@ def slurm(ctx, alloc, walltime, feature, memory, stdout_path):
                                 out_fn, east_fn, west_fn, file_tag, map_col,
                                 lon_seam, chunk_size, log_dir, verbose)
 
+    slurm_manager = SLURM()
+
     for name, cmd in zip(names, cmds):
         logger.info('Running NSRDB blend on SLURM with '
                     'node name "{}"'.format(name))
-        slurm = SLURM(cmd, alloc=alloc, memory=memory,
-                      walltime=walltime, feature=feature,
-                      name=name, stdout_path=stdout_path)
-        if slurm.id:
+        out = slurm_manager.sbatch(cmd,
+                                   alloc=alloc,
+                                   memory=memory,
+                                   walltime=walltime,
+                                   feature=feature,
+                                   name=name,
+                                   stdout_path=stdout_path)[0]
+        if out:
             msg = ('Kicked off nsrdb blend job "{}" (SLURM jobid #{}).'
-                   .format(name, slurm.id))
+                   .format(name, out))
         else:
             msg = ('Was unable to kick off nsrdb blend job "{}". '
                    'Please see the stdout error messages'
