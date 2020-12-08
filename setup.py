@@ -72,6 +72,6 @@ setup(
                       "flake8",
                       "pylint",
                       "NREL-rexi>=0.2.30",
-                      "NREL-reV>=0.4.36",
+                      "NREL-reV>=0.4.37",
                       ],
 )
