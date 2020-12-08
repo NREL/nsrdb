@@ -10,7 +10,7 @@ import json
 import logging
 import click
 from nsrdb.nsrdb import NSRDB
-from nsrdb.utilities.cli_dtypes import STR, INT, DICT, STRLIST
+from nsrdb.utilities.cli_dtypes import STR, INT, FLOAT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
 from nsrdb.utilities.execution import SLURM
 from nsrdb.pipeline.status import Status
@@ -142,6 +142,7 @@ class ConfigRunners:
 
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
+                       dist_lim=cmd_args.get('dist_lim', 1.0),
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
                        max_workers=cmd_args.get('max_workers', None),
                        max_workers_regrid=max_workers_regrid,
@@ -422,6 +423,12 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
 @click.option('--var_list', '-vl', type=STRLIST, required=False, default=None,
               help='Variables to process with the data model. None will '
               'default to all NSRDB variables.')
+@click.option('--dist_lim', '-dl', type=FLOAT, required=True, default=1.0,
+              help='Return only neighbors within this distance during cloud '
+              'regrid. The distance is in decimal degrees (more efficient '
+              'than real distance). NSRDB sites further than this value from '
+              'GOES data pixels will be warned and given missing cloud types '
+              'and properties resulting in a full clearsky timeseries.')
 @click.option('--factory_kwargs', '-kw', type=DICT,
               required=False, default=None,
               help='Optional namespace of kwargs to use to initialize '
@@ -442,7 +449,7 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               help='Flag to process additional variables if mlclouds gap fill'
               'is going to be run after the data_model step.')
 @click.pass_context
-def data_model(ctx, doy, var_list, factory_kwargs, max_workers,
+def data_model(ctx, doy, var_list, dist_lim, factory_kwargs, max_workers,
                max_workers_regrid, max_workers_cloud_io, mlclouds):
     """Run the data model for a single day."""
 
@@ -466,12 +473,12 @@ def data_model(ctx, doy, var_list, factory_kwargs, max_workers,
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
-               'max_workers={}, '
+               'dist_lim={}, max_workers={}, '
                'max_workers_regrid={}, max_workers_cloud_io={}, '
                'log_level="{}", log_file="{}", '
                'job_name="{}", factory_kwargs={}, mlclouds={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
-                       var_list, max_workers, max_workers_regrid,
+                       var_list, dist_lim, max_workers, max_workers_regrid,
                        max_workers_cloud_io,
                        log_level, log_file, name,
                        factory_kwargs, mlclouds))

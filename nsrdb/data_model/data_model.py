@@ -405,6 +405,10 @@ class DataModel:
             lat/lon column lables for the NSRDB grid and the cloud grid
         dist_lim : float
             Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_kwargs : dict | None
             Optional kwargs for the instantiation of the cloud var handler
 
@@ -628,6 +632,10 @@ class DataModel:
             kdtree is built for each unique coordinate set in each cloud file.
         dist_lim : float
             Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
@@ -765,6 +773,10 @@ class DataModel:
             file is mapped to the NSRDB grid in parallel.
         dist_lim : float
             Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         max_workers : None | int
             Max parallel workers allowed for regrid processing. None uses all
             available workers. 1 runs regrid in serial.
@@ -1035,7 +1047,7 @@ class DataModel:
 
     @classmethod
     def _process_multiple(cls, var_list, date, nsrdb_grid,
-                          nsrdb_freq='5min', var_meta=None,
+                          nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                           max_workers=None, max_workers_regrid=None,
                           max_workers_cloud_io=None,
                           fpath_out=None, factory_kwargs=None):
@@ -1052,6 +1064,12 @@ class DataModel:
             or a pre-extracted (and reduced) dataframe.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_meta : str | pd.DataFrame
             CSV file or dataframe containing meta data for all NSRDB variables.
         max_workers : int | None
@@ -1147,6 +1165,7 @@ class DataModel:
             data_model['clouds'] = cls.run_clouds(
                 cloud_vars, date, nsrdb_grid,
                 nsrdb_freq=nsrdb_freq,
+                dist_lim=dist_lim,
                 var_meta=var_meta,
                 max_workers_regrid=max_workers_regrid,
                 max_workers_cloud_io=max_workers_cloud_io,
@@ -1286,7 +1305,8 @@ class DataModel:
 
     @classmethod
     def run_single(cls, var, date, nsrdb_grid, nsrdb_freq='5min',
-                   var_meta=None, fpath_out=None, factory_kwargs=None):
+                   var_meta=None, fpath_out=None, factory_kwargs=None,
+                   **kwargs):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1314,6 +1334,11 @@ class DataModel:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
+        kwargs : dict
+            Optional kwargs. Based on the NSRDB var name requested to be
+            processed, this method runs one of several DataModel processing
+            methods (_interpolate, _derive, _cloud_regrid). These kwargs will
+            get passed to the processing method.
 
         Returns
         -------
@@ -1353,7 +1378,7 @@ class DataModel:
             method = data_model._interpolate
 
         try:
-            data = method(var)
+            data = method(var, **kwargs)
         except Exception as e:
             logger.exception('Processing method "DataModel.{}()" failed for '
                              '"{}"'.format(method.__name__, var))
@@ -1372,7 +1397,7 @@ class DataModel:
 
     @classmethod
     def run_clouds(cls, cloud_vars, date, nsrdb_grid,
-                   nsrdb_freq='5min', var_meta=None,
+                   nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                    max_workers_regrid=None, max_workers_cloud_io=None,
                    fpath_out=None, factory_kwargs=None):
         """Run cloud processing for multiple cloud variables.
@@ -1392,8 +1417,12 @@ class DataModel:
             must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
-        extent : str
-            Regional (satellite) extent to process, used to form file paths.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -1446,7 +1475,7 @@ class DataModel:
         try:
             data = data_model._cloud_regrid(
                 cloud_vars, max_workers_regrid=max_workers_regrid,
-                max_workers_cloud_io=max_workers_cloud_io)
+                max_workers_cloud_io=max_workers_cloud_io, dist_lim=dist_lim)
         except Exception as e:
             logger.exception('Processing method "DataModel._cloud_regrid()" '
                              'failed for "{}"'.format(cloud_vars))
@@ -1471,7 +1500,7 @@ class DataModel:
 
     @classmethod
     def run_multiple(cls, var_list, date, nsrdb_grid,
-                     nsrdb_freq='5min', var_meta=None,
+                     nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                      max_workers=None, max_workers_regrid=None,
                      max_workers_cloud_io=None, return_obj=False,
                      fpath_out=None, factory_kwargs=None):
@@ -1489,6 +1518,12 @@ class DataModel:
             must be the NSRDB site gid's.
         nsrdb_freq : str
             Final desired NSRDB temporal frequency.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -1546,6 +1581,7 @@ class DataModel:
         data_model = cls._process_multiple(
             var_list, date, nsrdb_grid,
             nsrdb_freq=nsrdb_freq,
+            dist_lim=dist_lim,
             var_meta=var_meta,
             max_workers=max_workers,
             max_workers_regrid=max_workers_regrid,

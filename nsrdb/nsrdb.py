@@ -149,7 +149,7 @@ class NSRDB:
             logger.warning('Running 32-bit python, sys.maxsize: {}'
                            .format(sys.maxsize))
 
-    def _exe_daily_data_model(self, month, day, var_list=None,
+    def _exe_daily_data_model(self, month, day, dist_lim=1.0, var_list=None,
                               factory_kwargs=None, fpath_out=None,
                               max_workers=None, max_workers_regrid=None,
                               max_workers_cloud_io=None, mlclouds=False):
@@ -161,6 +161,12 @@ class NSRDB:
             Month to run data model for.
         day : int | str
             Day to run data model for.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             NSRDB variables.
@@ -207,6 +213,7 @@ class NSRDB:
         data_model = DataModel.run_multiple(
             var_list, date, self._grid,
             nsrdb_freq=self._freq,
+            dist_lim=dist_lim,
             var_meta=self._var_meta,
             max_workers=max_workers,
             max_workers_regrid=max_workers_regrid,
@@ -443,10 +450,10 @@ class NSRDB:
         return date
 
     @classmethod
-    def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
-                       var_meta=None, factory_kwargs=None, mlclouds=False,
-                       max_workers=None, max_workers_regrid=None,
-                       max_workers_cloud_io=None,
+    def run_data_model(cls, out_dir, date, grid, dist_lim=1.0, var_list=None,
+                       freq='5min', var_meta=None, factory_kwargs=None,
+                       mlclouds=False, max_workers=None,
+                       max_workers_regrid=None, max_workers_cloud_io=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
         """Run daily data model, and save output files.
@@ -462,6 +469,12 @@ class NSRDB:
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
             must be the NSRDB site gid's.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             NSRDB variables.
@@ -516,6 +529,7 @@ class NSRDB:
 
         data_model = nsrdb._exe_daily_data_model(
             date.month, date.day,
+            dist_lim=dist_lim,
             var_list=var_list,
             factory_kwargs=factory_kwargs,
             max_workers=max_workers,
