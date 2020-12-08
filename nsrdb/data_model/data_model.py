@@ -40,6 +40,7 @@ import psutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
 from scipy.spatial import cKDTree
+from warnings import warn
 
 from nsrdb import DATADIR
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
@@ -391,7 +392,7 @@ class DataModel:
 
     @staticmethod
     def get_cloud_nn(fpath, nsrdb_grid, labels=('latitude', 'longitude'),
-                     var_kwargs=None):
+                     dist_lim=1.0, var_kwargs=None):
         """Nearest neighbors computation for cloud data regrid.
 
         Parameters
@@ -402,6 +403,8 @@ class DataModel:
             Reference grid data for NSRDB.
         labels : list | tuple
             lat/lon column lables for the NSRDB grid and the cloud grid
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
         var_kwargs : dict | None
             Optional kwargs for the instantiation of the cloud var handler
 
@@ -427,14 +430,31 @@ class DataModel:
             logger.error(msg)
             raise RuntimeError(msg)
 
-        if grid is not None:
+        if grid is None:
+            return None
+
+        else:
             tree = cKDTree(grid[labels])
             # Get the index of NN to NSRDB grid
-            _, index = tree.query(nsrdb_grid[labels], k=1)
-            index = index.astype(np.uint32)
+            dist, index = tree.query(nsrdb_grid[labels], k=1)
+            out_of_bounds = dist > dist_lim
+            index[out_of_bounds] = -1
+
+            logger.debug('ReGrid distances range from {:.2f} to {:.2f} with '
+                         'a mean of {:.2f} and median of {:.2f} for '
+                         'cloud fpath: {}'
+                         .format(dist.min(), dist.max(), dist.mean(),
+                                 np.median(dist), fpath))
+
+            if any(out_of_bounds):
+                msg = ('The following NSRDB gids were further '
+                       'than {} distance from cloud coordinates: {}'
+                       .format(dist_lim, np.where(out_of_bounds)[0]))
+                logger.warning(msg)
+                warn(msg)
+
+            index = index.astype(np.int32)
             return index
-        else:
-            return None
 
     def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
@@ -593,8 +613,8 @@ class DataModel:
 
         return data
 
-    def _cloud_regrid(self, cloud_vars, max_workers_regrid=None,
-                      max_workers_cloud_io=None):
+    def _cloud_regrid(self, cloud_vars, dist_lim=1.0,
+                      max_workers_regrid=None, max_workers_cloud_io=None):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
 
         (most efficient to process all cloud variables together to minimize
@@ -606,6 +626,8 @@ class DataModel:
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
@@ -638,8 +660,8 @@ class DataModel:
                         '(cloud timesteps) with {} parallel workers.'
                         .format(len(var_obj.flist), max_workers_regrid))
             regrid_ind = self._cloud_regrid_parallel(
-                var_obj.flist, max_workers=max_workers_regrid,
-                var_kwargs=var_kwargs)
+                var_obj.flist, dist_lim=dist_lim,
+                max_workers=max_workers_regrid, var_kwargs=var_kwargs)
         else:
             logger.info('Starting cloud data ReGrid with {} iterations '
                         '(cloud timesteps) in serial.'
@@ -650,7 +672,8 @@ class DataModel:
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
                 regrid_ind[fpath] = self.get_cloud_nn(
-                    fpath, self.nsrdb_grid, var_kwargs=var_kwargs)
+                    fpath, self.nsrdb_grid, var_kwargs=var_kwargs,
+                    dist_lim=dist_lim)
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
@@ -731,7 +754,8 @@ class DataModel:
 
         return data
 
-    def _cloud_regrid_parallel(self, flist, max_workers=None, var_kwargs=None):
+    def _cloud_regrid_parallel(self, flist, dist_lim=1.0,
+                               max_workers=None, var_kwargs=None):
         """Perform the ReGrid nearest neighbor calculations in parallel.
 
         Parameters
@@ -739,6 +763,8 @@ class DataModel:
         flist : list
             List of full file paths to cloud data files. Grid data from each
             file is mapped to the NSRDB grid in parallel.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
         max_workers : None | int
             Max parallel workers allowed for regrid processing. None uses all
             available workers. 1 runs regrid in serial.
@@ -761,9 +787,9 @@ class DataModel:
         with ProcessPoolExecutor(max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in flist:
-                regrid_ind[fpath] = exe.submit(self.get_cloud_nn, fpath,
-                                               self.nsrdb_grid,
-                                               var_kwargs=var_kwargs)
+                regrid_ind[fpath] = exe.submit(
+                    self.get_cloud_nn, fpath, self.nsrdb_grid,
+                    dist_lim=dist_lim, var_kwargs=var_kwargs)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -822,10 +848,17 @@ class DataModel:
         """
 
         data = {}
+        out_of_bounds = regrid_ind < 0
         for dset, array in cloud_obj.source_data.items():
             # write single timestep with NSRDB sites to appropriate row
             # map the regridded data using the regrid NN indices
             data[dset] = array[regrid_ind]
+
+            if any(out_of_bounds):
+                if dset == 'cloud_type':
+                    data[dset][out_of_bounds] = -15
+                else:
+                    data[dset][out_of_bounds] = np.nan
 
         return data
 
