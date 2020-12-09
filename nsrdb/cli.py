@@ -227,7 +227,8 @@ class ConfigRunners:
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
-            ctx.invoke(all_sky, i_chunk=i_chunk)
+            ctx.invoke(all_sky, i_chunk=i_chunk,
+                       col_chunk=cmd_args.get('col_chunk', 10))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -262,7 +263,8 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_{}'.format(date)
-            ctx.invoke(daily_all_sky, date=date)
+            ctx.invoke(daily_all_sky, date=date,
+                       col_chunk=cmd_args.get('col_chunk', 100))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -564,8 +566,12 @@ def ml_cloud_fill(ctx, date, model_path, col_chunk):
 @direct.group()
 @click.option('--i_chunk', '-i', type=int, required=True,
               help='Chunked file index in out_dir to run allsky for.')
+@click.option('--col_chunk', '-ch', type=int, required=True, default=10,
+              help='Chunking method to run all sky one column chunk at a time '
+              'to reduce memory requirements. This is an integer specifying '
+              'how many columns to work on at one time.')
 @click.pass_context
-def all_sky(ctx, i_chunk):
+def all_sky(ctx, i_chunk, col_chunk):
     """Run allsky for a single chunked file"""
 
     name = ctx.obj['NAME']
@@ -578,10 +584,10 @@ def all_sky(ctx, i_chunk):
 
     log_file = 'logs_all_sky/all_sky_{}.log'.format(i_chunk)
     fun_str = 'NSRDB.run_all_sky'
-    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
+    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, col_chunk={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
                .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
-                       log_file, log_level, name))
+                       col_chunk, log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -594,8 +600,12 @@ def all_sky(ctx, i_chunk):
 @click.option('--date', '-d', type=str, required=True,
               help='Single day data model output to run cloud fill on.'
               'Must be str in YYYYMMDD format.')
+@click.option('--col_chunk', '-ch', type=int, required=True, default=10,
+              help='Chunking method to run all sky one column chunk at a time '
+              'to reduce memory requirements. This is an integer specifying '
+              'how many columns to work on at one time.')
 @click.pass_context
-def daily_all_sky(ctx, date):
+def daily_all_sky(ctx, date, col_chunk):
     """Run allsky for a single day using daily data model output files as
     source data"""
 
@@ -609,9 +619,9 @@ def daily_all_sky(ctx, date):
 
     log_file = 'logs_all_sky/all_sky_{}.log'.format(date)
     fun_str = 'NSRDB.run_daily_all_sky'
-    arg_str = ('"{}", {}, "{}", "{}", freq="{}", '
+    arg_str = ('"{}", {}, "{}", "{}", freq="{}", col_chunk={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
-               .format(out_dir, year, nsrdb_grid, date, nsrdb_freq,
+               .format(out_dir, year, nsrdb_grid, date, nsrdb_freq, col_chunk,
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)

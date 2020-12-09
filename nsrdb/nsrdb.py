@@ -891,9 +891,9 @@ class NSRDB:
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
-                    rows=slice(None), cols=slice(None), max_workers=None,
-                    log_level='DEBUG', log_file='all_sky.log',
-                    i_chunk=None, job_name=None):
+                    col_chunk=10, rows=slice(None), cols=slice(None),
+                    max_workers=None, log_level='DEBUG',
+                    log_file='all_sky.log', i_chunk=None, job_name=None):
         """Run the all-sky physics model from collected .h5 files
 
         Parameters
@@ -910,6 +910,10 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -957,9 +961,11 @@ class NSRDB:
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
-                                      max_workers=max_workers)
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols,
+                             col_chunk=col_chunk)
 
         logger.info('Finished all-sky. Writing to: {}'.format(f_out))
         with Outputs(f_out, mode='a') as f:
@@ -988,7 +994,8 @@ class NSRDB:
 
     @classmethod
     def run_daily_all_sky(cls, out_dir, year, grid, date, freq='5min',
-                          var_meta=None, rows=slice(None), cols=slice(None),
+                          var_meta=None, col_chunk=100,
+                          rows=slice(None), cols=slice(None),
                           max_workers=None, log_level='DEBUG',
                           log_file='all_sky.log', job_name=None):
         """Run the all-sky physics model from daily data model output files.
@@ -1010,6 +1017,10 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -1038,9 +1049,11 @@ class NSRDB:
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
-                                      max_workers=max_workers)
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols,
+                             col_chunk=col_chunk)
 
         logger.info('Finished all-sky compute.')
         for dset, arr in out.items():
