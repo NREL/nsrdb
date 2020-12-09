@@ -624,10 +624,10 @@ class PhygnnCloudFill:
             N = np.ceil(len(columns) / col_chunk)
             arrays = np.array_split(columns, N)
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.debug('Gap fill will be run across the full data column '
-                         'shape {} in {} column chunks with approximately {} '
-                         'sites per chunk'
-                         .format(len(columns), len(slices), col_chunk))
+            logger.info('Gap fill will be run across the full data column '
+                        'shape {} in {} column chunks with approximately {} '
+                        'sites per chunk'
+                        .format(len(columns), len(slices), col_chunk))
 
         self.archive_cld_properties()
         for col_slice in slices:
