@@ -155,6 +155,16 @@ class PhygnnCloudFill:
 
         return feature_data
 
+    def _init_clean_arrays(self):
+        """Initialize a dict of numpy arrays for clean data.
+        """
+        arr = np.zeros(self._res_shape, dtype=np.float32)
+        dsets = ('cloud_type', 'cld_press_acha', 'cld_opd_dcomp',
+                 'cld_reff_dcomp')
+        clean_arrays = {d: arr.copy() for d in dsets}
+        fill_flag_array = arr.copy()
+        return clean_arrays, fill_flag_array
+
     @staticmethod
     def _clean_array(dset, array):
         """Clean a dataset array using temporal nearest neighbor interpolation.
@@ -194,7 +204,7 @@ class PhygnnCloudFill:
         return array
 
     def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90,
-                           max_workers=None):
+                           max_workers=1):
         """
         Clean feature data
 
@@ -524,8 +534,9 @@ class PhygnnCloudFill:
 
         return filled_data
 
-    def fill_ctype_press(self, h5_source, col_slice=slice(None)):
-        """Fill cloud type and pressure using simple NN.
+    @staticmethod
+    def fill_ctype_press(h5_source, col_slice=slice(None)):
+        """Fill cloud type and pressure using simple temporal nearest neighbor.
 
         Parameters
         ----------
@@ -563,15 +574,6 @@ class PhygnnCloudFill:
         cloud_pres, fill_flag = CloudGapFill.fill_cloud_prop(
             'cld_press_acha', cloud_pres, cloud_type, sza,
             fill_flag=fill_flag, cloud_type_is_clean=True)
-
-        iter_dict = {'cloud_type': cloud_type, 'cld_press_acha': cloud_pres}
-        for dset, data in iter_dict.items():
-            fpath = self._dset_map[dset]
-            with Outputs(fpath, mode='a') as f:
-                logger.info('Writing filled "{}" to: {}'
-                            .format(dset, os.path.basename(fpath)))
-                f[dset, :, col_slice] = data
-                logger.debug('Finished writing "{}".'.format(dset))
 
         return cloud_type, cloud_pres, sza, fill_flag
 
@@ -646,61 +648,67 @@ class PhygnnCloudFill:
             logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
                         .format(n, count, ntot, 100 * count / ntot))
 
-    def _run(self, sza_lim=90, col_chunk=None, max_workers=None):
+    @classmethod
+    def _run_slice(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
+                   col_slice=slice(None)):
         """
-        Fill cloud properties using phygnn predictions. Original files will be
-        archived to a new "raw/" sub-directory
+        Fill cloud properties using phygnn predictions.
 
         Parameters
         ----------
+        h5_source : str
+            Path to directory containing multi-file resource file sets.
+            Available formats:
+                /h5_dir/
+                /h5_dir/prefix*suffix
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         sza_lim : int, optional
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
-        col_chunk : None | int
-            Optional chunking method to gap fill one column chunk at a time
-            to reduce memory requirements. If provided, this should be an
-            integer specifying how many columns to work on at one time.
-        max_workers : None | int
-            Maximum workers for running mlclouds in parallel. 1 is serial and
-            None uses all available workers.
+        col_slice : slice
+            Column slice of the resource data to work on. This is a result of
+            chunking the columns to reduce memory load. Use slice(None) for
+            no chunking.
+
+        Returns
+        -------
+        clean_data : dict
+            Dictionary of filled cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays (time x sites) of phygnn-predicted
+            values (cloud opd and reff) or nearest-neighbor cleaned values
+            (cloud pressure and type)
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
         """
+        obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
 
-        if col_chunk is None:
-            slices = [slice(None)]
-        else:
-            columns = np.arange(self._res_shape[1])
-            N = np.ceil(len(columns) / col_chunk)
-            arrays = np.array_split(columns, N)
-            slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.info('Gap fill will be run across the full data column '
-                        'shape {} in {} column chunks with approximately {} '
-                        'sites per chunk'
-                        .format(len(columns), len(slices), col_chunk))
+        logger.info('Starting phygnn cloud fill for column slice {}'
+                    .format(col_slice))
+        ctype, cpres, sza, fill_flag = obj.fill_ctype_press(
+            obj.h5_source, col_slice=col_slice)
+        clean_data = {'cloud_type': ctype, 'cld_press_acha': cpres}
+        feature_data = {'cloud_type': ctype,
+                        'cld_press_acha': cpres,
+                        'solar_zenith_angle': sza}
+        feature_data = obj.parse_feature_data(feature_data=feature_data,
+                                              col_slice=col_slice)
+        feature_data, fill_flag = obj.clean_feature_data(
+            feature_data, fill_flag, sza_lim=sza_lim)
+        predicted_data = obj.predict_cld_properties(feature_data)
+        filled_data = obj.fill_bad_cld_properties(predicted_data,
+                                                  feature_data)
+        clean_data.update(filled_data)
+        logger.info('Completed phygnn cloud fill for column slice {}'
+                    .format(col_slice))
 
-        self.archive_cld_properties()
-        for col_slice in slices:
-            logger.info('Starting phygnn cloud fill for column slice {}'
-                        .format(col_slice))
-            ctype, cpres, sza, fill_flag = self.fill_ctype_press(
-                self.h5_source, col_slice=col_slice)
-            feature_data = {'cloud_type': ctype,
-                            'cld_press_acha': cpres,
-                            'solar_zenith_angle': sza}
-            feature_data = self.parse_feature_data(feature_data=feature_data,
-                                                   col_slice=col_slice)
-            feature_data, fill_flag = self.clean_feature_data(
-                feature_data, fill_flag, sza_lim=sza_lim,
-                max_workers=max_workers)
-            predicted_data = self.predict_cld_properties(feature_data)
-            filled_data = self.fill_bad_cld_properties(predicted_data,
-                                                       feature_data)
-            self.write_filled_data(filled_data, col_slice=col_slice)
-            self.write_fill_flag(fill_flag, col_slice=col_slice)
-            logger.info('Completed phygnn cloud fill for column slice {}'
-                        .format(col_slice))
-
-        self.mark_complete_archived_files()
-        logger.info('Cloud gap fill with phygnn is complete.')
+        return clean_data, fill_flag
 
     @classmethod
     def run(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
@@ -735,5 +743,49 @@ class PhygnnCloudFill:
             Maximum workers for running mlclouds in parallel. 1 is serial and
             None uses all available workers.
         """
+
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
-        obj._run(sza_lim=sza_lim, col_chunk=col_chunk, max_workers=max_workers)
+        obj.archive_cld_properties()
+        clean_data, fill_flag = obj._init_clean_arrays()
+
+        if col_chunk is None:
+            slices = [slice(None)]
+        else:
+            columns = np.arange(obj._res_shape[1])
+            N = np.ceil(len(columns) / col_chunk)
+            arrays = np.array_split(columns, N)
+            slices = [slice(a[0], 1 + a[-1]) for a in arrays]
+            logger.info('Gap fill will be run across the full data column '
+                        'shape {} in {} column chunks with approximately {} '
+                        'sites per chunk'
+                        .format(len(columns), len(slices), col_chunk))
+
+        if max_workers == 1:
+            for col_slice in slices:
+                out = obj._run_slice(h5_source, model_path=model_path,
+                                     var_meta=var_meta, sza_lim=sza_lim,
+                                     col_slice=col_slice)
+                fill_flag[:, col_slice] = out[1]
+                for k, v in clean_data.items():
+                    v[:, col_slice] = out[0][k]
+        else:
+            futures = {}
+            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+                for col_slice in slices:
+                    future = exe.submit(obj._run_slice, h5_source,
+                                        model_path=model_path,
+                                        var_meta=var_meta,
+                                        sza_lim=sza_lim,
+                                        col_slice=col_slice)
+                    futures[future] = col_slice
+
+                for future in as_completed(futures):
+                    col_slice = futures[future]
+                    out = future.result()
+                    fill_flag[:, col_slice] = out[1]
+                    for k, v in clean_data.items():
+                        v[:, col_slice] = out[0][k]
+
+        obj.write_filled_data(clean_data, col_slice=slice(None))
+        obj.write_fill_flag(fill_flag, col_slice=slice(None))
+        obj.mark_complete_archived_files()

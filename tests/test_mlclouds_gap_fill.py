@@ -43,7 +43,8 @@ def test_missing_file(date='20190102'):
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
 
-def test_mlclouds_fill(date='20190102'):
+@pytest.mark.parametrize('max_workers', (1, 2))
+def test_mlclouds_fill(max_workers, date='20190102'):
     """Test the mlclouds fill process on a daily output from the data model."""
     fp_ctype = os.path.join(DAILY_DIR, '{}_cloud_type_0.h5'.format(date))
     if os.path.exists(DAILY_DIR):
@@ -56,7 +57,7 @@ def test_mlclouds_fill(date='20190102'):
         ctype[slice(None, None, 10), 0] = -15
 
     h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
-    PhygnnCloudFill.run(h5_source)
+    PhygnnCloudFill.run(h5_source, col_chunk=3, max_workers=max_workers)
 
     raw_files = os.path.join(DAILY_DIR, 'raw/{}_*_0.h5'.format(date))
     fill_files = os.path.join(DAILY_DIR, '{}_*_0.h5'.format(date))
