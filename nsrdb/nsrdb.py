@@ -558,7 +558,7 @@ class NSRDB:
 
     @classmethod
     def collect_data_model(cls, out_dir, year, grid, n_chunks, i_chunk,
-                           i_fname, freq='5min', var_meta=None,
+                           i_fname, n_writes=1, freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
                            max_workers=None, job_name=None, final=False,
                            final_file_name=None):
@@ -576,7 +576,7 @@ class NSRDB:
         n_chunks : int
             Number of chunks (site-wise) to collect to.
         i_chunks : int
-            Chunk index (indexing n_chunks) to run.
+            Chunk index (site-wise) (indexing n_chunks) to run.
         i_fname : int
             File name index from sorted NSRDB.OUTS keys to run collection for.
         freq : str
@@ -638,7 +638,7 @@ class NSRDB:
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
         Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
-                                sites=chunk,
+                                sites=chunk, n_writes=n_writes,
                                 var_meta=nsrdb._var_meta,
                                 max_workers=max_workers)
         logger.info('Finished file collection to: {}'.format(f_out))
@@ -1052,8 +1052,7 @@ class NSRDB:
                                       max_workers=max_workers,
                                       col_chunk=col_chunk)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols,
-                             col_chunk=col_chunk)
+            out = all_sky_h5(f_source, rows=rows, cols=cols)
 
         logger.info('Finished all-sky compute.')
         for dset, arr in out.items():

@@ -119,7 +119,7 @@ class Collector:
 
         flist = []
         temp = os.listdir(d)
-        temp = [f for f in temp if f.endswith('.h5')]
+        temp = [f for f in temp if f.endswith('.h5') and var in f]
 
         for fn in temp:
             fp = os.path.join(d, fn)
@@ -128,6 +128,7 @@ class Collector:
                     flist.append(fn)
 
         flist = sorted(flist, key=lambda x: int(x.split('_')[0]))
+        logger.debug('Found files for "{}": {}'.format(var, flist))
 
         return flist
 
@@ -156,11 +157,15 @@ class Collector:
             final_meta[col_slice] = new_meta
         """
 
-        # pylint: disable-msg=C0121
-        row_loc = np.where(
-            final_time_index.isin(new_time_index) == True)[0]  # noqa: E712
-        col_loc = np.where(
-            final_meta.index.isin(new_meta.index) == True)[0]  # noqa: E712
+        final_index = final_meta.index
+        new_index = new_meta.index
+        if 'gid' in final_meta:
+            final_index = final_meta['gid']
+        if 'gid' in new_meta:
+            new_index = new_meta['gid']
+
+        row_loc = np.where(final_time_index.isin(new_time_index))[0]
+        col_loc = np.where(final_index.isin(new_index))[0]
 
         row_slice = slice(np.min(row_loc), np.max(row_loc) + 1)
         col_slice = slice(np.min(col_loc), np.max(col_loc) + 1)
@@ -215,10 +220,11 @@ class Collector:
 
         row_slice, col_slice = Collector.get_slices(time_index, meta,
                                                     f_ti, f_meta)
+
         return f_data, row_slice, col_slice
 
     @staticmethod
-    def _get_collection_attrs(flist, collect_dir, f_out, dset, sites=None,
+    def _get_collection_attrs(flist, collect_dir, dset, sites=None,
                               sort=True, sort_key=None):
         """Get important dataset attributes from a file list to be collected.
 
@@ -230,8 +236,6 @@ class Collector:
             List of chunked filenames in collect_dir to collect.
         collect_dir : str
             Directory of chunked files (flist).
-        f_out : str
-            File path of final output file.
         dset : str
             Dataset name to collect.
         sites : None | np.ndarray
@@ -245,46 +249,40 @@ class Collector:
         Returns
         -------
         time_index : pd.datetimeindex
-            Concatenated datetime index from flist
+            Concatenated full size datetime index from the flist that is
+            being collected
         meta : pd.DataFrame
-            Concatenated meta data from flist
+            Concatenated full size meta data from the flist that is being
+            collected
         shape : tuple
             Output (collected) dataset shape
         dtype : str
             Dataset output (collected on disk) dataset data type.
         """
 
-        if os.path.exists(f_out):
-            with Outputs(f_out, mode='r') as f:
-                time_index = f.time_index
-                meta = f.meta
-            shape = (len(time_index), len(meta))
+        if sort:
+            flist = sorted(flist, key=sort_key)
 
-        else:
-            if sort:
-                flist = sorted(flist, key=sort_key)
-            logger.info('Collection output file does not exist, collecting '
-                        'files in this order: {}'.format(flist))
-            time_index = None
-            meta = []
-            for fn in flist:
-                fp = os.path.join(collect_dir, fn)
-                with Outputs(fp, mode='r') as f:
-                    meta.append(f.meta)
+        time_index = None
+        meta = []
+        for fn in flist:
+            fp = os.path.join(collect_dir, fn)
+            with Outputs(fp, mode='r') as f:
+                meta.append(f.meta)
 
-                    if time_index is None:
-                        time_index = f.time_index
-                    else:
-                        time_index = time_index.append(f.time_index)
+                if time_index is None:
+                    time_index = f.time_index
+                else:
+                    time_index = time_index.append(f.time_index)
 
-            time_index = time_index.sort_values()
-            time_index = time_index.drop_duplicates()
-            meta = pd.concat(meta)
-            meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
-            if sites is not None:
-                meta = meta.iloc[sites, :]
+        time_index = time_index.sort_values()
+        time_index = time_index.drop_duplicates()
+        meta = pd.concat(meta)
+        meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
+        if sites is not None:
+            meta = meta.iloc[sites, :]
 
-            shape = (len(time_index), len(meta))
+        shape = (len(time_index), len(meta))
 
         fp0 = os.path.join(collect_dir, flist[0])
         with Outputs(fp0, mode='r') as fin:
@@ -369,12 +367,15 @@ class Collector:
         """
 
         time_index, meta, shape, dtype = Collector._get_collection_attrs(
-            flist, collect_dir, f_out, dset, sites=sites)
+            flist, collect_dir, dset, sites=sites)
+
+        logger.debug('Collecting file list of shape {}: {}'
+                     .format(shape, flist))
 
         data = np.zeros(shape, dtype=dtype)
         mem = psutil.virtual_memory()
-        logger.info('Initializing output dataset "{0}" with shape {1} and '
-                    'dtype {2}. Current memory usage is '
+        logger.info('Initializing output dataset "{0}" in-memory with shape '
+                    '{1} and dtype {2}. Current memory usage is '
                     '{3:.3f} GB out of {4:.3f} GB total.'
                     .format(dset, shape, dtype,
                             mem.used / 1e9, mem.total / 1e9))
@@ -414,13 +415,22 @@ class Collector:
 
         if not os.path.exists(f_out):
             Collector._init_collected_h5(f_out, time_index, meta)
+            x_write_slice, y_write_slice = slice(None), slice(None)
+        else:
+            with Outputs(f_out, 'r') as f:
+                target_meta = f.meta
+                target_ti = f.time_index
+            y_write_slice, x_write_slice = Collector.get_slices(target_ti,
+                                                                target_meta,
+                                                                time_index,
+                                                                meta)
 
         Collector._ensure_dset_in_output(f_out, dset, var_meta=var_meta)
-
         with Outputs(f_out, mode='a') as f:
-            f[dset] = data
+            f[dset, y_write_slice, x_write_slice] = data
 
-        logger.info('Finished writing dataset "{}"'.format(dset))
+        logger.info('Finished writing "{}" for row {} and col {}'
+                    .format(dset, y_write_slice, x_write_slice))
 
     @staticmethod
     def collect_flist_lowmem(flist, collect_dir, f_out, dset,
@@ -469,7 +479,7 @@ class Collector:
 
         if not os.path.exists(f_out):
             time_index, meta, _, _ = Collector._get_collection_attrs(
-                flist, collect_dir, f_out, dset, sort=sort, sort_key=sort_key)
+                flist, collect_dir, dset, sort=sort, sort_key=sort_key)
 
             Collector._init_collected_h5(f_out, time_index, meta)
 
@@ -490,7 +500,6 @@ class Collector:
 
                 data, rows, cols = Collector.get_data(fpath, dset, time_index,
                                                       meta)
-
                 f[dset, rows, cols] = data
 
         if write_status and job_name is not None:
@@ -507,8 +516,9 @@ class Collector:
 
     @classmethod
     def collect_daily(cls, collect_dir, f_out, dsets, sites=None,
-                      var_meta=None, max_workers=None, log_level=None,
-                      log_file=None, write_status=False, job_name=None):
+                      n_writes=1, var_meta=None, max_workers=None,
+                      log_level=None, log_file=None, write_status=False,
+                      job_name=None):
         """Collect daily data model files from a dir to one output file.
 
         Assumes the file list is chunked in time (row chunked).
@@ -530,6 +540,11 @@ class Collector:
             dataset or json.dumps(dsets).
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        n_writes : None | int
+            Number of file list divisions to write per dataset. For example,
+            if ghi and dni are being collected and n_writes is set to 2,
+            half of the source ghi files will be collected at once and then
+            written, then the second half of ghi files, then dni.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo. This is used if
@@ -572,9 +587,16 @@ class Collector:
                     logger.exception(e)
                     raise e
             else:
-                collector.collect_flist(collector.flist, collect_dir, f_out,
-                                        dset, sites=sites, var_meta=var_meta,
-                                        max_workers=max_workers)
+                flist_chunks = np.array_split(np.array(collector.flist),
+                                              n_writes)
+                flist_chunks = [fl.tolist() for fl in flist_chunks]
+                logger.info('Collecting "{}" in {} file list chunks'
+                            .format(dset, len(flist_chunks)))
+                for flist in flist_chunks:
+                    collector.collect_flist(flist, collect_dir, f_out,
+                                            dset, sites=sites,
+                                            var_meta=var_meta,
+                                            max_workers=max_workers)
 
         if write_status and job_name is not None:
             status = {'out_dir': os.path.dirname(f_out),
