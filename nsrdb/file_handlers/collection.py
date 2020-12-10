@@ -575,7 +575,7 @@ class Collector:
 
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
-        for dset in dsets:
+        for i, dset in enumerate(dsets):
             logger.debug('Collecting dataset "{}".'.format(dset))
             try:
                 collector = cls(collect_dir, dset)
@@ -590,9 +590,11 @@ class Collector:
                 flist_chunks = np.array_split(np.array(collector.flist),
                                               n_writes)
                 flist_chunks = [fl.tolist() for fl in flist_chunks]
-                logger.info('Collecting "{}" in {} file list chunks'
-                            .format(dset, len(flist_chunks)))
-                for flist in flist_chunks:
+                for j, flist in enumerate(flist_chunks):
+                    logger.info('Collecting file list chunk {} out of {} '
+                                'for "{}" (dataset {} out of {}).'
+                                .format(j + 1, len(flist_chunks),
+                                        dset, i + 1, len(dsets)))
                     collector.collect_flist(flist, collect_dir, f_out,
                                             dset, sites=sites,
                                             var_meta=var_meta,

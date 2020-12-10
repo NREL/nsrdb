@@ -307,6 +307,7 @@ class ConfigRunners:
 
                 ctx.invoke(collect_data_model,
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
+                           n_writes=cmd_args.get('n_writes', 1),
                            max_workers=cmd_args['max_workers'],
                            final=final, final_file_name=final_file_name)
                 ctx.invoke(eagle, **eagle_args)
@@ -330,7 +331,9 @@ class ConfigRunners:
         ctx.obj['NAME'] = name + '_collect_daily'
         ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
-                   max_workers=cmd_args.get('max_workers', None), eagle=True)
+                   n_writes=cmd_args.get('n_writes', 1),
+                   max_workers=cmd_args.get('max_workers', None),
+                   eagle=True)
         ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -639,6 +642,12 @@ def daily_all_sky(ctx, date, col_chunk):
 @click.option('--i_fname', '-if', type=int, required=True,
               help='Filename index: 0: ancillary_a, 1: ancillary_b, '
               '2: clearsky, 3: clouds, 4: csp, 5: irrad, 6: pv.')
+@click.option('--n_writes', '-nw', type=int, default=1,
+              help='Number of file list divisions to write per dataset. For '
+              'example, if ghi and dni are being collected and n_writes is '
+              'set to 2, half of the source ghi files will be collected at '
+              'once and then written, then the second half of ghi files, '
+              'then dni.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
 @click.option('-f', '--final', is_flag=True,
@@ -649,8 +658,8 @@ def daily_all_sky(ctx, date, col_chunk):
               'terminal job. None will default to the name in ctx which is '
               'usually the slurm job name.')
 @click.pass_context
-def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
-                       final_file_name):
+def collect_data_model(ctx, n_chunks, i_chunk, i_fname, n_writes,
+                       max_workers, final, final_file_name):
     """Collect data model results into cohesive timseries file chunks."""
 
     name = ctx.obj['NAME']
@@ -671,11 +680,11 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
 
     fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", {}, "{}", n_chunks={}, i_chunk={}, '
-               'i_fname={}, freq="{}", max_workers={}, '
+               'i_fname={}, freq="{}", n_writes={}, max_workers={}, '
                'log_file="{}", log_level="{}", job_name="{}", '
                'final={}, final_file_name="{}"'
                .format(out_dir, year, nsrdb_grid, n_chunks,
-                       i_chunk, i_fname, nsrdb_freq, max_workers,
+                       i_chunk, i_fname, nsrdb_freq, n_writes, max_workers,
                        log_file, log_level, name, final, final_file_name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -692,13 +701,20 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
               help='Output filename to be saved in out_dir.')
 @click.option('--dsets', '-ds', type=STRLIST, required=True,
               help='List of dataset names to collect.')
+@click.option('--n_writes', '-nw', type=int, default=1,
+              help='Number of file list divisions to write per dataset. For '
+              'example, if ghi and dni are being collected and n_writes is '
+              'set to 2, half of the source ghi files will be collected at '
+              'once and then written, then the second half of ghi files, '
+              'then dni.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
 @click.option('-e', '--eagle', is_flag=True,
               help='Flag for that this is being used to pass commands to '
               'an Eagle call.')
 @click.pass_context
-def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
+def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers,
+                  eagle):
     """Run the NSRDB file collection method on a specific daily directory
     for specific datasets to a single output file."""
 
@@ -710,10 +726,10 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
 
     fp_out = os.path.join(out_dir, fn_out)
 
-    arg_str = ('"{}", "{}", {}, max_workers={}, log_level="{}", '
+    arg_str = ('"{}", "{}", {}, n_writes={}, max_workers={}, log_level="{}", '
                'log_file="{}", write_status=True, job_name="{}"'
-               .format(collect_dir, fp_out, json.dumps(dsets), max_workers,
-                       log_level, log_file, name))
+               .format(collect_dir, fp_out, json.dumps(dsets), n_writes,
+                       max_workers, log_level, log_file, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
 

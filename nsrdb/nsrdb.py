@@ -579,6 +579,11 @@ class NSRDB:
             Chunk index (site-wise) (indexing n_chunks) to run.
         i_fname : int
             File name index from sorted NSRDB.OUTS keys to run collection for.
+        n_writes : None | int
+            Number of file list divisions to write per dataset. For example,
+            if ghi and dni are being collected and n_writes is set to 2,
+            half of the source ghi files will be collected at once and then
+            written, then the second half of ghi files, then dni.
         freq : str
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame | None
