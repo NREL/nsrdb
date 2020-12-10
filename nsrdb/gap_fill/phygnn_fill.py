@@ -2,6 +2,7 @@
 """
 Cloud Properties filling using phgynn
 """
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 import numpy as np
 import pandas as pd
@@ -154,7 +155,46 @@ class PhygnnCloudFill:
 
         return feature_data
 
-    def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90):
+    @staticmethod
+    def _clean_array(dset, array):
+        """Clean a dataset array using temporal nearest neighbor interpolation.
+
+        Parameters
+        ----------
+        dset : str
+            NSRDB dataset name
+        array : np.ndarray
+            2D (time x sites) float numpy array of data for dset. Missing
+            values should be set to NaN.
+
+        Returns
+        -------
+        array : np.ndarray
+            2D (time x sites) float numpy array of data for dset. Missing
+            values should be filled
+        """
+        any_bad = np.isnan(array).any()
+        all_bad = (~np.isnan(array)).sum(axis=0) < 3
+        if any(all_bad):
+            mean_impute = np.nanmean(array)
+            count = all_bad.sum()
+            msg = ('Feature dataset "{}" has {} columns with all NaN '
+                   'values out of {} ({:.2f}%). Filling with '
+                   'mean value of {}.'
+                   .format(dset, count, array.shape[1],
+                           100 * count / array.shape[1], mean_impute))
+            logger.warning(msg)
+            warn(msg)
+            array[:, all_bad] = mean_impute
+
+        if any_bad:
+            array = pd.DataFrame(array).interpolate(
+                'nearest').ffill().bfill().values
+
+        return array
+
+    def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90,
+                           max_workers=None):
         """
         Clean feature data
 
@@ -168,6 +208,9 @@ class PhygnnCloudFill:
         sza_lim : int, optional
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
+        max_workers : None | int
+            Maximum workers to clean data in parallel. 1 is serial and None
+            uses all available workers.
 
         Returns
         -------
@@ -247,24 +290,26 @@ class PhygnnCloudFill:
             logger.debug('\t"{}" has {:.2f}% NaN values'.format(c, pnan))
 
         logger.debug('Interpolating feature data using nearest neighbor.')
-        for c, d in feature_data.items():
-            if c not in self.phygnn_model.label_names:
-                any_bad = np.isnan(d).any()
-                all_bad = (~np.isnan(d)).sum(axis=0) < 3
-                if any(all_bad):
-                    mean_impute = np.nanmean(d)
-                    count = all_bad.sum()
-                    msg = ('Feature dataset "{}" has {} columns with all NaN '
-                           'values out of {} ({:.2f}%). Filling with '
-                           'mean value of {}.'
-                           .format(c, count, d.shape[1],
-                                   100 * count / d.shape[1], mean_impute))
-                    logger.warning(msg)
-                    warn(msg)
-                    d[:, all_bad] = mean_impute
-                if any_bad:
-                    feature_data[c] = pd.DataFrame(d).interpolate(
-                        'nearest').ffill().bfill().values
+
+        if max_workers == 1:
+            for c, d in feature_data.items():
+                if c not in self.phygnn_model.label_names:
+                    feature_data[c] = self._clean_array(c, d)
+        else:
+            logger.info('Interpolating feature data with {} max workers'
+                        .format(max_workers))
+            futures = {}
+            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+                for c, d in feature_data.items():
+                    if c not in self.phygnn_model.label_names:
+                        future = exe.submit(self._clean_array, c, d)
+                        futures[future] = c
+
+                for future in as_completed(futures):
+                    c = futures[future]
+                    feature_data[c] = future.result()
+
+        logger.debug('Feature data interpolation is complete.')
 
         feature_data['cld_opd_dcomp'][~cloudy] = 0.0
         feature_data['cld_reff_dcomp'][~cloudy] = 0.0
@@ -601,7 +646,7 @@ class PhygnnCloudFill:
             logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
                         .format(n, count, ntot, 100 * count / ntot))
 
-    def _run(self, sza_lim=90, col_chunk=None):
+    def _run(self, sza_lim=90, col_chunk=None, max_workers=None):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -615,6 +660,9 @@ class PhygnnCloudFill:
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
             integer specifying how many columns to work on at one time.
+        max_workers : None | int
+            Maximum workers for running mlclouds in parallel. 1 is serial and
+            None uses all available workers.
         """
 
         if col_chunk is None:
@@ -640,9 +688,9 @@ class PhygnnCloudFill:
                             'solar_zenith_angle': sza}
             feature_data = self.parse_feature_data(feature_data=feature_data,
                                                    col_slice=col_slice)
-            feature_data, fill_flag = self.clean_feature_data(feature_data,
-                                                              fill_flag,
-                                                              sza_lim=sza_lim)
+            feature_data, fill_flag = self.clean_feature_data(
+                feature_data, fill_flag, sza_lim=sza_lim,
+                max_workers=max_workers)
             predicted_data = self.predict_cld_properties(feature_data)
             filled_data = self.fill_bad_cld_properties(predicted_data,
                                                        feature_data)
@@ -656,7 +704,7 @@ class PhygnnCloudFill:
 
     @classmethod
     def run(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
-            col_chunk=None):
+            col_chunk=None, max_workers=None):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -683,6 +731,9 @@ class PhygnnCloudFill:
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
             integer specifying how many columns to work on at one time.
+        max_workers : None | int
+            Maximum workers for running mlclouds in parallel. 1 is serial and
+            None uses all available workers.
         """
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
-        obj._run(sza_lim=sza_lim, col_chunk=col_chunk)
+        obj._run(sza_lim=sza_lim, col_chunk=col_chunk, max_workers=max_workers)
