@@ -405,7 +405,7 @@ class PhygnnCloudFill:
                 logger.error(msg)
                 raise FileNotFoundError(msg)
 
-    def predict_cld_properties(self, feature_data):
+    def predict_cld_properties(self, feature_data, col_slice=None):
         """
         Predict cloud properties with phygnn
 
@@ -414,6 +414,10 @@ class PhygnnCloudFill:
         feature_data : dict
             Clean feature data without gaps. keys are the feature names
             (nsrdb dataset names), values are 2D numpy arrays (time x sites).
+        col_slice : slice
+            Column slice of the resource data to work on. This is a result of
+            chunking the columns to reduce memory load. Just used for logging
+            in this method.
 
         Returns
         -------
@@ -439,13 +443,15 @@ class PhygnnCloudFill:
         night_mask = feature_df['flag'] == 'night'
         feature_df.loc[night_mask, 'flag'] = 'clear'
 
-        logger.info('Predicting gap filled cloud data...')
+        logger.info('Predicting gap filled cloud data for column slice {}'
+                    .format(col_slice))
         labels = self.phygnn_model.predict(feature_df,
                                            table=False)
         mem = psutil.virtual_memory()
-        logger.info('Prediction complete. Memory utilization is '
-                    '{:.3f} GB out of {:.3f} GB total ({:.2f}% used).'
-                    .format(mem.used / 1e9, mem.total / 1e9,
+        logger.info('Prediction complete for column slice {}. Memory '
+                    'utilization is {:.3f} GB out of {:.3f} GB total '
+                    '({:.2f}% used).'
+                    .format(col_slice, mem.used / 1e9, mem.total / 1e9,
                             100 * mem.used / mem.total))
         logger.debug('Label data shape: {}'.format(labels.shape))
 
@@ -459,16 +465,18 @@ class PhygnnCloudFill:
         for dset, arr in predicted_data.items():
             nnan = np.isnan(arr).sum()
             ntot = arr.shape[0] * arr.shape[1]
-            logger.info('Raw predicted data for {} has mean: {:.2f}, '
-                        'median: {:.2f}, range: ({:.2f}, {:.2f}) and '
-                        '{} NaN values out of {} ({:.2f}%)'
-                        .format(dset, np.nanmean(arr), np.median(arr),
-                                np.nanmin(arr), np.nanmax(arr),
+            logger.info('Raw predicted data for {} for column slice {} '
+                        'has mean: {:.2f}, median: {:.2f}, range: '
+                        '({:.2f}, {:.2f}) and {} NaN values out of '
+                        '{} ({:.2f}%)'
+                        .format(dset, col_slice, np.nanmean(arr),
+                                np.median(arr), np.nanmin(arr), np.nanmax(arr),
                                 nnan, ntot, 100 * nnan / ntot))
 
         return predicted_data
 
-    def fill_bad_cld_properties(self, predicted_data, feature_data):
+    def fill_bad_cld_properties(self, predicted_data, feature_data,
+                                col_slice=None):
         """
         Fill bad cloud properties in the feature data from predicted data
 
@@ -481,6 +489,10 @@ class PhygnnCloudFill:
         feature_data : dict
             Clean feature data without gaps. keys are the feature names
             (nsrdb dataset names), values are 2D numpy arrays (time x sites).
+        col_slice : slice
+            Column slice of the resource data to work on. This is a result of
+            chunking the columns to reduce memory load. Just used for logging
+            in this method.
 
         Returns
         -------
@@ -502,8 +514,9 @@ class PhygnnCloudFill:
             logger.warning(msg)
             warn(msg)
         else:
-            logger.debug('Filling {} values using phygnn predictions'
-                         .format(np.sum(fill_mask)))
+            logger.debug('Filling {} values using phygnn predictions for '
+                         'column slice {}'
+                         .format(np.sum(fill_mask), col_slice))
 
         filled_data = {}
         for dset, arr in predicted_data.items():
@@ -511,7 +524,6 @@ class PhygnnCloudFill:
             arr = np.maximum(arr, varobj.physical_min)
             arr = np.minimum(arr, varobj.physical_max)
 
-            logger.debug('Filling {} data'.format(dset))
             cld_data = feature_data[dset]
             cld_data[fill_mask] = arr[fill_mask]
             cld_data[night_mask] = 0
@@ -519,11 +531,12 @@ class PhygnnCloudFill:
 
             nnan = np.isnan(arr).sum()
             ntot = arr.shape[0] * arr.shape[1]
-            logger.info('Final cleaned data for {} has mean: {:.2f}, '
-                        'median: {:.2f}, range: ({:.2f}, {:.2f}) and '
-                        '{} NaN values out of {} ({:.2f}%)'
-                        .format(dset, np.nanmean(arr), np.median(arr),
-                                np.nanmin(arr), np.nanmax(arr),
+            logger.info('Final cleaned data for {} for column slice {} '
+                        'has mean: {:.2f}, median: {:.2f}, range: '
+                        '({:.2f}, {:.2f}) and {} NaN values out of '
+                        '{} ({:.2f}%)'
+                        .format(dset, col_slice, np.nanmean(arr),
+                                np.median(arr), np.nanmin(arr), np.nanmax(arr),
                                 nnan, ntot, 100 * nnan / ntot))
 
             if nnan > 0:
@@ -649,10 +662,9 @@ class PhygnnCloudFill:
                         .format(n, count, ntot, 100 * count / ntot))
 
     @classmethod
-    def _run_slice(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
-                   col_slice=slice(None)):
-        """
-        Fill cloud properties using phygnn predictions.
+    def _prep_chunk(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
+                    col_slice=slice(None)):
+        """Prepare a column chunk (slice) of data for phygnn prediction.
 
         Parameters
         ----------
@@ -679,18 +691,23 @@ class PhygnnCloudFill:
 
         Returns
         -------
+        feature_data : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
+            This is just for the col_slice being worked on.
         clean_data : dict
             Dictionary of filled cloud properties. Keys are nsrdb dataset
-            names, values are 2D arrays (time x sites) of phygnn-predicted
-            values (cloud opd and reff) or nearest-neighbor cleaned values
-            (cloud pressure and type)
+            names, values are 2D arrays (time x sites) and have
+            nearest-neighbor cleaned values for cloud pressure and type
+            This is just for the col_slice being worked on.
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
+            This is just for the col_slice being worked on.
         """
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
 
-        logger.info('Starting phygnn cloud fill for column slice {}'
-                    .format(col_slice))
+        logger.debug('Preparing data for phygnn cloud fill for column slice {}'
+                     .format(col_slice))
         ctype, cpres, sza, fill_flag = obj.fill_ctype_press(
             obj.h5_source, col_slice=col_slice)
         clean_data = {'cloud_type': ctype, 'cld_press_acha': cpres}
@@ -701,12 +718,64 @@ class PhygnnCloudFill:
                                               col_slice=col_slice)
         feature_data, fill_flag = obj.clean_feature_data(
             feature_data, fill_flag, sza_lim=sza_lim)
-        predicted_data = obj.predict_cld_properties(feature_data)
-        filled_data = obj.fill_bad_cld_properties(predicted_data,
-                                                  feature_data)
-        clean_data.update(filled_data)
-        logger.info('Completed phygnn cloud fill for column slice {}'
-                    .format(col_slice))
+        logger.debug('Completed phygnn data prep for column slice {}'
+                     .format(col_slice))
+
+        return feature_data, clean_data, fill_flag
+
+    def _process_chunk(self, i_features, i_clean, i_flag, col_slice,
+                       clean_data, fill_flag):
+        """Use cleaned and prepared data to run phygnn predictions and create
+        final filled data for a single column chunk.
+
+        Parameters
+        ----------
+        i_features : dict
+            Clean feature data without gaps. keys are the feature names
+            (nsrdb dataset names), values are 2D numpy arrays (time x sites).
+            This is just for a single column chunk (col_slice).
+        i_clean : dict
+            Dictionary of filled cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays (time x sites) of phygnn-predicted
+            values (cloud opd and reff) or nearest-neighbor cleaned values
+            (cloud pressure and type).
+            This is just for a single column chunk (col_slice).
+        i_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+            This is just for a single column chunk (col_slice).
+        col_slice : slice
+            Column slice of the resource data to work on. This is a result of
+            chunking the columns to reduce memory load.
+        clean_data : dict
+            Dictionary of filled cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays (time x sites).
+            This is for ALL chunks (full resource shape).
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+            This is for ALL chunks (full resource shape).
+
+        Returns
+        -------
+        clean_data : dict
+            Dictionary of filled cloud properties. Keys are nsrdb dataset
+            names, values are 2D arrays (time x sites). This has been updated
+            with phygnn-predicted values (cloud opd and reff) or
+            nearest-neighbor cleaned values (cloud pressure and type)
+            This is for ALL chunks (full resource shape).
+        fill_flag : np.ndarray
+            Integer array of flags showing what data was filled and why.
+            This is for ALL chunks (full resource shape).
+        """
+
+        i_predicted = self.predict_cld_properties(i_features,
+                                                  col_slice=col_slice)
+        i_filled = self.fill_bad_cld_properties(i_predicted, i_features,
+                                                col_slice=col_slice)
+        i_clean.update(i_filled)
+
+        fill_flag[:, col_slice] = i_flag
+        for k, v in clean_data.items():
+            v[:, col_slice] = i_clean[k]
 
         return clean_data, fill_flag
 
@@ -762,29 +831,41 @@ class PhygnnCloudFill:
 
         if max_workers == 1:
             for col_slice in slices:
-                out = obj._run_slice(h5_source, model_path=model_path,
-                                     var_meta=var_meta, sza_lim=sza_lim,
-                                     col_slice=col_slice)
-                fill_flag[:, col_slice] = out[1]
-                for k, v in clean_data.items():
-                    v[:, col_slice] = out[0][k]
+                out = obj._prep_chunk(h5_source, model_path=model_path,
+                                      var_meta=var_meta, sza_lim=sza_lim,
+                                      col_slice=col_slice)
+                i_features, i_clean, i_flag = out
+                out = obj._process_chunk(i_features, i_clean, i_flag,
+                                         col_slice, clean_data, fill_flag)
+                clean_data, fill_flag = out
+
         else:
             futures = {}
+            logger.info('Starting process pool for parallel phygnn cloud '
+                        'fill with {} workers.'.format(max_workers))
             with ProcessPoolExecutor(max_workers=max_workers) as exe:
                 for col_slice in slices:
-                    future = exe.submit(obj._run_slice, h5_source,
+                    future = exe.submit(obj._prep_chunk, h5_source,
                                         model_path=model_path,
                                         var_meta=var_meta,
                                         sza_lim=sza_lim,
                                         col_slice=col_slice)
                     futures[future] = col_slice
 
-                for future in as_completed(futures):
+                for i, future in enumerate(as_completed(futures)):
                     col_slice = futures[future]
-                    out = future.result()
-                    fill_flag[:, col_slice] = out[1]
-                    for k, v in clean_data.items():
-                        v[:, col_slice] = out[0][k]
+                    i_features, i_clean, i_flag = future.result()
+                    out = obj._process_chunk(i_features, i_clean, i_flag,
+                                             col_slice, clean_data, fill_flag)
+                    clean_data, fill_flag = out
+
+                    mem = psutil.virtual_memory()
+                    logger.info('PhygnnCloudFill futures completed: '
+                                '{0} out of {1}. '
+                                'Current memory usage is '
+                                '{2:.3f} GB out of {3:.3f} GB total.'
+                                .format(i + 1, len(futures),
+                                        mem.used / 1e9, mem.total / 1e9))
 
         obj.write_filled_data(clean_data, col_slice=slice(None))
         obj.write_fill_flag(fill_flag, col_slice=slice(None))
