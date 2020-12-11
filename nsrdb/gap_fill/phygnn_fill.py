@@ -54,10 +54,10 @@ class PhygnnCloudFill:
         if model_path is None:
             model_path = self.DEFAULT_MODEL
 
-        logger.info('Initializing PhygnnCloudFill with h5_source: {}'
-                    .format(self._h5_source))
-        logger.info('Initializing PhygnnCloudFill with model: {}'
-                    .format(model_path))
+        logger.debug('Initializing PhygnnCloudFill with h5_source: {}'
+                     .format(self._h5_source))
+        logger.debug('Initializing PhygnnCloudFill with model: {}'
+                     .format(model_path))
         self._phygnn_model = PhygnnModel.load(model_path)
 
         with MultiFileNSRDB(self.h5_source) as res:
@@ -148,9 +148,10 @@ class PhygnnCloudFill:
                     feature_data[dset] = res[dset, :, col_slice]
 
         mem = psutil.virtual_memory()
-        logger.info('Feature data loaded. Memory utilization is '
-                    '{:.3f} GB out of {:.3f} GB total ({:.2f}% used).'
-                    .format(mem.used / 1e9, mem.total / 1e9,
+        logger.info('Feature data loaded for column slice {}. '
+                    'Memory utilization is {:.3f} GB out of {:.3f} GB total '
+                    '({:.2f}% used).'
+                    .format(col_slice, mem.used / 1e9, mem.total / 1e9,
                             100 * mem.used / mem.total))
 
         return feature_data
@@ -443,16 +444,16 @@ class PhygnnCloudFill:
         night_mask = feature_df['flag'] == 'night'
         feature_df.loc[night_mask, 'flag'] = 'clear'
 
-        logger.info('Predicting gap filled cloud data for column slice {}'
-                    .format(col_slice))
+        logger.debug('Predicting gap filled cloud data for column slice {}'
+                     .format(col_slice))
         labels = self.phygnn_model.predict(feature_df,
                                            table=False)
         mem = psutil.virtual_memory()
-        logger.info('Prediction complete for column slice {}. Memory '
-                    'utilization is {:.3f} GB out of {:.3f} GB total '
-                    '({:.2f}% used).'
-                    .format(col_slice, mem.used / 1e9, mem.total / 1e9,
-                            100 * mem.used / mem.total))
+        logger.debug('Prediction complete for column slice {}. Memory '
+                     'utilization is {:.3f} GB out of {:.3f} GB total '
+                     '({:.2f}% used).'
+                     .format(col_slice, mem.used / 1e9, mem.total / 1e9,
+                             100 * mem.used / mem.total))
         logger.debug('Label data shape: {}'.format(labels.shape))
 
         shape = feature_data['flag'].shape
@@ -465,13 +466,14 @@ class PhygnnCloudFill:
         for dset, arr in predicted_data.items():
             nnan = np.isnan(arr).sum()
             ntot = arr.shape[0] * arr.shape[1]
-            logger.info('Raw predicted data for {} for column slice {} '
-                        'has mean: {:.2f}, median: {:.2f}, range: '
-                        '({:.2f}, {:.2f}) and {} NaN values out of '
-                        '{} ({:.2f}%)'
-                        .format(dset, col_slice, np.nanmean(arr),
-                                np.median(arr), np.nanmin(arr), np.nanmax(arr),
-                                nnan, ntot, 100 * nnan / ntot))
+            logger.debug('Raw predicted data for {} for column slice {} '
+                         'has mean: {:.2f}, median: {:.2f}, range: '
+                         '({:.2f}, {:.2f}) and {} NaN values out of '
+                         '{} ({:.2f}%)'
+                         .format(dset, col_slice, np.nanmean(arr),
+                                 np.median(arr), np.nanmin(arr),
+                                 np.nanmax(arr), nnan, ntot,
+                                 100 * nnan / ntot))
 
         return predicted_data
 
@@ -531,13 +533,14 @@ class PhygnnCloudFill:
 
             nnan = np.isnan(arr).sum()
             ntot = arr.shape[0] * arr.shape[1]
-            logger.info('Final cleaned data for {} for column slice {} '
-                        'has mean: {:.2f}, median: {:.2f}, range: '
-                        '({:.2f}, {:.2f}) and {} NaN values out of '
-                        '{} ({:.2f}%)'
-                        .format(dset, col_slice, np.nanmean(arr),
-                                np.median(arr), np.nanmin(arr), np.nanmax(arr),
-                                nnan, ntot, 100 * nnan / ntot))
+            logger.debug('Final cleaned data for {} for column slice {} '
+                         'has mean: {:.2f}, median: {:.2f}, range: '
+                         '({:.2f}, {:.2f}) and {} NaN values out of '
+                         '{} ({:.2f}%)'
+                         .format(dset, col_slice, np.nanmean(arr),
+                                 np.median(arr), np.nanmin(arr),
+                                 np.nanmax(arr), nnan, ntot,
+                                 100 * nnan / ntot))
 
             if nnan > 0:
                 msg = ('Gap filled cloud property "{}" still had '
@@ -813,6 +816,10 @@ class PhygnnCloudFill:
             None uses all available workers.
         """
 
+        logger.info('Running PhygnnCloudFill with h5_source: {}'
+                    .format(h5_source))
+        logger.info('Running PhygnnCloudFill with model: {}'
+                    .format(model_path))
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
         obj.archive_cld_properties()
         clean_data, fill_flag = obj._init_clean_arrays()
@@ -838,6 +845,7 @@ class PhygnnCloudFill:
                 out = obj._process_chunk(i_features, i_clean, i_flag,
                                          col_slice, clean_data, fill_flag)
                 clean_data, fill_flag = out
+                del i_features, i_clean, i_flag
 
         else:
             futures = {}
@@ -852,12 +860,14 @@ class PhygnnCloudFill:
                                         col_slice=col_slice)
                     futures[future] = col_slice
 
+                logger.info('Kicked off {} futures.'.format(len(futures)))
                 for i, future in enumerate(as_completed(futures)):
                     col_slice = futures[future]
                     i_features, i_clean, i_flag = future.result()
                     out = obj._process_chunk(i_features, i_clean, i_flag,
                                              col_slice, clean_data, fill_flag)
                     clean_data, fill_flag = out
+                    del i_features, i_clean, i_flag, future
 
                     mem = psutil.virtual_memory()
                     logger.info('PhygnnCloudFill futures completed: '
@@ -870,3 +880,5 @@ class PhygnnCloudFill:
         obj.write_filled_data(clean_data, col_slice=slice(None))
         obj.write_fill_flag(fill_flag, col_slice=slice(None))
         obj.mark_complete_archived_files()
+        logger.info('Completed phygnn cloud fill for h5_source: {}'
+                    .format(h5_source))

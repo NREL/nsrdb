@@ -429,8 +429,9 @@ class Collector:
         with Outputs(f_out, mode='a') as f:
             f[dset, y_write_slice, x_write_slice] = data
 
-        logger.info('Finished writing "{}" for row {} and col {}'
-                    .format(dset, y_write_slice, x_write_slice))
+        logger.info('Finished writing "{}" for row {} and col {} to: {}'
+                    .format(dset, y_write_slice, x_write_slice,
+                            os.path.basename(f_out)))
 
     @staticmethod
     def collect_flist_lowmem(flist, collect_dir, f_out, dset,
