@@ -308,7 +308,7 @@ class NSRDB:
         if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
 
             if loggers is None:
-                loggers = ('nsrdb.main', 'nsrdb.data_model',
+                loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
@@ -841,7 +841,7 @@ class NSRDB:
     @classmethod
     def ml_cloud_fill(cls, out_dir, date, model_path=None, var_meta=None,
                       log_level='DEBUG', log_file='cloud_fill.log',
-                      job_name=None, col_chunk=None):
+                      job_name=None, col_chunk=None, max_workers=None):
         """Gap fill cloud properties using a physics-guided neural
         network (phygnn).
 
@@ -871,6 +871,9 @@ class NSRDB:
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
             integer specifying how many columns to work on at one time.
+        max_workers : None | int
+            Maximum workers to clean data in parallel. 1 is serial and None
+            uses all available workers.
         """
         from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
         t0 = time.time()
@@ -880,7 +883,8 @@ class NSRDB:
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         PhygnnCloudFill.run(h5_source, model_path=model_path,
-                            var_meta=var_meta, col_chunk=col_chunk)
+                            var_meta=var_meta, col_chunk=col_chunk,
+                            max_workers=max_workers)
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:
@@ -999,7 +1003,7 @@ class NSRDB:
 
     @classmethod
     def run_daily_all_sky(cls, out_dir, year, grid, date, freq='5min',
-                          var_meta=None, col_chunk=100,
+                          var_meta=None, col_chunk=500,
                           rows=slice(None), cols=slice(None),
                           max_workers=None, log_level='DEBUG',
                           log_file='all_sky.log', job_name=None):

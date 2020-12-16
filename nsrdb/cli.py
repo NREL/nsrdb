@@ -205,7 +205,8 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.invoke(ml_cloud_fill, date=date, model_path=model_path,
-                       col_chunk=cmd_args.get('col_chunk', None))
+                       col_chunk=cmd_args.get('col_chunk', None),
+                       max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -264,7 +265,7 @@ class ConfigRunners:
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_{}'.format(date)
             ctx.invoke(daily_all_sky, date=date,
-                       col_chunk=cmd_args.get('col_chunk', 100))
+                       col_chunk=cmd_args.get('col_chunk', 500))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -539,8 +540,11 @@ def cloud_fill(ctx, i_chunk, col_chunk):
               help='Optional chunking method to gap fill one column chunk at '
               'a time to reduce memory requirements. If provided, this should '
               'be an int specifying how many columns to work on at one time.')
+@click.option('--max_workers', '-mw', type=INT, required=True, default=None,
+              help='Maximum workers to clean data in parallel. 1 is serial '
+              'and None uses all available workers.')
 @click.pass_context
-def ml_cloud_fill(ctx, date, model_path, col_chunk):
+def ml_cloud_fill(ctx, date, model_path, col_chunk, max_workers):
     """Gap fill cloud properties in daily data model outputs using a physics
     guided neural network (phgynn)."""
 
@@ -555,9 +559,9 @@ def ml_cloud_fill(ctx, date, model_path, col_chunk):
 
     fun_str = 'NSRDB.ml_cloud_fill'
     arg_str = ('"{}", "{}", model_path={}, log_file="{}", '
-               'log_level="{}", job_name="{}", col_chunk={}'
+               'log_level="{}", job_name="{}", col_chunk={}, max_workers={}'
                .format(out_dir, date, model_path, log_file, log_level,
-                       name, col_chunk))
+                       name, col_chunk, max_workers))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -603,7 +607,7 @@ def all_sky(ctx, i_chunk, col_chunk):
 @click.option('--date', '-d', type=str, required=True,
               help='Single day data model output to run cloud fill on.'
               'Must be str in YYYYMMDD format.')
-@click.option('--col_chunk', '-ch', type=int, required=True, default=10,
+@click.option('--col_chunk', '-ch', type=int, required=True, default=500,
               help='Chunking method to run all sky one column chunk at a time '
               'to reduce memory requirements. This is an integer specifying '
               'how many columns to work on at one time.')
