@@ -9,12 +9,11 @@ import os
 import json
 import logging
 import click
+from rex.utilities.hpc import SLURM
 from nsrdb.nsrdb import NSRDB
-from nsrdb.utilities.cli_dtypes import STR, INT, DICT, STRLIST
+from nsrdb.utilities.cli_dtypes import STR, INT, FLOAT, DICT, STRLIST
 from nsrdb.utilities.file_utils import safe_json_load
-from nsrdb.utilities.execution import SLURM
-from nsrdb.pipeline.status import Status
-from nsrdb.pipeline.pipeline import Pipeline
+from nsrdb.pipeline import Status, NsrdbPipeline
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
 
@@ -44,9 +43,9 @@ def pipeline(ctx, config_file, cancel, monitor):
 
     ctx.ensure_object(dict)
     if cancel:
-        Pipeline.cancel_all(config_file)
+        NsrdbPipeline.cancel_all(config_file)
     else:
-        Pipeline.run(config_file, monitor=monitor)
+        NsrdbPipeline.run(config_file, monitor=monitor)
 
 
 @main.command()
@@ -84,6 +83,7 @@ def config(ctx, config_file, command):
     ctx.obj['VAR_META'] = direct_args.get('var_meta', None)
     ctx.obj['OUT_DIR'] = direct_args['out_dir']
     ctx.obj['LOG_LEVEL'] = direct_args['log_level']
+    ctx.obj['SLURM_MANAGER'] = SLURM()
 
     init_logger('nsrdb.cli', log_level=direct_args['log_level'], log_file=None)
 
@@ -142,6 +142,7 @@ class ConfigRunners:
 
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
+                       dist_lim=cmd_args.get('dist_lim', 1.0),
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
                        max_workers=cmd_args.get('max_workers', None),
                        max_workers_regrid=max_workers_regrid,
@@ -204,7 +205,8 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.invoke(ml_cloud_fill, date=date, model_path=model_path,
-                       col_chunk=cmd_args.get('col_chunk', None))
+                       col_chunk=cmd_args.get('col_chunk', None),
+                       max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -226,7 +228,8 @@ class ConfigRunners:
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
-            ctx.invoke(all_sky, i_chunk=i_chunk)
+            ctx.invoke(all_sky, i_chunk=i_chunk,
+                       col_chunk=cmd_args.get('col_chunk', 10))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -261,7 +264,8 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_{}'.format(date)
-            ctx.invoke(daily_all_sky, date=date)
+            ctx.invoke(daily_all_sky, date=date,
+                       col_chunk=cmd_args.get('col_chunk', 500))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -304,6 +308,7 @@ class ConfigRunners:
 
                 ctx.invoke(collect_data_model,
                            n_chunks=n_chunks, i_chunk=i_chunk, i_fname=i_fname,
+                           n_writes=cmd_args.get('n_writes', 1),
                            max_workers=cmd_args['max_workers'],
                            final=final, final_file_name=final_file_name)
                 ctx.invoke(eagle, **eagle_args)
@@ -327,7 +332,9 @@ class ConfigRunners:
         ctx.obj['NAME'] = name + '_collect_daily'
         ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
-                   max_workers=cmd_args.get('max_workers', None), eagle=True)
+                   n_writes=cmd_args.get('n_writes', 1),
+                   max_workers=cmd_args.get('max_workers', None),
+                   eagle=True)
         ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -422,6 +429,12 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
 @click.option('--var_list', '-vl', type=STRLIST, required=False, default=None,
               help='Variables to process with the data model. None will '
               'default to all NSRDB variables.')
+@click.option('--dist_lim', '-dl', type=FLOAT, required=True, default=1.0,
+              help='Return only neighbors within this distance during cloud '
+              'regrid. The distance is in decimal degrees (more efficient '
+              'than real distance). NSRDB sites further than this value from '
+              'GOES data pixels will be warned and given missing cloud types '
+              'and properties resulting in a full clearsky timeseries.')
 @click.option('--factory_kwargs', '-kw', type=DICT,
               required=False, default=None,
               help='Optional namespace of kwargs to use to initialize '
@@ -442,7 +455,7 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
               help='Flag to process additional variables if mlclouds gap fill'
               'is going to be run after the data_model step.')
 @click.pass_context
-def data_model(ctx, doy, var_list, factory_kwargs, max_workers,
+def data_model(ctx, doy, var_list, dist_lim, factory_kwargs, max_workers,
                max_workers_regrid, max_workers_cloud_io, mlclouds):
     """Run the data model for a single day."""
 
@@ -466,12 +479,12 @@ def data_model(ctx, doy, var_list, factory_kwargs, max_workers,
     date = NSRDB.doy_to_datestr(year, doy)
     fun_str = 'NSRDB.run_data_model'
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
-               'max_workers={}, '
+               'dist_lim={}, max_workers={}, '
                'max_workers_regrid={}, max_workers_cloud_io={}, '
                'log_level="{}", log_file="{}", '
                'job_name="{}", factory_kwargs={}, mlclouds={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
-                       var_list, max_workers, max_workers_regrid,
+                       var_list, dist_lim, max_workers, max_workers_regrid,
                        max_workers_cloud_io,
                        log_level, log_file, name,
                        factory_kwargs, mlclouds))
@@ -527,8 +540,11 @@ def cloud_fill(ctx, i_chunk, col_chunk):
               help='Optional chunking method to gap fill one column chunk at '
               'a time to reduce memory requirements. If provided, this should '
               'be an int specifying how many columns to work on at one time.')
+@click.option('--max_workers', '-mw', type=INT, required=True, default=None,
+              help='Maximum workers to clean data in parallel. 1 is serial '
+              'and None uses all available workers.')
 @click.pass_context
-def ml_cloud_fill(ctx, date, model_path, col_chunk):
+def ml_cloud_fill(ctx, date, model_path, col_chunk, max_workers):
     """Gap fill cloud properties in daily data model outputs using a physics
     guided neural network (phgynn)."""
 
@@ -543,9 +559,9 @@ def ml_cloud_fill(ctx, date, model_path, col_chunk):
 
     fun_str = 'NSRDB.ml_cloud_fill'
     arg_str = ('"{}", "{}", model_path={}, log_file="{}", '
-               'log_level="{}", job_name="{}", col_chunk={}'
+               'log_level="{}", job_name="{}", col_chunk={}, max_workers={}'
                .format(out_dir, date, model_path, log_file, log_level,
-                       name, col_chunk))
+                       name, col_chunk, max_workers))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -557,8 +573,12 @@ def ml_cloud_fill(ctx, date, model_path, col_chunk):
 @direct.group()
 @click.option('--i_chunk', '-i', type=int, required=True,
               help='Chunked file index in out_dir to run allsky for.')
+@click.option('--col_chunk', '-ch', type=int, required=True, default=10,
+              help='Chunking method to run all sky one column chunk at a time '
+              'to reduce memory requirements. This is an integer specifying '
+              'how many columns to work on at one time.')
 @click.pass_context
-def all_sky(ctx, i_chunk):
+def all_sky(ctx, i_chunk, col_chunk):
     """Run allsky for a single chunked file"""
 
     name = ctx.obj['NAME']
@@ -571,10 +591,10 @@ def all_sky(ctx, i_chunk):
 
     log_file = 'logs_all_sky/all_sky_{}.log'.format(i_chunk)
     fun_str = 'NSRDB.run_all_sky'
-    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, '
+    arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, col_chunk={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
                .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
-                       log_file, log_level, name))
+                       col_chunk, log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -587,8 +607,12 @@ def all_sky(ctx, i_chunk):
 @click.option('--date', '-d', type=str, required=True,
               help='Single day data model output to run cloud fill on.'
               'Must be str in YYYYMMDD format.')
+@click.option('--col_chunk', '-ch', type=int, required=True, default=500,
+              help='Chunking method to run all sky one column chunk at a time '
+              'to reduce memory requirements. This is an integer specifying '
+              'how many columns to work on at one time.')
 @click.pass_context
-def daily_all_sky(ctx, date):
+def daily_all_sky(ctx, date, col_chunk):
     """Run allsky for a single day using daily data model output files as
     source data"""
 
@@ -602,9 +626,9 @@ def daily_all_sky(ctx, date):
 
     log_file = 'logs_all_sky/all_sky_{}.log'.format(date)
     fun_str = 'NSRDB.run_daily_all_sky'
-    arg_str = ('"{}", {}, "{}", "{}", freq="{}", '
+    arg_str = ('"{}", {}, "{}", "{}", freq="{}", col_chunk={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
-               .format(out_dir, year, nsrdb_grid, date, nsrdb_freq,
+               .format(out_dir, year, nsrdb_grid, date, nsrdb_freq, col_chunk,
                        log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -622,6 +646,12 @@ def daily_all_sky(ctx, date):
 @click.option('--i_fname', '-if', type=int, required=True,
               help='Filename index: 0: ancillary_a, 1: ancillary_b, '
               '2: clearsky, 3: clouds, 4: csp, 5: irrad, 6: pv.')
+@click.option('--n_writes', '-nw', type=int, default=1,
+              help='Number of file list divisions to write per dataset. For '
+              'example, if ghi and dni are being collected and n_writes is '
+              'set to 2, half of the source ghi files will be collected at '
+              'once and then written, then the second half of ghi files, '
+              'then dni.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
 @click.option('-f', '--final', is_flag=True,
@@ -632,8 +662,8 @@ def daily_all_sky(ctx, date):
               'terminal job. None will default to the name in ctx which is '
               'usually the slurm job name.')
 @click.pass_context
-def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
-                       final_file_name):
+def collect_data_model(ctx, n_chunks, i_chunk, i_fname, n_writes,
+                       max_workers, final, final_file_name):
     """Collect data model results into cohesive timseries file chunks."""
 
     name = ctx.obj['NAME']
@@ -654,11 +684,11 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
 
     fun_str = 'NSRDB.collect_data_model'
     arg_str = ('"{}", {}, "{}", n_chunks={}, i_chunk={}, '
-               'i_fname={}, freq="{}", max_workers={}, '
+               'i_fname={}, freq="{}", n_writes={}, max_workers={}, '
                'log_file="{}", log_level="{}", job_name="{}", '
                'final={}, final_file_name="{}"'
                .format(out_dir, year, nsrdb_grid, n_chunks,
-                       i_chunk, i_fname, nsrdb_freq, max_workers,
+                       i_chunk, i_fname, nsrdb_freq, n_writes, max_workers,
                        log_file, log_level, name, final, final_file_name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
@@ -675,13 +705,20 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, max_workers, final,
               help='Output filename to be saved in out_dir.')
 @click.option('--dsets', '-ds', type=STRLIST, required=True,
               help='List of dataset names to collect.')
+@click.option('--n_writes', '-nw', type=int, default=1,
+              help='Number of file list divisions to write per dataset. For '
+              'example, if ghi and dni are being collected and n_writes is '
+              'set to 2, half of the source ghi files will be collected at '
+              'once and then written, then the second half of ghi files, '
+              'then dni.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
 @click.option('-e', '--eagle', is_flag=True,
               help='Flag for that this is being used to pass commands to '
               'an Eagle call.')
 @click.pass_context
-def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
+def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers,
+                  eagle):
     """Run the NSRDB file collection method on a specific daily directory
     for specific datasets to a single output file."""
 
@@ -693,10 +730,10 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, max_workers, eagle):
 
     fp_out = os.path.join(out_dir, fn_out)
 
-    arg_str = ('"{}", "{}", {}, max_workers={}, log_level="{}", '
+    arg_str = ('"{}", "{}", {}, n_writes={}, max_workers={}, log_level="{}", '
                'log_file="{}", write_status=True, job_name="{}"'
-               .format(collect_dir, fp_out, json.dumps(dsets), max_workers,
-                       log_level, log_file, name))
+               .format(collect_dir, fp_out, json.dumps(dsets), n_writes,
+                       max_workers, log_level, log_file, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
 
@@ -816,36 +853,43 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
     fun_str = ctx.obj['FUN_STR']
     arg_str = ctx.obj['ARG_STR']
     command = ctx.obj['COMMAND']
+    slurm_manager = ctx.obj['SLURM_MANAGER']
 
     if stdout_path is None:
         stdout_path = os.path.join(out_dir, 'stdout/')
 
-    status = Status.retrieve_job_status(out_dir, command, name)
+    status = Status.retrieve_job_status(out_dir, command, name,
+                                        hardware='eagle',
+                                        subprocess_manager=slurm_manager)
+
     if status == 'successful':
         msg = ('Job "{}" is successful in status json found in "{}", '
                'not re-running.'.format(name, out_dir))
-        click.echo(msg)
-        logger.info(msg)
+    elif 'fail' not in str(status).lower() and status is not None:
+        msg = ('Job "{}" was found with status "{}", not resubmitting'
+               'not re-running.'.format(name, status))
     else:
         cmd = ("python -c '{import_str};{f}({a})'"
                .format(import_str=import_str, f=fun_str, a=arg_str))
-        print('cmd: {}'.format(cmd))
-        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      feature=feature, name=name, stdout_path=stdout_path)
+        out = slurm_manager.sbatch(cmd,
+                                   alloc=alloc,
+                                   memory=memory,
+                                   walltime=walltime,
+                                   feature=feature,
+                                   name=name,
+                                   stdout_path=stdout_path)[0]
 
-        if slurm.id:
+        if out:
             msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
-                   .format(name, slurm.id))
+                   .format(name, out))
             Status.add_job(
                 out_dir, command, name, replace=True,
-                job_attrs={'job_id': slurm.id,
+                job_attrs={'job_id': out,
                            'hardware': 'eagle',
                            'out_dir': out_dir})
-        else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(name))
-        print(msg)
+
+    click.echo(msg)
+    logger.info(msg)
 
 
 collect_data_model.add_command(eagle)

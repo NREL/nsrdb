@@ -45,8 +45,9 @@ def test_collect(dates=('20190102', '20190103', '20190104')):
     for i_fname in range(len(NSRDB.OUTS)):
         NSRDB.collect_data_model(PROJECT_DIR, date[0:4], GRID, n_chunks=1,
                                  i_chunk=0, i_fname=i_fname, freq='5min',
-                                 max_workers=1, job_name='mlclouds_test',
-                                 final=True, final_file_name='mlclouds_test')
+                                 max_workers=2, job_name='mlclouds_test',
+                                 final=True, final_file_name='mlclouds_test',
+                                 n_writes=2)
 
     fns = os.listdir(FINAL_DIR)
     assert len(fns) == 7
