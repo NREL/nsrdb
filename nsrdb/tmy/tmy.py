@@ -17,10 +17,11 @@ import datetime
 from itertools import groupby
 import logging
 
+from rex.utilities.hpc import SLURM
+
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.utilities.execution import SLURM
 
 
 logger = logging.getLogger(__name__)
@@ -1880,14 +1881,20 @@ class TmyRunner:
 
         cmd = cmd.format(f=fun_str, a=arg_str)
 
-        slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                      feature=feature, name=node_name, stdout_path=stdout_path)
+        slurm_manager = SLURM()
+        out = slurm_manager.sbatch(cmd,
+                                   alloc=alloc,
+                                   memory=memory,
+                                   walltime=walltime,
+                                   feature=feature,
+                                   name=node_name,
+                                   stdout_path=stdout_path)[0]
 
         print('\ncmd:\n{}\n'.format(cmd))
 
-        if slurm.id:
+        if out:
             msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'Eagle.'.format(node_name, slurm.id))
+                   'Eagle.'.format(node_name, out))
         else:
             msg = ('Was unable to kick off job "{}". '
                    'Please see the stdout error messages'
@@ -1904,9 +1911,8 @@ class TmyRunner:
             weights = json.dumps(weights)
         if isinstance(supplemental_dirs, dict):
             supplemental_dirs = json.dumps(supplemental_dirs)
-        node_name = None
-        if 'node_name' in kwargs:
-            node_name = kwargs['node_name']
+
+        node_name = kwargs.get('node_name', None)
 
         for node_index in range(n_nodes):
             arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '

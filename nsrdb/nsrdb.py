@@ -26,7 +26,7 @@ from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.pipeline.status import Status
+from nsrdb.pipeline import Status
 
 
 logger = logging.getLogger(__name__)
@@ -308,7 +308,7 @@ class NSRDB:
         if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
 
             if loggers is None:
-                loggers = ('nsrdb.main', 'nsrdb.data_model',
+                loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
@@ -558,7 +558,7 @@ class NSRDB:
 
     @classmethod
     def collect_data_model(cls, out_dir, year, grid, n_chunks, i_chunk,
-                           i_fname, freq='5min', var_meta=None,
+                           i_fname, n_writes=1, freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
                            max_workers=None, job_name=None, final=False,
                            final_file_name=None):
@@ -576,9 +576,14 @@ class NSRDB:
         n_chunks : int
             Number of chunks (site-wise) to collect to.
         i_chunks : int
-            Chunk index (indexing n_chunks) to run.
+            Chunk index (site-wise) (indexing n_chunks) to run.
         i_fname : int
             File name index from sorted NSRDB.OUTS keys to run collection for.
+        n_writes : None | int
+            Number of file list divisions to write per dataset. For example,
+            if ghi and dni are being collected and n_writes is set to 2,
+            half of the source ghi files will be collected at once and then
+            written, then the second half of ghi files, then dni.
         freq : str
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame | None
@@ -638,7 +643,7 @@ class NSRDB:
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
         Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
-                                sites=chunk,
+                                sites=chunk, n_writes=n_writes,
                                 var_meta=nsrdb._var_meta,
                                 max_workers=max_workers)
         logger.info('Finished file collection to: {}'.format(f_out))
@@ -836,7 +841,7 @@ class NSRDB:
     @classmethod
     def ml_cloud_fill(cls, out_dir, date, model_path=None, var_meta=None,
                       log_level='DEBUG', log_file='cloud_fill.log',
-                      job_name=None, col_chunk=None):
+                      job_name=None, col_chunk=None, max_workers=None):
         """Gap fill cloud properties using a physics-guided neural
         network (phygnn).
 
@@ -866,6 +871,9 @@ class NSRDB:
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
             integer specifying how many columns to work on at one time.
+        max_workers : None | int
+            Maximum workers to clean data in parallel. 1 is serial and None
+            uses all available workers.
         """
         from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
         t0 = time.time()
@@ -875,7 +883,8 @@ class NSRDB:
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         PhygnnCloudFill.run(h5_source, model_path=model_path,
-                            var_meta=var_meta, col_chunk=col_chunk)
+                            var_meta=var_meta, col_chunk=col_chunk,
+                            max_workers=max_workers)
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:
@@ -891,9 +900,9 @@ class NSRDB:
 
     @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
-                    rows=slice(None), cols=slice(None), max_workers=None,
-                    log_level='DEBUG', log_file='all_sky.log',
-                    i_chunk=None, job_name=None):
+                    col_chunk=10, rows=slice(None), cols=slice(None),
+                    max_workers=None, log_level='DEBUG',
+                    log_file='all_sky.log', i_chunk=None, job_name=None):
         """Run the all-sky physics model from collected .h5 files
 
         Parameters
@@ -910,6 +919,10 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -957,9 +970,11 @@ class NSRDB:
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
-                                      max_workers=max_workers)
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols,
+                             col_chunk=col_chunk)
 
         logger.info('Finished all-sky. Writing to: {}'.format(f_out))
         with Outputs(f_out, mode='a') as f:
@@ -988,7 +1003,8 @@ class NSRDB:
 
     @classmethod
     def run_daily_all_sky(cls, out_dir, year, grid, date, freq='5min',
-                          var_meta=None, rows=slice(None), cols=slice(None),
+                          var_meta=None, col_chunk=500,
+                          rows=slice(None), cols=slice(None),
                           max_workers=None, log_level='DEBUG',
                           log_file='all_sky.log', job_name=None):
         """Run the all-sky physics model from daily data model output files.
@@ -1010,6 +1026,10 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -1038,7 +1058,8 @@ class NSRDB:
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
-                                      max_workers=max_workers)
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
         else:
             out = all_sky_h5(f_source, rows=rows, cols=cols)
 
