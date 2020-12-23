@@ -285,7 +285,7 @@ class ConfigRunners:
         eagle_args : dict
             Dictionary of kwargs from the nsrdb config to make eagle submission
         """
-        n_chunks = cmd_args['n_chunks']
+        n_chunks = cmd_args.get('n_chunks', 1)
         n_files_tot = len(NSRDB.OUTS)
         n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
         i_files = cmd_args.get('collect_files', n_files_default)
