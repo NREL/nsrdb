@@ -374,11 +374,11 @@ class Collector:
 
         data = np.zeros(shape, dtype=dtype)
         mem = psutil.virtual_memory()
-        logger.info('Initializing output dataset "{0}" in-memory with shape '
-                    '{1} and dtype {2}. Current memory usage is '
-                    '{3:.3f} GB out of {4:.3f} GB total.'
-                    .format(dset, shape, dtype,
-                            mem.used / 1e9, mem.total / 1e9))
+        logger.debug('Initializing output dataset "{0}" in-memory with shape '
+                     '{1} and dtype {2}. Current memory usage is '
+                     '{3:.3f} GB out of {4:.3f} GB total.'
+                     .format(dset, shape, dtype,
+                             mem.used / 1e9, mem.total / 1e9))
 
         if max_workers == 1:
             for i, fname in enumerate(flist):
@@ -404,12 +404,12 @@ class Collector:
                 for future in as_completed(futures):
                     completed += 1
                     mem = psutil.virtual_memory()
-                    logger.debug('Collection futures completed: '
-                                 '{0} out of {1}. '
-                                 'Current memory usage is '
-                                 '{2:.3f} GB out of {3:.3f} GB total.'
-                                 .format(completed, len(futures),
-                                         mem.used / 1e9, mem.total / 1e9))
+                    logger.info('Collection futures completed: '
+                                '{0} out of {1}. '
+                                'Current memory usage is '
+                                '{2:.3f} GB out of {3:.3f} GB total.'
+                                .format(completed, len(futures),
+                                        mem.used / 1e9, mem.total / 1e9))
                     f_data, row_slice, col_slice = future.result()
                     data[row_slice, col_slice] = f_data
 
@@ -429,9 +429,9 @@ class Collector:
         with Outputs(f_out, mode='a') as f:
             f[dset, y_write_slice, x_write_slice] = data
 
-        logger.info('Finished writing "{}" for row {} and col {} to: {}'
-                    .format(dset, y_write_slice, x_write_slice,
-                            os.path.basename(f_out)))
+        logger.debug('Finished writing "{}" for row {} and col {} to: {}'
+                     .format(dset, y_write_slice, x_write_slice,
+                             os.path.basename(f_out)))
 
     @staticmethod
     def collect_flist_lowmem(flist, collect_dir, f_out, dset,
@@ -588,6 +588,13 @@ class Collector:
                     logger.exception(e)
                     raise e
             else:
+                if n_writes > len(collector.flist):
+                    e = ('Cannot split file list of length {} into '
+                         '{} write chunks!'
+                         .format(len(collector.flist), n_writes))
+                    logger.error(e)
+                    raise ValueError(e)
+
                 flist_chunks = np.array_split(np.array(collector.flist),
                                               n_writes)
                 flist_chunks = [fl.tolist() for fl in flist_chunks]
