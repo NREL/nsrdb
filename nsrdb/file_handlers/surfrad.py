@@ -72,9 +72,9 @@ class Surfrad(Resource):
         """
 
         # get the measurement irradiance variables
-        dhi_msr = self['dhi'].astype(float)
-        dni_msr = self['dni'].astype(float)
-        ghi_msr = self['ghi'].astype(float)
+        dhi_msr = self['dhi'].astype(float).flatten()
+        dni_msr = self['dni'].astype(float).flatten()
+        ghi_msr = self['ghi'].astype(float).flatten()
 
         dhi_msr[dhi_msr < 0] = np.nan
         dni_msr[dni_msr < 0] = np.nan
