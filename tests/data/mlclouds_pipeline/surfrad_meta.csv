@@ -1,0 +1,10 @@
+,latitude,longitude,elevation,timezone,country,state,county,urban,population,landcover,surfrad_id,gid_v3_4km,gid_full_2km
+0,40.052,-88.373,213.12,-6,United States,Illinois,Champaign,,75,30,bon,887015,3562898
+1,40.125,-105.237,1615.5,-7,United States,Colorado,Boulder,,363,140,tbl,150658,1927429
+2,36.624,-116.019,990.96,-8,United States,Nevada,Nye,,7,130,dra,109824,988098
+3,48.308,-105.102,624.0,-7,United States,Montana,Roosevelt,,0,30,fpk,249991,1939276
+4,34.255,-89.873,95.28,-6,United States,Mississippi,Panola,,231,50,gwn,852772,3424596
+5,40.72,-77.931,377.75,-5,United States,Pennsylvania,Centre,,604,50,psu,1116869,4483071
+6,43.734,-96.623,479.0,-6,United States,South Dakota,Minnehaha,,1283,30,sxf,706377,2838792
+7,36.604,-97.485,307.95,-6,United States,Oklahoma,Grant,,0,14,sgp,684607,2753907
+8,39.742,-105.18,1819.6,-7,United States,Colorado,Jefferson,,13486,140,srrl,145809,1931528

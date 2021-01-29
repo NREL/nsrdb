@@ -18,7 +18,7 @@ class MerraVar(AncillaryVarHandler):
     """Framework for MERRA source data extraction."""
 
     # default MERRA paths.
-    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats')
+    MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats.csv')
 
     def __init__(self, name, var_meta, date, source_dir=None):
         """
@@ -240,7 +240,7 @@ class MerraVar(AncillaryVarHandler):
                                  'longitude'] = 0
 
             # add elevation to coordinate set
-            merra_elev = pd.read_pickle(self.MERRA_ELEV)
+            merra_elev = pd.read_csv(self.MERRA_ELEV)
             self._merra_grid = self._merra_grid.merge(merra_elev,
                                                       on=['latitude',
                                                           'longitude'],

@@ -60,7 +60,7 @@ setup(
                       "click>=7.0",
                       "scipy>=1.3",
                       "pyhdf",
-                      "h5py!=3.0.0",
+                      "h5py>=3.1.0",
                       "scikit-learn>=0.21",
                       "netcdf4>=1.4",
                       "matplotlib>=3.1",
@@ -70,5 +70,8 @@ setup(
                       "psutil",
                       "pre-commit",
                       "flake8",
-                      "pylint"],
+                      "pylint",
+                      "NREL-rex>=0.2.30",
+                      "NREL-reV>=0.4.37",
+                      ],
 )

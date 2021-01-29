@@ -26,7 +26,7 @@ from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.pipeline.status import Status
+from nsrdb.pipeline import Status
 
 
 logger = logging.getLogger(__name__)
@@ -149,9 +149,10 @@ class NSRDB:
             logger.warning('Running 32-bit python, sys.maxsize: {}'
                            .format(sys.maxsize))
 
-    def _exe_daily_data_model(self, month, day, var_list=None,
+    def _exe_daily_data_model(self, month, day, dist_lim=1.0, var_list=None,
                               factory_kwargs=None, fpath_out=None,
-                              max_workers=None, max_workers_clouds=None):
+                              max_workers=None, max_workers_regrid=None,
+                              max_workers_cloud_io=None, mlclouds=False):
         """Execute the data model for a single day.
 
         Parameters
@@ -160,6 +161,12 @@ class NSRDB:
             Month to run data model for.
         day : int | str
             Day to run data model for.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             NSRDB variables.
@@ -176,8 +183,15 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None will use all available workers.
-        max_workers_clouds : int | None
-            Number of workers to run in parallel for the cloud regrid algorithm
+        max_workers_regrid : None | int
+            Max parallel workers allowed for cloud regrid processing. None uses
+            all available workers. 1 runs regrid in serial.
+        max_workers_cloud_io : None | int
+            Max parallel workers allowed for cloud data io. None uses all
+            available workers. 1 runs io in serial.
+        mlclouds : bool
+            Flag to add extra variables to the variable processing list of
+            mlclouds gap fill is expected to be run as the next pipeline step.
 
         Returns
         -------
@@ -187,7 +201,9 @@ class NSRDB:
 
         date = datetime.date(year=self._year, month=int(month), day=int(day))
 
-        if var_list is None:
+        if var_list is None and mlclouds:
+            var_list = DataModel.ALL_VARS_ML
+        if var_list is None and not mlclouds:
             var_list = DataModel.ALL_VARS
 
         logger.info('Starting daily data model execution for {}-{}-{}'
@@ -197,9 +213,11 @@ class NSRDB:
         data_model = DataModel.run_multiple(
             var_list, date, self._grid,
             nsrdb_freq=self._freq,
+            dist_lim=dist_lim,
             var_meta=self._var_meta,
             max_workers=max_workers,
-            max_workers_clouds=max_workers_clouds,
+            max_workers_regrid=max_workers_regrid,
+            max_workers_cloud_io=max_workers_cloud_io,
             return_obj=True,
             fpath_out=fpath_out,
             factory_kwargs=factory_kwargs)
@@ -290,7 +308,7 @@ class NSRDB:
         if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
 
             if loggers is None:
-                loggers = ('nsrdb.main', 'nsrdb.data_model',
+                loggers = ('nsrdb.nsrdb', 'nsrdb.data_model',
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
@@ -432,9 +450,10 @@ class NSRDB:
         return date
 
     @classmethod
-    def run_data_model(cls, out_dir, date, grid, var_list=None, freq='5min',
-                       var_meta=None, factory_kwargs=None,
-                       max_workers=None, max_workers_clouds=None,
+    def run_data_model(cls, out_dir, date, grid, dist_lim=1.0, var_list=None,
+                       freq='5min', var_meta=None, factory_kwargs=None,
+                       mlclouds=False, max_workers=None,
+                       max_workers_regrid=None, max_workers_cloud_io=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
         """Run daily data model, and save output files.
@@ -450,6 +469,12 @@ class NSRDB:
             CSV file containing the NSRDB reference grid to interpolate to,
             or a pre-extracted (and reduced) dataframe. The first csv column
             must be the NSRDB site gid's.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
         var_list : list | tuple | None
             Variables to process with the data model. None will default to all
             NSRDB variables.
@@ -465,11 +490,18 @@ class NSRDB:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
+        mlclouds : bool
+            Flag to add extra variables to the variable processing list of
+            mlclouds gap fill is expected to be run as the next pipeline step.
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None uses all available workers.
-        max_workers_clouds : int | None
-            Number of workers to run in parallel for the cloud regrid algorithm
+        max_workers_regrid : None | int
+            Max parallel workers allowed for cloud regrid processing. None uses
+            all available workers. 1 runs regrid in serial.
+        max_workers_cloud_io : None | int
+            Max parallel workers allowed for cloud data io. None uses all
+            available workers. 1 runs io in serial.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -496,9 +528,15 @@ class NSRDB:
             var_list = json.loads(var_list)
 
         data_model = nsrdb._exe_daily_data_model(
-            date.month, date.day, var_list=var_list,
-            factory_kwargs=factory_kwargs, max_workers=max_workers,
-            max_workers_clouds=max_workers_clouds, fpath_out=fpath_out)
+            date.month, date.day,
+            dist_lim=dist_lim,
+            var_list=var_list,
+            factory_kwargs=factory_kwargs,
+            max_workers=max_workers,
+            max_workers_regrid=max_workers_regrid,
+            max_workers_cloud_io=max_workers_cloud_io,
+            fpath_out=fpath_out,
+            mlclouds=mlclouds)
 
         if fpath_out is None:
             nsrdb._exe_fout(data_model)
@@ -519,17 +557,15 @@ class NSRDB:
                                  job_name, status)
 
     @classmethod
-    def collect_data_model(cls, daily_dir, out_dir, year, grid,
-                           n_chunks, i_chunk, i_fname,
-                           freq='5min', var_meta=None,
+    def collect_data_model(cls, out_dir, year, grid, n_chunks, i_chunk,
+                           i_fname, n_writes=1, freq='5min', var_meta=None,
                            log_level='DEBUG', log_file='collect_dm.log',
-                           max_workers=None, job_name=None):
+                           max_workers=None, job_name=None, final=False,
+                           final_file_name=None):
         """Collect daily data model files to a single site-chunked output file.
 
         Parameters
         ----------
-        daily_dir : str
-            Directory with daily files to be collected.
         out_dir : str
             Project directory.
         year : int | str
@@ -540,9 +576,14 @@ class NSRDB:
         n_chunks : int
             Number of chunks (site-wise) to collect to.
         i_chunks : int
-            Chunk index (indexing n_chunks) to run.
+            Chunk index (site-wise) (indexing n_chunks) to run.
         i_fname : int
             File name index from sorted NSRDB.OUTS keys to run collection for.
+        n_writes : None | int
+            Number of file list divisions to write per dataset. For example,
+            if ghi and dni are being collected and n_writes is set to 2,
+            half of the source ghi files will be collected at once and then
+            written, then the second half of ghi files, then dni.
         freq : str
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame | None
@@ -558,6 +599,13 @@ class NSRDB:
             None uses all available workers.
         job_name : str
             Optional name for pipeline and status identification.
+        final : bool
+            Flag signifying that this is the last step in the NSRDB pipeline.
+            this will collect the data to the out_dir/final/ directory instead
+            of the out_dir/collect Directory.
+        final_file_name : str | None
+            Final file name for filename outputs if this is the
+            terminal job.
         """
 
         t0 = time.time()
@@ -568,8 +616,6 @@ class NSRDB:
         chunks = np.array_split(range(len(nsrdb.meta)), n_chunks)
 
         fnames = sorted(list(cls.OUTS.keys()))
-        fnames = [fn for fn in fnames if 'irradiance' not in fn
-                  and 'clear' not in fn]
 
         chunk = chunks[i_chunk]
         fname = fnames[i_fname]
@@ -578,8 +624,13 @@ class NSRDB:
         if '{y}' in fname:
             fname = fname.format(y=year)
 
-        f_out = os.path.join(nsrdb._collect_dir, fname)
-        f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
+        if final:
+            f_out = os.path.join(nsrdb._final_dir, fname)
+            if final_file_name is not None:
+                f_out = f_out.replace('nsrdb_', '{}_'.format(final_file_name))
+        else:
+            f_out = os.path.join(nsrdb._collect_dir, fname)
+            f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
         if 'gid' not in meta_chunk:
@@ -591,8 +642,8 @@ class NSRDB:
                             meta_chunk['gid'].values[-1], f_out))
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
-        Collector.collect_daily(daily_dir, f_out, dsets,
-                                sites=chunk,
+        Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
+                                sites=chunk, n_writes=n_writes,
                                 var_meta=nsrdb._var_meta,
                                 max_workers=max_workers)
         logger.info('Finished file collection to: {}'.format(f_out))
@@ -728,7 +779,7 @@ class NSRDB:
     @classmethod
     def gap_fill_clouds(cls, out_dir, year, i_chunk,
                         rows=slice(None), cols=slice(None),
-                        col_chunk=1000, var_meta=None, log_level='DEBUG',
+                        col_chunk=None, var_meta=None, log_level='DEBUG',
                         log_file='cloud_fill.log', job_name=None):
         """Gap fill cloud properties in a collected data model output file.
 
@@ -744,9 +795,10 @@ class NSRDB:
             Subset of rows to gap fill.
         cols : slice
             Subset of columns to gap fill.
-        col_chunks : None
-            Optional chunking method to gap fill a few chunks at a time
-            to reduce memory requirements.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -779,6 +831,7 @@ class NSRDB:
             runtime = (time.time() - t0) / 60
             status = {'out_dir': nsrdb._collect_dir,
                       'fout': f_cloud,
+                      'gap_fill_method': 'legacy_nn',
                       'job_status': 'successful',
                       'runtime': runtime,
                       }
@@ -786,11 +839,71 @@ class NSRDB:
                                  job_name, status)
 
     @classmethod
+    def ml_cloud_fill(cls, out_dir, date, model_path=None, var_meta=None,
+                      log_level='DEBUG', log_file='cloud_fill.log',
+                      job_name=None, col_chunk=None, max_workers=None):
+        """Gap fill cloud properties using a physics-guided neural
+        network (phygnn).
+
+        Parameters
+        ----------
+        out_dir : str
+            Project directory.
+        date : datetime.date | str | int
+            Single day data model output to run cloud fill on.
+            Can be str or int in YYYYMMDD format.
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+        job_name : str
+            Optional name for pipeline and status identification.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
+        max_workers : None | int
+            Maximum workers to clean data in parallel. 1 is serial and None
+            uses all available workers.
+        """
+        from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
+        t0 = time.time()
+        assert len(str(date)) == 8
+        nsrdb = cls(out_dir, str(date)[0:4], None, var_meta=var_meta)
+        h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
+
+        PhygnnCloudFill.run(h5_source, model_path=model_path,
+                            var_meta=var_meta, col_chunk=col_chunk,
+                            max_workers=max_workers)
+        logger.info('Finished mlclouds gap fill.')
+
+        if job_name is not None:
+            runtime = (time.time() - t0) / 60
+            status = {'out_dir': nsrdb._daily_dir,
+                      'h5_source': h5_source,
+                      'gap_fill_method': 'mlclouds',
+                      'job_status': 'successful',
+                      'runtime': runtime,
+                      }
+            Status.make_job_file(nsrdb._out_dir, 'ml-cloud-fill',
+                                 job_name, status)
+
+    @classmethod
     def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
-                    rows=slice(None), cols=slice(None), max_workers=None,
-                    log_level='DEBUG', log_file='all_sky.log',
-                    i_chunk=None, job_name=None):
-        """Run the all-sky physics model from .h5 files.
+                    col_chunk=10, rows=slice(None), cols=slice(None),
+                    max_workers=None, log_level='DEBUG',
+                    log_file='all_sky.log', i_chunk=None, job_name=None):
+        """Run the all-sky physics model from collected .h5 files
 
         Parameters
         ----------
@@ -806,6 +919,10 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
         rows : slice
             Subset of rows to run.
         cols : slice
@@ -834,14 +951,8 @@ class NSRDB:
                 irrad_dsets = dsets
             elif 'clear' in fname:
                 f_out_cs = os.path.join(nsrdb._collect_dir,
-                                     fname.format(y=year))
+                                        fname.format(y=year))
                 cs_irrad_dsets = dsets
-            elif 'ancil' in fname:
-                f_ancillary = os.path.join(nsrdb._collect_dir,
-                                           fname.format(y=year))
-            elif 'cloud' in fname:
-                f_cloud = os.path.join(nsrdb._collect_dir,
-                                       fname.format(y=year))
 
         f_source = os.path.join(nsrdb._collect_dir, 'nsrdb*{}.h5'.format(year))
 
@@ -859,9 +970,11 @@ class NSRDB:
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
-                                      max_workers=max_workers)
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols,
+                             col_chunk=col_chunk)
 
         logger.info('Finished all-sky. Writing to: {}'.format(f_out))
         with Outputs(f_out, mode='a') as f:
@@ -873,7 +986,7 @@ class NSRDB:
         with Outputs(f_out_cs, mode='a') as f:
             for dset, arr in out.items():
                 if dset in f.dsets:
-                   f[dset, rows, cols] = arr
+                    f[dset, rows, cols] = arr
 
         logger.info('Finished writing all-sky results.')
 
@@ -886,5 +999,90 @@ class NSRDB:
                       'grid': grid,
                       'freq': freq,
                       }
-            Status.make_job_file(nsrdb._out_dir, 'all-sky',
+            Status.make_job_file(nsrdb._out_dir, 'all-sky', job_name, status)
+
+    @classmethod
+    def run_daily_all_sky(cls, out_dir, year, grid, date, freq='5min',
+                          var_meta=None, col_chunk=500,
+                          rows=slice(None), cols=slice(None),
+                          max_workers=None, log_level='DEBUG',
+                          log_file='all_sky.log', job_name=None):
+        """Run the all-sky physics model from daily data model output files.
+
+        Parameters
+        ----------
+        out_dir : str
+            Project directory.
+        year : int | str
+            Year of analysis
+        grid : str
+            Final/full NSRDB grid file. The first column must be the NSRDB
+            site gid's.
+        date : datetime.date | str | int
+            Single day data model output to run cloud fill on.
+            Can be str or int in YYYYMMDD format.
+        freq : str
+            Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        col_chunk :  int
+            Chunking method to run all sky one column chunk at a time
+            to reduce memory requirements. This is an integer specifying
+            how many columns to work on at one time.
+        rows : slice
+            Subset of rows to run.
+        cols : slice
+            Subset of columns to run.
+        max_workers : int | None
+            Number of workers to run in parallel. 1 will run serial,
+            None will use all available.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+        job_name : str
+            Optional name for pipeline and status identification.
+        """
+        t0 = time.time()
+        assert len(str(date)) == 8
+        nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
+
+        f_source = os.path.join(nsrdb._daily_dir, '{}*.h5'.format(date))
+
+        with MultiFileResource(f_source) as source:
+            meta = source.meta
+            time_index = source.time_index.tz_convert(None)
+
+        if max_workers != 1:
+            out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
+                                      max_workers=max_workers,
+                                      col_chunk=col_chunk)
+        else:
+            out = all_sky_h5(f_source, rows=rows, cols=cols)
+
+        logger.info('Finished all-sky compute.')
+        for dset, arr in out.items():
+            fn = '{}_{}_0.h5'.format(date, dset)
+            f_out = os.path.join(nsrdb._daily_dir, fn)
+            logger.info('Writing {} to: {}'.format(dset, f_out))
+            nsrdb._init_output_h5(f_out, [dset], time_index, meta)
+            with Outputs(f_out, mode='a') as f:
+                f[dset, rows, cols] = arr
+
+        logger.info('Finished writing all-sky results.')
+
+        if job_name is not None:
+            runtime = (time.time() - t0) / 60
+            status = {'out_dir': nsrdb._daily_dir,
+                      'f_source': f_source,
+                      'f_out': '{}_*_0.h5'.format(date),
+                      'job_status': 'successful',
+                      'runtime': runtime,
+                      'grid': grid,
+                      'freq': freq,
+                      }
+            Status.make_job_file(nsrdb._out_dir, 'daily-all-sky',
                                  job_name, status)

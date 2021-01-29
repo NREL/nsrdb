@@ -14,7 +14,7 @@ from warnings import warn
 
 from nsrdb.utilities.file_utils import repack_h5
 from nsrdb.utilities.loggers import init_logger
-from nsrdb.utilities.execution import PBS, SLURM
+from rex.utilities.hpc import SLURM, PBS
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
                     warn('!!! Warning, does not exist: {}'
                          .format(f))
             else:
-                logger.info('\n=====================\n', fname)
+                logger.info('\n=====================\n{}'.format(fname))
                 dsets = get_dset_list(fname1)
 
                 for dset in dsets:
@@ -452,14 +452,19 @@ def eagle(fun_str, arg_str, alloc='pxs', memory=96,
 
     cmd = cmd.format(fun=fun_str, args=arg_str)
 
-    slurm = SLURM(cmd, alloc=alloc, memory=memory, walltime=walltime,
-                  name=node_name, stdout_path=stdout_path)
+    slurm_manager = SLURM()
+    out = slurm_manager.sbatch(cmd,
+                               alloc=alloc,
+                               memory=memory,
+                               walltime=walltime,
+                               name=node_name,
+                               stdout_path=stdout_path)[0]
 
     print('\ncmd:\n{}\n'.format(cmd))
 
-    if slurm.id:
+    if out:
         msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-               'Eagle.'.format(node_name, slurm.id))
+               'Eagle.'.format(node_name, out))
     else:
         msg = ('Was unable to kick off job "{}". '
                'Please see the stdout error messages'

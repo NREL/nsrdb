@@ -28,6 +28,14 @@ class VarFactory:
                'cld_opd_dcomp': CloudVar,
                'cld_reff_dcomp': CloudVar,
                'cld_press_acha': CloudVar,
+               'cloud_fraction': CloudVar,
+               'cloud_probability': CloudVar,
+               'temp_3_75um_nom': CloudVar,
+               'temp_11_0um_nom': CloudVar,
+               'temp_11_0um_nom_stddev_3x3': CloudVar,
+               'refl_0_65um_nom': CloudVar,
+               'refl_0_65um_nom_stddev_3x3': CloudVar,
+               'refl_3_75um_nom': CloudVar,
                'dew_point': DewPoint,
                'ozone': MerraVar,
                'relative_humidity': RelativeHumidity,
@@ -235,8 +243,9 @@ class VarFactory:
         """
 
         if kwargs:
-            logger.debug('Initializing cloud handler with kwargs: {} '
-                         'and fpath: {}'.format(kwargs, fpath))
+            logger.debug('Initializing cloud handler for datasets "{}" '
+                         'with kwargs: {} and fpath: {}'
+                         .format(dsets, kwargs, fpath))
 
         kwarg_ignore = ('handler', 'source_dir')
         kwargs = {k: v for k, v in kwargs.items()

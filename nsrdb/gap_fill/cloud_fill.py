@@ -11,10 +11,14 @@ import numpy as np
 import pandas as pd
 from warnings import warn
 
-from nsrdb.all_sky import (WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES,
-                           SZA_LIM)
+from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES
+
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
+
+
+# clean all cloud properties when SZA < 90 (any possibility of daylight)
+SZA_LIM = 90
 
 
 logger = logging.getLogger(__name__)
@@ -66,19 +70,25 @@ class CloudGapFill:
         # set other locations to nan to not impede gap fill
         cloud_prop_fill[~type_mask] = np.nan
 
-        # patch sites with all NaN or just one non-NaN but warn
-        all_na = (np.isnan(cloud_prop_fill).sum(axis=0)
-                  >= (cloud_prop_fill.shape[0] - 1))
-        if any(all_na):
-            cloud_prop_fill.loc[:, all_na] = -999
+        # patch sites with just one good value (need this for short
+        # timeseries with just one or two good values)
+        good_values = (~np.isnan(cloud_prop_fill)).sum(axis=0)
+        almost_all_nan = (good_values < 3) & (good_values >= 1)
+        if any(almost_all_nan):
+            cloud_prop_fill.loc[:, almost_all_nan] = \
+                cloud_prop_fill.loc[:, almost_all_nan].ffill().bfill()
+
+        # patch sites with all missing values
+        all_nan = good_values == 0
+        if any(all_nan):
+            cloud_prop_fill.loc[:, all_nan] = -999
 
         # gap fill all missing values
         cloud_prop_fill = cloud_prop_fill.interpolate(
-            method='nearest', axis=0)\
-            .fillna(method='ffill').fillna(method='bfill')
+            method='nearest', axis=0).ffill().bfill()
 
         # Make sure sites with only NaN props stay as nan
-        cloud_prop_fill.loc[:, all_na] = np.nan
+        cloud_prop_fill.loc[:, all_nan] = np.nan
 
         # fill values for the specified cloud type
         cloud_prop[type_mask] = cloud_prop_fill[type_mask].values
@@ -136,14 +146,31 @@ class CloudGapFill:
 
         if np.sum(np.isnan(cloud_prop.values)) > 0:
             loc = np.where(np.sum(np.isnan(cloud_prop.values), axis=0) > 0)[0]
-            msg = ('NaN values persist at {} sites.'.format(len(loc)))
+            count = np.isnan(cloud_prop.values).sum()
+            n_tot = cloud_prop.shape[0] * cloud_prop.shape[1]
+            msg = ('NaN values persist in "{}" at {} sites out of {} '
+                   '({:.2f}%) - {} total NaN values '
+                   'out of {} total observations, {:.2f}%).'
+                   .format(dset, len(loc), cloud_prop.shape[1],
+                           100 * len(loc) / cloud_prop.shape[1],
+                           count, n_tot, 100 * count / n_tot))
             logger.warning(msg)
             warn(msg)
+            ind = np.where(np.isnan(cloud_prop.values).any(axis=0))[0]
+            logger.debug('These site indices have persistent NaN values: {}'
+                         .format(ind))
 
             # do a hard fix of remaining nan values
             for cat, types in CloudGapFill.CATS.items():
                 mask = (cloud_type.isin(types) & cloud_prop.isnull())
-                cloud_prop[mask] = CloudGapFill.FILL[cat][dset]
+                fill_val = CloudGapFill.FILL[cat][dset]
+                cloud_prop[mask] = fill_val
+                msg = ('Filling {} persistent NaN values of "{}" with '
+                       'a climatalogical average value {} for cloud '
+                       'category "{}".'
+                       .format(mask.values.sum(), dset, fill_val, cat))
+                logger.warning(msg)
+                warn(msg)
 
         return cloud_prop
 
@@ -156,12 +183,12 @@ class CloudGapFill:
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
         """
-        msg = ('Fill flag results for shape {}:\n'.format(fill_flag.shape))
+        logger.info('Fill flag results for shape {}:'.format(fill_flag.shape))
+        ntot = fill_flag.shape[0] * fill_flag.shape[1]
         for i in range(10):
-            m = '\tFlag {} has {} counts\n'.format(i, np.sum(fill_flag == i))
-            msg += m
-
-        logger.info(msg)
+            count = (fill_flag == i).sum()
+            logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
+                        .format(i, count, ntot, 100 * count / ntot))
 
     @staticmethod
     def fill_cloud_type(cloud_type, fill_flag=None, missing=-15):
@@ -238,17 +265,28 @@ class CloudGapFill:
             logger.error(e)
             raise RuntimeError(e)
 
+        bad = (set(np.unique(cloud_type.values))
+               - set(CLOUD_TYPES + CLEAR_TYPES))
+        if any(bad):
+            e = ('Unknown cloud types have appeared! These are not '
+                 'recognized: {}'.format(list(bad)))
+            logger.error(e)
+            raise ValueError(e)
+
         if df_convert:
             cloud_type = cloud_type.values
 
         return cloud_type, fill_flag
 
     @staticmethod
-    def flag_missing_properties(cloud_prop, cloud_type, sza, fill_flag):
+    def flag_missing_properties(prop_name, cloud_prop, cloud_type, sza,
+                                fill_flag):
         """Look for missing cloud properties and set fill_flag accordingly.
 
         Parameters
         ----------
+        prop_name : str
+            Name of the cloud property being filled.
         cloud_prop : pd.DataFrame
             DataFrame of cloud property values.
         cloud_type : pd.DataFrame
@@ -269,18 +307,38 @@ class CloudGapFill:
         mask = missing_prop & (fill_flag == 0)
         fill_flag[mask] = 3
 
+        logger.debug('Cloud property "{}" is being cleaned with {} '
+                     'fill_flag=3 out of {} total observations ({:.2f}%)'
+                     .format(prop_name, mask.sum(),
+                             mask.shape[0] * mask.shape[1],
+                             100 * mask.sum()
+                             / (mask.shape[0] * mask.shape[1])))
+
         # if full timeseries is missing properties but not type, set 4
         missing_full = ((cloud_type.isin(CLOUD_TYPES) & (fill_flag > 0))
                         | (cloud_type.isin(CLEAR_TYPES) | (sza >= SZA_LIM)))
         if missing_full.all(axis=0).any():
-            mask = (fill_flag == 3) & missing_full.values.all(axis=0)
-            fill_flag[mask] = 4
+            mask_full = (fill_flag == 3) & missing_full.values.all(axis=0)
+            fill_flag[mask_full] = 4
+
+            logger.debug('Cloud property "{}" is being cleaned with {} '
+                         'fill_flag=4 out of {} total observations ({:.2f}%)'
+                         .format(prop_name, mask_full.sum(),
+                                 mask_full.shape[0] * mask_full.shape[1],
+                                 100 * mask_full.sum()
+                                 / (mask_full.shape[0] * mask_full.shape[1])))
+            logger.debug('Cloud property "{}" is being cleaned with {} sites '
+                         'with fill_flag=4 out of {} total sites ({:.2f}%)'
+                         .format(prop_name, mask_full.any(axis=0).sum(),
+                                 mask_full.shape[1],
+                                 100 * mask_full.any(axis=0).sum()
+                                 / mask_full.shape[1]))
 
         return fill_flag
 
     @classmethod
     def fill_cloud_prop(cls, prop_name, cloud_prop, cloud_type, sza,
-                        fill_flag=None):
+                        fill_flag=None, cloud_type_is_clean=False):
         """Perform full cloud property fill.
 
         Parameters
@@ -295,6 +353,9 @@ class CloudGapFill:
             DataFrame of solar zenith angle values to determine nighttime.
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
+        cloud_type_is_clean : bool
+            Flag to show if cloud_type input has already been cleaned. default
+            is False so cloud_type will be cleaned in this method
 
         Returns
         -------
@@ -326,14 +387,15 @@ class CloudGapFill:
         if fill_flag is None:
             fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
 
-        # fill cloud types.
-        cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
-                                                    fill_flag=fill_flag)
+        if not cloud_type_is_clean:
+            # fill cloud types.
+            cloud_type, fill_flag = cls.fill_cloud_type(cloud_type,
+                                                        fill_flag=fill_flag)
 
-        fill_flag = cls.flag_missing_properties(cloud_prop, cloud_type, sza,
-                                                fill_flag)
+        fill_flag = cls.flag_missing_properties(prop_name, cloud_prop,
+                                                cloud_type, sza, fill_flag)
 
-        # set missing property values to NaN. Clear will be reset later.
+        # set missing property values to NaN.
         cloud_prop[(cloud_prop <= 0)] = np.nan
 
         # perform gap fill for each cloud category seperately
@@ -350,7 +412,7 @@ class CloudGapFill:
 
         if np.isnan(cloud_prop.values).sum() > 0:
             e = ('Cloud property still has {} nan values out of shape {}!'
-                 .format(np.isnan(cloud_prop).sum(), cloud_prop.shape))
+                 .format(np.isnan(cloud_prop).values.sum(), cloud_prop.shape))
             logger.error(e)
             raise RuntimeError(e)
 
@@ -382,9 +444,10 @@ class CloudGapFill:
             Subset of rows to gap fill.
         cols : slice
             Subset of columns to gap fill.
-        col_chunks : None
-            Optional chunking method to gap fill a few chunks at a time
-            to reduce memory requirements.
+        col_chunk : None | int
+            Optional chunking method to gap fill one column chunk at a time
+            to reduce memory requirements. If provided, this should be an
+            integer specifying how many columns to work on at one time.
         """
         logger.info('Patching cloud properties in file: "{}"'.format(f_cloud))
 
@@ -392,29 +455,23 @@ class CloudGapFill:
             dsets = f.dsets
             shape = f.shape
 
-        start = cols.start
-        stop = cols.stop
-        if start is None:
-            start = 0
-        if stop is None:
-            stop = shape[1]
-
         if col_chunk is None:
-            col_chunk = stop - start
+            slices = [cols]
+        else:
+            start = 0 if cols.start is None else cols.start
+            stop = shape[1] if cols.stop is None else cols.stop
+            columns = np.arange(start, stop)
+            N = np.ceil(len(columns) / col_chunk)
+            arrays = np.array_split(columns, N)
+            slices = [slice(a[0], 1 + a[-1]) for a in arrays]
+            logger.info('Gap fill will be run across the full data column '
+                        'shape {} in {} column chunks with approximately {} '
+                        'sites per chunk'
+                        .format(len(columns), len(slices), col_chunk))
 
-        last = start
-
-        while True:
-            i0 = last
-            i1 = np.min((i0 + col_chunk, shape[1]))
-            cols = slice(i0, i1)
-            last = i1
-            if i0 == i1:
-                logger.debug('Job complete at index {}'.format(i0))
-                break
-            else:
-                logger.debug('Patching cloud properties: {} through {}'
-                             .format(i0, i1))
+        for cols in slices:
+            logger.info('Patching cloud properties for column slice: {}'
+                        .format(cols))
 
             with Resource(f_ancillary) as f:
                 sza = f['solar_zenith_angle', rows, cols]
@@ -440,7 +497,8 @@ class CloudGapFill:
                         cloud_prop = f[dset, rows, cols]
 
                     cloud_prop, fill_flag = cls.fill_cloud_prop(
-                        dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag)
+                        dset, cloud_prop, cloud_type, sza, fill_flag=fill_flag,
+                        cloud_type_is_clean=True)
 
                     with Outputs(f_cloud, mode='a') as f:
                         logger.debug('Writing filled {} to {}'
@@ -453,3 +511,5 @@ class CloudGapFill:
                              .format(os.path.basename(f_cloud)))
                 f['cloud_fill_flag', rows, cols] = fill_flag
                 logger.debug('Write complete')
+
+            logger.info('Job complete for columns: {}'.format(cols))

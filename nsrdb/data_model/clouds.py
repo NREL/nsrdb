@@ -52,10 +52,7 @@ class CloudCoords:
 
         check = [d in dsets for d in CloudCoords.REQUIRED]
 
-        if all(check):
-            return True
-        else:
-            return False
+        return all(check)
 
     @staticmethod
     def dist_to_latitude(dist):
@@ -878,7 +875,7 @@ class CloudVar(AncillaryVarHandler):
         else:
             m = ('CloudVar handler has a frequency of "{}" for directory: {}'
                  .format(self.freq, self.path))
-            logger.info(m)
+            logger.debug(m)
 
     @property
     def path(self):
@@ -923,8 +920,8 @@ class CloudVar(AncillaryVarHandler):
                 logger.exception(msg)
                 raise IOError(msg)
             else:
-                logger.info('Cloud data dir for date {} found at: {}'
-                            .format(self._date, self._path))
+                logger.debug('Cloud data dir for date {} found at: {}'
+                             .format(self._date, self._path))
 
         return self._path
 

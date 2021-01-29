@@ -107,6 +107,25 @@ class IntType(click.ParamType):
                             .format(value, type(value), param, ctx))
 
 
+class FloatType(click.ParamType):
+    """Integer click input argument type."""
+    name = 'float'
+
+    @staticmethod
+    def convert(value, param, ctx):
+        """Convert to float or return as None."""
+        if isinstance(value, str):
+            if 'None' in value:
+                return None
+            else:
+                return float(value)
+        elif isinstance(value, float):
+            return value
+        else:
+            raise TypeError('Cannot recognize float type: {} {} {} {}'
+                            .format(value, type(value), param, ctx))
+
+
 class DictType(click.ParamType):
     """Dict click input argument type."""
 
@@ -201,6 +220,7 @@ class StrListType(ListType):
 
 
 INT = IntType()
+FLOAT = FloatType()
 STR = StrType()
 DICT = DictType()
 SAMFILES = SAMFilesType()
