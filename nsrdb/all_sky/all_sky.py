@@ -84,7 +84,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     surface_albedo : np.ndarray
         Ground albedo.
     surface_pressure : np.ndarray
-        Surface pressure (mbar).
+        Surface pressure (mbar).(mbar is same as hPa)
     time_index : pd.DatetimeIndex
         Time index.
     total_precipitable_water : np.ndarray

@@ -22,11 +22,13 @@ class SolarZenithAngle:
         time_index : ndarray | pandas.DatetimeIndex | str
             Datetime stamps of interest
         lat_lon : ndarray
-            (latitude, longitude) for site(s) of interest
+            (latitude, longitude) for site(s) of interest. Must be a 2D array
+            with shape (n_sites, 2).
         elev : ndarray
-            Elevation above sea-level for site(s) of interest
+            Elevation above sea-level for site(s) of interest. Must be a 1D
+            array with length equal to the number of sites.
         pressure : ndarray
-            Pressure at all sites in millibar
+            Pressure at all sites in millibar (mbar is same as hPa)
         temperature : ndarray
             Temperature at all sites in C
         big_meta_threshold : int | float
