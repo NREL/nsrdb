@@ -7,6 +7,7 @@ Created on Tue Dec  10 08:22:26 2018
 @author: gbuster
 """
 from concurrent.futures import ProcessPoolExecutor
+import datetime
 import h5py
 import os
 import sys
@@ -408,8 +409,11 @@ class Spatial:
         return fig, ax
 
     @staticmethod
-    def _fmt_title(kwargs, og_title, ti, ts, fname, dset, file_ext):
+    def _fmt_title(kwargs, og_title, ti, ts, fname, dset, file_ext, timedelta):
         """Format the figure title with timestamp."""
+
+        if timedelta is not None:
+            ti += timedelta
 
         if 'title' in kwargs and kwargs['title']:
             if og_title is None:
@@ -430,7 +434,9 @@ class Spatial:
 
     @staticmethod
     def dsets(h5, dsets, out_dir, timesteps=(0,), fname=None, file_ext='.png',
-              sites=None, interval=None, max_workers=1, **kwargs):
+              sites=None, interval=None, max_workers=1,
+              timedelta=datetime.timedelta(hours=0),
+              **kwargs):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -455,6 +461,10 @@ class Spatial:
             will be plotted.
         max_workers : int | None
             Maximum number of workers to use (>1 is parallel).
+        timedelta : datetime.timedelta
+            Time delta object to shift the time index printed inthe title
+            if {} is present in the title. This has no effect on the input
+            timesteps.
 
         Returns
         -------
@@ -525,7 +535,7 @@ class Spatial:
                         df[dset] = data[i, :]
                         fn_out, kwargs, og_title = Spatial._fmt_title(
                             kwargs, og_title, ti, ts, fname, dset,
-                            file_ext)
+                            file_ext, timedelta)
                         fig, ax = Spatial.plot_geo_df(df, fn_out, out_dir,
                                                       **kwargs)
                 else:
@@ -536,7 +546,7 @@ class Spatial:
                             df_par[dset] = data[i, :]
                             fn_out, kwargs, og_title = Spatial._fmt_title(
                                 kwargs, og_title, ti, ts, fname, dset,
-                                file_ext)
+                                file_ext, timedelta)
                             exe.submit(Spatial.plot_geo_df, df_par, fn_out,
                                        out_dir, **kwargs)
 
@@ -613,14 +623,15 @@ class Spatial:
 
     @staticmethod
     def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
-                    xlabel='Longitude', ylabel='Latitude', title=None,
+                    xlabel='Longitude', ylabel='Latitude',
+                    title=None, title_loc='center',
                     cbar_label='dset', marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
                     extent=None, axis=None,
                     shape=None, shape_aspect=None,
-                    shape_color=(0.2, 0.2, 0.2), shape_line_width=2,
-                    bbox_inches='tight'):
+                    shape_edge_color=(0.2, 0.2, 0.2), shape_line_width=2,
+                    bbox_inches='tight', dark=True):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -628,35 +639,57 @@ class Spatial:
         df : pd.DataFrame
             DataFrame with latitude/longitude in 1st/2nd columns, data in the
             3rd column.
+        fname : str
+            Filename to save to including file extension (usually png).
+        out_dir : str
+            Output directory to save fname output.
+        labels : list | tuple
+            latitude/longitude column labels in the df.
+        xlabel : str
+            Label to put on the xaxis in the plot. Disabled if axis='off'
+        ylabel : str
+            Label to put on the yaxis in the plot. Disabled if axis='off'
         title : str
             Figure and file title.
-        out_dir : str
-            Where to save the plot.
-        labels : list | tuple
-            latitude/longitude column labels.
+        title_loc : str
+            Location of title (center, left, right).
+        cbar_label : str
+            Label for the colorbar. Should usually include units of the plot.
         marker_size : float
             Marker size.
             0.1 is good for CONUS at 4km.
+        marker : string
+            marker shape 's' is square marker.
         xlim : list | tuple
-            Plot x limits (left limit, right limit).
+            Plot x limits (left limit, right limit) (longitude bounds).
         ylim : list | tuple
-            Plot y limits (lower limit, upper limit).
+            Plot y limits (lower limit, upper limit) (latitude bounds).
+        figsize : tuple
+            Figure size inches (width, height).
         cmap : str
-            Matplotlib colormap (Blues, OrRd)
+            Matplotlib colormap (Blues, OrRd, viridis)
         cbar_range = None | tuple
             Optional fixed range for the colormap.
         dpi : int
             Dots per inch.
-        figsize : tuple
-            Figure size inches (width, height).
-        file_ext : str
-            Image file extension (.png, .jpeg).
+        extent : str
+            Optional extent kwarg to fix the axis bounds and figure size
+            from class.EXTENTS
+        axis : None | str
+            Option to turn axis "off"
         shape : str
-            Filepath to a shape file to plot on top of df data.
+            Filepath to a shape file to plot on top of df data (only the
+            boundaries are plotted).
         shape_aspect : None | float
             Optional aspect ratio to use on shape.
+        shape_edge_color : str | tuple
+            Color of the plotted shape edges
+        shape_line_width : float
+            Line width of the shape edges
         bbox_inches : str
             kwarg for saving figure.
+        dark : bool
+            Flag to turn on dark mode plots.
 
         Returns
         -------
@@ -667,6 +700,11 @@ class Spatial:
         """
 
         df = df.sort_values(by=list(labels))
+        textcolor = 'k'
+        facecolor = None
+        if dark:
+            textcolor = '#969696'
+            facecolor = 'k'
 
         if isinstance(extent, str):
             if extent.lower() in Spatial.EXTENTS:
@@ -675,9 +713,12 @@ class Spatial:
                 figsize = Spatial.EXTENTS[extent.lower()]['figsize']
 
         try:
-            fig = plt.figure(figsize=figsize)
+            fig = plt.figure(figsize=figsize, facecolor=facecolor)
             ax = fig.add_subplot(111)
             var = df.columns.values[2]
+            fig.patch.set_facecolor(facecolor)
+            mpl.rcParams['text.color'] = textcolor
+            mpl.rcParams['axes.labelcolor'] = textcolor
 
             if cbar_range is None:
                 cbar_range = [np.nanmin(df.iloc[:, 2]),
@@ -726,7 +767,7 @@ class Spatial:
                 gdf = gpd.GeoDataFrame.from_file(shape)
                 gdf = gdf.to_crs({'init': 'epsg:4326'})
                 gdf.geometry.boundary.plot(ax=ax, color=None,
-                                           edgecolor=shape_color,
+                                           edgecolor=shape_edge_color,
                                            linewidth=shape_line_width)
                 if shape_aspect:
                     ax.set_aspect(shape_aspect)
@@ -741,20 +782,27 @@ class Spatial:
                 cbar_label = var
 
             if title is not False:
-                ax.set_title(title)
+                ax.set_title(title, loc=title_loc, color=textcolor)
 
             if not custom_cmap and cbar_label is not None:
-                fig.colorbar(c, ax=ax, label=cbar_label)
+                cbar = fig.colorbar(c, ax=ax)
             elif cbar_label is not None:
                 fmt = '%.2f'
                 int_bar = all([b % 1 == 0.0 for b in bounds])
                 if int_bar:
                     fmt = '%.0f'
-                fig.colorbar(c, ax=ax, label=cbar_label, cmap=cmap, norm=norm,
-                             spacing='proportional',
-                             ticks=bounds,
-                             boundaries=bounds,
-                             format=fmt)
+                cbar = fig.colorbar(c, ax=ax, cmap=cmap,
+                                    norm=norm,
+                                    spacing='proportional',
+                                    ticks=bounds,
+                                    boundaries=bounds,
+                                    format=fmt)
+
+            ticks = plt.getp(cbar.ax, 'yticklabels')
+            plt.setp(ticks, color=textcolor)
+            cbar.ax.tick_params(which='minor', color=textcolor)
+            cbar.ax.tick_params(which='major', color=textcolor)
+            cbar.set_label(cbar_label, color=textcolor)
 
             if ylim is not None:
                 ax.set_ylim(ylim)
@@ -773,12 +821,14 @@ class Spatial:
                 from PIL import Image
                 import io
                 png1 = io.BytesIO()
-                fig.savefig(png1, format='png', dpi=dpi, bbox_inches='tight')
+                fig.savefig(png1, format='png', dpi=dpi, bbox_inches='tight',
+                            facecolor=facecolor)
                 png2 = Image.open(png1)
                 png2.save(out)
                 png2.close()
             else:
-                fig.savefig(out, dpi=dpi, bbox_inches=bbox_inches)
+                fig.savefig(out, dpi=dpi, bbox_inches=bbox_inches,
+                            facecolor=facecolor)
             logger.info('Saved figure: {}'.format(fname))
             plt.close()
         except Exception as e:
