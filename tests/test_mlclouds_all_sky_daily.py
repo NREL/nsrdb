@@ -19,7 +19,7 @@ from rex import MultiFileNSRDB
 
 pytest.importorskip("mlclouds")
 pytest.importorskip("phygnn")
-from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
+from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
 
 
 PROJECT_DIR = os.path.join(TESTDATADIR, 'mlclouds_pipeline/')
@@ -35,7 +35,7 @@ def test_all_sky_daily(date='20190102'):
     shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
 
     h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
-    PhygnnCloudFill.run(h5_source)
+    MLCloudsFill.run(h5_source)
 
     NSRDB.run_daily_all_sky(PROJECT_DIR, date[0:4], GRID, date, freq='5min',
                             max_workers=1)

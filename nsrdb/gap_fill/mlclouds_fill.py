@@ -23,13 +23,14 @@ from rex import MultiFileNSRDB
 logger = logging.getLogger(__name__)
 
 
-class PhygnnCloudFill:
+class MLCloudsFill:
     """
-    Use phygnn to fill missing cloud data
+    Use the MLClouds algorith with phygnn model to fill missing cloud data
     """
     DEFAULT_MODEL = MODEL_FPATH
 
-    def __init__(self, h5_source, model_path=None, var_meta=None):
+    def __init__(self, h5_source, fill_all=False, model_path=None,
+                 var_meta=None):
         """
         Parameters
         ----------
@@ -38,6 +39,9 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        fill_all : bool
+            Flag to fill all cloud properties for all timesteps where
+            cloud_type is cloudy.
         model_path : str | None
             Directory to load phygnn model from. This is typically a fpath to
             a .pkl file with an accompanying .json file in the same directory.
@@ -50,14 +54,17 @@ class PhygnnCloudFill:
 
         self._dset_map = None
         self._h5_source = h5_source
+        self._fill_all = fill_all
         self._var_meta = var_meta
         if model_path is None:
             model_path = self.DEFAULT_MODEL
 
-        logger.debug('Initializing PhygnnCloudFill with h5_source: {}'
+        logger.debug('Initializing MLCloudsFill with h5_source: {}'
                      .format(self._h5_source))
-        logger.debug('Initializing PhygnnCloudFill with model: {}'
+        logger.debug('Initializing MLCloudsFill with model: {}'
                      .format(model_path))
+        logger.debug('MLCloudsFill fill filling all cloud properties: {}'
+                     .format(self._fill_all))
         self._phygnn_model = PhygnnModel.load(model_path)
 
         with MultiFileNSRDB(self.h5_source) as res:
@@ -331,12 +338,14 @@ class PhygnnCloudFill:
         assert ~(cloudy & (feature_data['cld_reff_dcomp'] <= 0)).any()
 
         logger.debug('Adding feature flag')
-        ice_clouds = np.isin(feature_data['cloud_type'], ICE_TYPES)
-        water_clouds = np.isin(feature_data['cloud_type'], WATER_TYPES)
-        flag = np.full(ice_clouds.shape, 'night', dtype=object)
+        day_ice_clouds = day & np.isin(feature_data['cloud_type'],
+                                       ICE_TYPES)
+        day_water_clouds = day & np.isin(feature_data['cloud_type'],
+                                         WATER_TYPES)
+        flag = np.full(day_ice_clouds.shape, 'night', dtype=object)
         flag[day] = 'clear'
-        flag[ice_clouds] = 'ice_cloud'
-        flag[water_clouds] = 'water_cloud'
+        flag[day_ice_clouds] = 'ice_cloud'
+        flag[day_water_clouds] = 'water_cloud'
         flag[day_missing_ctype] = 'bad_cloud'
         flag[day_missing_opd] = 'bad_cloud'
         flag[day_missing_reff] = 'bad_cloud'
@@ -378,7 +387,7 @@ class PhygnnCloudFill:
             dst_fpath = os.path.join(dst_dir, f_name)
             if os.path.exists(dst_fpath):
                 msg = ("A raw cloud file already exists, this suggests "
-                       "phygnn gap fill has already been run: {}"
+                       "MLClouds gap fill has already been run: {}"
                        .format(dst_fpath))
                 logger.error(msg)
                 raise RuntimeError(msg)
@@ -388,7 +397,7 @@ class PhygnnCloudFill:
                 shutil.copy(src_fpath, dst_fpath + '.tmp')
 
     def mark_complete_archived_files(self):
-        """Remove the .tmp marker from the archived files once PhygnnCloudFill
+        """Remove the .tmp marker from the archived files once MLCloudsFill
         is complete"""
         cld_dsets = ['cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
                      'cloud_type']
@@ -401,7 +410,7 @@ class PhygnnCloudFill:
                 os.rename(raw_path + '.tmp', raw_path)
             else:
                 msg = ('Something went wrong. The .tmp file created at the '
-                       'beginning of PhygnnCloudFill no longer exists: {}'
+                       'beginning of MLCloudsFill no longer exists: {}'
                        .format(raw_path + '.tmp'))
                 logger.error(msg)
                 raise FileNotFoundError(msg)
@@ -509,14 +518,22 @@ class PhygnnCloudFill:
 
         fill_mask = feature_data['flag'] == 'bad_cloud'
         night_mask = feature_data['flag'] == 'night'
+        clear_mask = feature_data['flag'] == 'clear'
+        cloud_mask = ((feature_data['flag'] != 'night')
+                      | (feature_data['flag'] != 'clear'))
         if fill_mask.sum() == 0:
             msg = ('No "bad_cloud" flags were detected in the feature_data '
                    '"flag" dataset. Something went wrong! '
                    'The cloud data is never perfect...')
             logger.warning(msg)
             warn(msg)
+
+        if self._fill_all:
+            logger.debug('Filling {} values (all cloudy timesteps) using '
+                         'MLClouds predictions for column slice {}'
+                         .format(np.sum(cloud_mask), col_slice))
         else:
-            logger.debug('Filling {} values using phygnn predictions for '
+            logger.debug('Filling {} values using MLClouds predictions for '
                          'column slice {}'
                          .format(np.sum(fill_mask), col_slice))
 
@@ -527,19 +544,26 @@ class PhygnnCloudFill:
             arr = np.minimum(arr, varobj.physical_max)
 
             cld_data = feature_data[dset]
-            cld_data[fill_mask] = arr[fill_mask]
-            cld_data[night_mask] = 0
+            if self._fill_all:
+                cld_data[cloud_mask] = arr[cloud_mask]
+            else:
+                cld_data[fill_mask] = arr[fill_mask]
+
+            cld_data[night_mask | clear_mask] = 0
             filled_data[dset] = cld_data
 
-            nnan = np.isnan(arr).sum()
-            ntot = arr.shape[0] * arr.shape[1]
+            nnan = np.isnan(filled_data[dset]).sum()
+            ntot = filled_data[dset].shape[0] * filled_data[dset].shape[1]
             logger.debug('Final cleaned data for {} for column slice {} '
                          'has mean: {:.2f}, median: {:.2f}, range: '
                          '({:.2f}, {:.2f}) and {} NaN values out of '
                          '{} ({:.2f}%)'
-                         .format(dset, col_slice, np.nanmean(arr),
-                                 np.median(arr), np.nanmin(arr),
-                                 np.nanmax(arr), nnan, ntot,
+                         .format(dset, col_slice,
+                                 np.nanmean(filled_data[dset]),
+                                 np.median(filled_data[dset]),
+                                 np.nanmin(filled_data[dset]),
+                                 np.nanmax(filled_data[dset]),
+                                 nnan, ntot,
                                  100 * nnan / ntot))
 
             if nnan > 0:
@@ -709,7 +733,7 @@ class PhygnnCloudFill:
         """
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
 
-        logger.debug('Preparing data for phygnn cloud fill for column slice {}'
+        logger.debug('Preparing data for MLCloudsFill for column slice {}'
                      .format(col_slice))
         ctype, cpres, sza, fill_flag = obj.fill_ctype_press(
             obj.h5_source, col_slice=col_slice)
@@ -721,7 +745,7 @@ class PhygnnCloudFill:
                                               col_slice=col_slice)
         feature_data, fill_flag = obj.clean_feature_data(
             feature_data, fill_flag, sza_lim=sza_lim)
-        logger.debug('Completed phygnn data prep for column slice {}'
+        logger.debug('Completed MLClouds data prep for column slice {}'
                      .format(col_slice))
 
         return feature_data, clean_data, fill_flag
@@ -783,8 +807,8 @@ class PhygnnCloudFill:
         return clean_data, fill_flag
 
     @classmethod
-    def run(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
-            col_chunk=None, max_workers=None):
+    def run(cls, h5_source, fill_all=False, model_path=None, var_meta=None,
+            sza_lim=90, col_chunk=None, max_workers=None):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -796,6 +820,9 @@ class PhygnnCloudFill:
             Available formats:
                 /h5_dir/
                 /h5_dir/prefix*suffix
+        fill_all : bool
+            Flag to fill all cloud properties for all timesteps where
+            cloud_type is cloudy.
         model_path : str | None
             Directory to load phygnn model from. This is typically a fpath to
             a .pkl file with an accompanying .json file in the same directory.
@@ -816,11 +843,12 @@ class PhygnnCloudFill:
             None uses all available workers.
         """
 
-        logger.info('Running PhygnnCloudFill with h5_source: {}'
+        logger.info('Running MLCloudsFill with h5_source: {}'
                     .format(h5_source))
-        logger.info('Running PhygnnCloudFill with model: {}'
+        logger.info('Running MLCloudsFill with model: {}'
                     .format(model_path))
-        obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
+        obj = cls(h5_source, fill_all=fill_all, model_path=model_path,
+                  var_meta=var_meta)
         obj.archive_cld_properties()
         clean_data, fill_flag = obj._init_clean_arrays()
 
@@ -870,7 +898,7 @@ class PhygnnCloudFill:
                     del i_features, i_clean, i_flag, future
 
                     mem = psutil.virtual_memory()
-                    logger.info('PhygnnCloudFill futures completed: '
+                    logger.info('MLCloudsFill futures completed: '
                                 '{0} out of {1}. '
                                 'Current memory usage is '
                                 '{2:.3f} GB out of {3:.3f} GB total.'
@@ -880,5 +908,5 @@ class PhygnnCloudFill:
         obj.write_filled_data(clean_data, col_slice=slice(None))
         obj.write_fill_flag(fill_flag, col_slice=slice(None))
         obj.mark_complete_archived_files()
-        logger.info('Completed phygnn cloud fill for h5_source: {}'
+        logger.info('Completed MLCloudsFill for h5_source: {}'
                     .format(h5_source))

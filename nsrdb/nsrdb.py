@@ -875,16 +875,16 @@ class NSRDB:
             Maximum workers to clean data in parallel. 1 is serial and None
             uses all available workers.
         """
-        from nsrdb.gap_fill.phygnn_fill import PhygnnCloudFill
+        from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
         t0 = time.time()
         assert len(str(date)) == 8
         nsrdb = cls(out_dir, str(date)[0:4], None, var_meta=var_meta)
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        PhygnnCloudFill.run(h5_source, model_path=model_path,
-                            var_meta=var_meta, col_chunk=col_chunk,
-                            max_workers=max_workers)
+        MLCloudsFill.run(h5_source, model_path=model_path,
+                         var_meta=var_meta, col_chunk=col_chunk,
+                         max_workers=max_workers)
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:
