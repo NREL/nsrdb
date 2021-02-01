@@ -196,7 +196,7 @@ class ConfigRunners:
             Dictionary of the full nsrdb config file. Used here to extract
             inputs from the data-model input block.
         """
-        model_path = cmd_args.get('model_path', None)
+
         if 'doy_range' in cmd_args:
             doy_range = cmd_args['doy_range']
         else:
@@ -204,7 +204,9 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.invoke(ml_cloud_fill, date=date, model_path=model_path,
+            ctx.invoke(ml_cloud_fill, date=date,
+                       fill_all=cmd_args.get('fill_all', False),
+                       model_path=cmd_args.get('model_path', None),
                        col_chunk=cmd_args.get('col_chunk', None),
                        max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
@@ -532,6 +534,9 @@ def cloud_fill(ctx, i_chunk, col_chunk):
 @click.option('--date', '-d', type=str, required=True,
               help='Single day data model output to run cloud fill on.'
               'Must be str in YYYYMMDD format.')
+@click.option('--fill_all', '-all', type=bool, default=False,
+              help='Flag to fill all cloud properties for all timesteps where '
+              'cloud_type is cloudy.')
 @click.option('--model_path', '-mp', type=STR, default=None,
               help='Directory to load phygnn model from. This is typically '
               'a fpath to a .pkl file with an accompanying .json file in the '
@@ -544,7 +549,7 @@ def cloud_fill(ctx, i_chunk, col_chunk):
               help='Maximum workers to clean data in parallel. 1 is serial '
               'and None uses all available workers.')
 @click.pass_context
-def ml_cloud_fill(ctx, date, model_path, col_chunk, max_workers):
+def ml_cloud_fill(ctx, date, fill_all, model_path, col_chunk, max_workers):
     """Gap fill cloud properties in daily data model outputs using a physics
     guided neural network (phgynn)."""
 
@@ -558,10 +563,10 @@ def ml_cloud_fill(ctx, date, model_path, col_chunk, max_workers):
         model_path = '"{}"'.format(model_path)
 
     fun_str = 'NSRDB.ml_cloud_fill'
-    arg_str = ('"{}", "{}", model_path={}, log_file="{}", '
+    arg_str = ('"{}", "{}", fill_all={}, model_path={}, log_file="{}", '
                'log_level="{}", job_name="{}", col_chunk={}, max_workers={}'
-               .format(out_dir, date, model_path, log_file, log_level,
-                       name, col_chunk, max_workers))
+               .format(out_dir, date, fill_all, model_path, log_file,
+                       log_level, name, col_chunk, max_workers))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
