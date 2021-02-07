@@ -216,9 +216,9 @@ class SkyClass:
         Returns
         -------
         df : pd.DataFrame
-            Same as input but reindexed to the NSRDB time index and
-            with new column "sky_class" with values (clear, cloudy, broken,
-            missing) calculated from the clear_time_frac and cloudy_time_frac
+            Same as input but with new column "sky_class" with values
+            (clear, cloudy, broken, missing) calculated from the
+            clear_time_frac and cloudy_time_frac
             inputs over a time window determined by the window_minutes inputs.
             Note that sky_class == missing means that it is night or there
             is missing ground measurement data and validation should not be
@@ -236,14 +236,14 @@ class SkyClass:
         df.loc[(~mask1 & ~mask2), 'sky_class'] = 'broken'
         df.loc[np.isnan(time_frac), 'sky_class'] = 'missing'
         df.loc[df.solar_zenith_angle > SZA_LIM, 'sky_class'] = 'missing'
-        df = df.reindex(self.nsrdb_time_index)
-        assert len(df) == len(self.nsrdb_time_index)
 
         return df
 
     def add_validation_data(self, df):
         """Add NSRDB and SURFRAD ghi and dni data to a DataFrame.
         """
+        df = df.reindex(self.nsrdb_time_index)
+        assert len(df) == len(self.nsrdb_time_index)
         ti_deltas = self.nsrdb.time_index - np.roll(self.nsrdb.time_index, 1)
         ti_deltas_minutes = ti_deltas.seconds / 60
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
@@ -303,11 +303,11 @@ class SkyClass:
             with those timesteps.
         """
 
-        with SkyClass(fp_surf, fp_nsrdb, nsrdb_gid,
-                      clearsky_ratio=clearsky_ratio,
-                      clear_time_frac=clear_time_frac,
-                      cloudy_time_frac=cloudy_time_frac,
-                      window_minutes=window_minutes) as sc:
+        with cls(fp_surf, fp_nsrdb, nsrdb_gid,
+                 clearsky_ratio=clearsky_ratio,
+                 clear_time_frac=clear_time_frac,
+                 cloudy_time_frac=cloudy_time_frac,
+                 window_minutes=window_minutes) as sc:
 
             df = sc.get_comparison_df()
             df = sc.calculate_sky_class(df)

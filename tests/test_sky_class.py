@@ -19,7 +19,11 @@ def test_sky_class():
                             'validation_nsrdb_2019/srf19a_*_2019.h5')
     gid = 1
 
-    df_val = SkyClass.run(fp_surf, fp_nsrdb, gid)
+    with SkyClass(fp_surf, fp_nsrdb, gid) as sc:
+        df_val = sc.get_comparison_df()
+        df_val = sc.calculate_sky_class(df_val)
+        df_val = sc.add_validation_data(df_val)
+
     assert 'sky_class' in df_val
     assert len(df_val) == 8760 * 12
     assert (df_val['sky_class'] == 'missing').sum() / len(df_val) > 0.5
