@@ -244,7 +244,7 @@ class SkyClass:
         """
         df = df.reindex(self.nsrdb_time_index)
         assert len(df) == len(self.nsrdb_time_index)
-        ti_deltas = self.nsrdb.time_index - np.roll(self.nsrdb.time_index, 1)
+        ti_deltas = self.nsrdb_time_index - np.roll(self.nsrdb_time_index, 1)
         ti_deltas_minutes = ti_deltas.seconds / 60
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
         freq = '{}T'.format(ti_delta_minutes)
