@@ -628,7 +628,7 @@ class Spatial:
                     cbar_label='dset', marker_size=0.1, marker='s',
                     xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
                     cmap='OrRd_11', cbar_range=None, dpi=150,
-                    extent=None, axis=None,
+                    extent=None, axis=None, alpha=1.0,
                     shape=None, shape_aspect=None,
                     shape_edge_color=(0.2, 0.2, 0.2), shape_line_width=2,
                     bbox_inches='tight', dark=True):
@@ -677,6 +677,8 @@ class Spatial:
             from class.EXTENTS
         axis : None | str
             Option to turn axis "off"
+        alpha : float
+            Transparency value between 0 (transparent) and 1 (opaque)
         shape : str
             Filepath to a shape file to plot on top of df data (only the
             boundaries are plotted).
@@ -734,14 +736,22 @@ class Spatial:
                 custom_cmap = False
                 cmap = plt.get_cmap(cmap)
 
-                c = ax.scatter(df.loc[:, labels[1]],
+                c = ax.scatter(df.loc[0, labels[1]],
+                               df.loc[0, labels[0]],
+                               c=df.iloc[0, 2],
+                               cmap=cmap,
+                               vmin=cbar_range[0],
+                               vmax=cbar_range[1],
+                               alpha=1.0)
+                _ = ax.scatter(df.loc[:, labels[1]],
                                df.loc[:, labels[0]],
                                marker=marker,
                                s=marker_size,
                                c=df.iloc[:, 2],
                                cmap=cmap,
                                vmin=cbar_range[0],
-                               vmax=cbar_range[1])
+                               vmax=cbar_range[1],
+                               alpha=alpha)
 
             else:
                 custom_cmap = True
@@ -754,13 +764,22 @@ class Spatial:
                     '{}_{}'.format(cmap_name, nbins), cmaplist, len(bounds))
                 norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
-                c = ax.scatter(df.loc[:, labels[1]],
+                c = ax.scatter(df.loc[0, labels[1]],
+                               df.loc[0, labels[0]],
+                               marker=marker,
+                               s=marker_size,
+                               c=df.iloc[0, 2],
+                               cmap=cmap,
+                               norm=norm,
+                               alpha=1.0)
+                _ = ax.scatter(df.loc[:, labels[1]],
                                df.loc[:, labels[0]],
                                marker=marker,
                                s=marker_size,
                                c=df.iloc[:, 2],
                                cmap=cmap,
-                               norm=norm)
+                               norm=norm,
+                               alpha=alpha)
 
             if shape is not None:
                 import geopandas as gpd
