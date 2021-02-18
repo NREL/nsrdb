@@ -663,6 +663,9 @@ class DataModel:
                                         freq=self.nsrdb_ti.freqstr,
                                         **var_kwargs)
 
+        logger.debug('Cloud ReGrid file list: {}'
+                     .format('\n\t'.join(var_obj.flist)))
+
         if max_workers_regrid != 1:
             logger.info('Starting cloud data ReGrid with {} futures '
                         '(cloud timesteps) with {} parallel workers.'
@@ -708,11 +711,15 @@ class DataModel:
                     assert timestamp == self.nsrdb_ti[i]
 
                     # obj is None if cloud data file is missing
-                    if obj is not None:
-                        assert regrid_ind[obj.fpath] is not None
+                    if obj is not None and regrid_ind[obj.fpath] is not None:
                         future = exe.submit(self._cloud_get_data, obj,
                                             regrid_ind[obj.fpath])
                         futures[future] = i
+                    elif obj is not None and regrid_ind[obj.fpath] is None:
+                        msg = ('Cloud handler object for "{}" has no regrid '
+                               'index output!'.format(obj.fpath))
+                        logger.warning(msg)
+                        warn(msg)
 
                 for future in as_completed(futures):
                     i = futures[future]

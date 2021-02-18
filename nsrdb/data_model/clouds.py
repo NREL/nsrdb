@@ -575,6 +575,12 @@ class CloudVarSingleNC(CloudVarSingle):
         if grid.empty:
             grid = None
 
+        if sparse_mask.sum() == 0:
+            msg = ('Cloud data handler had a completely empty sparse mask '
+                   'for: {}'.format(fpath))
+            logger.warning(msg)
+            warn(msg)
+
         return grid, sparse_mask
 
     @staticmethod
