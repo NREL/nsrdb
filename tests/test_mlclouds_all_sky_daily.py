@@ -65,7 +65,9 @@ def test_all_sky_daily(date='20190102'):
     not_diffuse_mask = day_mask & (dhi == 0)
     assert (dhi[diffuse_mask] > 0).all()
     assert (dni[not_diffuse_mask] > 0).all()
-    assert (fill_flag >= cloud_fill_flag).all()
+
+    assert np.isin(cloud_fill_flag, (0, 1, 2, 7)).all()
+    assert np.isin(fill_flag, (0, 1, 2, 5, 7)).all()
 
     p1 = os.path.join(PROJECT_DIR, 'collect/')
     p2 = os.path.join(PROJECT_DIR, 'final/')

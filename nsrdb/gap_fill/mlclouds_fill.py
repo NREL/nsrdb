@@ -279,8 +279,8 @@ class MLCloudsFill:
                             & (fill_flag < 2).all(axis=0))
         mask_all_bad_reff = ((day_missing_reff | ~day).all(axis=0)
                              & (fill_flag < 2).all(axis=0))
-        fill_flag[mask_fill_flag_opd] = 3
-        fill_flag[mask_fill_flag_reff] = 3
+        fill_flag[mask_fill_flag_opd] = 7  # fill_flag=7 is mlcloud fill
+        fill_flag[mask_fill_flag_reff] = 7  # fill_flag=7 is mlcloud fill
         fill_flag[:, mask_all_bad_opd] = 4
         fill_flag[:, mask_all_bad_reff] = 4
 

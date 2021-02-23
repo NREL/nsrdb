@@ -94,9 +94,12 @@ class Surfrad(Resource):
         Parameters
         ----------
         dt_out : str
-            Pandas timestep size (30min, 5min, 1min) for the final output.
+            Pandas timestep size (30min, 5min, 1min) for the output from
+            this method.
         window_minutes : int
-            Minutes that the moving average window will be over.
+            Minutes that the moving average window will be over. This will be
+            calculated while considering the source time resolution of the
+            SURFRAD measurements.
 
         Returns
         -------

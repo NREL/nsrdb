@@ -800,9 +800,14 @@ class SPA:
             if arr.shape[0] == shape[-1]:
                 arr = arr.T
 
+        if len(arr.shape) == 1:
+            if arr.shape[0] == shape[1]:
+                arr = arr.reshape(shape)
+
         if arr.shape != shape:
-            raise ValueError("Cannot convert array to shape {}"
-                             .format(shape))
+            raise ValueError("Cannot convert array of shape {} to "
+                             "desired final shape {}"
+                             .format(arr.shape, shape))
 
         return arr
 

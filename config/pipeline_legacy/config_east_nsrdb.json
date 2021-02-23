@@ -1,0 +1,55 @@
+{
+  "all-sky": {
+    "n_chunks": 300
+  },
+  "cloud-fill": {
+    "col_chunk": 100000,
+    "n_chunks": 300
+  },
+  "collect-data-model": {
+    "max_workers": 10,
+    "memory": 768,
+    "n_chunks": 300
+  },
+  "collect-final": {},
+  "data-model": {
+    "doy_range": [
+      1,
+      366
+    ],
+    "factory_kwargs": {
+      "cld_opd_dcomp": {
+        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+      },
+      "cld_press_acha": {
+        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+      },
+      "cld_reff_dcomp": {
+        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+      },
+      "cloud_type": {
+        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+      },
+      "surface_albedo": {
+        "source_dir": "/projects/pxs/albedo/nsrdb_2019/"
+      }
+    },
+    "max_workers": 10,
+    "max_workers_clouds": null,
+    "memory": 192
+  },
+  "direct": {
+    "log_level": "DEBUG",
+    "name": "nsrdb_east",
+    "nsrdb_freq": "10min",
+    "nsrdb_grid": "/projects/pxs/reference_grids/nsrdb_meta_2km_east_-105.csv",
+    "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/east/",
+    "year": 2019
+  },
+  "eagle": {
+    "alloc": "pxs",
+    "feature": "--qos=high",
+    "memory": 192,
+    "walltime": 48
+  }
+}

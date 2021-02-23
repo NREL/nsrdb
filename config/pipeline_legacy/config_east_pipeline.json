@@ -1,0 +1,25 @@
+{
+  "logging": {
+    "log_file": null,
+    "log_level": "INFO"
+  },
+  "name": "east",
+  "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/east/",
+  "pipeline": [
+    {
+      "data-model": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+    },
+    {
+      "collect-data-model": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+    },
+    {
+      "cloud-fill": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+    },
+    {
+      "all-sky": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+    },
+    {
+      "collect-final": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+    }
+  ]
+}

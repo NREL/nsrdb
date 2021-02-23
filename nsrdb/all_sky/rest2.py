@@ -46,7 +46,7 @@ def op_mass(p, am, cosz, z):
     Parameters
     ----------
     p : np.ndarray
-        Pressure in mbar.
+        Pressure in mbar.(mbar is same as hPa)
     am : np.ndarray
         Optical mass parameter from SMARTS Model.
     cosz : np.ndarray
@@ -69,7 +69,7 @@ def trans_1(p, am, cosz, z, ozone, w):
     Parameters
     ----------
     p : np.ndarray
-        Pressure in mbar.
+        Pressure in mbar.(mbar is same as hPa)
     am : np.ndarray
         Optical mass parameter from SMARTS Model.
     cosz : np.ndarray
@@ -128,7 +128,7 @@ def trans_2(p, am, cosz, z, w):
     Parameters
     ----------
     p : np.ndarray
-        Pressure in mbar.
+        Pressure in mbar.(mbar is same as hPa)
     am : np.ndarray
         Optical mass parameter from SMARTS Model.
     cosz : np.ndarray
@@ -462,7 +462,7 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     ----------
     p : np.ndarray
         Surface pressure (mbar). If the range is very high, Pa are implied and
-        the array is scaled to mbar with a warning.
+        the array is scaled to mbar with a warning.(mbar is same as hPa)
     albedo : np.ndarray
         Ground albedo.
     ssa : np.ndarray
@@ -520,7 +520,7 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     z = np.where(z > sza_lim, sza_lim, z)
 
     if np.max(p) > 10000:
-        # greater than 10 atmospheres in Pa, must be mbar
+        # greater than 10 atmospheres in Pa, must be mbar(mbar is same as hPa)
         warn('Surface pressure greater than 10,000. Assuming this was input '
              'as Pascal instead of mbar. Scaling by 0.01 to convert to mbar')
         p *= 0.01
@@ -558,7 +558,6 @@ def rest2(p, albedo, ssa, g, z, radius, alpha, beta, ozone, w,
     transr2, trang2, tranw2 = trans_2(p, am, cosz, z, w)
 
     # New aerosol functions in v9
-
     ambeta = masa * beta
 
     # get the two band wavelengths
@@ -658,7 +657,7 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
     ----------
     p : np.ndarray
         Surface pressure (mbar). If the range is very high, Pa are implied and
-        the array is scaled to mbar with a warning.
+        the array is scaled to mbar with a warning.(mbar is same as hPa)
     albedo : np.ndarray
         Ground albedo.
     ssa : np.ndarray
@@ -711,7 +710,7 @@ def rest2_tddclr(p, albedo, ssa, z, radius, alpha, beta, ozone, w,
     z = np.where(z > sza_lim, sza_lim, z)
 
     if np.max(p) > 10000:
-        # greater than 10 atmospheres in Pa, must be mbar
+        # greater than 10 atmospheres in Pa, must be mbar(mbar is same as hPa)
         warn('Surface pressure greater than 10,000. Assuming this was input '
              'as Pascal instead of mbar. Scaling by 0.01 to convert to mbar')
         p *= 0.01
