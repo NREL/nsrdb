@@ -91,15 +91,17 @@ def test_mlclouds_fill(col_chunk, max_workers, date='20190102'):
     missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_opd <= 0)
     assert missing.any()
     assert (fill_opd[missing] > 0).all() & (np.isnan(fill_opd).sum() == 0)
+    assert ((fill_flag[missing] == 7) | (fill_flag[missing] == 1)).all()
 
     missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_reff <= 0)
     assert missing.any()
     assert (fill_reff[missing] > 0).all() & (np.isnan(fill_reff).sum() == 0)
+    assert ((fill_flag[missing] == 7) | (fill_flag[missing] == 1)).all()
 
     assert fill_opd[~day].sum() == 0
     assert fill_reff[~day].sum() == 0
 
-    assert all(np.unique(fill_flag) == np.arange(4))
+    assert np.isin(fill_flag, (0, 1, 2, 7)).all()
 
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
