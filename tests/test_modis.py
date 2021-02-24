@@ -73,6 +73,19 @@ def test_last_year():
         assert mfa.filename == f'MCD43GF_wsa_shortwave_110_' + \
                                f'{modis.LAST_YEAR}_V006.hdf'
 
+        # Verify leap years after 2017 are handled properly
+        mfa = modis.ModisFileAcquisition(get_dt(2020, 1), td)
+        assert mfa.filename == f'MCD43GF_wsa_shortwave_001_' + \
+                               f'{modis.LAST_YEAR}_V006.hdf'
+
+        mfa = modis.ModisFileAcquisition(get_dt(2020, 365), td)
+        assert mfa.filename == f'MCD43GF_wsa_shortwave_365_' + \
+                               f'{modis.LAST_YEAR}_V006.hdf'
+
+        mfa = modis.ModisFileAcquisition(get_dt(2020, 366), td)
+        assert mfa.filename == f'MCD43GF_wsa_shortwave_365_' + \
+                               f'{modis.LAST_YEAR}_V006.hdf'
+
 
 def test_not_implemented_dl():
     """ Test downloading exception """
