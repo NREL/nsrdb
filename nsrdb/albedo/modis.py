@@ -4,6 +4,7 @@ import pyhdf
 from pyhdf.SD import SD
 import matplotlib.pyplot as plt
 import numpy as np
+import calendar
 
 from nsrdb.albedo.ims import get_dt
 
@@ -166,15 +167,43 @@ class ModisFileAcquisition:
         return os.path.join(mfa.path, mfa.filename)
 
     def __init__(self, date, path):
-        """ See docstring for self.get_file() """
-        # Check if data exists for requested year.
-        if date.year > LAST_YEAR:
-            self.date = get_dt(LAST_YEAR, date.timetuple().tm_yday)
-        elif date < get_dt(FIRST_YEAR, FIRST_DAY):
-            if date.timetuple().tm_yday < FIRST_DAY:
-                self.date = get_dt(FIRST_YEAR + 1, date.timetuple().tm_yday)
-            else:
-                self.date = get_dt(FIRST_YEAR, date.timetuple().tm_yday)
+        """
+        Parameters
+        ----------
+        date : Datetime object
+            Desired date for MODIS data.
+        path : str
+            Location of/for MODIS data on disk.
+        """
+        year = date.year
+        day = date.timetuple().tm_yday
+
+        msg = 'The available date handling code makes certain assumptions' +\
+              ' about whether the first and last available years are leap' +\
+              ' years. The new values of FIRST_YEAR or LAST_YEAR violate' +\
+              ' those assumptions.'
+        assert calendar.isleap(FIRST_YEAR), msg
+        assert not calendar.isleap(LAST_YEAR), msg
+
+        # Is date after last available and last day of leap year?
+        if year > LAST_YEAR and day == 366:
+            self.date = get_dt(LAST_YEAR, 365)
+            logger.info('Using day 365 of {} in place of day 366'
+                        .format(LAST_YEAR))
+
+        # Is date after last available?
+        elif year > LAST_YEAR and day < 366:
+            self.date = get_dt(LAST_YEAR, day)
+
+        # Is date before first available day of first available year?
+        elif date < get_dt(FIRST_YEAR, FIRST_DAY) and day < FIRST_DAY:
+            self.date = get_dt(FIRST_YEAR + 1, day)
+
+        # Is date before first available year?
+        elif date < get_dt(FIRST_YEAR, FIRST_DAY) and day >= FIRST_DAY:
+            self.date = get_dt(FIRST_YEAR, day)
+
+        # Date falls within available dates
         else:
             self.date = date
 
