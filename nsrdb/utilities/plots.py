@@ -736,8 +736,9 @@ class Spatial:
                 custom_cmap = False
                 cmap = plt.get_cmap(cmap)
 
-                c = ax.scatter(df.loc[0, labels[1]],
-                               df.loc[0, labels[0]],
+                # hack for colorbar if alpha is input
+                c = ax.scatter(df.iloc[0][labels[1]],
+                               df.iloc[0][labels[0]],
                                c=df.iloc[0, 2],
                                cmap=cmap,
                                vmin=cbar_range[0],
@@ -764,8 +765,9 @@ class Spatial:
                     '{}_{}'.format(cmap_name, nbins), cmaplist, len(bounds))
                 norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
-                c = ax.scatter(df.loc[0, labels[1]],
-                               df.loc[0, labels[0]],
+                # hack for colorbar if alpha is input
+                c = ax.scatter(df.iloc[0][labels[1]],
+                               df.iloc[0][labels[0]],
                                marker=marker,
                                s=marker_size,
                                c=df.iloc[0, 2],
@@ -852,7 +854,9 @@ class Spatial:
             plt.close()
         except Exception as e:
             # never break a full data pipeline on failed plots
-            logger.warning('Could not plot "{}". Received the following '
-                           'exception: {}'.format(title, e))
+            msg = ('Could not plot "{}". Received the following '
+                   'exception: {}'.format(title, e))
+            logger.error(msg)
+            raise e
 
         return fig, ax
