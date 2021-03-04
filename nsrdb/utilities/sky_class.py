@@ -35,7 +35,8 @@ class SkyClass:
 
     def __init__(self, fp_surf, fp_nsrdb, nsrdb_gid,
                  clearsky_ratio=0.95, clear_time_frac=0.8,
-                 cloudy_time_frac=0.2, window_minutes=61):
+                 cloudy_time_frac=0.2, window_minutes=61,
+                 min_irradiance=50):
         """
         Parameters
         ----------
@@ -62,6 +63,10 @@ class SkyClass:
             Minutes that the moving average of the sky classification will be
             over. This will be calculated while considering the source time
             resolution of the SURFRAD measurements.
+        min_irradiance : float | int
+            Minimum irradiance value, timesteps with either ground measured or
+            NSRDB irradiance less than this value will be classified as
+            missing.
         """
 
         self._fp_surf = fp_surf
@@ -71,6 +76,7 @@ class SkyClass:
         self._clear_frac = clear_time_frac
         self._cloud_frac = cloudy_time_frac
         self._window_min = window_minutes
+        self._min_irrad = min_irradiance
 
         self._handle_surf = Surfrad(self._fp_surf)
         Handler = MultiFileResource if '*' in self._fp_nsrdb else Resource
@@ -259,12 +265,19 @@ class SkyClass:
         df['ghi_nsrdb'] = self.nsrdb['ghi', :, self._gid]
         df['cloud_type'] = self.nsrdb['cloud_type', :, self._gid]
         df['fill_flag'] = self.nsrdb['fill_flag', :, self._gid]
+
+
+        mask = ((df['ghi_ground'] < self._min_irrad)
+                | (df['ghi_nsrdb'] < self._min_irrad))
+        df.loc[mask, 'sky_class'] = 'missing'
+
         return df
 
     @classmethod
     def run(cls, fp_surf, fp_nsrdb, nsrdb_gid,
             clearsky_ratio=0.95, clear_time_frac=0.8,
-            cloudy_time_frac=0.2, window_minutes=61):
+            cloudy_time_frac=0.2, window_minutes=61,
+            min_irradiance=50):
         """
         Parameters
         ----------
@@ -291,6 +304,10 @@ class SkyClass:
             Minutes that the moving average of the sky classification will be
             over. This will be calculated while considering the source time
             resolution of the SURFRAD measurements.
+        min_irradiance : float | int
+            Minimum irradiance value, timesteps with either ground measured or
+            NSRDB irradiance less than this value will be classified as
+            missing.
 
         Returns
         -------
@@ -307,7 +324,8 @@ class SkyClass:
                  clearsky_ratio=clearsky_ratio,
                  clear_time_frac=clear_time_frac,
                  cloudy_time_frac=cloudy_time_frac,
-                 window_minutes=window_minutes) as sc:
+                 window_minutes=window_minutes,
+                 min_irradiance=min_irradiance) as sc:
 
             df = sc.get_comparison_df()
             df = sc.calculate_sky_class(df)
