@@ -272,7 +272,7 @@ class SkyClass:
 
         mask = ((df['ghi_ground'] < self._min_irrad)
                 | (df['ghi_nsrdb'] < self._min_irrad)
-                | (df['solar_zenith_angle'] < self._sza_lim))
+                | (df['solar_zenith_angle'] > self._sza_lim))
         df.loc[mask, 'sky_class'] = 'missing'
 
         return df
