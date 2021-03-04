@@ -36,7 +36,7 @@ class SkyClass:
     def __init__(self, fp_surf, fp_nsrdb, nsrdb_gid,
                  clearsky_ratio=0.95, clear_time_frac=0.8,
                  cloudy_time_frac=0.2, window_minutes=61,
-                 min_irradiance=50):
+                 min_irradiance=50, sza_lim=80):
         """
         Parameters
         ----------
@@ -67,6 +67,9 @@ class SkyClass:
             Minimum irradiance value, timesteps with either ground measured or
             NSRDB irradiance less than this value will be classified as
             missing.
+        sza_lim : int | float
+            Maximum solar zenith angle, timesteps with sza > sza_lim will
+            be classified as missing
         """
 
         self._fp_surf = fp_surf
@@ -77,6 +80,7 @@ class SkyClass:
         self._cloud_frac = cloudy_time_frac
         self._window_min = window_minutes
         self._min_irrad = min_irradiance
+        self._sza_lim = sza_lim
 
         self._handle_surf = Surfrad(self._fp_surf)
         Handler = MultiFileResource if '*' in self._fp_nsrdb else Resource
@@ -266,9 +270,9 @@ class SkyClass:
         df['cloud_type'] = self.nsrdb['cloud_type', :, self._gid]
         df['fill_flag'] = self.nsrdb['fill_flag', :, self._gid]
 
-
         mask = ((df['ghi_ground'] < self._min_irrad)
-                | (df['ghi_nsrdb'] < self._min_irrad))
+                | (df['ghi_nsrdb'] < self._min_irrad)
+                | (df['solar_zenith_angle'] < self._sza_lim))
         df.loc[mask, 'sky_class'] = 'missing'
 
         return df
@@ -277,7 +281,7 @@ class SkyClass:
     def run(cls, fp_surf, fp_nsrdb, nsrdb_gid,
             clearsky_ratio=0.95, clear_time_frac=0.8,
             cloudy_time_frac=0.2, window_minutes=61,
-            min_irradiance=50):
+            min_irradiance=50, sza_lim=80):
         """
         Parameters
         ----------
@@ -308,6 +312,9 @@ class SkyClass:
             Minimum irradiance value, timesteps with either ground measured or
             NSRDB irradiance less than this value will be classified as
             missing.
+        sza_lim : int | float
+            Maximum solar zenith angle, timesteps with sza > sza_lim will
+            be classified as missing
 
         Returns
         -------
@@ -325,7 +332,8 @@ class SkyClass:
                  clear_time_frac=clear_time_frac,
                  cloudy_time_frac=cloudy_time_frac,
                  window_minutes=window_minutes,
-                 min_irradiance=min_irradiance) as sc:
+                 min_irradiance=min_irradiance,
+                 sza_lim=sza_lim) as sc:
 
             df = sc.get_comparison_df()
             df = sc.calculate_sky_class(df)
