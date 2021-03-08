@@ -2,9 +2,9 @@
 """A framework for handling UW/GOES source data."""
 import datetime
 import math
-import statistics
 import numpy as np
 import pandas as pd
+from scipy.stats import mode
 import h5py
 import re
 import os
@@ -1245,7 +1245,14 @@ class CloudVar(AncillaryVarHandler):
                 ti_delta_minutes = int(ti_deltas_minutes[0])
                 freq = '{}T'.format(ti_delta_minutes)
             else:
-                ti_delta_minutes = int(statistics.mode(ti_deltas_minutes))
+                try:
+                    ti_delta_minutes = int(mode(ti_deltas_minutes).mode[0])
+                except Exception as e:
+                    msg = ('Could not get mode of time index deltas: {}'
+                           .format(ti_deltas_minutes))
+                    logger.error(msg)
+                    raise ValueError(msg) from e
+
                 freq = '{}T'.format(ti_delta_minutes)
                 if len(flist) < 5:
                     w = ('File list contains less than 5 files. Inferred '
