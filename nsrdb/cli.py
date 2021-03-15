@@ -850,7 +850,7 @@ def collect_final(ctx, collect_dir, i_fname):
               help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
 def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
-    """Eagle submission tool for reV supply curve aggregation."""
+    """Eagle submission tool for the NSRDB cli."""
 
     name = ctx.obj['NAME']
     out_dir = ctx.obj['OUT_DIR']
