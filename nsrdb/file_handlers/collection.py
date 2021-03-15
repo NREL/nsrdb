@@ -167,6 +167,20 @@ class Collector:
         row_loc = np.where(final_time_index.isin(new_time_index))[0]
         col_loc = np.where(final_index.isin(new_index))[0]
 
+        if not any(row_loc):
+            msg = ('Could not find row locations in file collection. '
+                   'New time index: {} final time index: {}'
+                   .format(new_time_index, final_time_index))
+            logger.error(msg)
+            raise RuntimeError(msg)
+
+        if not any(col_loc):
+            msg = ('Could not find col locations in file collection. '
+                   'New gid index: {} final gid index: {}'
+                   .format(new_index, final_index))
+            logger.error(msg)
+            raise RuntimeError(msg)
+
         row_slice = slice(np.min(row_loc), np.max(row_loc) + 1)
         col_slice = slice(np.min(col_loc), np.max(col_loc) + 1)
 
