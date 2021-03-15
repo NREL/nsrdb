@@ -326,8 +326,9 @@ class NSRDB:
         if log_version:
             self._log_version()
 
-    def _init_output_h5(self, f_out, dsets, time_index, meta):
-        """Initialize a target output h5 file.
+    def _init_output_h5(self, f_out, dsets, time_index, meta, force=False):
+        """Initialize a target output h5 file if it does not already exist
+        or if Force is True.
 
         Parameters
         ----------
@@ -339,17 +340,21 @@ class NSRDB:
             Time index to init to file.
         meta : pd.DataFrame
             Meta data to init to file.
+        force : bool
+            Flag to overwrite / force the creation of the f_out even if a
+            previous file exists.
         """
 
-        if not os.path.isfile(f_out):
+        if force or not os.path.isfile(f_out):
             logger.info('Initializing {} for the following datasets: {}'
                         .format(f_out, dsets))
 
             attrs, chunks, dtypes = VarFactory.get_dsets_attrs(
                 dsets, var_meta=self._var_meta)
 
+            mode = 'w' if force else 'w-'
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
-                            time_index, meta)
+                            time_index, meta, mode=mode)
 
     @staticmethod
     def _parse_data_model_output_ti(data_model_dir, nsrdb_freq):
@@ -641,7 +646,7 @@ class NSRDB:
                     .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
                             meta_chunk['gid'].values[-1], f_out))
 
-        nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk)
+        nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk, force=True)
         Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
                                 sites=chunk, n_writes=n_writes,
                                 var_meta=nsrdb._var_meta,
