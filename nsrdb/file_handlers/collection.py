@@ -609,6 +609,11 @@ class Collector:
                     logger.error(e)
                     raise ValueError(e)
 
+                if not os.path.exists(f_out):
+                    time_index, meta, _, _ = collector._get_collection_attrs(
+                        collector.flist, collect_dir, dset, sites=sites)
+                    collector._init_collected_h5(f_out, time_index, meta)
+
                 flist_chunks = np.array_split(np.array(collector.flist),
                                               n_writes)
                 flist_chunks = [fl.tolist() for fl in flist_chunks]
