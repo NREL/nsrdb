@@ -550,7 +550,8 @@ class Outputs(Resource):
                      .format(tt))
 
     @classmethod
-    def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta):
+    def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta,
+                mode='w-'):
         """Initialize a full h5 output file with the final intended shape.
 
         Parameters
@@ -569,10 +570,13 @@ class Outputs(Resource):
             Full pandas datetime index.
         meta : pd.DataFrame
             Full meta data.
+        mode : str
+            Outputs write mode. w- will raise error if fout exists. w will
+            overwrite file.
         """
 
         logger.info("Initializing output file: {}".format(fout))
-        with cls(fout, mode='w-') as f:
+        with cls(fout, mode=mode) as f:
             f['time_index'] = time_index
             f['meta'] = meta
 
