@@ -227,7 +227,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=False):
+                        'cld_press_acha'), adjust_coords=True):
         """
         Parameters
         ----------
@@ -260,7 +260,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=False):
+                    adjust_coords=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -478,7 +478,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=False):
+                        'cld_press_acha'), adjust_coords=True):
         """
         Parameters
         ----------
@@ -510,7 +510,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=False):
+                    adjust_coords=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -719,7 +719,7 @@ class CloudVar(AncillaryVarHandler):
 
     def __init__(self, name, var_meta, date, source_dir=None, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=False):
+                        'cld_press_acha'), adjust_coords=True):
         """
         Parameters
         ----------
