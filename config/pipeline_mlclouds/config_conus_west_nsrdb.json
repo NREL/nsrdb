@@ -16,54 +16,42 @@
     ],
     "factory_kwargs": {
       "cld_opd_dcomp": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cld_press_acha": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cld_reff_dcomp": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_fraction": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_probability": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_type": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_0_65um_nom": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_0_65um_nom_stddev_3x3": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_3_75um_nom": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "surface_albedo": {
         "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_2019/"
       },
       "temp_11_0um_nom": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "temp_11_0um_nom_stddev_3x3": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "temp_3_75um_nom": {
-        "adjust_coords": true,
         "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
       }
     },
