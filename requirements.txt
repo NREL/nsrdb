@@ -1,0 +1,9 @@
+click>=7.0
+filelock>=3.0
+h5py>=2.10
+netCDF4>=1.5
+NREL-rex>=0.2.37
+numpy>=1.17
+pandas>=0.25
+scipy>=1.4
+psutil>=5.7
