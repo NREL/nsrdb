@@ -8,8 +8,9 @@
   },
   "collect-data-model": {
     "max_workers": 10,
-    "memory": 768,
-    "n_chunks": 300
+    "memory": 734,
+    "n_chunks": 300,
+    "n_writes": 1
   },
   "collect-final": {},
   "data-model": {
@@ -36,7 +37,7 @@
     },
     "max_workers": 10,
     "max_workers_clouds": null,
-    "memory": 192
+    "memory": 178
   },
   "direct": {
     "log_level": "DEBUG",
@@ -49,7 +50,7 @@
   "eagle": {
     "alloc": "pxs",
     "feature": "--qos=high",
-    "memory": 192,
+    "memory": 178,
     "walltime": 48
   }
 }

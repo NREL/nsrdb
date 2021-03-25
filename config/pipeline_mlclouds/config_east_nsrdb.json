@@ -2,7 +2,7 @@
   "collect-data-model": {
     "final": true,
     "max_workers": 1,
-    "memory": 184,
+    "memory": 178,
     "n_writes": 10,
     "walltime": 48
   },
@@ -59,7 +59,7 @@
     "max_workers": 20,
     "max_workers_cloud_io": 20,
     "max_workers_regrid": 25,
-    "memory": 184,
+    "memory": 178,
     "mlclouds": true
   },
   "direct": {
@@ -73,12 +73,12 @@
   "eagle": {
     "alloc": "pxs",
     "feature": "--qos=normal",
-    "memory": 90,
+    "memory": 83,
     "walltime": 4
   },
   "ml-cloud-fill": {
     "col_chunk": 10000,
     "max_workers": null,
-    "memory": 184
+    "memory": 178
   }
 }
