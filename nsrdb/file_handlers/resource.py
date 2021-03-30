@@ -20,7 +20,7 @@ class Resource(rexResource):
     OLD_UNIT_ATTR = 'psm_units'
     OLD_ADD_ATTR = 'psm_add_offset'
 
-    def _get_ds(self, ds_name, *ds_slice):
+    def _get_ds(self, ds_name, ds_slice):
         """
         Extract data from given dataset
 

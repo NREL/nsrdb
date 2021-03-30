@@ -9,6 +9,7 @@ import re
 from warnings import warn
 
 from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.utilities import split_sites_slice
 
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
@@ -56,10 +57,9 @@ class MyMean:
 
         self._data = np.zeros((len(self),), dtype=np.float32)
 
-        sites = np.arange(len(self))
-        split = int(len(self) / self._process_chunk)
-        site_slices = np.array_split(sites, split)
-        self._site_slices = [slice(a[0], a[-1] + 1) for a in site_slices]
+        sites = len(self)
+        split = int(sites / self._process_chunk)
+        self._site_slices = split_sites_slice(slice(None), sites, split)
 
     def __len__(self):
         """Get the number of sites."""
@@ -118,7 +118,7 @@ class MyMean:
             with Resource(fpath) as res:
                 shape, base_dtype, _ = res.get_dset_properties(self._dset)
                 units = res.get_units(self._dset)
-                scale = res.get_scale(self._dset)
+                scale = res.get_scale_factor(self._dset)
 
             if base_shape is None and shape[0] % 8760 == 0:
                 base_shape = shape

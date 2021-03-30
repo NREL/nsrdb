@@ -113,7 +113,7 @@ class SkyClass:
     @property
     def nsrdb_time_index(self):
         """Get the datetimeindex from the nsrdb h5 file"""
-        return self.nsrdb.time_index.tz_localize(None)
+        return self.nsrdb.time_index
 
     @property
     def surf_ghi(self):

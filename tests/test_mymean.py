@@ -26,7 +26,7 @@ def test_mymean():
                  for y in range(1998, 2001)]
         fout = os.path.join(td, 'mymean.h5')
         dset = 'ghi'
-        MyMean.run(flist, fout, dset, process_chunk=2)
+        MyMean.run(flist, fout, dset, process_chunk=2, parallel=False)
 
         with Outputs(fout, mode='r') as out:
             print(out.get_attrs(dset=dset))
