@@ -5,20 +5,43 @@ Created on Mon Oct 21 15:39:01 2019
 
 @author: gbuster
 """
-import os
+import click
 import json
 import logging
-import click
-from rex.utilities.hpc import SLURM
-from nsrdb.nsrdb import NSRDB
-from nsrdb.utilities.cli_dtypes import STR, INT, FLOAT, DICT, STRLIST
-from nsrdb.utilities.file_utils import safe_json_load
-from nsrdb.pipeline import Status, NsrdbPipeline
-from nsrdb.file_handlers.collection import Collector
-from nsrdb.utilities.loggers import init_logger
+import os
 
+from rex.utilities.cli_dtypes import STR, INT, FLOAT, STRLIST
+from rex.utilities.hpc import SLURM
+from rex.utilities.loggers import init_logger
+from rex.utilities.utilities import safe_json_load
+
+from nsrdb.file_handlers.collection import Collector
+from nsrdb.nsrdb import NSRDB
+from nsrdb.pipeline import Status, NsrdbPipeline
 
 logger = logging.getLogger(__name__)
+
+
+class DictType(click.ParamType):
+    """Dict click input argument type."""
+
+    name = 'dict'
+
+    @staticmethod
+    def convert(value, param, ctx):
+        """Convert to dict or return as None."""
+        if isinstance(value, dict):
+            return value
+        elif isinstance(value, str):
+            return json.loads(value)
+        elif value is None:
+            return None
+        else:
+            raise TypeError('Cannot recognize int type: {} {} {} {}'
+                            .format(value, type(value), param, ctx))
+
+
+DICT = DictType()
 
 
 @click.group()

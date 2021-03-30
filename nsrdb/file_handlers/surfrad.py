@@ -7,6 +7,7 @@ Created on Tue Jul  9 10:52:44 2019
 """
 import numpy as np
 import pandas as pd
+
 from nsrdb.file_handlers.resource import Resource
 
 

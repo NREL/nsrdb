@@ -1,10 +1,10 @@
-import os
+import calendar
 import logging
-import pyhdf
-from pyhdf.SD import SD
 import matplotlib.pyplot as plt
 import numpy as np
-import calendar
+import os
+import pyhdf
+from pyhdf.SD import SD
 
 from nsrdb.albedo.ims import get_dt
 

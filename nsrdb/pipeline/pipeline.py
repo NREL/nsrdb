@@ -3,10 +3,11 @@
 NSRDB data pipeline architecture.
 """
 import logging
+
 from reV.pipeline.pipeline import Pipeline
 from rex.utilities.loggers import init_logger
-from nsrdb.pipeline.config import NsrdbPipelineConfig
 
+from nsrdb.pipeline.config import NsrdbPipelineConfig
 
 logger = logging.getLogger(__name__)
 

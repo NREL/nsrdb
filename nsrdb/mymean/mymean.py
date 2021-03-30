@@ -2,15 +2,16 @@
 """NSRDB multi-year mean calculation methods.
 @author: gbuster
 """
-from warnings import warn
+import logging
 import numpy as np
 import os
 import re
-import logging
-from concurrent.futures import ProcessPoolExecutor
+from warnings import warn
+
+from rex.utilities.execution import SpawnProcessPool
+
 from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
-
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ class MyMean:
             if base_shape is None and shape[0] % 8760 == 0:
                 base_shape = shape
             elif base_shape is not None:
+                # pylint: disable=unsubscriptable-object
                 if base_shape[1] != shape[1]:
                     e = ('Dataset "{}" has inconsistent shapes! '
                          'Base shape was {}, but found new shape '
@@ -215,7 +217,8 @@ class MyMean:
             logger.info('Processing file {} out of {}: {}'
                         .format(i + 1, len(self._flist), f))
             futures = []
-            with ProcessPoolExecutor() as exe:
+            loggers = ['nsrdb']
+            with SpawnProcessPool(loggers=loggers) as exe:
                 for site_slice in self._site_slices:
                     future = exe.submit(self._retrieve_data, f, self._dset,
                                         site_slice)

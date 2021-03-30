@@ -6,18 +6,20 @@ Created on Jan 23 2020
 
 @author: mbannist
 """
-import os
-import numpy as np
+from concurrent.futures import as_completed
+from datetime import datetime as dt
 import h5py
+import logging
+from multiprocessing import cpu_count
+import numpy as np
+import os
 from scipy import ndimage
 from scipy.spatial import cKDTree
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprocessing import cpu_count
-import logging
-from datetime import datetime as dt
 
-import nsrdb.albedo.modis as modis
+from rex.utilities.execution import SpawnProcessPool
+
 import nsrdb.albedo.ims as ims
+import nsrdb.albedo.modis as modis
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -36,7 +38,6 @@ WORLD = '''0.00833333
 # CLIP_MARGIN is a small buffer around the IMS extent to prevent the MODIS
 # data from being clipped slightly too small due to mismatched projections.
 CLIP_MARGIN = 0.1  # degrees lat/long
-
 
 logger = logging.getLogger(__name__)
 
@@ -352,7 +353,9 @@ class CompositeAlbedoDay:
         futures = {}
         chunks = np.array_split(modis_pts, cpu_count())
         now = dt.now()
-        with ProcessPoolExecutor(max_workers=self._max_workers) as exe:
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers,
+                              max_workers=self._max_workers) as exe:
             for i, chunk in enumerate(chunks):
                 future = exe.submit(self._run_single_tree, ims_tree, chunk)
                 meta = {'id': i}

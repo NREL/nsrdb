@@ -6,15 +6,15 @@ Created on Tue Dec  10 08:22:26 2018
 
 @author: gbuster
 """
-from concurrent.futures import ProcessPoolExecutor
 import datetime
 import h5py
-import os
-import sys
-import numpy as np
-import pandas as pd
 import logging
+import numpy as np
+import os
+import pandas as pd
+import sys
 from warnings import warn
+
 if 'linux' in sys.platform:
     import matplotlib
     matplotlib.use('Agg')
@@ -22,8 +22,8 @@ if 'linux' in sys.platform:
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from nsrdb.utilities.loggers import init_logger
-
+from rex.utilities.loggers import init_logger
+from rex.utilities.execution import SpawnProcessPool
 
 logger = logging.getLogger(__name__)
 
@@ -540,7 +540,8 @@ class Spatial:
                                                       **kwargs)
                 else:
                     fig, ax = None, None
-                    with ProcessPoolExecutor(max_workers=max_workers) as exe:
+                    with SpawnProcessPool(loggers='nsrdb',
+                                          max_workers=max_workers) as exe:
                         for i, ts in enumerate(timesteps):
                             df_par = df.copy()
                             df_par[dset] = data[i, :]

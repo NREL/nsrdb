@@ -17,17 +17,15 @@ import sys
 import shutil
 import time
 
-from rex import MultiFileResource
+from rex import MultiFileResource, init_logger
 
 from nsrdb import __version__
 from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
 from nsrdb.data_model import DataModel, VarFactory
-from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
-from nsrdb.utilities.loggers import init_logger
+from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
-
 
 logger = logging.getLogger(__name__)
 

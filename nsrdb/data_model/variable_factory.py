@@ -3,14 +3,13 @@
 import logging
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.data_model.albedo import AlbedoVar
-from nsrdb.data_model.asymmetry import AsymVar
-from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
-from nsrdb.data_model.maiac_aod import MaiacVar
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
+from nsrdb.data_model.albedo import AlbedoVar
+from nsrdb.data_model.asymmetry import AsymVar
+from nsrdb.data_model.maiac_aod import MaiacVar
+from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
-
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +108,7 @@ class VarFactory:
             m = ('Received an exception trying to instantiate "{}":\n{}'
                  .format(var_name, e))
             logger.exception(m)
-            raise RuntimeError(m)
+            raise RuntimeError(m) from e
 
         return instance
 

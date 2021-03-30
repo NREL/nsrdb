@@ -10,9 +10,9 @@ https://wiki.earthdata.nasa.gov/display/
 Mike Bannister
 2/27/2020
 """
-import os
 from datetime import datetime as dt
 from datetime import timedelta
+import os
 
 
 def main():

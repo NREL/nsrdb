@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """A framework for handling Asymmetry source data."""
-
-import pandas as pd
-import h5py
-import os
-import logging
 import datetime
+import h5py
+import logging
+import os
+import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 

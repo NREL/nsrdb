@@ -1,3 +1,0 @@
-"""
-NSRDB albedo methods.
-"""

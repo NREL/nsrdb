@@ -5,15 +5,13 @@ Current framework will extract albedo data from a directory of daily 2018
 albedo files that are a combination of 1km MODIS (8day) with
 1km IMS snow (daily).
 """
-
-import numpy as np
-import pandas as pd
-import os
 import h5py
 import logging
+import numpy as np
+import os
+import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-
 
 logger = logging.getLogger(__name__)
 

@@ -1,20 +1,19 @@
 # -*- coding: utf-8 -*-
 """A framework for handling UW/GOES source data."""
 import datetime
-import math
-import numpy as np
-import pandas as pd
-from scipy.stats import mode
 import h5py
-import re
-import os
-import psutil
-import netCDF4
 import logging
+import math
+import netCDF4
+import numpy as np
+import os
+import pandas as pd
+import psutil
+import re
+from scipy.stats import mode
 from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-
 
 logger = logging.getLogger(__name__)
 

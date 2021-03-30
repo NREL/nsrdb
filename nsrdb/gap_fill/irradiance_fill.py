@@ -4,11 +4,11 @@ Created on Wed Dec 12 2018
 
 @author: gbuster
 """
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 from warnings import warn
-from nsrdb.all_sky import CLOUD_TYPES, SZA_LIM
+
+from farms import CLOUD_TYPES, SZA_LIM
 
 
 def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
@@ -32,10 +32,11 @@ def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
         properties.
     """
 
-    missing_props = ((np.isin(cloud_type, CLOUD_TYPES)) &
-                     ((cld_opd_dcomp <= 0) | (cld_reff_dcomp <= 0) |
-                      (np.isnan(cld_opd_dcomp) |
-                      (np.isnan(cld_reff_dcomp)))))
+    missing_props = ((np.isin(cloud_type, CLOUD_TYPES))
+                     & ((cld_opd_dcomp <= 0) | (cld_reff_dcomp <= 0)
+                        | (np.isnan(cld_opd_dcomp)
+                        | (np.isnan(cld_reff_dcomp)))))
+
     return missing_props
 
 

@@ -3,63 +3,25 @@
 
 @author: gbuster
 """
-import json
+from concurrent.futures import as_completed
+import gzip
 import logging
 import os
 import shlex
-import time
-import gzip
 import shutil
+from subprocess import Popen, PIPE, run
+import time
 from urllib.request import urlopen
 from urllib.error import URLError
-from subprocess import Popen, PIPE, run
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from nsrdb.utilities.loggers import init_logger
-
+from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
-
 
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
-
-
-def safe_json_load(fpath):
-    """Perform a json file load with better exception handling.
-
-    Parameters
-    ----------
-    fpath : str
-        Filepath to .json file.
-
-    Returns
-    -------
-    j : dict
-        Loaded json dictionary.
-    """
-
-    if not isinstance(fpath, str):
-        raise TypeError('Filepath must be str to load json: {}'.format(fpath))
-
-    if not fpath.endswith('.json'):
-        raise IOError('Filepath must end in .json to load json: {}'
-                      .format(fpath))
-
-    if not os.path.isfile(fpath):
-        raise FileNotFoundError('Could not find json file to load: {}'
-                                .format(fpath))
-
-    try:
-        with open(fpath, 'r') as f:
-            j = json.load(f)
-    except json.decoder.JSONDecodeError as e:
-        emsg = ('JSON Error:\n{}\nCannot read json file: '
-                '"{}"'.format(e, fpath))
-        raise IOError(emsg)
-
-    return j
 
 
 def repack_h5(fpath, f_new=None, inplace=True):
@@ -159,7 +121,6 @@ def url_download(url, target):
                     .format(url))
         logger.exception(e)
         failed = url
-        pass
 
     return failed
 
@@ -207,7 +168,7 @@ def convert_h4(path4, f_h4, path5, f_h5):
         stdout = stdout.decode('ascii').rstrip()
         if stderr:
             logger.warning('Conversion of "{}" returned a stderr: "{}"'
-                           .format(stderr))
+                           .format(cmd, stderr))
         else:
             logger.debug('Finished conversion of: "{}"'.format(f_h5))
 
@@ -289,8 +250,8 @@ def convert_list_parallel(conversion_list, n_workers=2):
     logger.info('Starting a concurrent futures executor with {} workers '
                 'to convert {} hdf files.'
                 .format(n_workers, len(conversion_list)))
-    with ProcessPoolExecutor(max_workers=n_workers) as exe:
-        logger.debug('Submitting futures.'
+    with SpawnProcessPool(loggers='nsrdb', max_workers=n_workers) as exe:
+        logger.debug('Submitting {} futures.'
                      .format(len(futures)))
         # iterate through list to convert
         for [path4, f_h4, path5, f_h5] in conversion_list:

@@ -4,33 +4,30 @@ Classes to acquire and load IMS snow data. Entrance via ImsDay.
 Mike Bannister
 2/18/2020
 """
-import ftplib
-import os
-import logging
-import numpy as np
-import re
-import matplotlib.pyplot as plt
-import tarfile
-import gzip
-import shutil
 from datetime import datetime, timedelta
+import ftplib
+import gzip
+import logging
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import re
+import shutil
+import tarfile
 
 from nsrdb.utilities.file_utils import url_download
-
 
 logger = logging.getLogger(__name__)
 
 
 class ImsError(Exception):
     """ General exception for IMS processing """
-    pass
 
 
 class ImsDataNotFound(ImsError):
     """ Raised when IMS data is not available on ftp server. This is typically
     caused by a missing day that needs to be gap-filled.
     """
-    pass
 
 
 class ImsDay:
@@ -97,7 +94,7 @@ class ImsDay:
             for line in lines:
                 # asc file has text header then rows of [0,1,2,3]
                 if re.search('[a-z]', line.strip()) is None:
-                    raw.extend([int(l) for l in list(line.strip())])
+                    raw.extend([int(_l) for _l in list(line.strip())])
 
         # IMS data sanity check
         length = self._shape[0] * self._shape[1]

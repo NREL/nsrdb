@@ -9,7 +9,6 @@ import logging
 import numpy as np
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -124,8 +123,8 @@ def idw(data, indices, distance, p=2, dist_thresh=None):
     weight[rows, 1:] = 0
 
     # calculate the IDW
-    data_idw = (np.sum(weight * data[indices], axis=1) /
-                np.sum(weight, axis=1))
+    data_idw = (np.sum(weight * data[indices], axis=1)
+                / np.sum(weight, axis=1))
 
     if dist_thresh is not None:
         data_idw = np.where(distance[:, 0] < dist_thresh, data_idw, np.nan)

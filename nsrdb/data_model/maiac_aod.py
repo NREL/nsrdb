@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MAIAC high-res AOD source data."""
-
-import numpy as np
-import pandas as pd
-import os
 import logging
+import numpy as np
+import os
+import pandas as pd
 
-from nsrdb.file_handlers.resource import Resource
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-
+from nsrdb.file_handlers.resource import Resource
 
 logger = logging.getLogger(__name__)
 
