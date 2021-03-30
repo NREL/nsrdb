@@ -15,6 +15,8 @@ import h5py
 import tempfile
 import logging
 
+pytest.importorskip("pyhdf")
+
 import nsrdb.albedo.albedo as albedo
 
 from nsrdb import TESTDATADIR

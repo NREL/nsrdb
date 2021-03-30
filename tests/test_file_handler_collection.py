@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_index_equal
 import datetime
+import tempfile
 
 from nsrdb import TESTDATADIR, CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
@@ -22,7 +23,6 @@ from nsrdb.file_handlers.collection import Collector
 
 RTOL = 0.05
 ATOL = .1
-PURGE_OUT = True
 
 BASELINE_4DAY = os.path.join(TESTDATADIR, 'collection_baseline/',
                              'collection_baseline_4day.h5')
@@ -48,70 +48,59 @@ def retrieve_data(fp, dset='air_temperature'):
                           (None, 2, 2),
                           (np.array([2, 3, 4]), 1, 1)))
 def test_collect_daily(sites, max_workers, n_writes):
+    with tempfile.TemporaryDirectory() as td:
+        collect_dir = os.path.join(TESTDATADIR,
+                                   'data_model_daily_sample_output/')
+        f_out = os.path.join(td, 'collected.h5')
+        dsets = ['air_temperature', 'alpha']
 
-    collect_dir = os.path.join(TESTDATADIR, 'data_model_daily_sample_output/')
-    f_out = os.path.join(TESTDATADIR, 'temp_out/collected.h5')
-    dsets = ['air_temperature', 'alpha']
+        Collector.collect_daily(collect_dir, f_out, dsets, sites=sites,
+                                max_workers=max_workers, n_writes=n_writes)
 
-    if not os.path.exists(os.path.dirname(f_out)):
-        os.makedirs(os.path.dirname(f_out))
-    if os.path.exists(f_out):
-        os.remove(f_out)
+        for dset in dsets:
+            b_ti, b_meta, b_data, b_attrs = retrieve_data(BASELINE_4DAY,
+                                                          dset=dset)
+            t_ti, t_meta, t_data, t_attrs = retrieve_data(f_out, dset=dset)
 
-    Collector.collect_daily(collect_dir, f_out, dsets, sites=sites,
-                            max_workers=max_workers, n_writes=n_writes)
+            if sites is not None:
+                b_meta = b_meta.iloc[sites, :].reset_index(drop=True)
+                b_data = b_data[:, sites]
 
-    for dset in dsets:
-        b_ti, b_meta, b_data, b_attrs = retrieve_data(BASELINE_4DAY, dset=dset)
-        t_ti, t_meta, t_data, t_attrs = retrieve_data(f_out, dset=dset)
-
-        if sites is not None:
-            b_meta = b_meta.iloc[sites, :].reset_index(drop=True)
-            b_data = b_data[:, sites]
-
-        assert_index_equal(b_ti, t_ti)
-        assert_frame_equal(b_meta, t_meta)
-        assert np.allclose(b_data, t_data)
-        for k, v in b_attrs.items():
-            if k != 'source_dir':  # source dirs have changed during re-orgs
-                assert str(v) == str(t_attrs[k])
-
-    if PURGE_OUT:
-        os.remove(f_out)
+            assert_index_equal(b_ti, t_ti)
+            assert_frame_equal(b_meta, t_meta)
+            assert np.allclose(b_data, t_data)
+            for k, v in b_attrs.items():
+                # source dirs have changed during re-orgs
+                if k != 'source_dir':
+                    assert str(v) == str(t_attrs[k])
 
 
 def test_collect_lowmem():
     """Test a low memory file by file collection"""
-    flist = ['nsrdb_ancillary_2018_0.h5',
-             'nsrdb_ancillary_2018_1.h5']
-    collect_dir = os.path.join(TESTDATADIR, 'data_model_annual_sample_output/')
-    f_out = os.path.join(TESTDATADIR, 'temp_out/collected.h5')
+    with tempfile.TemporaryDirectory() as td:
+        flist = ['nsrdb_ancillary_2018_0.h5',
+                 'nsrdb_ancillary_2018_1.h5']
+        collect_dir = os.path.join(TESTDATADIR,
+                                   'data_model_annual_sample_output/')
+        f_out = os.path.join(td, 'collected.h5')
 
-    if not os.path.exists(os.path.dirname(f_out)):
-        os.makedirs(os.path.dirname(f_out))
-    if os.path.exists(f_out):
-        os.remove(f_out)
+        dsets = ['surface_albedo', 'alpha', 'aod', 'surface_pressure']
+        for dset in dsets:
+            Collector.collect_flist_lowmem(flist, collect_dir, f_out, dset)
 
-    dsets = ['surface_albedo', 'alpha', 'aod', 'surface_pressure']
-    for dset in dsets:
-        Collector.collect_flist_lowmem(flist, collect_dir, f_out, dset)
+            ti, meta, data, attrs = retrieve_data(BASELINE_ANNUAL, dset=dset)
 
-        ti, meta, data, attrs = retrieve_data(BASELINE_ANNUAL, dset=dset)
+            with Outputs(f_out, mode='r') as f:
+                attrs = f.get_attrs(dset=dset)
+                meta_collected = f.meta
+                data_collected = f[dset]
 
-        with Outputs(f_out, mode='r') as f:
-            attrs = f.get_attrs(dset=dset)
-            meta_collected = f.meta
-            data_collected = f[dset]
-
-        assert 'scale_factor' in attrs
-        assert 'data_source' in attrs
-        assert 'spatial_interp_method' in attrs
-        assert_frame_equal(meta, meta_collected)
-        assert np.allclose(data, data_collected)
-        assert len(ti) == 105120
-
-    if PURGE_OUT:
-        os.remove(f_out)
+            assert 'scale_factor' in attrs
+            assert 'data_source' in attrs
+            assert 'spatial_interp_method' in attrs
+            assert_frame_equal(meta, meta_collected)
+            assert np.allclose(data, data_collected)
+            assert len(ti) == 105120
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):

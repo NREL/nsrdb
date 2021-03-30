@@ -4,13 +4,29 @@ setup.py
 import os
 from codecs import open
 from setuptools import setup, find_packages
-import sys
+from setuptools.command.develop import develop
+from subprocess import check_call
+import shlex
+from warnings import warn
 
-py_version = sys.version_info
-if py_version.major < 3:
-    raise RuntimeError("NSRDB is not compatible with python 2!")
-elif py_version.minor <= 6:
-    raise RuntimeError("NSRDB is not compatible with python <= 3.6!")
+
+class PostDevelopCommand(develop):
+    """
+    Class to run post setup commands
+    """
+
+    def run(self):
+        """
+        Run method that tries to install pre-commit hooks
+        """
+        try:
+            check_call(shlex.split("pre-commit install"))
+        except Exception as e:
+            warn("Unable to run 'pre-commit install': {}"
+                 .format(e))
+
+        develop.run(self)
+
 
 try:
     from pypandoc import convert_text
@@ -27,51 +43,41 @@ with open(os.path.join(here, "nsrdb", "version.py"), encoding="utf-8") as f:
 
 version = version.split('=')[-1].strip().strip('"').strip("'")
 
+with open("requirements.txt") as f:
+    install_requires = f.readlines()
+
+test_requires = ["pytest>=5.2", ]
+description = "National Solar Radiation DataBase"
+
 setup(
     name="nsrdb",
     version=version,
-    description="The National Solar Radiation DataBase",
+    description=description,
     long_description=readme,
     author="Grant Buster",
     author_email="grant.buster@nrel.gov",
-    url="https://github.nrel.gov/PXS/nsrdb",
+    url="https://github.com/NREL/",
     packages=find_packages(),
     package_dir={"nsrdb": "nsrdb"},
-    entry_points={
-        "console_scripts": [
-            "nsrdb=nsrdb.cli:main",
-        ],
-    },
     include_package_data=True,
-    license="BSD license",
     zip_safe=False,
     keywords="nsrdb",
+    python_requires='>=3.6',
     classifiers=[
         "Development Status :: Beta",
         "Intended Audience :: Modelers",
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     test_suite="tests",
-    install_requires=["numpy>=1.16",
-                      "pandas>=0.25,<1",
-                      "click>=7.0",
-                      "scipy>=1.3",
-                      "pyhdf",
-                      "h5py>=3.1.0",
-                      "scikit-learn>=0.21",
-                      "netcdf4>=1.4",
-                      "matplotlib>=3.1",
-                      "pytest>=5.2",
-                      "ipython",
-                      "notebook",
-                      "psutil",
-                      "pre-commit",
-                      "flake8",
-                      "pylint",
-                      "NREL-rex>=0.2.30",
-                      "NREL-reV>=0.4.37",
-                      ],
+    install_requires=install_requires,
+    extras_require={
+        "test": test_requires,
+        "dev": test_requires + ["flake8", "pre-commit", "pylint"],
+    },
+    cmdclass={"develop": PostDevelopCommand},
 )

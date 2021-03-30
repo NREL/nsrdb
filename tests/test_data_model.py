@@ -16,7 +16,7 @@ import datetime
 
 from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
 from nsrdb.data_model import DataModel, VarFactory
-from nsrdb.utilities.loggers import init_logger
+from rex.utilities.loggers import init_logger
 
 
 RTOL = 0.01

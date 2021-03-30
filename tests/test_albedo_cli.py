@@ -14,6 +14,8 @@ import h5py
 import tempfile
 from click.testing import CliRunner
 
+pytest.importorskip("pyhdf")
+
 import nsrdb.albedo.cli as cli
 
 BASE_DIR = os.path.dirname(__file__)

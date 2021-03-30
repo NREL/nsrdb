@@ -2,9 +2,13 @@
 """
 Classes to handle NSRSDB h5 output files.
 """
+import logging
+
 from reV.handlers.outputs import Outputs as RevOutputs
 
 from nsrdb.version import __version__
+
+logger = logging.getLogger(__name__)
 
 
 class Outputs(RevOutputs):
@@ -15,3 +19,41 @@ class Outputs(RevOutputs):
     def set_version_attr(self):
         """Set the version attribute to the h5 file."""
         self.h5.attrs['version'] = __version__
+
+    @classmethod
+    def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta,
+                mode='w-'):
+        """Initialize a full h5 output file with the final intended shape.
+        Parameters
+        ----------
+        fout : str
+            Full output filepath.
+        dsets : list
+            List of dataset name strings.
+        attrs : dict
+            Dictionary of dataset attributes.
+        chunks : dict
+            Dictionary of chunk tuples corresponding to each dataset.
+        dtypes : dict
+            dictionary of numpy datatypes corresponding to each dataset.
+        time_index : pd.datetimeindex
+            Full pandas datetime index.
+        meta : pd.DataFrame
+            Full meta data.
+        mode : str
+            Outputs write mode. w- will raise error if fout exists. w will
+            overwrite file.
+        """
+        logger.info("Initializing output file: {}".format(fout))
+        with cls(fout, mode=mode) as f:
+            f['time_index'] = time_index
+            f['meta'] = meta
+
+            shape = (len(time_index), len(meta))
+
+            for dset in dsets:
+                # initialize each dset to disk
+                f._create_dset(dset, shape, dtypes[dset], chunks=chunks[dset],
+                               attrs=attrs[dset], data=None)
+
+        logger.info('{} is complete'.format(fout))

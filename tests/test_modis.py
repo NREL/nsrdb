@@ -8,12 +8,14 @@ Created on Jan 17th 2020
 """
 import os
 import pytest
-import nsrdb.albedo.modis as modis
-from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
 
+pytest.importorskip("pyhdf")
+import nsrdb.albedo.modis as modis
+from nsrdb.albedo.ims import get_dt
 from nsrdb import TESTDATADIR
+
 MODISTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 
 

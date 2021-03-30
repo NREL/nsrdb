@@ -13,11 +13,10 @@ import numpy as np
 import os
 import shutil
 from nsrdb import TESTDATADIR
-from nsrdb.all_sky import CLOUD_TYPES
+from farms import CLOUD_TYPES
 from rex import MultiFileNSRDB
 
 pytest.importorskip("mlclouds")
-pytest.importorskip("phygnn")
 from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
 
 

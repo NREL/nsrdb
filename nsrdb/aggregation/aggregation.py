@@ -19,11 +19,11 @@ from warnings import warn
 from farms.utilities import calc_dhi
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.hpc import SLURM
+from rex.utilities.loggers import init_logger
 
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import temporal_step
-from nsrdb.utilities.loggers import init_logger
 from nsrdb.utilities.plots import Spatial
 
 logger = logging.getLogger(__name__)
@@ -1168,11 +1168,11 @@ class Manager:
                 s1 = int(sres.replace('km', ''))
                 s2 = int(final_sres.replace('km', ''))
                 k = (s2 ** 2) / (s1 ** 2)
-            except Exception:
+            except Exception as e:
                 msg = ('Could not parse spatial resolution from: '
                        '"{}", "{}"'.format(sres, final_sres))
                 logger.error(msg)
-                raise ValueError(msg)
+                raise ValueError(msg) from e
             else:
                 k = int(np.ceil(k))
 
@@ -1307,6 +1307,7 @@ class Manager:
 
         elif os.path.exists(meta_fpath):
             meta_source = pd.read_csv(meta_fpath)
+            # pylint: disable=not-callable
             tree = cKDTree(meta_source[['latitude', 'longitude']])
             with open(tree_fpath, 'wb') as pkl:
                 pickle.dump(tree, pkl)
