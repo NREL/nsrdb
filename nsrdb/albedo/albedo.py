@@ -42,7 +42,7 @@ CLIP_MARGIN = 0.1  # degrees lat/long
 logger = logging.getLogger(__name__)
 
 
-class AlbedoError (Exception):
+class AlbedoError(Exception):
     """ Exceptions for albedo related errors """
 
 
@@ -378,7 +378,7 @@ class CompositeAlbedoDay:
         # Merge all returned indices
         ind = np.empty((len(modis_pts)), dtype=int)
         pos = 0
-        for key in futures.keys():
+        for key in futures:
             size = len(key.result())
             ind[pos:pos + size] = key.result()
             pos += size
@@ -417,7 +417,8 @@ class CompositeAlbedoDay:
 
         return ims_bin_mskd, ims_pts
 
-    def _get_modis_pts(self, lon_pts, lat_pts):
+    @staticmethod
+    def _get_modis_pts(lon_pts, lat_pts):
         """
         Create 2D numpy array representing lon/lats of MODIS pixels
 

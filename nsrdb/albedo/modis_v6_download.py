@@ -16,6 +16,9 @@ import os
 
 
 def main():
+    """
+    Download MODIS V6 data
+    """
     start = dt(2017, 1, 1)
     end = dt(2017, 12, 31)
 
