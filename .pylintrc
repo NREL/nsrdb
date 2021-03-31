@@ -11,7 +11,7 @@ ignore=CSV
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
-ignore-patterns=
+ignore-patterns=ref.*?py
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
@@ -44,7 +44,6 @@ unsafe-load-any-extension=no
 # Only show warnings with the listed confidence levels. Leave empty to show
 # all. Valid levels: HIGH, INFERENCE, INFERENCE_FAILURE, UNDEFINED
 confidence=
-
 
 # Disable the message, report, category or checker with the given id(s). You
 # can either give multiple identifiers separated by comma (,) or put this
@@ -137,6 +136,7 @@ disable=
         redefined-builtin,
         broad-except,
         logging-format-interpolation,
+        logging-fstring-interpolation,
         wrong-import-order,
         wrong-import-position,
         relative-beyond-top-level,
@@ -173,7 +173,6 @@ disable=
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once). See also the "--disable" option for examples.
 enable=
-
 
 [REPORTS]
 
@@ -270,7 +269,7 @@ good-names=i,
            _
 
 # Include a hint for the correct naming format with invalid-name
-include-naming-hint=no
+include-naming-hint=yes
 
 # Naming style matching correct inline iteration names
 inlinevar-naming-style=any
@@ -329,7 +328,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=79
 
 # Maximum number of lines in a module
 max-module-lines=1000
@@ -374,10 +373,10 @@ ignore-comments=yes
 ignore-docstrings=yes
 
 # Ignore imports when computing similarities.
-ignore-imports=no
+ignore-imports=yes
 
 # Minimum lines number of a similarity.
-min-similarity-lines=20
+min-similarity-lines=10
 
 
 [SPELLING]
