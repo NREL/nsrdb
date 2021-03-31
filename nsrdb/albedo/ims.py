@@ -420,7 +420,7 @@ class ImsRealFileAcquisition:
                         f'{os.path.realpath(self.lon_file)} and '
                         f'{os.path.realpath(self.lat_file)}.')
         else:
-            logger.info(f'IMS metadata not found on disk, attempting to '
+            logger.info('IMS metadata not found on disk, attempting to '
                         'download')
             self._download_metadata(self._mf.lon_remote, self._mf.lat_remote)
             self._uncompress(self._mf.lon_remote)
@@ -532,6 +532,8 @@ class MetaFiles:
 
     @property
     def lon_remote(self):
+        """
+        Return proper longintudehh
         if self.res == '1km':
             return 'IMS1kmLons.24576x24576x1.tar.gz'
         else:

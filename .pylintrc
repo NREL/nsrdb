@@ -166,7 +166,9 @@ disable=
         too-many-function-args,
         redundant-keyword-arg,
         c-extension-no-member,
-        redefined-argument-from-local
+        redefined-argument-from-local,
+        W1203, # Prohibit f-strings in logging
+        W1202  # Prohibit f-strings in logging
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
