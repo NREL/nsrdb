@@ -533,7 +533,8 @@ class MetaFiles:
     @property
     def lon_remote(self):
         """
-        Return proper longintudehh
+        Return proper compressed filename for longitude
+        """
         if self.res == '1km':
             return 'IMS1kmLons.24576x24576x1.tar.gz'
         else:
@@ -541,6 +542,9 @@ class MetaFiles:
 
     @property
     def lat_remote(self):
+        """
+        Return proper compressed filename for latitude
+        """
         if self.res == '1km':
             return 'IMS1kmLats.24576x24576x1.tar.gz'
         else:
@@ -548,6 +552,9 @@ class MetaFiles:
 
     @property
     def lon_file(self):
+        """
+        Return proper filename for longitude
+        """
         if self.res == '1km':
             return 'IMS1kmLons.24576x24576x1.double'
         else:
@@ -555,6 +562,9 @@ class MetaFiles:
 
     @property
     def lat_file(self):
+        """
+        Return proper filename for latitude
+        """
         if self.res == '1km':
             return 'IMS1kmLats.24576x24576x1.double'
         else:

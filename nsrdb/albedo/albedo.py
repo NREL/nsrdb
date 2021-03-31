@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 class AlbedoError(Exception):
     """ Exceptions for albedo related errors """
+    pass
 
 
 class CompositeAlbedoDay:

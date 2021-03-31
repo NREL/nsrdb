@@ -1,3 +1,9 @@
+"""
+Classes to acquire and load MODIS albedo data. Entrance via ModisDay.
+
+Mike Bannister
+2/18/2020
+"""
 import calendar
 import logging
 import matplotlib.pyplot as plt
@@ -22,6 +28,9 @@ FIRST_DAY = 63
 
 
 class ModisError(Exception):
+    """
+    Custom exception for MODIS processing
+    """
     pass
 
 
@@ -69,7 +78,7 @@ class ModisDay:
         try:
             hdf = SD(self._filename)
         except pyhdf.error.HDF4Error as e:
-            raise ModisError(f'Issue loading {self._filename}: {e}')
+            raise ModisError(f'Issue loading {self._filename}: {e}') from e
 
         try:
             logger.info('Loading MODIS data')
@@ -82,7 +91,7 @@ class ModisDay:
         except pyhdf.error.HDF4Error as e:
             raise ModisError(f'Error loading {self._filename}: {e}. File '
                              'does not have expected datasets and may be '
-                             'too old.')
+                             'too old.') from e
         if 'scale_factor' in attrs:
             scale = attrs['scale_factor']
             if scale != self.SCALE:
@@ -223,7 +232,8 @@ class ModisFileAcquisition:
         # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
         self.filename = self.FILE_PATTERN.format(day=self.day, year=self.year)
 
-    def _download(self):
+    @staticmethod
+    def _download():
         """
         Download Ver 6 MODIS hdf file from server
         """
