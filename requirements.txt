@@ -1,7 +1,6 @@
 netCDF4>=1.5
 matplotlib
 NREL-farms>=1.0.0
-NREL-phygnn>=0.0.11
 NREL-reV>=0.4.54
 NREL-rex>=0.2.52
 rest2>=1.0.0
