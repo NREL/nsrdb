@@ -3,10 +3,10 @@ air_temperature,Celsius,int16,10,-100,70,IDW2,TRUE,linear,tavg1_2d_slv_Nx,T2M,ME
 alpha,unitless,uint8,100,0,2.5,IDW2,FALSE,nearest,tavg1_2d_aer_Nx,TOTANGSTR,MERRA2,/projects/pxs/ancillary/merra,2000,1000
 aod,unitless,uint16,10000,0.01,1.5,IDW2,TRUE,nearest,tavg1_2d_aer_Nx,TOTEXTTAU,MERRA2,/projects/pxs/ancillary/merra,2000,500
 asymmetry,unitless,int8,100,-1,1,NN,FALSE,nearest,,,climatology,/projects/pxs/ancillary/asymmetry,2000,1000
-cld_opd_dcomp,unitless,uint16,100,0,80,,,,,,UW-GOES,,2000,500
+cld_opd_dcomp,unitless,uint16,100,0,160,,,,,,UW-GOES,,2000,500
 cld_press_acha,hPa,uint16,1,0,1100,,,,,,UW-GOES,,2000,500
 cloud_press_acha,hPa,uint16,1,0,1100,,,,,,UW-GOES,,2000,500
-cld_reff_dcomp,micron,uint16,100,0,80,,,,,,UW-GOES,,2000,500
+cld_reff_dcomp,micron,uint16,100,0,160,,,,,,UW-GOES,,2000,500
 clearsky_dhi,W/m2,uint16,1,0,800,,,,,,output,,2000,500
 clearsky_dni,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
 clearsky_ghi,W/m2,uint16,1,0,1350,,,,,,output,,2000,500
