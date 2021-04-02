@@ -1466,7 +1466,7 @@ class Manager:
         var : str
             Variable (dataset) name to write to.
         """
-        logger.debug('Writing data for "{}".'.format(var))
+        logger.debug('Writing data for "{}" to: {}.'.format(var, self.fout))
         with Outputs(self.fout, mode='a') as out:
             out[var] = arr
 

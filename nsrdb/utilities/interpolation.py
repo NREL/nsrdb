@@ -12,6 +12,24 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def remove_tz(ti):
+    """Remove the timezone awareness of a DatetimeIndex if the tz is "UTC"
+
+    Parameters
+    ----------
+    ti : pd.DatetimeIndex
+        Pandas DatetimeIndex object
+
+    Returns
+    -------
+    ti : pd.DatetimeIndex
+        Time index with tz removed if utc was input
+    """
+    if str(ti.tz) == 'UTC':
+        ti = ti.tz_convert(None)
+    return ti
+
+
 def temporal_lin(array, ti_native, ti_new):
     """Linearly interpolate an array at a native timeindex to the new timeindex
 
@@ -29,6 +47,8 @@ def temporal_lin(array, ti_native, ti_new):
     array : np.ndarray
         Data at new temporal resolution
     """
+    ti_native = remove_tz(ti_native)
+    ti_new = remove_tz(ti_new)
 
     array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
         .interpolate(method='linear', axis=0).values
@@ -53,6 +73,8 @@ def temporal_step(array, ti_native, ti_new):
     array : np.ndarray
         Data at new temporal resolution
     """
+    ti_native = remove_tz(ti_native)
+    ti_new = remove_tz(ti_new)
 
     if array.shape[0] > 1:
         array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
