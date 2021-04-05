@@ -13,10 +13,10 @@ import numpy as np
 import h5py
 import tempfile
 from click.testing import CliRunner
+import nsrdb.albedo.cli as cli
 
 pytest.importorskip("pyhdf")
 
-import nsrdb.albedo.cli as cli
 
 BASE_DIR = os.path.dirname(__file__)
 TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
@@ -24,6 +24,7 @@ TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
 
 @pytest.fixture(scope="module")
 def runner():
+    """ Runner for testing click CLIs """
     return CliRunner()
 
 
