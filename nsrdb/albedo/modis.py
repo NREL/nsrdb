@@ -31,7 +31,6 @@ class ModisError(Exception):
     """
     Custom exception for MODIS processing
     """
-    pass
 
 
 class ModisDay:
