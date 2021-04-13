@@ -867,6 +867,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
                                         hardware='eagle',
                                         subprocess_manager=slurm_manager)
 
+    msg = 'NSRDB CLI failed to submit jobs!'
     if status == 'successful':
         msg = ('Job "{}" is successful in status json found in "{}", '
                'not re-running.'.format(name, out_dir))
