@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
               help='Vertical longitude seam at which data transitions from '
               'the western source to eastern, by default -105.0 (historical '
               'closest to nadir). 5min conus data (2019 onwards) is '
-              'typically blended at -113.0.')
+              'typically blended at -113.0 because the conus west satellite '
+              'extent doesnt go that far east.')
 @click.option('--chunk_size', '-cs', type=int, default=100000,
               help='Number of sites to read/write at a time.')
 @click.option('--log_dir', '-ld', type=STR, default=None,
