@@ -21,7 +21,7 @@ class NsrdbPipelineConfig(PipelineConfig):
 
         dirouts = []
         names = []
-        for di in self.pipeline_steps:
+        for di in self.pipeline:
             for f_config in di.values():
                 config = AnalysisConfig(f_config, check_keys=False,
                                         run_preflight=False)

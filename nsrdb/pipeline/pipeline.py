@@ -41,10 +41,10 @@ class NsrdbPipeline(Pipeline):
         self.monitor = monitor
         self.verbose = verbose
         self._config = NsrdbPipelineConfig(pipeline)
-        self._run_list = self._config.pipeline_steps
+        self._run_list = self._config.pipeline
         self._init_status()
 
         # init logger for pipeline module if requested in input config
         if 'logging' in self._config:
-            init_logger('nsrdb.pipeline', **self._config['logging'])
-            init_logger('reV.pipeline', **self._config['logging'])
+            init_logger('nsrdb.pipeline', **self._config.logging)
+            init_logger('reV.pipeline', **self._config.logging)
