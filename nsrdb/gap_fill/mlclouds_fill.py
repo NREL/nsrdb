@@ -55,7 +55,8 @@ class MLCloudsFill:
             Defaults to the NSRDB var meta csv in git repo.
         """
 
-        self._dset_map = None
+        self._dset_map = {}
+        self._res_shape = None
         self._h5_source = h5_source
         self._fill_all = fill_all
         self._var_meta = var_meta
@@ -70,21 +71,22 @@ class MLCloudsFill:
                      .format(self._fill_all))
         self._phygnn_model = PhygnnModel.load(model_path)
 
-        with MultiFileNSRDB(self.h5_source) as res:
-            self._dset_map = res.h5._dset_map
-            self._res_shape = res.shape
+        if self.h5_source is not None:
+            with MultiFileNSRDB(self.h5_source) as res:
+                self._dset_map = res.h5._dset_map
+                self._res_shape = res.shape
 
-        missing = []
-        for dset in self._phygnn_model.feature_names:
-            if (dset not in ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
-                    and dset not in self._dset_map):
-                missing.append(dset)
+            missing = []
+            for dset in self._phygnn_model.feature_names:
+                ignore = ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
+                if (dset not in ignore and dset not in self._dset_map):
+                    missing.append(dset)
 
-        if any(missing):
-            msg = ('The following datasets were missing in the h5_source '
-                   'directory: {}'.format(missing))
-            logger.error(msg)
-            raise FileNotFoundError(msg)
+            if any(missing):
+                msg = ('The following datasets were missing in the h5_source '
+                       'directory: {}'.format(missing))
+                logger.error(msg)
+                raise FileNotFoundError(msg)
 
     @property
     def phygnn_model(self):
@@ -211,6 +213,8 @@ class MLCloudsFill:
         if any_bad:
             array = pd.DataFrame(array).interpolate(
                 'nearest').ffill().bfill().values
+            logger.debug('Pre-cleaned feature "{}" to have {} nan values.'
+                         .format(dset, np.isnan(array).sum()))
 
         return array
 
@@ -248,28 +252,21 @@ class MLCloudsFill:
 
         cloud_type = feature_data['cloud_type']
         assert cloud_type.shape == fill_flag.shape
-        day_missing_ctype = day & (cloud_type < 0)
+        # fill flag 1 and 2 are the missing cloud type flags
+        day_missing_ctype = day & (np.isin(fill_flag, (1, 2))
+                                   | (cloud_type < 0))
+
         mask = cloud_type < 0
         full_missing_ctype_mask = mask.all(axis=0)
-        if any(full_missing_ctype_mask):
-            msg = ('Some sites ({} out of {}) have full timeseries of missing '
-                   'cloud type!'
-                   .format(full_missing_ctype_mask, mask.shape[1]))
-            warn(msg)
-            logger.warning(msg)
-            mask[:, full_missing_ctype_mask] = False
-            cloud_type[:, full_missing_ctype_mask] = 0
-            fill_flag[:, full_missing_ctype_mask] = 2
-
-        if mask.any():
-            logger.info('There are {} missing cloud type observations '
-                        'out of {}. Interpolating with Nearest Neighbor.'
-                        .format(mask.sum(), mask.shape[0] * mask.shape[1]))
-            cloud_type[mask] = np.nan
-            fill_flag[mask] = 1
-            cloud_type = pd.DataFrame(cloud_type).interpolate(
-                'nearest').ffill().bfill().values
-            feature_data['cloud_type'] = cloud_type
+        if any(full_missing_ctype_mask) or mask.any():
+            msg = ('There are {} missing cloud type observations '
+                   'out of {} including {} with full missing ctype. This '
+                   'needs to be resolved using the fill_ctype_press() '
+                   'method before this step.'
+                   .format(mask.sum(), mask.size,
+                           full_missing_ctype_mask.sum()))
+            logger.error(msg)
+            raise RuntimeError(msg)
 
         cloudy = np.isin(cloud_type, ICE_TYPES + WATER_TYPES)
         day_clouds = day & cloudy
@@ -343,15 +340,17 @@ class MLCloudsFill:
         assert ~(cloudy & (feature_data['cld_reff_dcomp'] <= 0)).any()
 
         logger.debug('Adding feature flag')
-        day_ice_clouds = day & np.isin(feature_data['cloud_type'],
-                                       ICE_TYPES)
-        day_water_clouds = day & np.isin(feature_data['cloud_type'],
-                                         WATER_TYPES)
+        cloud_type = feature_data['cloud_type']
+        day_ice_clouds = day & np.isin(cloud_type, ICE_TYPES)
+        day_water_clouds = day & np.isin(cloud_type, WATER_TYPES)
+        day_clouds_bad_ctype = ((day_ice_clouds | day_water_clouds)
+                                & day_missing_ctype)
+
         flag = np.full(day_ice_clouds.shape, 'night', dtype=object)
         flag[day] = 'clear'
         flag[day_ice_clouds] = 'ice_cloud'
         flag[day_water_clouds] = 'water_cloud'
-        flag[day_missing_ctype] = 'bad_cloud'
+        flag[day_clouds_bad_ctype] = 'bad_cloud'
         flag[day_missing_opd] = 'bad_cloud'
         flag[day_missing_reff] = 'bad_cloud'
         feature_data['flag'] = flag
@@ -525,7 +524,15 @@ class MLCloudsFill:
         night_mask = feature_data['flag'] == 'night'
         clear_mask = feature_data['flag'] == 'clear'
         cloud_mask = ((feature_data['flag'] != 'night')
-                      | (feature_data['flag'] != 'clear'))
+                      & (feature_data['flag'] != 'clear'))
+        logger.debug('Final fill mask has {} bad clouds, {} night timesteps, '
+                     '{} clear timesteps, {} timesteps that are either night '
+                     'or clear, and {} cloudy timesteps out of {} '
+                     'total observations.'
+                     .format(fill_mask.sum(), night_mask.sum(),
+                             clear_mask.sum(), (clear_mask | night_mask).sum(),
+                             cloud_mask.sum(), fill_mask.size))
+
         if fill_mask.sum() == 0:
             msg = ('No "bad_cloud" flags were detected in the feature_data '
                    '"flag" dataset. Something went wrong! '
@@ -812,28 +819,57 @@ class MLCloudsFill:
         return clean_data, fill_flag
 
     @classmethod
-    def clean_data_model(data_model, fill_all=False, model_path=None,
+    def clean_data_model(cls, data_model, fill_all=False, model_path=None,
                          var_meta=None, sza_lim=90):
+        """Run the MLCloudsFill process on data in-memory in an nsrdb
+        data model object.
 
-        obj = cls(data_model, fill_all=fill_all, model_path=model_path,
+        Parameters
+        ----------
+        data_model : nsrdb.data_model.DataModel
+            DataModel object with processed source data (cloud data + ancillary
+            processed onto the nsrdb grid).
+        fill_all : bool
+            Flag to fill all cloud properties for all timesteps where
+            cloud_type is cloudy.
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        sza_lim : int, optional
+            Solar zenith angle limit below which missing cloud property data
+            will be gap filled. By default 90 to fill all missing daylight data
+
+        Returns
+        -------
+        data_model : nsrdb.data_model.DataModel
+            DataModel object with processed source data (cloud data + ancillary
+            processed onto the nsrdb grid). The cloud property datasets
+            (cloud_type, cld_opd_dcomp, cld_reff_dcomp, cloud_fill_flag) are
+            now cleaned.
+        """
+
+        obj = cls(None, fill_all=fill_all, model_path=model_path,
                   var_meta=var_meta)
 
-        logger.debug('Preparing data for MLCloudsFill to clean data model')
+        logger.info('Preparing data for MLCloudsFill to clean data model')
 
-        ctype, fill_flag = CloudGapFill.fill_cloud_type(
-            ctype, fill_flag=fill_flag)
+        ctype = data_model['cloud_type']
+        sza = data_model['solar_zenith_angle']
 
-        clean_data = {'cloud_type': ctype}
-        feature_data = {'cloud_type': ctype,
-                        'solar_zenith_angle': sza}
+        ctype, fill_flag = CloudGapFill.fill_cloud_type(ctype, fill_flag=None)
+        feature_data = {'cloud_type': ctype, 'solar_zenith_angle': sza}
 
         logger.info('Loading feature data.')
-        dsets = (self._phygnn_model.feature_names
-                 + self._phygnn_model.label_names)
+        dsets = (obj._phygnn_model.feature_names
+                 + obj._phygnn_model.label_names)
 
         for dset in dsets:
-            if dset not in feature_data and dset in res.data_model:
-                logger.debug('Loading {} data'.format(dset))
+            if dset not in feature_data and dset in data_model:
                 feature_data[dset] = data_model[dset]
 
         mem = psutil.virtual_memory()
@@ -843,16 +879,22 @@ class MLCloudsFill:
                     .format(mem.used / 1e9, mem.total / 1e9,
                             100 * mem.used / mem.total))
 
-        feature_data, fill_flag = obj.clean_feature_data(
-            feature_data, fill_flag, sza_lim=sza_lim)
-        logger.debug('Completed MLClouds data prep')
+        feature_data, fill_flag = obj.clean_feature_data(feature_data,
+                                                         fill_flag,
+                                                         sza_lim=sza_lim)
+        logger.info('Completed MLClouds data prep')
 
-        predicted = self.predict_cld_properties(i_features)
-        filled = self.fill_bad_cld_properties(i_predicted, i_features)
+        predicted = obj.predict_cld_properties(feature_data)
+        filled = obj.fill_bad_cld_properties(predicted, feature_data)
 
-        data_model['cloud_fill_flag'] = fill_flag
+        filled['cloud_fill_flag'] = fill_flag
+        filled['cloud_type'] = feature_data['cloud_type']
         for k, v in filled.items():
+            logger.info('Sending cleaned dataset "{}" to data model with '
+                        'shape {}'.format(k, v.shape))
             data_model[k] = v
+
+        logger.info('Finished MLClouds fill of data model object.')
 
         return data_model
 

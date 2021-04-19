@@ -244,7 +244,6 @@ class CloudGapFill:
             cloud_type[missing_mask] = np.nan
             cloud_type = cloud_type.interpolate(method='nearest', axis=0)\
                 .fillna(method='ffill').fillna(method='bfill')
-
             cloud_type = cloud_type.astype(np.int8)
 
         if missing < 0:

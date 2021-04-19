@@ -29,6 +29,8 @@ from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
 logger = logging.getLogger(__name__)
 
 
+# Spatiotemporal all sky variable input names. Does not include time_index
+# which is not Spatiotemporal.
 ALL_SKY_ARGS = ('alpha',
                 'aod',
                 'asymmetry',
