@@ -1096,3 +1096,27 @@ class NSRDB:
                       }
             Status.make_job_file(nsrdb._out_dir, 'daily-all-sky',
                                  job_name, status)
+
+    def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
+                 fill_all=False, model_path=None,
+                 log_file=None, log_level='INFO'):
+
+        date = cls.to_datetime(date)
+
+        nsrdb = cls('./', date.year, grid, freq=freq, var_meta=var_meta)
+        nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
+
+        data_model = nsrdb._exe_daily_data_model(
+            date.month, date.day,
+            factory_kwargs=factory_kwargs,
+            max_workers=1,
+            max_workers_regrid=1,
+            max_workers_cloud_io=1,
+            mlclouds=True)
+
+        data_model = MLCloudsFill.clean_data_model(data_model,
+                                                   fill_all=fill_all,
+                                                   model_path=model_path,
+                                                   var_meta=var_meta)
+
+        all_sky_out = all_sky(**data_model._processed)

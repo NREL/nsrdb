@@ -812,6 +812,51 @@ class MLCloudsFill:
         return clean_data, fill_flag
 
     @classmethod
+    def clean_data_model(data_model, fill_all=False, model_path=None,
+                         var_meta=None, sza_lim=90):
+
+        obj = cls(data_model, fill_all=fill_all, model_path=model_path,
+                  var_meta=var_meta)
+
+        logger.debug('Preparing data for MLCloudsFill to clean data model')
+
+        ctype, fill_flag = CloudGapFill.fill_cloud_type(
+            ctype, fill_flag=fill_flag)
+
+        clean_data = {'cloud_type': ctype}
+        feature_data = {'cloud_type': ctype,
+                        'solar_zenith_angle': sza}
+
+        logger.info('Loading feature data.')
+        dsets = (self._phygnn_model.feature_names
+                 + self._phygnn_model.label_names)
+
+        for dset in dsets:
+            if dset not in feature_data and dset in res.data_model:
+                logger.debug('Loading {} data'.format(dset))
+                feature_data[dset] = data_model[dset]
+
+        mem = psutil.virtual_memory()
+        logger.info('Feature data loaded for data model cleaning. '
+                    'Memory utilization is {:.3f} GB out of {:.3f} GB total '
+                    '({:.2f}% used).'
+                    .format(mem.used / 1e9, mem.total / 1e9,
+                            100 * mem.used / mem.total))
+
+        feature_data, fill_flag = obj.clean_feature_data(
+            feature_data, fill_flag, sza_lim=sza_lim)
+        logger.debug('Completed MLClouds data prep')
+
+        predicted = self.predict_cld_properties(i_features)
+        filled = self.fill_bad_cld_properties(i_predicted, i_features)
+
+        data_model['cloud_fill_flag'] = fill_flag
+        for k, v in filled.items():
+            data_model[k] = v
+
+        return data_model
+
+    @classmethod
     def run(cls, h5_source, fill_all=False, model_path=None, var_meta=None,
             sza_lim=90, col_chunk=None, max_workers=None):
         """

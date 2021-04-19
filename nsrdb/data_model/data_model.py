@@ -195,6 +195,9 @@ class DataModel:
             raise TypeError('Did not recognize dtype sent to DataModel '
                             'processed dictionary: {}'.format(type(value)))
 
+    def __contains__(self, dset):
+        return dset in self._processed
+
     def _parse_nsrdb_grid(self, inp, req=('latitude', 'longitude',
                                           'elevation')):
         """Set the NSRDB reference grid from a csv file.
