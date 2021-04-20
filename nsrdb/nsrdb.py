@@ -315,10 +315,13 @@ class NSRDB:
             log_file = os.path.join(self._log_dir, log_file)
 
             if isinstance(date, datetime.date):
+                doy = str(date.timetuple().tm_yday).zfill(3)
                 date_str = ('{}{}{}'.format(date.year,
                                             str(date.month).zfill(2),
                                             str(date.day).zfill(2)))
-                log_file = log_file.replace('.log', '_{}.log'.format(date_str))
+
+                log_file = log_file.replace('.log',
+                                            '_{}_{}.log'.format(doy, date_str))
 
             for name in loggers:
                 init_logger(name, log_level=log_level, log_file=log_file)
