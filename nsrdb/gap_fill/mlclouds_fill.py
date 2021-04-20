@@ -213,8 +213,6 @@ class MLCloudsFill:
         if any_bad:
             array = pd.DataFrame(array).interpolate(
                 'nearest').ffill().bfill().values
-            logger.debug('Pre-cleaned feature "{}" to have {} nan values.'
-                         .format(dset, np.isnan(array).sum()))
 
         return array
 
@@ -887,11 +885,14 @@ class MLCloudsFill:
         predicted = obj.predict_cld_properties(feature_data)
         filled = obj.fill_bad_cld_properties(predicted, feature_data)
 
-        filled['cloud_fill_flag'] = fill_flag
-        filled['cloud_type'] = feature_data['cloud_type']
+        feature_data['cloud_fill_flag'] = fill_flag
+        for k, v in feature_data.items():
+            logger.info('Sending cleaned feature dataset "{}" to data model '
+                        'with shape {}'.format(k, v.shape))
+            data_model[k] = v
         for k, v in filled.items():
-            logger.info('Sending cleaned dataset "{}" to data model with '
-                        'shape {}'.format(k, v.shape))
+            logger.info('Sending cleaned cloud property dataset "{}" to '
+                        'data model with shape {}'.format(k, v.shape))
             data_model[k] = v
 
         logger.info('Finished MLClouds fill of data model object.')
