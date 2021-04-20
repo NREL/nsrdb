@@ -242,8 +242,12 @@ class CloudGapFill:
         if missing_mask.any():
             cloud_type = cloud_type.astype(np.float32)
             cloud_type[missing_mask] = np.nan
+            one_good = missing_mask.sum(axis=0) == len(cloud_type) - 1
+            if any(one_good):
+                cloud_type.iloc[:, one_good] = cloud_type.iloc[:, one_good]\
+                    .ffill().bfill()
             cloud_type = cloud_type.interpolate(method='nearest', axis=0)\
-                .fillna(method='ffill').fillna(method='bfill')
+                .ffill().bfill()
             cloud_type = cloud_type.astype(np.int8)
 
         if missing < 0:

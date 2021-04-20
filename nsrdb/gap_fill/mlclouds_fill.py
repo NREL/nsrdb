@@ -196,19 +196,22 @@ class MLCloudsFill:
             2D (time x sites) float numpy array of data for dset. Missing
             values should be filled
         """
-        any_bad = np.isnan(array).any()
+        bad = np.isnan(array)
+        any_bad = bad.any()
         all_bad = (~np.isnan(array)).sum(axis=0) < 3
         if any(all_bad):
-            mean_impute = np.nanmean(array)
+            mean_impute = np.nanmean(array, axis=0)
             count = all_bad.sum()
-            msg = ('Feature dataset "{}" has {} columns with all NaN '
-                   'values out of {} ({:.2f}%). Filling with '
-                   'mean value of {}.'
+            msg = ('Feature dataset "{}" has {} columns with nearly all NaN '
+                   'values out of {} ({:.2f}%) ({} NaN values out of '
+                   '{} total {:.2f}%). Filling with mean values by site.'
                    .format(dset, count, array.shape[1],
-                           100 * count / array.shape[1], mean_impute))
+                           100 * count / array.shape[1],
+                           bad.sum(), array.size,
+                           100 * bad.sum() / array.size))
             logger.warning(msg)
             warn(msg)
-            array[:, all_bad] = mean_impute
+            array[:, all_bad] = mean_impute[all_bad]
 
         if any_bad:
             array = pd.DataFrame(array).interpolate(
