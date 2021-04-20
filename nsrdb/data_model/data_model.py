@@ -1062,7 +1062,7 @@ class DataModel:
     def _process_multiple(cls, var_list, date, nsrdb_grid,
                           nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                           max_workers=None, max_workers_regrid=None,
-                          max_workers_cloud_io=None,
+                          max_workers_cloud_io=None, scale=True,
                           fpath_out=None, factory_kwargs=None):
         """Process ancillary data for multiple variables for a single day.
 
@@ -1100,6 +1100,9 @@ class DataModel:
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         factory_kwargs : dict | None
             Optional namespace of kwargs to use to initialize variable data
             handlers from the data model's variable factory. Keyed by
@@ -1116,7 +1119,7 @@ class DataModel:
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta, factory_kwargs=factory_kwargs,
-                         max_workers=max_workers)
+                         scale=scale, max_workers=max_workers)
 
         # run pre-flight checks
         data_model.run_pre_flight(var_list)
@@ -1157,9 +1160,13 @@ class DataModel:
                 data = {}
                 for var in var_list:
                     data_model[var] = cls.run_single(
-                        var, date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                        var_meta=var_meta, fpath_out=fpath_out,
+                        var, date, nsrdb_grid,
+                        nsrdb_freq=nsrdb_freq,
+                        var_meta=var_meta,
+                        fpath_out=fpath_out,
+                        scale=scale,
                         factory_kwargs=factory_kwargs)
+
             # run in parallel
             else:
                 data = cls._process_parallel(
@@ -1168,6 +1175,7 @@ class DataModel:
                     nsrdb_freq=nsrdb_freq,
                     var_meta=var_meta,
                     fpath_out=fpath_out,
+                    scale=scale,
                     factory_kwargs=factory_kwargs)
 
                 for k, v in data.items():
@@ -1183,6 +1191,7 @@ class DataModel:
                 max_workers_regrid=max_workers_regrid,
                 max_workers_cloud_io=max_workers_cloud_io,
                 fpath_out=fpath_out,
+                scale=scale,
                 factory_kwargs=factory_kwargs)
 
         # process derived (dependent) variables last using the built
@@ -1192,14 +1201,15 @@ class DataModel:
                 data_model[var] = data_model._derive(var, fpath_out=fpath_out)
 
         # scale if requested
-        for var, arr in data_model._processed.items():
-            data_model[var] = data_model.scale_data(var, arr)
+        if scale:
+            for var, arr in data_model._processed.items():
+                data_model[var] = data_model.scale_data(var, arr)
 
         return data_model
 
-    @staticmethod
-    def _process_parallel(var_list, date, nsrdb_grid, max_workers=None,
-                          **kwargs):
+    @classmethod
+    def _process_parallel(cls, var_list, date, nsrdb_grid, max_workers=None,
+                          scale=True, **kwargs):
         """Process ancillary variables in parallel.
 
         Parameters
@@ -1214,6 +1224,9 @@ class DataModel:
         max_workers : int | None
             Optional limit for maximum parallel workers.
             None will use all available.
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         **kwargs : dict
             Keyword args to pass to DataModel.run_single.
 
@@ -1233,8 +1246,8 @@ class DataModel:
         with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
-                futures[var] = exe.submit(
-                    DataModel.run_single, var, date, nsrdb_grid, **kwargs)
+                futures[var] = exe.submit(cls.run_single, var, date,
+                                          nsrdb_grid, scale=scale, **kwargs)
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -1320,7 +1333,7 @@ class DataModel:
     @classmethod
     def run_single(cls, var, date, nsrdb_grid, nsrdb_freq='5min',
                    var_meta=None, fpath_out=None, factory_kwargs=None,
-                   **kwargs):
+                   scale=True, **kwargs):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1348,6 +1361,9 @@ class DataModel:
             source_dir for cloud variables can be a normal directory
             path or /directory/prefix*suffix where /directory/ can have
             more sub dirs
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         kwargs : dict
             Optional kwargs. Based on the NSRDB var name requested to be
             processed, this method runs one of several DataModel processing
@@ -1361,7 +1377,8 @@ class DataModel:
         """
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs)
+                         var_meta=var_meta, factory_kwargs=factory_kwargs,
+                         scale=scale)
 
         if fpath_out is None:
             logger.info('Processing data for "{}".'.format(var))
@@ -1406,6 +1423,7 @@ class DataModel:
 
         if fpath_out is not None:
             data = data_model._dump(var, fpath_out, data)
+
         logger.info('Finished "{}".'.format(var))
         return data
 
@@ -1413,7 +1431,7 @@ class DataModel:
     def run_clouds(cls, cloud_vars, date, nsrdb_grid,
                    nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                    max_workers_regrid=None, max_workers_cloud_io=None,
-                   fpath_out=None, factory_kwargs=None):
+                   scale=True, fpath_out=None, factory_kwargs=None):
         """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
@@ -1446,6 +1464,9 @@ class DataModel:
         max_workers_cloud_io : None | int
             Max parallel workers allowed for cloud data io. None uses all
             available workers. 1 runs io in serial.
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
@@ -1468,7 +1489,7 @@ class DataModel:
 
         data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
                          var_meta=var_meta, factory_kwargs=factory_kwargs,
-                         max_workers=max_workers_regrid)
+                         max_workers=max_workers_regrid, scale=scale)
 
         if fpath_out is not None:
             data = {}
@@ -1517,7 +1538,7 @@ class DataModel:
                      nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                      max_workers=None, max_workers_regrid=None,
                      max_workers_cloud_io=None, return_obj=False,
-                     fpath_out=None, factory_kwargs=None):
+                     scale=True, fpath_out=None, factory_kwargs=None):
         """Run ancillary data processing for multiple variables for single day.
 
         Parameters
@@ -1553,6 +1574,9 @@ class DataModel:
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
+        scale : bool
+            Flag to scale source data to reduced (integer) precision after
+            data model processing.
         fpath_out : str | None
             File path to dump results. If no file path is given, results will
             be returned as an object.
@@ -1601,6 +1625,7 @@ class DataModel:
             max_workers_regrid=max_workers_regrid,
             max_workers_cloud_io=max_workers_cloud_io,
             fpath_out=fpath_out,
+            scale=scale,
             factory_kwargs=factory_kwargs)
 
         # Create an AncillaryDataProcessing object instance for storing data.
