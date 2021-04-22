@@ -53,6 +53,33 @@ class GfsVar(AncillaryVarHandler):
         """
         return []
 
+    @property
+    def source_dsets(self):
+        """Get the list of dataset names in the GFS files.
+
+        Returns
+        -------
+        list
+        """
+        from pyhdf.SD import SD
+        fp = self.files[0]
+        res = SD(fp)
+        return sorted(res.datasets().keys())
+
+    def source_units(self):
+        """Get a dict lookup of GFS datasets and source units
+
+        Returns
+        -------
+        dict
+        """
+        from pyhdf.SD import SD
+        fp = self.files[0]
+        res = SD(fp)
+        units = {d: res.select(d).attributes()['UNITS']
+                 for d in res.datasets().keys()}
+        return units
+
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
 
