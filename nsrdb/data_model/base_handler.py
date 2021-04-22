@@ -238,19 +238,28 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'temporal_interp'].values[0])
 
     @property
-    def dset(self):
-        """Get the MERRA dset name from the NSRDB variable name.
+    def file_set(self):
+        """Get the source file set name for the NSRDB variable. This is
+        typically used for MERRA source filesets such as tavg1_2d_aer_Nx or
+        tavg1_2d_slv_Nx (for MERRA)
 
         Returns
         -------
-        dset : str
-            MERRA dset name, e.g.:
-                tavg1_2d_aer_Nx
-                tavg1_2d_ind_Nx
-                tavg1_2d_rad_Nx
-                tavg1_2d_slv_Nx
+        str
         """
-        return str(self.var_meta.loc[self.mask, 'merra_dset'].values[0])
+        return str(self.var_meta.loc[self.mask, 'file_set'].values[0])
+
+    @property
+    def dset_name(self):
+        """Get the source dataset name for the NSRDB variable. This is
+        typically the netcdf or h5 source dataset name for the variable such as
+        T2M or TOTANGSTR (for MERRA temp and alpha)
+
+        Returns
+        -------
+        str
+        """
+        return str(self.var_meta.loc[self.mask, 'dset_name'].values[0])
 
     @property
     def final_dtype(self):

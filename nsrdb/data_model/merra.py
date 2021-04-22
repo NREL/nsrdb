@@ -64,7 +64,7 @@ class MerraVar(AncillaryVarHandler):
             MERRA file path containing the target NSRDB variable.
         """
 
-        path = os.path.join(self.source_dir, self.dset)
+        path = os.path.join(self.source_dir, self.file_set)
         flist = os.listdir(path)
         fmerra = None
 
@@ -96,17 +96,6 @@ class MerraVar(AncillaryVarHandler):
         if not os.path.isfile(self.file):
             missing = self.file
         return missing
-
-    @property
-    def merra_name(self):
-        """Get the MERRA variable name from the NSRDB variable name.
-
-        Returns
-        -------
-        merra_name : str
-            MERRA var name.
-        """
-        return str(self.var_meta.loc[self.mask, 'merra_name'].values[0])
 
     @property
     def time_index(self):
@@ -172,9 +161,9 @@ class MerraVar(AncillaryVarHandler):
                     data = np.degrees(
                         np.arctan2(u_vector, v_vector)) + 180
 
-            elif self.merra_name == 'TOTSCATAU':
+            elif self.dset_name == 'TOTSCATAU':
                 # Single scatter albedo is total scatter / aod
-                data = f[self.merra_name][:] / f['TOTEXTTAU'][:]
+                data = f[self.dset_name][:] / f['TOTEXTTAU'][:]
 
             elif self.name in cld_vars:
                 # Special handling of cloud properties when
@@ -201,7 +190,7 @@ class MerraVar(AncillaryVarHandler):
                         data = np.where(ctype == 6, 250.0, data)
 
             else:
-                data = f[self.merra_name][:]
+                data = f[self.dset_name][:]
 
         # make the data a flat 2d array
         data = self._format_2d(data)
