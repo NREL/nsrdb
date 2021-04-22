@@ -3,5 +3,6 @@ matplotlib
 NREL-farms>=1.0.0
 NREL-reV>=0.4.54
 NREL-rex>=0.2.52
-rest2>=1.0.0
+NREL-rest2>=1.0.0
+pyhdf>=0.10.0
 scikit-learn>=0.22

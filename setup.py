@@ -50,7 +50,7 @@ test_requires = ["pytest>=5.2", ]
 description = "National Solar Radiation DataBase"
 
 setup(
-    name="nsrdb",
+    name="NREL-nsrdb",
     version=version,
     description=description,
     long_description=readme,
