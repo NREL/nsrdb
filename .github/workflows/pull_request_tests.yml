@@ -40,11 +40,6 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
-    - name: Install mlclouds dependencies
-      working-directory: ./mlclouds
-      shell: bash -l {0}
-      run: |
-        pip install -e .
     - name: Install rest2 dependencies
       working-directory: ./rest2
       shell: bash -l {0}
@@ -57,6 +52,11 @@ jobs:
         conda install pip
         conda install hdf4
         conda install -c conda-forge pyhdf
+        pip install -e .
+    - name: Install mlclouds dependencies
+      working-directory: ./mlclouds
+      shell: bash -l {0}
+      run: |
         pip install -e .
     - name: Run nsrdb pytest
       working-directory: ./nsrdb
