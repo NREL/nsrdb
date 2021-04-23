@@ -6,8 +6,8 @@ Created on Tue Dec  10 08:22:26 2018
 @author: gbuster
 """
 import h5py
-import os
 import numpy as np
+import os
 import pandas as pd
 from scipy.spatial import cKDTree
 from warnings import warn
@@ -158,7 +158,7 @@ class ExtractNSRDB:
             A subset of the source meta data with the closest sites to the
             input coordinates. Has length N (length of coordinate array).
         """
-
+        # pylint: disable=not-callable
         tree = cKDTree(self.meta[['latitude', 'longitude']].values)
         ind = tree.query(coords)[1]
         return self.meta.iloc[ind, :]
@@ -202,9 +202,6 @@ class ExtractNSRDB:
 
 class ExtractPuertoRico(ExtractNSRDB):
     """Extraction utilities for Puerto Rico data."""
-
-    def __init__(self, target, source):
-        super().__init__(target, source)
 
     @classmethod
     def puerto_rico_vi_meta(cls):
@@ -310,9 +307,6 @@ class ExtractValidationData(ExtractNSRDB):
                        (39.742, -105.180),  # SRRL-NREL
                        ))
 
-    def __init__(self, target, source):
-        super().__init__(target, source)
-
     @classmethod
     def save_meta(cls, target,
                   source='/projects/PXS/nsrdb/v3.0.1/nsrdb_2017.h5'):
@@ -331,9 +325,6 @@ class ExtractValidationData(ExtractNSRDB):
 
 class ExtractTestData(ExtractNSRDB):
     """Extraction utilities for miscellaneous NSRDB test data sets."""
-
-    def __init__(self, target, source):
-        super().__init__(target, source)
 
     @classmethod
     def oregon_50(cls, dir_out, year=2015):

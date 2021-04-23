@@ -6,18 +6,20 @@ Created on Jan 23 2020
 
 @author: mbannist
 """
-import os
-import numpy as np
+from concurrent.futures import as_completed
+from datetime import datetime as dt
 import h5py
+import logging
+from multiprocessing import cpu_count
+import numpy as np
+import os
 from scipy import ndimage
 from scipy.spatial import cKDTree
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprocessing import cpu_count
-import logging
-from datetime import datetime as dt
 
-import nsrdb.albedo.modis as modis
+from rex.utilities.execution import SpawnProcessPool
+
 import nsrdb.albedo.ims as ims
+import nsrdb.albedo.modis as modis
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -37,13 +39,11 @@ WORLD = '''0.00833333
 # data from being clipped slightly too small due to mismatched projections.
 CLIP_MARGIN = 0.1  # degrees lat/long
 
-
 logger = logging.getLogger(__name__)
 
 
-class AlbedoError (Exception):
+class AlbedoError(Exception):
     """ Exceptions for albedo related errors """
-    pass
 
 
 class CompositeAlbedoDay:
@@ -352,7 +352,9 @@ class CompositeAlbedoDay:
         futures = {}
         chunks = np.array_split(modis_pts, cpu_count())
         now = dt.now()
-        with ProcessPoolExecutor(max_workers=self._max_workers) as exe:
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers,
+                              max_workers=self._max_workers) as exe:
             for i, chunk in enumerate(chunks):
                 future = exe.submit(self._run_single_tree, ims_tree, chunk)
                 meta = {'id': i}
@@ -376,7 +378,7 @@ class CompositeAlbedoDay:
         # Merge all returned indices
         ind = np.empty((len(modis_pts)), dtype=int)
         pos = 0
-        for key in futures.keys():
+        for key in futures:
             size = len(key.result())
             ind[pos:pos + size] = key.result()
             pos += size
@@ -415,7 +417,8 @@ class CompositeAlbedoDay:
 
         return ims_bin_mskd, ims_pts
 
-    def _get_modis_pts(self, lon_pts, lat_pts):
+    @staticmethod
+    def _get_modis_pts(lon_pts, lat_pts):
         """
         Create 2D numpy array representing lon/lats of MODIS pixels
 

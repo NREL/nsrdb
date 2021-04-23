@@ -2,17 +2,16 @@
 """
 NSRDB east-west blend command line interface (cli).
 """
-import os
 import click
 import logging
+import os
 import time
 
+from rex.utilities.cli_dtypes import STR, INT
 from rex.utilities.hpc import SLURM
+from rex.utilities.loggers import init_logger
 
-from nsrdb.utilities.loggers import init_logger
-from nsrdb.utilities.cli_dtypes import STR, INT
 from nsrdb.blend.blend import Blender
-
 
 logger = logging.getLogger(__name__)
 

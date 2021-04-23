@@ -31,24 +31,24 @@ class variables in Ancillary() below.
      'wind_speed',
      'dew_point')
 """
-
-import numpy as np
-import pandas as pd
-import os
+from concurrent.futures import as_completed
 import logging
+import numpy as np
+import os
+import pandas as pd
 import psutil
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import time
 from scipy.spatial import cKDTree
+import time
 from warnings import warn
 
+from rex.utilities.execution import SpawnProcessPool
+
 from nsrdb import DATADIR
+from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn, knn
-from nsrdb.data_model.variable_factory import VarFactory
-from nsrdb.file_handlers.outputs import Outputs
-
 
 logger = logging.getLogger(__name__)
 
@@ -705,7 +705,9 @@ class DataModel:
             logger.info('Starting cloud data retrieval with {} futures '
                         '(cloud timesteps) with {} parallel workers.'
                         .format(len(var_obj.flist), max_workers_cloud_io))
-            with ProcessPoolExecutor(max_workers=max_workers_cloud_io) as exe:
+            loggers = ['nsrdb']
+            with SpawnProcessPool(loggers=loggers,
+                                  max_workers=max_workers_cloud_io) as exe:
                 # extract the regrided data for all timesteps
                 for i, (timestamp, obj) in enumerate(var_obj):
                     assert timestamp == self.nsrdb_ti[i]
@@ -803,7 +805,8 @@ class DataModel:
         logger.debug('Starting local cluster with {} workers.'
                      .format(max_workers))
         regrid_ind = {}
-        with ProcessPoolExecutor(max_workers=max_workers) as exe:
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
             for fpath in flist:
                 regrid_ind[fpath] = exe.submit(
@@ -1223,7 +1226,8 @@ class DataModel:
         futures = {}
         logger.debug('Starting local cluster with {} workers.'
                      .format(max_workers))
-        with ProcessPoolExecutor(max_workers=max_workers) as exe:
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
                 futures[var] = exe.submit(

@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """NSRDB east/west blending utilities.
 """
-import os
 import logging
 import numpy as np
+import os
 import pandas as pd
 from warnings import warn
 
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.data_model import VarFactory
-
 
 logger = logging.getLogger(__name__)
 

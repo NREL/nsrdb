@@ -2,23 +2,26 @@
 """
 Cloud Properties filling using phgynn
 """
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import as_completed
 import logging
 import numpy as np
-import pandas as pd
 import os
-import shutil
+import pandas as pd
 import psutil
+import shutil
 import time
 from warnings import warn
 
-from nsrdb.all_sky import ICE_TYPES, WATER_TYPES
-from nsrdb.gap_fill.cloud_fill import CloudGapFill
-from nsrdb.file_handlers.outputs import Outputs, Resource
-from nsrdb.data_model.variable_factory import VarFactory
-from phygnn import PhygnnModel
+from farms import ICE_TYPES, WATER_TYPES
 from mlclouds import MODEL_FPATH
+from phygnn import PhygnnModel
 from rex import MultiFileNSRDB
+from rex.utilities.execution import SpawnProcessPool
+
+from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.file_handlers.resource import Resource
+from nsrdb.gap_fill.cloud_fill import CloudGapFill
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +320,9 @@ class MLCloudsFill:
             logger.info('Interpolating feature data with {} max workers'
                         .format(max_workers))
             futures = {}
-            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+            loggers = ['nsrdb', 'rex', 'phygnn']
+            with SpawnProcessPool(loggers=loggers,
+                                  max_workers=max_workers) as exe:
                 for c, d in feature_data.items():
                     if c not in self.phygnn_model.label_names:
                         future = exe.submit(self._clean_array, c, d)
@@ -879,7 +884,9 @@ class MLCloudsFill:
             futures = {}
             logger.info('Starting process pool for parallel phygnn cloud '
                         'fill with {} workers.'.format(max_workers))
-            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+            loggers = ['nsrdb', 'rex', 'phygnn']
+            with SpawnProcessPool(loggers=loggers,
+                                  max_workers=max_workers) as exe:
                 for col_slice in slices:
                     future = exe.submit(obj._prep_chunk, h5_source,
                                         model_path=model_path,

@@ -13,8 +13,11 @@ import numpy as np
 import h5py
 import tempfile
 from click.testing import CliRunner
-
 import nsrdb.albedo.cli as cli
+from rex.utilities.loggers import LOGGERS
+
+pytest.importorskip("pyhdf")
+
 
 BASE_DIR = os.path.dirname(__file__)
 TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
@@ -22,6 +25,7 @@ TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
 
 @pytest.fixture(scope="module")
 def runner():
+    """ Runner for testing click CLIs """
     return CliRunner()
 
 
@@ -55,6 +59,7 @@ def test_cli_4km_data(runner):
             wrong_data = np.array(f['surface_albedo'])
 
         assert not np.array_equal(wrong_data, new_data)
+        LOGGERS.clear()
 
 
 def test_cli_1km_data(runner):
@@ -86,6 +91,7 @@ def test_cli_1km_data(runner):
         with h5py.File(fname, 'r') as f:
             wrong_data = np.array(f['surface_albedo'])
         assert not np.array_equal(wrong_data, new_data)
+        LOGGERS.clear()
 
 
 def execute_pytest(capture='all', flags='-rapP'):

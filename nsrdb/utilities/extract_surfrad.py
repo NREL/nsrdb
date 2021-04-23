@@ -4,10 +4,11 @@ Created on Tue Mar 12 16:50:16 2019
 
 @author: gbuster
 """
+import h5py
+import numpy as np
 import os
 import pandas as pd
-import numpy as np
-import h5py
+
 from nsrdb.all_sky import SZA_LIM
 
 
@@ -127,11 +128,11 @@ def get_dat_table(d, flist):
 
     df = pd.DataFrame(annual_table, columns=DAT_COLS)
     df = df.rename(DAT_MAPPING, axis='columns')
-    df['time_string'] = (df['year'] +
-                         df['month'].str.zfill(2) +
-                         df['day'].str.zfill(2) +
-                         df['hour'].str.zfill(2) +
-                         df['min'].str.zfill(2))
+    df['time_string'] = (df['year']
+                         + df['month'].str.zfill(2)
+                         + df['day'].str.zfill(2)
+                         + df['hour'].str.zfill(2)
+                         + df['min'].str.zfill(2))
 
     ti = pd.to_datetime(df['time_string'], format='%Y%m%d%H%M')
     df.index = ti

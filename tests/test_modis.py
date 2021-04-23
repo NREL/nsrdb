@@ -8,12 +8,14 @@ Created on Jan 17th 2020
 """
 import os
 import pytest
-import nsrdb.albedo.modis as modis
-from nsrdb.albedo.ims import get_dt
 import tempfile
 from datetime import datetime as dt
 
+pytest.importorskip("pyhdf")
+import nsrdb.albedo.modis as modis
+from nsrdb.albedo.ims import get_dt
 from nsrdb import TESTDATADIR
+
 MODISTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 
 
@@ -70,20 +72,20 @@ def test_last_year():
                                f'{modis.LAST_YEAR}_V006.hdf'
 
         mfa = modis.ModisFileAcquisition(d3, td)
-        assert mfa.filename == f'MCD43GF_wsa_shortwave_110_' + \
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_110_' + \
                                f'{modis.LAST_YEAR}_V006.hdf'
 
         # Verify leap years after 2017 are handled properly
         mfa = modis.ModisFileAcquisition(get_dt(2020, 1), td)
-        assert mfa.filename == f'MCD43GF_wsa_shortwave_001_' + \
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_001_' + \
                                f'{modis.LAST_YEAR}_V006.hdf'
 
         mfa = modis.ModisFileAcquisition(get_dt(2020, 365), td)
-        assert mfa.filename == f'MCD43GF_wsa_shortwave_365_' + \
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_365_' + \
                                f'{modis.LAST_YEAR}_V006.hdf'
 
         mfa = modis.ModisFileAcquisition(get_dt(2020, 366), td)
-        assert mfa.filename == f'MCD43GF_wsa_shortwave_365_' + \
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_365_' + \
                                f'{modis.LAST_YEAR}_V006.hdf'
 
 

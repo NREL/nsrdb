@@ -4,12 +4,12 @@ Created on Mon Dec  9 09:11:49 2019
 
 @author: gbuster
 """
-
-import time
 import numpy as np
+import time
 from warnings import warn
-from nsrdb.file_handlers.resource import Resource
+
 from nsrdb.data_model import VarFactory
+from nsrdb.file_handlers.resource import Resource
 
 
 def run_checks(fp, i0, iend, step=1000):

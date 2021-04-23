@@ -4,22 +4,17 @@ Created on Fri April 26 2019
 
 @author: gbuster
 """
-import os
 from copy import deepcopy
 import logging
 import numpy as np
+import os
 import pandas as pd
 from warnings import warn
 
-from nsrdb.all_sky import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES
+from farms import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
 
-from nsrdb.file_handlers.resource import Resource
 from nsrdb.file_handlers.outputs import Outputs
-
-
-# clean all cloud properties when SZA < 90 (any possibility of daylight)
-SZA_LIM = 90
-
+from nsrdb.file_handlers.resource import Resource
 
 logger = logging.getLogger(__name__)
 

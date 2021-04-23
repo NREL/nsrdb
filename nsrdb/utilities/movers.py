@@ -3,19 +3,18 @@
 
 @author: gbuster
 """
-
+import h5py
 import logging
 import numpy as np
-import pandas as pd
 import os
-import h5py
+import pandas as pd
 import time
 from warnings import warn
 
-from nsrdb.utilities.file_utils import repack_h5
-from nsrdb.utilities.loggers import init_logger
 from rex.utilities.hpc import SLURM, PBS
+from rex.utilities.loggers import init_logger
 
+from nsrdb.utilities.file_utils import repack_h5
 
 logger = logging.getLogger(__name__)
 
@@ -104,28 +103,28 @@ def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
                 if not os.path.exists(f):
                     warn('!!! Warning, does not exist: {}'
                          .format(f))
-            else:
-                logger.info('\n=====================\n{}'.format(fname))
-                dsets = get_dset_list(fname1)
+        else:
+            logger.info('\n=====================\n{}'.format(fname))
+            dsets = get_dset_list(fname1)
 
-                for dset in dsets:
-                    if dset not in ignore:
-                        logger.info(dset)
+            for dset in dsets:
+                if dset not in ignore:
+                    logger.info(dset)
 
-                        d1 = pull_data(fname1, dset, slc)
-                        d2 = pull_data(fname2, dset, slc)
-                        delta = d1 - d2
-                        del_per_num = np.sum(delta) / (d1.shape[0] *
-                                                       d1.shape[1])
+                    d1 = pull_data(fname1, dset, slc)
+                    d2 = pull_data(fname2, dset, slc)
+                    delta = d1 - d2
+                    del_per_num = (np.sum(delta)
+                                   / (d1.shape[0] * d1.shape[1]))
 
-                        logger.info(del_per_num)
+                    logger.info(del_per_num)
 
-                        if np.abs(del_per_num) > 1:
-                            raise ValueError('Error found in {} in {}. '
-                                             .format(dset, fname1))
-                        else:
-                            logger.info('Dataset "{}" is same between {} and '
-                                        '{}'.format(dset, fname1, fname2))
+                    if np.abs(del_per_num) > 1:
+                        raise ValueError('Error found in {} in {}. '
+                                         .format(dset, fname1))
+                    else:
+                        logger.info('Dataset "{}" is same between {} and '
+                                    '{}'.format(dset, fname1, fname2))
 
 
 def interrogate_dset(fname, dset):
@@ -213,9 +212,9 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
                     start = end
                     end = np.min([start + chunk, shape[1]])
                     # make sure to unscale and re-scale the target data.
-                    target[dset][:, start:end] = (source[dset][:, start:end] /
-                                                  old_scale *
-                                                  new_scale_factor)
+                    target[dset][:, start:end] = (source[dset][:, start:end]
+                                                  / old_scale
+                                                  * new_scale_factor)
                     min_elapsed = (time.time() - t1) / 60
                     logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
                                 ' Time elapsed: {4:.2f} minutes.'
@@ -272,8 +271,9 @@ def update_dset(source_f, target_f, dsets, start=0):
     source_meta = get_meta_df(source_f)
     target_meta = get_meta_df(target_f)
 
-    if (all(source_meta['latitude'] != target_meta['latitude']) or
-            all(source_meta['longitude'] != target_meta['longitude'])):
+    check = (all(source_meta['latitude'] != target_meta['latitude'])
+             or all(source_meta['longitude'] != target_meta['longitude']))
+    if check:
         raise ValueError('Meta data coordinate arrays do not match between '
                          '{} and {}. Data updating should not be performed.'
                          .format(source_f, target_f))

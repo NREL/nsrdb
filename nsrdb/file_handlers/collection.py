@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
 """NSRDB chunked file collection tools.
 """
-import time
+from concurrent.futures import as_completed
 import datetime
 import json
-import numpy as np
-import pandas as pd
-import os
 import logging
+import numpy as np
+import os
+import pandas as pd
 import psutil
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import time
+
+from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.pipeline import Status
-from nsrdb.utilities.loggers import init_logger
-
 
 logger = logging.getLogger(__name__)
 
@@ -410,7 +411,9 @@ class Collector:
 
             futures = []
             completed = 0
-            with ProcessPoolExecutor(max_workers=max_workers) as exe:
+            loggers = ['nsrdb']
+            with SpawnProcessPool(loggers=loggers,
+                                  max_workers=max_workers) as exe:
                 for fname in flist:
                     fpath = os.path.join(collect_dir, fname)
                     futures.append(exe.submit(Collector.get_data, fpath, dset,

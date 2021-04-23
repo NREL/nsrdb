@@ -6,16 +6,16 @@ Mike Bannister
 1/29/2020
 """
 import click
-import sys
-import os
-import logging
 from datetime import datetime as dt
 from datetime import timedelta
+import logging
+import os
+import sys
 
 from rex.utilities.hpc import SLURM
-from nsrdb.utilities.cli_dtypes import STR, INT
+from rex.utilities.loggers import init_logger
+from rex.utilities.cli_dtypes import STR, INT
 
-from nsrdb.utilities.loggers import init_logger
 from nsrdb.albedo.albedo import CompositeAlbedoDay
 from nsrdb.albedo.ims import get_dt
 

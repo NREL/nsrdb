@@ -15,6 +15,7 @@ apparent_zenith_angle = SPA.zenith(time_index, lat_lon, elev=elev,
 """
 import numpy as np
 import pandas as pd
+
 from nsrdb.solar_position.spa_tables import SPAtables, DeltaTable
 
 SPA_TABLES = SPAtables()

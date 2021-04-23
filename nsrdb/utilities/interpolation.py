@@ -9,8 +9,25 @@ import logging
 import numpy as np
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
+
+
+def remove_tz(ti):
+    """Remove the timezone awareness of a DatetimeIndex if the tz is "UTC"
+
+    Parameters
+    ----------
+    ti : pd.DatetimeIndex
+        Pandas DatetimeIndex object
+
+    Returns
+    -------
+    ti : pd.DatetimeIndex
+        Time index with tz removed if utc was input
+    """
+    if str(ti.tz) == 'UTC':
+        ti = ti.tz_convert(None)
+    return ti
 
 
 def temporal_lin(array, ti_native, ti_new):
@@ -30,6 +47,8 @@ def temporal_lin(array, ti_native, ti_new):
     array : np.ndarray
         Data at new temporal resolution
     """
+    ti_native = remove_tz(ti_native)
+    ti_new = remove_tz(ti_new)
 
     array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
         .interpolate(method='linear', axis=0).values
@@ -54,6 +73,8 @@ def temporal_step(array, ti_native, ti_new):
     array : np.ndarray
         Data at new temporal resolution
     """
+    ti_native = remove_tz(ti_native)
+    ti_new = remove_tz(ti_new)
 
     if array.shape[0] > 1:
         array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
@@ -124,8 +145,8 @@ def idw(data, indices, distance, p=2, dist_thresh=None):
     weight[rows, 1:] = 0
 
     # calculate the IDW
-    data_idw = (np.sum(weight * data[indices], axis=1) /
-                np.sum(weight, axis=1))
+    data_idw = (np.sum(weight * data[indices], axis=1)
+                / np.sum(weight, axis=1))
 
     if dist_thresh is not None:
         data_idw = np.where(distance[:, 0] < dist_thresh, data_idw, np.nan)

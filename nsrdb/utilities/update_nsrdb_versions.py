@@ -3,9 +3,8 @@
 
 @author: gbuster
 """
-
-import os
 import h5py
+import os
 
 root_dir = '/lustre/eaglefs/projects/pxs/nsrdb/v3.0.1/'
 

@@ -10,7 +10,6 @@ import numpy as np
 from scipy.spatial import cKDTree
 from sklearn.neighbors import BallTree
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -57,6 +56,7 @@ def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude')):
     logger.debug('Building lat/lon cKDTrees with lengths {} and {} '
                  'respectively for a regular grid.'
                  .format(len(latitude), len(longitude)))
+    # pylint: disable=not-callable
     lat_tree = cKDTree(latitude)
     lon_tree = cKDTree(longitude)
 
@@ -72,6 +72,7 @@ def reg_grid_nn(latitude, longitude, df, labels=('latitude', 'longitude')):
     # convert corresponding 2D arrays to flattened index
     out = np.ravel_multi_index([lat_ind, lon_ind],
                                (len(latitude), len(longitude)))
+    # pylint: disable=no-member
     out = out.astype(np.uint32)
 
     return out
@@ -104,6 +105,7 @@ def knn(df1, df2, labels=('latitude', 'longitude'), k=1):
 
     logger.debug('Building cKDTrees for {} coordinates.'
                  .format(len(df1)))
+    # pylint: disable=not-callable
     tree = cKDTree(df1[labels].values)
 
     logger.debug('Querying cKDTrees for {} coordinates.'

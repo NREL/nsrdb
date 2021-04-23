@@ -1,25 +1,26 @@
 # -*- coding: utf-8 -*-
 """NSRDB all-sky module.
 """
-
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import os
+from concurrent.futures import as_completed
+import logging
 import numpy as np
+import os
 import pandas as pd
 import psutil
-import logging
 from warnings import warn
 
 from rex import MultiFileResource, Resource
+from rex.utilities import SpawnProcessPool
 
-from nsrdb.all_sky.disc import disc
-from nsrdb.all_sky.rest2 import rest2, rest2_tuuclr
-from nsrdb.all_sky.farms import farms
-from nsrdb.all_sky import SZA_LIM
-from nsrdb.all_sky.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
-                                     calc_dhi, screen_sza, screen_cld,
-                                     dark_night, cloud_variability,
-                                     scale_all_sky_outputs)
+from farms import SZA_LIM
+from farms.disc import disc
+from farms.farms import farms
+from farms.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
+                             calc_dhi, screen_sza, screen_cld,
+                             dark_night, cloud_variability)
+from rest2.rest2 import rest2, rest2_tuuclr
+
+from nsrdb.all_sky.utilities import scale_all_sky_outputs
 from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
                                             missing_cld_props,
                                             enforce_clearsky)
@@ -344,7 +345,8 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
     logger.info('Running all-sky in parallel on {} workers.'
                 .format(max_workers))
 
-    with ProcessPoolExecutor(max_workers=max_workers) as exe:
+    loggers = ['farms', 'nsrdb', 'rest2', 'rex']
+    with SpawnProcessPool(max_workers=max_workers, loggers=loggers) as exe:
         futures = {exe.submit(all_sky_h5, f_source, rows=rows,
                               cols=c_slices_all[c]): c for c in c_range}
 

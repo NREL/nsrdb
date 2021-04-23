@@ -1,18 +1,18 @@
 """
 NSRDB Sky Classification utility using SURFRAD + Clearsky Irradiance.
 """
-from scipy.stats import mode
+import logging
 import numpy as np
 import pandas as pd
-import logging
+from scipy.stats import mode
 
+from farms import SZA_LIM
+from farms.utilities import ti_to_radius, calc_beta
+from rest2.rest2 import rest2
 from rex import MultiFileResource, Resource
+
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 from nsrdb.file_handlers.surfrad import Surfrad
-from nsrdb.all_sky import SZA_LIM
-from nsrdb.all_sky.utilities import ti_to_radius, calc_beta
-from nsrdb.all_sky.rest2 import rest2
-
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class SkyClass:
     @property
     def nsrdb_time_index(self):
         """Get the datetimeindex from the nsrdb h5 file"""
-        return self.nsrdb.time_index.tz_localize(None)
+        return self.nsrdb.time_index
 
     @property
     def surf_ghi(self):

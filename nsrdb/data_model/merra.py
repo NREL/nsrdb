@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MERRA2 source data."""
-
-import numpy as np
-import pandas as pd
-import os
-import netCDF4
 import logging
+import netCDF4
+import numpy as np
+import os
+import pandas as pd
 
 from nsrdb import DATADIR
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-
 
 logger = logging.getLogger(__name__)
 

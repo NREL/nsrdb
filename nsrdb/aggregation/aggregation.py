@@ -4,27 +4,27 @@
  - 2km 15min East -> 4km 30min NSRDB PSM v3 Meta
  - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import as_completed
 import h5py
-import os
 import json
-import pickle
 import logging
 import numpy as np
+import os
 import pandas as pd
-from scipy.stats import mode
+import pickle
 from scipy.spatial import cKDTree
+from scipy.stats import mode
 from warnings import warn
 
+from farms.utilities import calc_dhi
+from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.hpc import SLURM
+from rex.utilities.loggers import init_logger
 
-from nsrdb.all_sky.utilities import calc_dhi
-from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
-from nsrdb.utilities.plots import Spatial
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import temporal_step
-from nsrdb.utilities.loggers import init_logger
-
+from nsrdb.utilities.plots import Spatial
 
 logger = logging.getLogger(__name__)
 
@@ -1168,11 +1168,11 @@ class Manager:
                 s1 = int(sres.replace('km', ''))
                 s2 = int(final_sres.replace('km', ''))
                 k = (s2 ** 2) / (s1 ** 2)
-            except Exception:
+            except Exception as e:
                 msg = ('Could not parse spatial resolution from: '
                        '"{}", "{}"'.format(sres, final_sres))
                 logger.error(msg)
-                raise ValueError(msg)
+                raise ValueError(msg) from e
             else:
                 k = int(np.ceil(k))
 
@@ -1307,6 +1307,7 @@ class Manager:
 
         elif os.path.exists(meta_fpath):
             meta_source = pd.read_csv(meta_fpath)
+            # pylint: disable=not-callable
             tree = cKDTree(meta_source[['latitude', 'longitude']])
             with open(tree_fpath, 'wb') as pkl:
                 pickle.dump(tree, pkl)
@@ -1436,7 +1437,8 @@ class Manager:
         futures = {}
         arr = self._init_arr(var)
 
-        with ProcessPoolExecutor() as exe:
+        loggers = ['farms', 'nsrdb']
+        with SpawnProcessPool(loggers=loggers) as exe:
             logger.debug('Submitting futures...')
             for i in range(len(self.meta_chunk)):
                 args = self._get_args(var, i)
@@ -1464,7 +1466,7 @@ class Manager:
         var : str
             Variable (dataset) name to write to.
         """
-        logger.debug('Writing data for "{}".'.format(var))
+        logger.debug('Writing data for "{}" to: {}.'.format(var, self.fout))
         with Outputs(self.fout, mode='a') as out:
             out[var] = arr
 

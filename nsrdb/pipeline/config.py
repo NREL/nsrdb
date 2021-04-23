@@ -6,9 +6,8 @@ Created on May 28 2019
 
 @author: gbuster
 """
-
-from reV.config.pipeline import PipelineConfig
 from reV.config.base_analysis_config import AnalysisConfig
+from reV.config.pipeline import PipelineConfig
 from reV.utilities.exceptions import ConfigError
 
 

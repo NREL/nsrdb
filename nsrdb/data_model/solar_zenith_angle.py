@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MERRA2 source data."""
-import numpy as np
 import logging
-from nsrdb.solar_position.spa import SPA
+import numpy as np
 
+from nsrdb.solar_position.spa import SPA
 
 logger = logging.getLogger(__name__)
 

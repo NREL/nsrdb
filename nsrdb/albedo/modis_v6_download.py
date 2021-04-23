@@ -10,12 +10,15 @@ https://wiki.earthdata.nasa.gov/display/
 Mike Bannister
 2/27/2020
 """
-import os
 from datetime import datetime as dt
 from datetime import timedelta
+import os
 
 
 def main():
+    """
+    Download MODIS V6 data
+    """
     start = dt(2017, 1, 1)
     end = dt(2017, 12, 31)
 

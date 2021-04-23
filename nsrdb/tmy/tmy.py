@@ -5,19 +5,20 @@ Created on Wed Oct 23 10:55:23 2019
 
 @author: gbuster
 """
-import json
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import as_completed
 from copy import deepcopy
-import h5py
-import os
-import shutil
-import pandas as pd
-import numpy as np
 import datetime
+import h5py
 from itertools import groupby
+import json
 import logging
+import numpy as np
+import os
+import pandas as pd
+import shutil
 
 from rex.utilities.hpc import SLURM
+from rex.utilities.execution import SpawnProcessPool
 
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource
@@ -1743,7 +1744,8 @@ class TmyRunner:
     def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
         futures = {}
-        with ProcessPoolExecutor() as exe:
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers) as exe:
             logger.info('Kicking off {} futures.'
                         .format(len(self.site_chunks)))
             for i, site_slice in enumerate(self.site_chunks):

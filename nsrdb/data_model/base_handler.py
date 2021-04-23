@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
-
-import os
-import numpy as np
-import pandas as pd
 import logging
+import numpy as np
+import os
+import pandas as pd
 from warnings import warn
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
-
 
 logger = logging.getLogger(__name__)
 

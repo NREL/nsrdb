@@ -7,6 +7,7 @@ Created on Tue Jul  9 10:52:44 2019
 """
 import numpy as np
 import pandas as pd
+
 from nsrdb.file_handlers.resource import Resource
 
 
@@ -53,9 +54,9 @@ class Surfrad(Resource):
             Number of index values that the window will be over
         """
 
-        one_hr_mask = ((df.index.hour < 1) &
-                       (df.index.day == 1) &
-                       (df.index.month == 1))
+        one_hr_mask = ((df.index.hour < 1)
+                       & (df.index.day == 1)
+                       & (df.index.month == 1))
         n_steps = len(np.where(one_hr_mask)[0])
         window = int(np.ceil((window_minutes / 60) * n_steps))
 
@@ -113,7 +114,7 @@ class Surfrad(Resource):
         # final time index
         ti = pd.date_range('1-1-{y}'.format(y=year),
                            '1-1-{y}'.format(y=year + 1),
-                           freq=dt_out)[:-1]
+                           freq=dt_out, tz='UTC')[:-1]
         df_out = pd.DataFrame(index=ti)
         df_temp = pd.DataFrame(index=ti).join(self.native_df, how='outer')
 

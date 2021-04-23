@@ -16,7 +16,7 @@ import h5py
 from nsrdb import CONFIGDIR, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.data_model.clouds import CloudVarSingleH5
-from nsrdb.utilities.loggers import init_logger
+from rex.utilities.loggers import init_logger
 
 RTOL = 0.001
 ATOL = 0.001

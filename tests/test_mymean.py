@@ -9,41 +9,41 @@ Created on Feb 13th 2019
 import os
 import pytest
 import numpy as np
+import tempfile
+
 from nsrdb import TESTDATADIR
 from nsrdb.mymean.mymean import MyMean
 from nsrdb.file_handlers.outputs import Outputs
 
 
 NSRDB_DIR = os.path.join(TESTDATADIR, 'validation_nsrdb/')
-OUT_DIR = os.path.join(TESTDATADIR, 'temp_out/')
 
 
 def test_mymean():
     """Test multiyear mean"""
-    flist = [os.path.join(NSRDB_DIR, 'nsrdb_surfrad_{}.h5'.format(y))
-             for y in range(1998, 2001)]
-    fout = os.path.join(OUT_DIR, 'mymean.h5')
-    dset = 'ghi'
-    MyMean.run(flist, fout, dset, process_chunk=2)
+    with tempfile.TemporaryDirectory() as td:
+        flist = [os.path.join(NSRDB_DIR, 'nsrdb_surfrad_{}.h5'.format(y))
+                 for y in range(1998, 2001)]
+        fout = os.path.join(td, 'mymean.h5')
+        dset = 'ghi'
+        MyMean.run(flist, fout, dset, process_chunk=2, parallel=False)
 
-    with Outputs(fout, mode='r') as out:
-        print(out.get_attrs(dset=dset))
-        data = out[dset]
+        with Outputs(fout, mode='r') as out:
+            print(out.get_attrs(dset=dset))
+            data = out[dset]
 
-    truth = None
-    for f in flist:
-        with Outputs(f, mode='r') as out:
-            temp = out[dset]
-        if truth is None:
-            truth = temp.mean(axis=0)
-        else:
-            truth += temp.mean(axis=0)
+        truth = None
+        for f in flist:
+            with Outputs(f, mode='r') as out:
+                temp = out[dset]
+            if truth is None:
+                truth = temp.mean(axis=0)
+            else:
+                truth += temp.mean(axis=0)
 
-    truth = truth / len(flist) / 1000 * 24
+        truth = truth / len(flist) / 1000 * 24
 
-    assert np.allclose(data, truth, atol=1)
-
-    os.remove(fout)
+        assert np.allclose(data, truth, atol=1)
 
 
 def execute_pytest(capture='all', flags='-rapP'):
