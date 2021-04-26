@@ -336,7 +336,7 @@ class MLCloudsFill:
         feature_data['cld_reff_dcomp'][~cloudy] = 0.0
 
         assert ~(feature_data['cloud_type'] < 0).any()
-        assert ~any([np.isnan(d).any() for d in feature_data.values()])
+        assert ~any(np.isnan(d).any() for d in feature_data.values())
         assert ~(cloudy & (feature_data['cld_opd_dcomp'] <= 0)).any()
         assert ~(cloudy & (feature_data['cld_reff_dcomp'] <= 0)).any()
 
