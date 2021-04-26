@@ -321,6 +321,9 @@ class NSRDB:
             if log_file is not None and use_log_dir:
                 log_file = os.path.join(self._log_dir, log_file)
 
+                if not os.path.exists(os.path.dirname(log_file)):
+                    os.makedirs(os.path.dirname(log_file))
+
             if isinstance(date, datetime.date) and log_file is not None:
                 doy = str(date.timetuple().tm_yday).zfill(3)
                 date_str = ('{}{}{}'.format(date.year,

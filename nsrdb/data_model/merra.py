@@ -276,6 +276,9 @@ class RelativeHumidity:
         logger.info('Deriving Relative Humidity from temperature, '
                     'humidity, and pressure')
 
+        if np.issubdtype(p.dtype, np.integer):
+            p = p.astype(np.float32)
+
         # ensure that Pressure is in Pa (scale from mbar if not)
         convert_p = False
         if np.max(p) < 10000:
