@@ -122,7 +122,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         time_index = pd.to_datetime(time_index.astype(str))
 
     # do not all-sky irradiance gap fill previously filled cloud props
-    flags_to_fill = list(range(1, 7))
+    flags_to_fill = list(range(1, 100))
     if cloud_fill_flag is not None:
         already_filled = np.unique(cloud_fill_flag)
         flags_to_fill = list(set(flags_to_fill) - set(already_filled))
