@@ -42,12 +42,12 @@ jobs:
       working-directory: ./rest2
       shell: bash -l {0}
       run: |
+        conda install pip
         pip install -e .
     - name: Install nsrdb dependencies
       working-directory: ./nsrdb
       shell: bash -l {0}
       run: |
-        conda install pip
         conda install hdf4
         conda install -c conda-forge pyhdf
         pip install -e .
