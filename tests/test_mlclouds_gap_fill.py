@@ -43,9 +43,15 @@ def test_missing_file(date='20190102'):
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
 
-@pytest.mark.parametrize(('col_chunk', 'max_workers'),
-                         ((None, 1), (3, 1), (2, 2), (None, 2)))
-def test_mlclouds_fill(col_chunk, max_workers, date='20190102'):
+@pytest.mark.parametrize(('col_chunk', 'max_workers', 'date'),
+                         ((None, 1, '20190102'),
+                          (3, 1, '20190102'),
+                          (2, 2, '20190102'),
+                          (None, 2, '20190102'),
+                          (None, 1, '20190103'),
+                          (None, 1, '20190104'),
+                          ))
+def test_mlclouds_fill(col_chunk, max_workers, date):
     """Test the mlclouds fill process on a daily output from the data model."""
     fp_ctype = os.path.join(DAILY_DIR, '{}_cloud_type_0.h5'.format(date))
     if os.path.exists(DAILY_DIR):
@@ -90,6 +96,7 @@ def test_mlclouds_fill(col_chunk, max_workers, date='20190102'):
 
     missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_opd <= 0)
     assert missing.any()
+
     assert (fill_opd[missing] > 0).all() & (np.isnan(fill_opd).sum() == 0)
     assert ((fill_flag[missing] == 7) | (fill_flag[missing] == 1)).all()
 

@@ -20,7 +20,8 @@ import time
 from rex import MultiFileResource, init_logger
 
 from nsrdb import __version__
-from nsrdb.all_sky.all_sky import all_sky_h5, all_sky_h5_parallel
+from nsrdb.all_sky.all_sky import (all_sky, all_sky_h5, all_sky_h5_parallel,
+                                   ALL_SKY_ARGS)
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
@@ -60,7 +61,8 @@ class NSRDB:
                                 'wind_direction',
                                 'wind_speed')}
 
-    def __init__(self, out_dir, year, grid, freq='5min', var_meta=None):
+    def __init__(self, out_dir, year, grid, freq='5min', var_meta=None,
+                 make_out_dirs=True):
         """
         Parameters
         ----------
@@ -77,6 +79,8 @@ class NSRDB:
         var_meta : str | None
             File path to NSRDB variables meta data. None will use the default
             file from the github repo.
+        make_out_dirs : bool
+            Flag to make output directories for logs, daily, collect, and final
         """
 
         self._out_dir = out_dir
@@ -84,14 +88,15 @@ class NSRDB:
         self._daily_dir = os.path.join(out_dir, 'daily/')
         self._collect_dir = os.path.join(out_dir, 'collect/')
         self._final_dir = os.path.join(out_dir, 'final/')
-        self.make_out_dir()
         self._year = int(year)
         self._grid = grid
         self._freq = freq
         self._var_meta = var_meta
         self._ti = None
+        if make_out_dirs:
+            self.make_out_dirs()
 
-    def make_out_dir(self):
+    def make_out_dirs(self):
         """Ensure that all output directories exist"""
         all_dirs = [self._out_dir, self._log_dir, self._daily_dir,
                     self._collect_dir, self._final_dir]
@@ -286,7 +291,8 @@ class NSRDB:
         return fpath_out
 
     def _init_loggers(self, loggers=None, log_file='nsrdb.log',
-                      log_level='DEBUG', date=None, log_version=True):
+                      log_level='DEBUG', date=None, log_version=True,
+                      use_log_dir=True):
         """Initialize nsrdb loggers.
 
         Parameters
@@ -301,6 +307,8 @@ class NSRDB:
             initialized.
         date : None | datetime
             Optional date to put in the log file name.
+        use_log_dir : bool
+            Flag to use the class log directory (self._log_dir = ./logs/)
         """
 
         if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
@@ -310,9 +318,13 @@ class NSRDB:
                            'nsrdb.file_handlers', 'nsrdb.all_sky',
                            'nsrdb.gap_fill')
 
-            log_file = os.path.join(self._log_dir, log_file)
+            if log_file is not None and use_log_dir:
+                log_file = os.path.join(self._log_dir, log_file)
 
-            if isinstance(date, datetime.date):
+                if not os.path.exists(os.path.dirname(log_file)):
+                    os.makedirs(os.path.dirname(log_file))
+
+            if isinstance(date, datetime.date) and log_file is not None:
                 doy = str(date.timetuple().tm_yday).zfill(3)
                 date_str = ('{}{}{}'.format(date.year,
                                             str(date.month).zfill(2),
@@ -1096,3 +1108,108 @@ class NSRDB:
                       }
             Status.make_job_file(nsrdb._out_dir, 'daily-all-sky',
                                  job_name, status)
+
+    @classmethod
+    def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
+                 fill_all=False, model_path=None, dist_lim=1.0,
+                 log_file=None, log_level='INFO'):
+        """Run the full nsrdb pipeline in-memory using serial compute.
+
+        Parameters
+        ----------
+        date : datetime.date | str | int
+            Single day to extract ancillary data for.
+            Can be str or int in YYYYMMDD format.
+        grid : str | pd.DataFrame
+            CSV file containing the NSRDB reference grid to interpolate to,
+            or a pre-extracted (and reduced) dataframe. The first csv column
+            must be the NSRDB site gid's.
+        freq : str
+            Final desired NSRDB temporal frequency.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        factory_kwargs : dict | None
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
+        fill_all : bool
+            Flag to fill all cloud properties for all timesteps where
+            cloud_type is cloudy.
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
+        dist_lim : float
+            Return only neighbors within this distance during cloud regrid.
+            The distance is in decimal degrees (more efficient than real
+            distance). NSRDB sites further than this value from GOES data
+            pixels will be warned and given missing cloud types and properties
+            resulting in a full clearsky timeseries.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
+        log_file : str
+            File to log to. Will be put in output directory.
+
+        Returns
+        -------
+        data_model : nsrdb.data_model.DataModel
+            DataModel instance with all processed nsrdb variables available in
+            the DataModel.processed_data attribute.
+        """
+
+        t0 = time.time()
+        from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
+        date = cls.to_datetime(date)
+
+        nsrdb = cls('./', date.year, grid, freq=freq, var_meta=var_meta,
+                    make_out_dirs=False)
+        nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level,
+                            use_log_dir=False)
+
+        logger.info('Starting daily data model execution for {}-{}-{}'
+                    .format(date.month, date.day, date.year))
+
+        data_model = DataModel.run_multiple(
+            DataModel.ALL_VARS_ML, date, grid,
+            nsrdb_freq=freq,
+            var_meta=var_meta,
+            max_workers=1,
+            max_workers_regrid=1,
+            max_workers_cloud_io=1,
+            return_obj=True,
+            fpath_out=None,
+            scale=False,
+            dist_lim=dist_lim,
+            factory_kwargs=factory_kwargs)
+
+        logger.info('Finished daily data model execution for {}-{}-{}'
+                    .format(date.month, date.day, date.year))
+
+        data_model = MLCloudsFill.clean_data_model(data_model,
+                                                   fill_all=fill_all,
+                                                   model_path=model_path,
+                                                   var_meta=var_meta)
+
+        all_sky_inputs = {k: v for k, v in data_model.processed_data.items()
+                          if k in ALL_SKY_ARGS}
+        all_sky_inputs['time_index'] = data_model.nsrdb_ti
+        all_sky_inputs['scale_outputs'] = False
+        logger.info('Running NSRDB All-Sky.')
+        all_sky_out = all_sky(**all_sky_inputs)
+        for k, v in all_sky_out.items():
+            logger.debug('Sending all sky output "{}" to data model.'
+                         .format(k))
+            data_model[k] = v
+
+        logger.info('Finished running NSRDB All-Sky.')
+        runtime = (time.time() - t0) / 60
+        logger.info('NSRDB full processing job is complete in {:.2f} minutes.'
+                    .format(runtime))
+
+        return data_model
