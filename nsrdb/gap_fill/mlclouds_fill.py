@@ -63,12 +63,12 @@ class MLCloudsFill:
         if model_path is None:
             model_path = self.DEFAULT_MODEL
 
-        logger.debug('Initializing MLCloudsFill with h5_source: {}'
-                     .format(self._h5_source))
-        logger.debug('Initializing MLCloudsFill with model: {}'
-                     .format(model_path))
-        logger.debug('MLCloudsFill fill filling all cloud properties: {}'
-                     .format(self._fill_all))
+        logger.info('Initializing MLCloudsFill with h5_source: {}'
+                    .format(self._h5_source))
+        logger.info('Initializing MLCloudsFill with model: {}'
+                    .format(model_path))
+        logger.info('MLCloudsFill fill filling all cloud properties: {}'
+                    .format(self._fill_all))
         self._phygnn_model = PhygnnModel.load(model_path)
 
         if self.h5_source is not None:
