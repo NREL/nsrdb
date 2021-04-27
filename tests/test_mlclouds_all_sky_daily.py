@@ -28,7 +28,8 @@ DAILY_DIR = os.path.join(PROJECT_DIR, 'daily/')
 GRID = os.path.join(PROJECT_DIR, 'surfrad_meta.csv')
 
 
-def test_all_sky_daily(date='20190102'):
+@pytest.mark.parametrize('date', ('20190102', '20190103', '20190104'))
+def test_all_sky_daily(date):
     """Test the mlclouds fill on daily files then all sky from those files."""
     if os.path.exists(DAILY_DIR):
         shutil.rmtree(DAILY_DIR, ignore_errors=True)
@@ -52,8 +53,10 @@ def test_all_sky_daily(date='20190102'):
         cloud_fill_flag = res['cloud_fill_flag']
         ti = res.time_index
 
+    # DNI can be all 0 if its a very cloudy day
+    # tested below with the diffuse_mask
+
     assert ~(ghi == 0).all(axis=0).any()
-    assert ~(dni == 0).all(axis=0).any()
     assert ~(dhi == 0).all(axis=0).any()
     assert ~(sza == 0).all(axis=0).any()
     assert (fill_flag > 0).sum() > 50
