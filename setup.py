@@ -36,7 +36,10 @@ with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
 with open("requirements.txt") as f:
     install_requires = f.readlines()
 
-with open(os.path.join(here, "nsrdb", "version.py"), encoding="utf-8") as f:
+with open("requirements.txt") as f:
+    install_requires = f.readlines()
+
+with open(os.path.join(here, "reVX", "version.py"), encoding="utf-8") as f:
     version = f.read()
 
 version = version.split('=')[-1].strip().strip('"').strip("'")
