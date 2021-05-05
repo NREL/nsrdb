@@ -31,14 +31,12 @@ Installation
    ``pip``
 
     a. ``pip uninstall netCDF4``
-
     b. ``conda install netCDF4``
 
 5. Test your installation:
 
     a. Start ipython and test the following import:
        ``from nsrdb.data_model import DataModel``
-
     b. Navigate to the tests/ directory and run the command: ``pytest``
 
 6. If you are a developer, also run `pre-commit install` in the directory
@@ -48,7 +46,6 @@ NOTE: If you are trying to run the ``albedo`` sub-module you will need to
 install the following additional packages:
 
     a. ``conda install hdf4``
-
     b. ``conda install -c conda-forge pyhdf``
 
 NSRDB Versions
@@ -66,30 +63,25 @@ NSRDB Versions
       - 2015
       - 2005-2012
       - Initial release of PSM v1 (no FARMS)
-
         - Satellite Algorithm for Shortwave Radiation Budget (SASRAB) model
         - MMAC model for clear sky condition
         - The DNI for cloud scenes is then computed using the DISC model
-
     * - 2.0.0
       - 2016
       - 1998-2015
       - Initial release of PSM v2 (use of FARMS, downscaling of ancillary data
         introduced to account for elevation, NSRDB website distribution
         developed)
-
         - Clear sky: REST2, Cloudy sky: NREL FARMS model and DISC model
         - Climate Forecast System Reanalysis (CFSR) is used for ancillary data
         - Monthly 0.5º aerosol optical depth (AOD) for 1998-2014 using
           satellite and ground-based measurements. Monthly results interpolated
           to daily 4-km AOD data. Daily data calibrated using ground
           measurements to develop accurate AOD product.
-
     * - 3.0.0
       - 2018
       - 1998-2017
       - Initial release of PSM v3
-
         - Hourly AOD (1998-2016) from Modern-Era Retrospective analysis for
           Research and Applications Version 2 (MERRA2).
         - Snow-free Surface Albedo from MODIS (2001-2015), (MCD43GF CMG
@@ -102,7 +94,6 @@ NSRDB Versions
         - Modern-Era Retrospective analysis for Research and Applications,
           Version 2 (MERRA-2) is used for ancillary data (pressure, humidity,
           wind speed etc.)
-
     * - 3.0.1
       - 2018
       - 2017+
