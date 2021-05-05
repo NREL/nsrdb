@@ -10,7 +10,7 @@ RUN mkdir -p /nsrdb
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install --no-install-recommends -y \
     git \
     openssh-server \
     openssh-client
