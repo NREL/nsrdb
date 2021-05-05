@@ -63,9 +63,11 @@ NSRDB Versions
       - 2015
       - 2005-2012
       - Initial release of PSM v1 (no FARMS)
+
         - Satellite Algorithm for Shortwave Radiation Budget (SASRAB) model
         - MMAC model for clear sky condition
         - The DNI for cloud scenes is then computed using the DISC model
+
     * - 2.0.0
       - 2016
       - 1998-2015
@@ -78,10 +80,12 @@ NSRDB Versions
           satellite and ground-based measurements. Monthly results interpolated
           to daily 4-km AOD data. Daily data calibrated using ground
           measurements to develop accurate AOD product.
+
     * - 3.0.0
       - 2018
       - 1998-2017
       - Initial release of PSM v3
+
         - Hourly AOD (1998-2016) from Modern-Era Retrospective analysis for
           Research and Applications Version 2 (MERRA2).
         - Snow-free Surface Albedo from MODIS (2001-2015), (MCD43GF CMG
@@ -94,6 +98,7 @@ NSRDB Versions
         - Modern-Era Retrospective analysis for Research and Applications,
           Version 2 (MERRA-2) is used for ancillary data (pressure, humidity,
           wind speed etc.)
+
     * - 3.0.1
       - 2018
       - 2017+
