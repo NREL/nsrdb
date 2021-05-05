@@ -3,5 +3,4 @@ matplotlib
 NREL-farms>=1.0.3
 NREL-reV>=0.5.1
 NREL-rest2>=1.0.1
-pyhdf>=0.10.0
 scikit-learn>=0.22

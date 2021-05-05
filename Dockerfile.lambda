@@ -1,19 +1,16 @@
+
 # syntax=docker/dockerfile:1.0.0-experimental
 
 # Build command requires docker build kit and ssh key path
-# DOCKER_BUILDKIT=1 docker build --ssh github_ssh_key=<ssh_key_path> -t nsrdb -f Dockerfile .
+# DOCKER_BUILDKIT=1 docker build --ssh github_ssh_key=<ssh_key_path> -t nsrdb-lambda -f Dockerfile.lambda .
 
-FROM python:3.8-slim-buster
-
+FROM public.ecr.aws/lambda/python:3.8
+# Set working directory
 WORKDIR /nsrdb
 RUN mkdir -p /nsrdb
 
-# Install aws-lambda-cpp build dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    git \
-    openssh-server \
-    openssh-client
+# download public key for github.com
+RUN yum install -y git openssh-server openssh-clients
 
 # Copy package
 COPY . /nsrdb
@@ -27,4 +24,4 @@ RUN --mount=type=ssh,id=github_ssh_key pip install --no-cache-dir git+ssh://git@
 RUN pip install --no-cache-dir .
 RUN --mount=type=ssh,id=github_ssh_key pip install --no-cache-dir git+ssh://git@github.com/NREL/mlclouds.git
 
-ENTRYPOINT ["nsrdb"]
+CMD ["lambda.handler"]

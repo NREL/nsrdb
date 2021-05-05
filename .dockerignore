@@ -1,0 +1,7 @@
+# dot files and directories
+.*
+.*/
+# non-package directories
+config/
+data/
+tests/
