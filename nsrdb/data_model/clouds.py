@@ -220,6 +220,33 @@ class CloudVarSingle:
         """
         return self._grid
 
+    @staticmethod
+    def _clean_dup_coords(grid):
+        """Clean a cloud coordinate dataframe (grid) by manipulating
+        duplicate coordinate values.
+
+        Parameters
+        ----------
+        grid : pd.DataFrame
+            Grid dataframe with latitude and longitude columns and possibly
+            some duplicate coordinates.
+
+        Returns
+        -------
+        grid : pd.DataFrame
+            Grid dataframe with latitude and longitude columns and no duplicate
+            coordinates.
+        """
+
+        dup_mask = grid.duplicated()
+        if any(dup_mask):
+            rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
+            grid.loc[dup_mask, 'latitude'] *= rand_mult
+            rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
+            grid.loc[dup_mask, 'longitude'] *= rand_mult
+
+        return grid
+
 
 class CloudVarSingleH5(CloudVarSingle):
     """Framework for .h5 single-file/single-timestep cloud data extraction."""
@@ -245,7 +272,8 @@ class CloudVarSingleH5(CloudVarSingle):
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
-        self._grid = self._parse_grid(self._fpath, adjust_coords=adjust_coords)
+        self._grid = self._parse_grid(self._fpath, adjust_coords=adjust_coords,
+                                      pre_proc_flag=pre_proc_flag)
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
 
@@ -259,7 +287,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True):
+                    adjust_coords=True, pre_proc_flag=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -273,6 +301,8 @@ class CloudVarSingleH5(CloudVarSingle):
         adjust_coords : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
+        pre_proc_flag : bool
+            Flag to ensure there are no duplicate coordinates in grid.
 
         Returns
         -------
@@ -310,6 +340,9 @@ class CloudVarSingleH5(CloudVarSingle):
 
         if grid.empty:
             grid = None
+
+        if pre_proc_flag and grid is not None:
+            grid = cls._clean_dup_coords(grid)
 
         return grid
 
@@ -497,7 +530,8 @@ class CloudVarSingleNC(CloudVarSingle):
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
         self._grid, self._sparse_mask = self._parse_grid(
-            self._fpath, adjust_coords=adjust_coords)
+            self._fpath, adjust_coords=adjust_coords,
+            pre_proc_flag=pre_proc_flag)
 
     @property
     def dsets(self):
@@ -509,7 +543,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
     @classmethod
     def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True):
+                    adjust_coords=True, pre_proc_flag=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -523,6 +557,8 @@ class CloudVarSingleNC(CloudVarSingle):
         adjust_coords : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
+        pre_proc_flag : bool
+            Flag to ensure there are no duplicate coordinates in grid.
 
         Returns
         -------
@@ -579,6 +615,9 @@ class CloudVarSingleNC(CloudVarSingle):
                    'for: {}'.format(fpath))
             logger.warning(msg)
             warn(msg)
+
+        if pre_proc_flag and grid is not None:
+            grid = cls._clean_dup_coords(grid)
 
         return grid, sparse_mask
 
