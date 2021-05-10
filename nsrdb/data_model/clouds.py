@@ -238,12 +238,18 @@ class CloudVarSingle:
             coordinates.
         """
 
-        dup_mask = grid.duplicated()
+        dup_mask = grid.duplicated() & ~grid['latitude'].isna()
         if any(dup_mask):
             rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
             grid.loc[dup_mask, 'latitude'] *= rand_mult
             rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
             grid.loc[dup_mask, 'longitude'] *= rand_mult
+
+            wmsg = ('Cloud file had {} duplicate coordinates out of {} '
+                    '({:.2f}%)'.format(dup_mask.sum(), len(grid),
+                                       100 * dup_mask.sum() / len(grid)))
+            warn(wmsg)
+            logger.warning(wmsg)
 
         return grid
 
