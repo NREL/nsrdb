@@ -10,6 +10,7 @@ from warnings import warn
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.data_model import VarFactory
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,12 +57,14 @@ class Blender:
         self._meta_out = self._parse_meta_file(meta_out)
         self._meta_east = self._parse_meta_file(east_fpath)
         self._meta_west = self._parse_meta_file(west_fpath)
-
-        logger.debug('Final output meta: \n{}'.format(self._meta_out.head()))
-        logger.debug('Source east meta: \n{}'.format(self._meta_east.head()))
-        logger.debug('Source west meta: \n{}'.format(self._meta_west.head()))
-
         self._parse_blended_meta()
+
+        logger.debug('Final output meta: \n{}\n{}'
+                     .format(self._meta_out.head(), self._meta_out.tail()))
+        logger.debug('Source east meta: \n{}\n{}'
+                     .format(self._meta_east.head(), self._meta_east.tail()))
+        logger.debug('Source west meta: \n{}\n{}'
+                     .format(self._meta_west.head(), self._meta_west.tail()))
 
         self._time_index = self._parse_ti()
         self._dsets = self._parse_dsets()
@@ -84,7 +87,11 @@ class Blender:
         meta_out : pd.DataFrame
             Meta data extracted df.
         """
-        if isinstance(inp, str):
+
+        if isinstance(inp, pd.DataFrame):
+            meta_out = inp
+
+        elif isinstance(inp, str):
             if inp.endswith('.csv'):
                 meta_out = pd.read_csv(inp, index_col=0)
             elif inp.endswith('.h5'):
@@ -317,8 +324,8 @@ class Blender:
         b = cls(meta_out, out_fpath, east_fpath, west_fpath,
                 map_col=map_col, lon_seam=lon_seam)
 
-        b.run_blend(b._east_fpath, b._meta_east, chunk_size=chunk_size)
         b.run_blend(b._west_fpath, b._meta_west, chunk_size=chunk_size)
+        b.run_blend(b._east_fpath, b._meta_east, chunk_size=chunk_size)
 
         logger.info('Finished blend. Output file is: {}'.format(b._out_fpath))
 
@@ -327,7 +334,7 @@ class Blender:
                   out_fn=None, map_col='gid_full', lon_seam=-105.0,
                   chunk_size=100000):
         """Initialize and run the blender on two source directories with a
-        file tag to search for.
+        file tag to search for. This can only blend one file.
 
         Parameters
         ----------

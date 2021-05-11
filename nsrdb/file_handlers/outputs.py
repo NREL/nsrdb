@@ -2,9 +2,12 @@
 """
 Classes to handle NSRSDB h5 output files.
 """
+import os
 import logging
 
 from reV.handlers.outputs import Outputs as RevOutputs
+
+from rex.utilities.loggers import create_dirs
 
 from nsrdb.version import __version__
 
@@ -44,7 +47,12 @@ class Outputs(RevOutputs):
             Outputs write mode. w- will raise error if fout exists. w will
             overwrite file.
         """
+
+        if not os.path.exists(os.path.dirname(fout)):
+            create_dirs(os.path.dirname(fout))
+
         logger.info("Initializing output file: {}".format(fout))
+
         with cls(fout, mode=mode) as f:
             f['time_index'] = time_index
             f['meta'] = meta
