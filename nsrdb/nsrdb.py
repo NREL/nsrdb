@@ -18,6 +18,7 @@ import shutil
 import time
 
 from rex import MultiFileResource, init_logger
+from rex.utilities.loggers import create_dirs
 
 from nsrdb import __version__
 from nsrdb.all_sky.all_sky import (all_sky, all_sky_h5, all_sky_h5_parallel,
@@ -101,11 +102,7 @@ class NSRDB:
         all_dirs = [self._out_dir, self._log_dir, self._daily_dir,
                     self._collect_dir, self._final_dir]
         for d in all_dirs:
-            if not os.path.exists(d):
-                try:
-                    os.makedirs(d)
-                except FileExistsError:
-                    pass
+            create_dirs(d)
 
     @property
     def time_index_year(self):
@@ -320,9 +317,7 @@ class NSRDB:
 
             if log_file is not None and use_log_dir:
                 log_file = os.path.join(self._log_dir, log_file)
-
-                if not os.path.exists(os.path.dirname(log_file)):
-                    os.makedirs(os.path.dirname(log_file))
+                create_dirs(os.path.dirname(log_file))
 
             if isinstance(date, datetime.date) and log_file is not None:
                 doy = str(date.timetuple().tm_yday).zfill(3)
