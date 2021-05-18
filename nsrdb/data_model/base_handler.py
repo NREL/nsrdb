@@ -2,10 +2,10 @@
 """Base handler class for NSRDB data sources."""
 import logging
 import numpy as np
-import os
 import pandas as pd
 from warnings import warn
 
+from cloud_fs import FileSystem as FS
 from nsrdb import DATADIR, DEFAULT_VAR_META
 
 logger = logging.getLogger(__name__)
@@ -332,7 +332,7 @@ class AncillaryVarHandler:
         missing = ''
         # empty cell (no source dir) evaluates to 'nan'.
         if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
-            if not os.path.exists(self.source_dir):
+            if not FS(self.source_dir).exists():
                 # source dir is not nan and does not exist
                 missing = self.source_dir
         return missing
@@ -452,6 +452,7 @@ class AncillaryVarHandler:
         ti = pd.date_range('1-1-{y}'.format(y=date.year),
                            '1-1-{y}'.format(y=date.year + 1),
                            freq=freq)[:-1]
+        # pylint: disable=no-member
         mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
         return ti

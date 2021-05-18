@@ -13,6 +13,7 @@ import re
 from scipy.stats import mode
 from warnings import warn
 
+from cloud_fs import FileSystem as FS
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
 logger = logging.getLogger(__name__)
@@ -36,12 +37,15 @@ class CloudCoords:
         """Check if file has required vars for cloud coord correction"""
 
         if fp.endswith('.nc'):
-            with netCDF4.Dataset(fp, 'r') as f:
-                dsets = sorted(list(f.variables.keys()))
+            with FS(fp).open() as fpath:
+                # pylint: disable=no-member
+                with netCDF4.Dataset(fpath, 'r') as f:
+                    dsets = sorted(list(f.variables.keys()))
 
         elif fp.endswith('.h5'):
-            with h5py.File(fp, 'r') as f:
-                dsets = list(f)
+            with FS(fp).open() as fpath:
+                with h5py.File(fpath, 'r') as f:
+                    dsets = list(f)
 
         else:
             e = ('Could not parse cloud file, expecting .h5 or .nc but '
@@ -286,8 +290,9 @@ class CloudVarSingleH5(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with h5py.File(self._fpath, 'r') as f:
-            out = list(f)
+        with FS(self._fpath).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                out = list(f)
 
         return out
 
@@ -318,26 +323,27 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         grid = {}
-        with h5py.File(fpath, 'r') as f:
-            for dset in dsets:
+        with FS(fpath).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                for dset in dsets:
 
-                if 'lat' in dset:
-                    dset_out = 'latitude'
-                elif 'lon' in dset:
-                    dset_out = 'longitude'
-                else:
-                    raise KeyError('Did not recognize dataset as latitude '
-                                   'or longitude: "{}"'.format(dset))
+                    if 'lat' in dset:
+                        dset_out = 'latitude'
+                    elif 'lon' in dset:
+                        dset_out = 'longitude'
+                    else:
+                        raise KeyError('Did not recognize dataset as latitude '
+                                       'or longitude: "{}"'.format(dset))
 
-                if dset not in list(f):
-                    wmsg = ('Could not find {}. Using {} instead.'
-                            .format(dset, dset_out))
-                    warn(wmsg)
-                    logger.warning(wmsg)
-                    dset = dset_out
+                    if dset not in list(f):
+                        wmsg = ('Could not find {}. Using {} instead.'
+                                .format(dset, dset_out))
+                        warn(wmsg)
+                        logger.warning(wmsg)
+                        dset = dset_out
 
-                grid[dset_out] = cls.pre_process(dset, f[dset][...],
-                                                 dict(f[dset].attrs))
+                    grid[dset_out] = cls.pre_process(dset, f[dset][...],
+                                                     dict(f[dset].attrs))
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
             grid = cls.solpo_grid_adjust(fpath, grid)
@@ -372,16 +378,17 @@ class CloudVarSingleH5(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
-        with h5py.File(fpath, 'r') as f:
-            sza = cls.pre_process(
-                'solar_zenith_angle', f['solar_zenith_angle'][...],
-                dict(f['solar_zenith_angle'].attrs))
-            azi = cls.pre_process(
-                'solar_azimuth_angle', f['solar_azimuth_angle'][...],
-                dict(f['solar_azimuth_angle'].attrs))
-            cld_height = cls.pre_process(
-                'cld_height_acha', f['cld_height_acha'][...],
-                dict(f['cld_height_acha'].attrs))
+        with FS(fpath).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                sza = cls.pre_process(
+                    'solar_zenith_angle', f['solar_zenith_angle'][...],
+                    dict(f['solar_zenith_angle'].attrs))
+                azi = cls.pre_process(
+                    'solar_azimuth_angle', f['solar_azimuth_angle'][...],
+                    dict(f['solar_azimuth_angle'].attrs))
+                cld_height = cls.pre_process(
+                    'cld_height_acha', f['cld_height_acha'][...],
+                    dict(f['cld_height_acha'].attrs))
 
         try:
             lat, lon = CloudCoords.adjust_coords(grid['latitude'],
@@ -494,19 +501,20 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         data = {}
-        with h5py.File(self._fpath, 'r') as f:
-            for dset in self._dsets:
-                if dset not in list(f):
-                    raise KeyError('Could not find "{}" in the cloud '
-                                   'file: {}'
-                                   .format(dset, self._fpath))
+        with FS(self._fpath).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                for dset in self._dsets:
+                    if dset not in list(f):
+                        raise KeyError('Could not find "{}" in the cloud '
+                                       'file: {}'
+                                       .format(dset, self._fpath))
 
-                if self.pre_proc_flag:
-                    data[dset] = self.pre_process(
-                        dset, f[dset][...], dict(f[dset].attrs),
-                        sparse_mask=self._sparse_mask, index=self._index)
-                else:
-                    data[dset] = f[dset][...].ravel()
+                    if self.pre_proc_flag:
+                        data[dset] = self.pre_process(
+                            dset, f[dset][...], dict(f[dset].attrs),
+                            sparse_mask=self._sparse_mask, index=self._index)
+                    else:
+                        data[dset] = f[dset][...].ravel()
 
         return data
 
@@ -542,8 +550,10 @@ class CloudVarSingleNC(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with netCDF4.Dataset(self._fpath, 'r') as f:
-            out = list(f.variables.keys())
+        with FS(self._fpath).open() as fp:
+            # pylint: disable=no-member
+            with netCDF4.Dataset(fp, 'r') as f:
+                out = list(f.variables.keys())
 
         return out
 
@@ -577,36 +587,36 @@ class CloudVarSingleNC(CloudVarSingle):
 
         sparse_mask = None
         grid = {}
+        with FS(fpath).open() as fp:
+            # pylint: disable=no-member
+            with netCDF4.Dataset(fp, 'r') as f:
+                for dset in dsets:
 
-        with netCDF4.Dataset(fpath, 'r') as f:
-            for dset in dsets:
+                    if 'lat' in dset:
+                        dset_out = 'latitude'
+                    elif 'lon' in dset:
+                        dset_out = 'longitude'
+                    else:
+                        raise KeyError('Did not recognize dataset as latitude '
+                                       'or longitude: "{}"'.format(dset))
 
-                if 'lat' in dset:
-                    dset_out = 'latitude'
-                elif 'lon' in dset:
-                    dset_out = 'longitude'
-                else:
-                    raise KeyError('Did not recognize dataset as latitude '
-                                   'or longitude: "{}"'.format(dset))
+                    if dset not in list(f.variables.keys()):
+                        wmsg = ('Could not find {}. Using {} instead.'
+                                .format(dset, dset_out))
+                        warn(wmsg)
+                        logger.warning(wmsg)
+                        dset = dset_out
 
-                if dset not in list(f.variables.keys()):
-                    wmsg = ('Could not find {}. Using {} instead.'
-                            .format(dset, dset_out))
-                    warn(wmsg)
-                    logger.warning(wmsg)
-                    dset = dset_out
-
-                # use netCDF masked array mask to reduce ~1/4 of the data
-                if sparse_mask is None:
-                    try:
-                        sparse_mask = ~f[dset][:].mask
-                    except Exception as e:
-                        msg = ('Exception masking {} in {}: {}'
-                               .format(dset, fpath, e))
-                        logger.error(msg)
-                        raise RuntimeError(msg) from e
-
-                grid[dset_out] = f[dset][:].data[sparse_mask]
+                    # use netCDF masked array mask to reduce ~1/4 of the data
+                    if sparse_mask is None:
+                        try:
+                            sparse_mask = ~f[dset][:].mask
+                        except Exception as e:
+                            msg = ('Exception masking {} in {}: {}'
+                                   .format(dset, fpath, e))
+                            logger.error(msg)
+                            raise RuntimeError(msg)
+                    grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
             grid = cls.solpo_grid_adjust(fpath, grid, sparse_mask)
@@ -649,10 +659,12 @@ class CloudVarSingleNC(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
-        with netCDF4.Dataset(fpath, 'r') as f:
-            sza = f['solar_zenith_angle'][:].data[sparse_mask]
-            azi = f['solar_azimuth_angle'][:].data[sparse_mask]
-            cld_height = f['cld_height_acha'][:].data[sparse_mask]
+        with FS(fpath).open() as fp:
+            # pylint: disable=no-member
+            with netCDF4.Dataset(fp, 'r') as f:
+                sza = f['solar_zenith_angle'][:].data[sparse_mask]
+                azi = f['solar_azimuth_angle'][:].data[sparse_mask]
+                cld_height = f['cld_height_acha'][:].data[sparse_mask]
 
         try:
             lat, lon = CloudCoords.adjust_coords(grid['latitude'],
@@ -849,7 +861,7 @@ class CloudVar(AncillaryVarHandler):
             timestamp = self.file_df.index[self._i]
             fpath = self.file_df.iloc[self._i, 0]
 
-            if not isinstance(fpath, str) or not os.path.exists(fpath):
+            if not isinstance(fpath, str) or not FS(fpath).exists():
                 msg = ('Cloud data timestep {} is missing its '
                        'source file.'.format(timestamp))
                 warn(msg)
@@ -902,10 +914,10 @@ class CloudVar(AncillaryVarHandler):
         if cloud_dir is None:
             return cloud_dir, prefix, suffix
 
-        elif os.path.exists(cloud_dir):
+        elif FS(cloud_dir).exists():
             return cloud_dir, prefix, suffix
 
-        elif os.path.exists(os.path.dirname(cloud_dir)):
+        elif FS(os.path.dirname(cloud_dir)).exists():
             fbase = os.path.basename(cloud_dir)
             cloud_dir = os.path.dirname(cloud_dir)
             if '*' in fbase:
@@ -950,13 +962,13 @@ class CloudVar(AncillaryVarHandler):
             fsearch = [fsearch1, fsearch2, fsearch3]
 
             # walk through current directory looking for day directory
-            for dirpath, _, _ in os.walk(self._source_dir):
+            for dirpath, _, _ in FS(self._source_dir).walk():
                 dirpath = dirpath.replace('\\', '/')
                 if not dirpath.endswith('/'):
                     dirpath += '/'
                 if dirsearch in dirpath:
-                    for fn in os.listdir(dirpath):
-                        if any(tag in fn for tag in fsearch):
+                    for fn in FS(dirpath).ls():
+                        if any([tag in fn for tag in fsearch]):
                             self._path = dirpath
                             break
                 if self._path is not None:
@@ -989,9 +1001,9 @@ class CloudVar(AncillaryVarHandler):
             raise IOError('No cloud dir input for cloud var handler!')
 
         missing = ''
-        if not os.path.exists(self._source_dir):
+        if not FS(self._source_dir).exists():
             missing = self._source_dir
-        elif not os.path.exists(self.path):
+        elif not FS(self.path).exists():
             missing = self.path
 
         return missing
@@ -1068,7 +1080,7 @@ class CloudVar(AncillaryVarHandler):
             files found.
         """
 
-        fl = os.listdir(path)
+        fl = FS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
         if suffix is not None:
@@ -1103,7 +1115,7 @@ class CloudVar(AncillaryVarHandler):
             files found.
         """
 
-        fl = os.listdir(path)
+        fl = FS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
         if suffix is not None:
@@ -1170,13 +1182,13 @@ class CloudVar(AncillaryVarHandler):
         """
 
         for fp in flist:
-            if os.path.getsize(fp) < 1e6:
+            if FS(fp).size() < 1e6:
                 msg = ('Cloud data source file is less than 1MB, skipping: {}'
                        .format(fp))
                 warn(msg)
                 logger.warning(msg)
 
-        flist = [fp for fp in flist if os.path.getsize(fp) > 1e6]
+        flist = [fp for fp in flist if FS(fp).size() > 1e6]
 
         return flist
 

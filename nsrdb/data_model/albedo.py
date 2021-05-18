@@ -11,6 +11,8 @@ import numpy as np
 import os
 import pandas as pd
 
+from cloud_fs import FileSystem as FS
+
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,7 @@ class AlbedoVar(AncillaryVarHandler):
         d_i = str(self._date.timetuple().tm_yday).zfill(3)
         y = str(self._date.year)
         date = '{y}_{d_i}'.format(y=y, d_i=d_i)
+
         return date
 
     @property
@@ -72,17 +75,19 @@ class AlbedoVar(AncillaryVarHandler):
             NSRDB Albedo file path.
         """
         falbedo = None
-        flist = os.listdir(self.source_dir)
+        flist = FS(self.source_dir).ls()
         for f in flist:
             if self.date_stamp in f and f.endswith('.h5'):
                 falbedo = os.path.join(self.source_dir, f)
                 break
+
         if falbedo is None:
             m = ('Could not find albedo file with date stamp "{}" '
                  'in directory: {}'
                  .format(self.date_stamp, self.source_dir))
             logger.error(m)
             raise FileNotFoundError(m)
+
         return falbedo
 
     def pre_flight(self):
@@ -96,8 +101,9 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not os.path.isfile(self.file):
+        if not FS(self.file).isfile():
             missing = self.file
+
         return missing
 
     def exclusions_from_nsrdb(self, nsrdb_grid, margin=0.1):
@@ -169,10 +175,10 @@ class AlbedoVar(AncillaryVarHandler):
         lon_ex : None | tuple
             Longitude range to exclude (everything INSIDE range is excluded).
         """
-
-        with h5py.File(self.file, 'r') as f:
-            latitude = f['latitude'][...]
-            longitude = f['longitude'][...]
+        with FS(self.file).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                latitude = f['latitude'][...]
+                longitude = f['longitude'][...]
 
         logger.debug('"surface_albedo" native has {} latitudes and {} '
                      'longitudes.'.format(len(latitude), len(longitude)))
@@ -229,31 +235,33 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         # open h5py NSRDB albedo file
-        with h5py.File(self.file, 'r') as f:
-            attrs = dict(f['surface_albedo'].attrs)
-            scale = attrs.get('scale_factor', 1)
+        with FS(self.file).open() as fp:
+            with h5py.File(fp, 'r') as f:
+                attrs = dict(f['surface_albedo'].attrs)
+                scale = attrs.get('scale_factor', 1)
 
-            if self._lat_good is None and self._lon_good is None:
-                data = f['surface_albedo'][...]
-            elif self._lat_good is not None and self._lon_good is not None:
-                data = f['surface_albedo'][self._lat_good, self._lon_good]
-            elif self._lat_good is not None:
-                data = f['surface_albedo'][self._lat_good, :]
-            elif self._lon_good is not None:
-                data = f['surface_albedo'][:, self._lon_good]
+                if self._lat_good is None and self._lon_good is None:
+                    data = f['surface_albedo'][...]
+                elif self._lat_good is not None and self._lon_good is not None:
+                    data = f['surface_albedo'][self._lat_good, self._lon_good]
+                elif self._lat_good is not None:
+                    data = f['surface_albedo'][self._lat_good, :]
+                elif self._lon_good is not None:
+                    data = f['surface_albedo'][:, self._lon_good]
 
-            data = data.ravel()
-            data = data.astype(np.float32)
-            data /= scale
+                data = data.ravel()
+                data = data.astype(np.float32)
+                data /= scale
 
-            if len(data) != len(self.grid):
-                raise ValueError('Albedo data and grid do not match. '
-                                 'Probably due to bad exclusions.')
-            else:
-                # reshape to (time, space) as per NSRDB standard
-                data = data.reshape((1, len(self.grid)))
-                logger.debug('"surface_albedo" data has shape {} after '
-                             'lat/lon exclusion filter.'.format(data.shape))
+                if len(data) != len(self.grid):
+                    raise ValueError('Albedo data and grid do not match. '
+                                     'Probably due to bad exclusions.')
+                else:
+                    # reshape to (time, space) as per NSRDB standard
+                    data = data.reshape((1, len(self.grid)))
+                    logger.debug('"surface_albedo" data has shape {} after '
+                                 'lat/lon exclusion filter.'
+                                 .format(data.shape))
 
         return data
 
@@ -270,16 +278,17 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         if self._albedo_grid is None:
-            with h5py.File(self.file, 'r') as f:
-                if self._lat_good is not None:
-                    latitude = f['latitude'][self._lat_good]
-                else:
-                    latitude = f['latitude'][...]
+            with FS(self.file).open() as fp:
+                with h5py.File(fp, 'r') as f:
+                    if self._lat_good is not None:
+                        latitude = f['latitude'][self._lat_good]
+                    else:
+                        latitude = f['latitude'][...]
 
-                if self._lon_good is not None:
-                    longitude = f['longitude'][self._lon_good]
-                else:
-                    longitude = f['longitude'][...]
+                    if self._lon_good is not None:
+                        longitude = f['longitude'][self._lon_good]
+                    else:
+                        longitude = f['longitude'][...]
 
             # transform regular grid into flattened array of coordinate pairs
             longitude, latitude = np.meshgrid(longitude, latitude)
