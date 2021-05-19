@@ -8,10 +8,12 @@ Created on Thu Nov 29 09:54:51 2018
 """
 
 import os
+import shutil
 import pytest
 import numpy as np
 import datetime
 import h5py
+import tempfile
 
 from nsrdb import CONFIGDIR, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
@@ -114,6 +116,37 @@ def test_regrid():
 
             assert np.allclose(data_baseline, value,
                                atol=ATOL, rtol=RTOL)
+
+
+def test_regrid_duplicates():
+    """Test the cloud regrid algorithm with duplicate coordinates."""
+
+    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
+    cloud_vars = DataModel.CLOUD_VARS
+    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    date = datetime.date(year=2007, month=1, day=16)
+
+    with tempfile.TemporaryDirectory() as td:
+        source_clouds = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
+        temp_clouds = os.path.join(td, 'clouds/')
+        temp_cloud_fp = os.path.join(
+            temp_clouds, '016/goes12_2007_016_0000.level2.h5')
+        shutil.copytree(source_clouds, temp_clouds)
+
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True)
+        assert cv.grid.duplicated().sum() == 0
+
+        with h5py.File(temp_cloud_fp, 'a') as res:
+            lat_copy = res['latitude'][1000, 1000]
+            lon_copy = res['longitude'][1000, 1000]
+            res['latitude'][1000:1025, 1000:1025] = lat_copy
+            res['longitude'][1000:1025, 1000:1025] = lon_copy
+
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=False)
+        assert cv.grid.duplicated().sum() > 100
+
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True)
+        assert cv.grid.duplicated().sum() == 0
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):

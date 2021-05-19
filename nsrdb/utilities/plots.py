@@ -806,11 +806,12 @@ class Spatial:
             if title is not False:
                 ax.set_title(title, loc=title_loc, color=textcolor)
 
+            cbar = None
             if not custom_cmap and cbar_label is not None:
                 cbar = fig.colorbar(c, ax=ax)
             elif cbar_label is not None:
                 fmt = '%.2f'
-                int_bar = all([b % 1 == 0.0 for b in bounds])
+                int_bar = all(b % 1 == 0.0 for b in bounds)
                 if int_bar:
                     fmt = '%.0f'
                 cbar = fig.colorbar(c, ax=ax, cmap=cmap,
@@ -820,11 +821,12 @@ class Spatial:
                                     boundaries=bounds,
                                     format=fmt)
 
-            ticks = plt.getp(cbar.ax, 'yticklabels')
-            plt.setp(ticks, color=textcolor)
-            cbar.ax.tick_params(which='minor', color=textcolor)
-            cbar.ax.tick_params(which='major', color=textcolor)
-            cbar.set_label(cbar_label, color=textcolor)
+            if cbar is not None:
+                ticks = plt.getp(cbar.ax, 'yticklabels')
+                plt.setp(ticks, color=textcolor)
+                cbar.ax.tick_params(which='minor', color=textcolor)
+                cbar.ax.tick_params(which='major', color=textcolor)
+                cbar.set_label(cbar_label, color=textcolor)
 
             if ylim is not None:
                 ax.set_ylim(ylim)

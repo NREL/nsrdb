@@ -196,9 +196,12 @@ class MLCloudsFill:
             2D (time x sites) float numpy array of data for dset. Missing
             values should be filled
         """
+
+        # attempt to clean sites with mostly NaN values. This has to happen
+        # before the df.interpolate() call.
         bad = np.isnan(array)
         any_bad = bad.any()
-        all_bad = (~np.isnan(array)).sum(axis=0) < 3
+        all_bad = (~bad).sum(axis=0) < 3
         if any(all_bad):
             mean_impute = np.nanmean(array, axis=0)
             count = all_bad.sum()
@@ -213,9 +216,27 @@ class MLCloudsFill:
             warn(msg)
             array[:, all_bad] = mean_impute[all_bad]
 
+        # attempt to fill all remaining NaN values that should be scattered
+        # throughout (not full sites missing data)
         if any_bad:
             array = pd.DataFrame(array).interpolate(
                 'nearest').ffill().bfill().values
+
+        # Fill any persistent NaN values with the global mean (these are
+        # usually sites that have no valid data at all)
+        bad = np.isnan(array)
+        all_bad = (~bad).sum(axis=0) < 3
+        if bad.any() or all_bad.any():
+            mean_impute = np.nanmean(array)
+            msg = ('There were {} observations (out of {}) that have '
+                   'persistent NaN values and {} sites (out of {}) that '
+                   'still have all NaN values that could not be '
+                   'cleaned for {}. Filling with global mean value of {}'
+                   .format(bad.sum(), bad.size, all_bad.sum(),
+                           array.shape[1], dset, mean_impute))
+            logger.warning(msg)
+            warn(msg)
+            array[bad] = mean_impute
 
         return array
 
