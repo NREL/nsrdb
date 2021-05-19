@@ -130,7 +130,12 @@ NSRDB Versions
     * - 3.1.1
       - 12/5/2019
       - 2018+, TMY/TDY/TGY-2018
-      - Complete refactor of TMY processing code
+      - Complete refactor of TMY processing code.
+    * - 3.1.2
+      - 6/8/2020
+      - 2020
+      - Added feature to adjust cloud coordinates based on solar position and
+        shading geometry.
     * - 3.2.0
       - 3/17/2021
       - 2020
