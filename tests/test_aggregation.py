@@ -12,16 +12,15 @@ from scipy.stats import mode
 import shutil
 import tempfile
 
-from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.aggregation.aggregation import Manager, Aggregation
-
 from nsrdb import TESTDATADIR
+
+from rex import NSRDB
 
 meta_dir = os.path.join(TESTDATADIR, 'meta/')
 
-"""i0 and i1 are the NN indices of the surfrad meta data, closest to the two
-test sites in test_meta_agg.csv
-"""
+# i0 and i1 are the NN indices of the surfrad meta data, closest to
+# the two test sites in test_meta_agg.csv
 i0 = [2, 1, 8, 3]
 i1 = [5, 0, 4, 7]
 
@@ -125,18 +124,18 @@ def test_spatial_agg():
 
         fp_out = TESTJOB1['final']['fout'].replace('.h5', '_0.h5')
         fp_out = os.path.join(td, TESTJOB1['final']['data_sub_dir'], fp_out)
-        with Outputs(fp_out, mode='r') as f:
+        with NSRDB(fp_out, mode='r') as f:
             dni = f['dni']
             aod = f['aod']
             ctype = f['cloud_type']
 
-        with Outputs(FP_IN_IRRAD, mode='r') as f:
+        with NSRDB(FP_IN_IRRAD, mode='r') as f:
             dni_in = f['dni']
 
-        with Outputs(FP_IN_ANCIL, mode='r') as f:
+        with NSRDB(FP_IN_ANCIL, mode='r') as f:
             aod_in = f['aod']
 
-        with Outputs(FP_IN_CLOUD, mode='r') as f:
+        with NSRDB(FP_IN_CLOUD, mode='r') as f:
             ctype_in = f['cloud_type']
             ctype_in[(ctype_in == 1)] = 0
 
@@ -168,21 +167,21 @@ def test_spatiotemporal_agg():
 
         fp_out = TESTJOB2['final']['fout'].replace('.h5', '_0.h5')
         fp_out = os.path.join(td, TESTJOB2['final']['data_sub_dir'], fp_out)
-        with Outputs(fp_out, mode='r') as f:
+        with NSRDB(fp_out, mode='r') as f:
             ti = f.time_index
             dni = f['dni']
             aod = f['aod']
             ctype = f['cloud_type']
             opd = f['cld_opd_dcomp']
 
-        with Outputs(FP_IN_IRRAD, mode='r') as f:
+        with NSRDB(FP_IN_IRRAD, mode='r') as f:
             ti_in = f.time_index
             dni_in = f['dni']
 
-        with Outputs(FP_IN_ANCIL, mode='r') as f:
+        with NSRDB(FP_IN_ANCIL, mode='r') as f:
             aod_in = f['aod']
 
-        with Outputs(FP_IN_CLOUD, mode='r') as f:
+        with NSRDB(FP_IN_CLOUD, mode='r') as f:
             opd_in = f['cld_opd_dcomp']
             ctype_in = f['cloud_type']
             ctype_in[(ctype_in == 1)] = 0
@@ -214,6 +213,37 @@ def test_spatiotemporal_agg():
             mask = (ctype[i, 1] == ctype_in[iw, :][:, i1].flatten())
             opd_in_masked = opd_in[iw, :][:, i1].flatten()[mask]
             assert opd[i, 1] == np.round(opd_in_masked.mean(), decimals=2)
+
+
+def test_multi_file():
+    """Simple test for multi*file.h5 fpath specifications"""
+    with tempfile.TemporaryDirectory() as td:
+
+        fpath_multi = os.path.join(td, 'nsrdb_*_2018.h5')
+        fpath_out = os.path.join(td, 'agg_out/agg_out_test_2018.h5')
+        TESTJOB3 = {'source': {'fpath': fpath_multi,
+                               'tree_file': 'kdtree_surfrad_meta.pkl',
+                               'meta_file': 'surfrad_meta.csv',
+                               'spatial': '2km',
+                               'temporal': '5min'},
+                    'final': {'fpath': fpath_out,
+                              'tree_file': 'kdtree_test_meta_agg.pkl',
+                              'meta_file': 'test_meta_agg.csv',
+                              'spatial': '4km',
+                              'temporal': '30min'},
+                    }
+
+        src = os.path.join(TESTDATADIR, 'nsrdb_2018')
+        copy_dir(src, td)
+
+        Manager.run_chunk(TESTJOB3, td, meta_dir, 0, 1,
+                          year=2018, parallel=False, log_level=False,
+                          ignore_dsets=IGNORE_DSETS)
+
+        fpath_out = fpath_out.replace('.h5', '_0.h5')
+        with NSRDB(fpath_out, mode='r') as f:
+            dsets = ('dni', 'aod', 'cloud_type', 'cld_opd_dcomp')
+            assert all(d in f for d in dsets)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

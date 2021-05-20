@@ -5,7 +5,6 @@
  - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
 from concurrent.futures import as_completed
-import h5py
 import json
 import logging
 import numpy as np
@@ -17,6 +16,8 @@ from scipy.stats import mode
 from warnings import warn
 
 from farms.utilities import calc_dhi
+from rex import NSRDB as NSRDBHandler
+from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
@@ -332,8 +333,12 @@ class Aggregation:
             Datetimeindex of the source dataset.
         """
 
-        with Outputs(self.data_fpath) as out:
-            ti = out.time_index
+        if os.path.isfile(self.data_fpath):
+            with NSRDBHandler(self.data_fpath) as f:
+                ti = f.time_index
+        else:
+            with MultiFileNSRDB(self.data_fpath) as f:
+                ti = f.time_index
         return ti
 
     @property
@@ -348,8 +353,12 @@ class Aggregation:
             the self.nn attr.
         """
 
-        with h5py.File(self.data_fpath, 'r') as f:
-            _data = f[self.var][:, self.nn].astype(np.float32)
+        if os.path.isfile(self.data_fpath):
+            with NSRDBHandler(self.data_fpath, unscale=False) as f:
+                _data = f[self.var, :, self.nn].astype(np.float32)
+        else:
+            with MultiFileNSRDB(self.data_fpath, unscale=False) as f:
+                _data = f[self.var, :, self.nn].astype(np.float32)
         return _data
 
     @staticmethod
@@ -606,7 +615,7 @@ class Aggregation:
         var_ghi = var.replace('dhi', 'ghi')
         var_dni = var.replace('dhi', 'dni')
 
-        with Outputs(fout) as out:
+        with NSRDBHandler(fout) as out:
             attrs = out.get_attrs(dset=var)
             ghi = out[var_ghi, :, i]
             dni = out[var_dni, :, i]
@@ -756,7 +765,7 @@ class Aggregation:
             and rounded data from the nn with time series matching final_ti.
         """
 
-        with Outputs(fout) as out:
+        with NSRDBHandler(fout) as out:
             i = np.where(out.meta.gid == gid)[0][0]
             ctype_out_final = out['cloud_type', :, i]
             sza = out['solar_zenith_angle', :, i]
@@ -909,16 +918,18 @@ class Manager:
         """Parse the data input for several useful attributes."""
         self.final_sres = self.data['final']['spatial']
         self.final_tres = self.data['final']['temporal']
-        self.fout = os.path.join(self.data_dir,
-                                 self.data['final']['data_sub_dir'] + '/',
-                                 self.data['final']['fout'])
+        if 'fpath' in self.data['final']:
+            self.fout = self.data['final']['fpath']
+        else:
+            self.fout = os.path.join(self.data_dir,
+                                     self.data['final']['data_sub_dir'] + '/',
+                                     self.data['final']['fout'])
         self.fout = self.fout.replace('.h5', '_{}.h5'.format(self.i_chunk))
         self.data_sources = self.meta.source.unique()
 
         logger.info('Data sources: {}'.format(self.data_sources))
 
-        out_dir = os.path.join(self.data_dir,
-                               self.data['final']['data_sub_dir'] + '/')
+        out_dir = os.path.dirname(self.fout)
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
@@ -977,7 +988,7 @@ class Manager:
                     p = os.path.join(self.meta_dir, attrs['tree_file'])
                     source_tree_fpaths[source_name] = p
 
-            if self.data['final']['fout'] == 'nsrdb_2018.h5':
+            if os.path.basename(self.fout) == 'nsrdb_2018.h5':
                 self._meta = MetaManager.meta_sources_2018(final_meta_path)
 
             elif len(source_tree_fpaths) == 1:
@@ -1076,6 +1087,9 @@ class Manager:
 
         if h5dir.endswith('.h5') and os.path.isfile(h5dir):
             h5_files = [h5dir]
+        elif h5dir.endswith('.h5') and '*' in h5dir:
+            with MultiFileNSRDB(h5dir) as res:
+                h5_files = res._h5_files
         else:
             h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
 
@@ -1083,7 +1097,7 @@ class Manager:
                     .format(h5_files))
 
         for fn in h5_files:
-            with Outputs(os.path.join(h5dir, fn)) as out:
+            with NSRDBHandler(os.path.join(h5dir, fn)) as out:
                 ti = out.time_index
                 for d in out.dsets:
                     if d not in ignore_dsets and d not in attrs:
@@ -1242,8 +1256,7 @@ class Manager:
             for fn in os.listdir(os.path.join(data_dir, data_sub_dir)):
                 if fn.endswith('.h5'):
                     fpath = os.path.join(data_dir, data_sub_dir, fn)
-                    with Outputs(fpath) as out:
-
+                    with NSRDBHandler(fpath) as out:
                         if (var == 'fill_flag' and var in out.dsets
                                 and 'irradiance' in fn):
                             break
@@ -1367,17 +1380,17 @@ class Manager:
         else:
             gid = self.meta_chunk.index.values[i]
             source = self.meta_chunk.iloc[i, :]['source']
-            data_sub_dir = self.data[source]['data_sub_dir']
             nn = self.data[source]['nn'][gid, :]
             w = self.data[source]['window']
 
             if 'fpath' in self.data[source]:
                 data_fpath = self.data[source]['fpath']
             else:
+                data_sub_dir = self.data[source]['data_sub_dir']
                 data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
                                              source)
 
-            if not os.path.exists(data_fpath):
+            if not os.path.exists(data_fpath) and '*' not in data_fpath:
                 e = ('Could not find source data filepath for "{}": {}'
                      .format(var, data_fpath))
                 logger.error(e)
