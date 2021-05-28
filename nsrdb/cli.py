@@ -881,6 +881,10 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
     fun_str = ctx.obj['FUN_STR']
     arg_str = ctx.obj['ARG_STR']
     command = ctx.obj['COMMAND']
+
+    if 'SLURM_MANAGER' not in ctx.obj:
+        ctx.obj['SLURM_MANAGER'] = SLURM()
+
     slurm_manager = ctx.obj['SLURM_MANAGER']
 
     if stdout_path is None:

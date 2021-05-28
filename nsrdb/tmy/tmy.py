@@ -17,6 +17,7 @@ import os
 import pandas as pd
 import shutil
 
+from rex import init_logger
 from rex.utilities.hpc import SLURM
 from rex.utilities.execution import SpawnProcessPool
 
@@ -1777,7 +1778,6 @@ class TmyRunner:
             site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TGY."""
         if log:
-            from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_ghi': 1.0}
@@ -1794,7 +1794,6 @@ class TmyRunner:
             site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TDY."""
         if log:
-            from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_dni': 1.0}
@@ -1810,7 +1809,6 @@ class TmyRunner:
             site_slice=None, supplemental_dirs=None, var_meta=None):
         """Run the TMY. Option for custom weights."""
         if log:
-            from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
 
         if weights is None:
@@ -1837,7 +1835,6 @@ class TmyRunner:
                 log=True, log_level='INFO', log_file=None):
         """Run TMY collection."""
         if log:
-            from nsrdb.utilities.loggers import init_logger
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
         tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,

@@ -55,7 +55,7 @@ class AncillaryVarHandler:
         """
 
         # default to repo default
-        if inp is None:
+        if inp is None or str(inp).lower().strip() == 'none':
             inp = DEFAULT_VAR_META
 
         var_meta = None
