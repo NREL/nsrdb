@@ -51,16 +51,15 @@ class Resource(rexResource):
 
         ds = self.h5[ds_name]
         ds_slice = parse_slice(ds_slice)
-        if self._unscale:
-            attrs = dict(ds.attrs)
+        attrs = dict(ds.attrs)
 
+        scale_attr = self.OLD_SCALE_ATTR
+        if self.SCALE_ATTR in attrs:
             scale_attr = self.SCALE_ATTR
-            if self.OLD_SCALE_ATTR in attrs:
-                scale_attr = self.OLD_SCALE_ATTR
 
+        add_attr = self.OLD_ADD_ATTR
+        if self.OLD_ADD_ATTR in attrs:
             add_attr = self.ADD_ATTR
-            if self.OLD_ADD_ATTR in attrs:
-                add_attr = self.OLD_ADD_ATTR
 
         out = ResourceDataset.extract(ds, ds_slice, scale_attr=scale_attr,
                                       add_attr=add_attr,
