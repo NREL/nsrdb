@@ -74,6 +74,7 @@ NSRDB Versions
       - Initial release of PSM v2 (use of FARMS, downscaling of ancillary data
         introduced to account for elevation, NSRDB website distribution
         developed)
+
         - Clear sky: REST2, Cloudy sky: NREL FARMS model and DISC model
         - Climate Forecast System Reanalysis (CFSR) is used for ancillary data
         - Monthly 0.5º aerosol optical depth (AOD) for 1998-2014 using
