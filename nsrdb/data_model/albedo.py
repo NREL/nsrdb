@@ -56,7 +56,7 @@ class AlbedoVar(AncillaryVarHandler):
         -------
         date : str
             Date stamp that should be in the NSRDB Albedo file,
-            format is DDD_YYYY where DDD is the one-indexed day of year.
+            format is YYYY_DDD where DDD is the one-indexed day of year.
         """
 
         d_i = str(self._date.timetuple().tm_yday).zfill(3)

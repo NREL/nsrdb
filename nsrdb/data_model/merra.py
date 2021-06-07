@@ -36,7 +36,7 @@ class MerraVar(AncillaryVarHandler):
             from the var_meta input.
         """
 
-        self._merra_grid = None
+        self._grid = None
         super().__init__(name, var_meta=var_meta, date=date,
                          source_dir=source_dir)
 
@@ -54,6 +54,7 @@ class MerraVar(AncillaryVarHandler):
         m = str(self._date.month).zfill(2)
         d = str(self._date.day).zfill(2)
         date = '{y}{m}{d}'.format(y=y, m=m, d=d)
+
         return date
 
     @property
@@ -66,7 +67,7 @@ class MerraVar(AncillaryVarHandler):
             MERRA file path containing the target NSRDB variable.
         """
 
-        path = os.path.join(self.source_dir, self.dset)
+        path = os.path.join(self.source_dir, self.dset_name)
         flist = FS(path).ls()
         fmerra = None
 
@@ -97,6 +98,7 @@ class MerraVar(AncillaryVarHandler):
         missing = ''
         if not FS(self.file).isfile():
             missing = self.file
+
         return missing
 
     @property
@@ -134,6 +136,7 @@ class MerraVar(AncillaryVarHandler):
                              dtype=np.float32)
         for i in range(data.shape[0]):
             flat_data[i, :] = data[i, :, :].ravel()
+
         return flat_data
 
     @property
@@ -195,7 +198,7 @@ class MerraVar(AncillaryVarHandler):
                             data = np.where(ctype == 6, 250.0, data)
 
                 else:
-                    data = f[self.merra_name][:]
+                    data = f[self.dset_name][:]
 
         # make the data a flat 2d array
         data = self._format_2d(data)
@@ -210,41 +213,40 @@ class MerraVar(AncillaryVarHandler):
 
         Returns
         -------
-        self._merra_grid : pd.DataFrame
+        self._grid : pd.DataFrame
             MERRA source coordinates with elevation
         """
 
-        if self._merra_grid is None:
+        if self._grid is None:
             with FS(self.file).open() as fp:
                 # pylint: disable=no-member
                 with netCDF4.Dataset(fp, 'r') as nc:
                     lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
 
-            self._merra_grid = pd.DataFrame({'longitude': lon2d.ravel(),
-                                             'latitude': lat2d.ravel()})
+            self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
+                                       'latitude': lat2d.ravel()})
 
             # merra grid has some bad values around 0 lat/lon
             # quick fix is to set to zero
-            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1)
-                                 & (self._merra_grid['latitude'] < 0.1),
-                                 'latitude'] = 0
-            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1)
-                                 & (self._merra_grid['longitude'] < 0.1),
-                                 'longitude'] = 0
+            self._grid.loc[(self._grid['latitude'] > -0.1)
+                           & (self._grid['latitude'] < 0.1),
+                           'latitude'] = 0
+            self._grid.loc[(self._grid['longitude'] > -0.1)
+                           & (self._grid['longitude'] < 0.1),
+                           'longitude'] = 0
 
             # add elevation to coordinate set
             merra_elev = pd.read_csv(self.MERRA_ELEV)
-            self._merra_grid = self._merra_grid.merge(merra_elev,
-                                                      on=['latitude',
-                                                          'longitude'],
-                                                      how='left')
+            self._grid = self._grid.merge(merra_elev,
+                                          on=['latitude', 'longitude'],
+                                          how='left')
 
             # change column name from merra default
-            if 'mean_elevation' in self._merra_grid.columns.values:
-                self._merra_grid = self._merra_grid.rename(
+            if 'mean_elevation' in self._grid.columns.values:
+                self._grid = self._grid.rename(
                     {'mean_elevation': 'elevation'}, axis='columns')
 
-        return self._merra_grid
+        return self._grid
 
 
 class RelativeHumidity:

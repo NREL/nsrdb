@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 """A framework for handling global forecasting system (GFS) source data as a
-real-time replacement for MERRA."""
+real-time replacement for GFS."""
 import logging
+import netCDF4 as nc
 import numpy as np
+import os
 import pandas as pd
 
+from cloud_fs import FileSystem as FS
+
+from nsrdb import DATADIR
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
 logger = logging.getLogger(__name__)
@@ -12,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class GfsVar(AncillaryVarHandler):
     """Framework for GFS source data extraction."""
+    GFS_ELEV = os.path.join(DATADIR, 'gfs_grid_srtm_500m_stats.csv')
 
     def __init__(self, name, var_meta, date, source_dir=None):
         """
@@ -35,23 +41,57 @@ class GfsVar(AncillaryVarHandler):
 
     @property
     def time_index(self):
-        """Get the GFS native time index.
+        """Get the albedo native time index.
 
         Returns
         -------
-        ti : pd.DatetimeIndex
+        alb_ti : pd.DatetimeIndex
+            Pandas datetime index for the current day at the albedo
+            resolution (1-month).
         """
-        return None
+        return self._get_time_index(self._date, freq='3h')
 
     @property
-    def files(self):
-        """Get GFS file list.
+    def date_stamp(self):
+        """Get the GFS datestamp corresponding to the specified datetime date
 
         Returns
         -------
-        files : list
+        date : str
+            Date stamp that should be in the GFS file, format is YYYY_MMDD
         """
-        return []
+
+        y = str(self._date.year)
+        m = str(self._date.month).zfill(2)
+        d = str(self._date.day).zfill(2)
+        date = '{y}_{m}{d}'.format(y=y, m=m, d=d)
+
+        return date
+
+    @property
+    def file(self):
+        """Get the GFSfile path for the target NSRDB date.
+
+        Returns
+        -------
+        fpath : str
+            GFS file path.
+        """
+        fpath = None
+        flist = FS(self.source_dir).ls()
+        for f in flist:
+            if self.date_stamp in f:
+                fpath = os.path.join(self.source_dir, f)
+                break
+
+        if fpath is None:
+            m = ('Could not find GFS file with date stamp "{}" '
+                 'in directory: {}'
+                 .format(self.date_stamp, self.source_dir))
+            logger.error(m)
+            raise FileNotFoundError(m)
+
+        return fpath
 
     @property
     def source_dsets(self):
@@ -61,10 +101,12 @@ class GfsVar(AncillaryVarHandler):
         -------
         list
         """
-        from pyhdf.SD import SD
-        fp = self.files[0]
-        res = SD(fp)
-        return sorted(res.datasets().keys())
+        # pylint: disable=no-member
+        with FS(self.file).open() as fp:
+            with nc.Dataset(fp, mode='r') as f:
+                dsets = sorted(f.variables)
+
+        return dsets
 
     def source_units(self):
         """Get a dict lookup of GFS datasets and source units
@@ -73,11 +115,14 @@ class GfsVar(AncillaryVarHandler):
         -------
         dict
         """
-        from pyhdf.SD import SD
-        fp = self.files[0]
-        res = SD(fp)
-        units = {d: res.select(d).attributes()['UNITS']
-                 for d in res.datasets().keys()}
+        units = {}
+        # pylint: disable=no-member
+        with FS(self.file).open() as fp:
+            with nc.Dataset(fp, mode='r') as f:
+                for k, v in f.variables.items():
+                    if 'units' in v.ncattrs():
+                        units[k] = v.getncattr('units')
+
         return units
 
     def pre_flight(self):
@@ -89,55 +134,62 @@ class GfsVar(AncillaryVarHandler):
             Look for the source file and return the string if not found.
             If nothing is missing, return an empty string.
         """
+        missing = ''
+        if not FS(self.file).isfile():
+            missing = self.file
 
-        return ''
+        return missing
 
     @property
     def source_data(self):
-        """Get a flat (1, n) array of data for a single day of MAIAC AOD.
+        """Get single day data from the GFS source file.
 
         Returns
         -------
         data : np.ndarray
-            2D numpy array (1, n) of MAIAC data for the specified var for a
-            given day.
+            Flattened GFS data. Note that the data originates as a 2D
+            spatially gridded numpy array with shape (lat x lon).
         """
+        # open NetCDF file
+        with FS(self.file).open() as fp:
+            # pylint: disable=no-member
+            with nc.Dataset(fp, 'r') as f:
+                # depending on variable, might need extra logic
+                if self.name in ['wind_speed', 'wind_direction']:
+                    u_vector = f['UGRD_10maboveground'][:]
+                    v_vector = f['VGRD_10maboveground'][:]
+                    if self.name == 'wind_speed':
+                        data = np.sqrt(u_vector**2 + v_vector**2)
+                    else:
+                        data = np.degrees(
+                            np.arctan2(u_vector, v_vector)) + 180
+                else:
+                    data = f[self.dset_name][:]
 
-        return None
+        return data
 
     @property
     def grid(self):
-        """Return the GFS source meta data with elevation in meters
+        """Return the GFS source coordinates with elevation.
 
         Returns
         -------
-        self._grid : pd.DataFrame
-            gfs source coordinates (latitude, longitude) with elevation
+        self._GFS_grid : pd.DataFrame
+            GFS source coordinates with elevation
         """
-
         if self._grid is None:
-            from pyhdf.SD import SD
-            fp = self.files[0]
-            res = SD(fp)
-            attrs = res.attributes()
+            with FS(self.file).open() as fp:
+                # pylint: disable=no-member
+                with nc.Dataset(fp, 'r') as f:
+                    lon2d, lat2d = np.meshgrid(f['lon'][:], f['lat'][:])
 
-            lat_0 = attrs['FIRST LATITUDE']
-            lon_0 = attrs['FIRST LONGITUDE']
-            lat_res = attrs['LATITUDE RESOLUTION']
-            lon_res = attrs['LONGITUDE RESOLUTION']
-            lon_n = attrs['NUMBER OF LONGITUDES']
-            lat_n = attrs['NUMBER OF LATITUDES']
+            self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
+                                       'latitude': lat2d.ravel()})
 
-            longitude = [lon_0 + (lon_res * i) for i in range(lon_n)]
-            latitude = [lat_0 + (lat_res * i) for i in range(lat_n)]
-
-            longitude, latitude = np.meshgrid(longitude, latitude)
-            longitude = longitude.flatten()
-            latitude = latitude.flatten()
-            longitude[(longitude > 180)] -= 360
-            elevation = res.select('surface height')[:].flatten() * 1000
-            self._grid = pd.DataFrame({'longitude': longitude,
-                                       'latitude': latitude,
-                                       'elevation': elevation})
+            # add elevation to coordinate set
+            elev = pd.read_csv(self.GFS_ELEV)
+            self._grid = self._grid.merge(elev,
+                                          on=['latitude', 'longitude'],
+                                          how='left')
 
         return self._grid

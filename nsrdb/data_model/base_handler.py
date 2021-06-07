@@ -455,4 +455,5 @@ class AncillaryVarHandler:
         # pylint: disable=no-member
         mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
+
         return ti
