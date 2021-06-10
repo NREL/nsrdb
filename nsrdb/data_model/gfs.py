@@ -226,7 +226,8 @@ class GfsVar(AncillaryVarHandler):
         """
         files = self._get_gfs_files(self.source_dir, self.date_stamp)
 
-        if len(files) == len(self.time_index):
+        if len(files) < len(self.time_index):
+
             m = ('Could not find required GFS file with date stamp "{}" '
                  'in directory: {}'
                  .format(self.date_stamp, self.source_dir))
@@ -329,9 +330,14 @@ class GfsVar(AncillaryVarHandler):
             Look for the source file and return the string if not found.
             If nothing is missing, return an empty string.
         """
-        missing = ''
+        time_index = []
         for file in self.files:
-            if not FS(file).isfile():
-                missing = file
+            with GfsVarSingle(file) as f:
+                time_index.append(f.timestep)
+
+        time_index = pd.to_datetime(time_index)
+        missing = ~self.time_index.isin(time_index)
+        if np.any(missing):
+            pass
 
         return missing

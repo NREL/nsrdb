@@ -335,6 +335,7 @@ class AncillaryVarHandler:
             if not FS(self.source_dir).exists():
                 # source dir is not nan and does not exist
                 missing = self.source_dir
+
         return missing
 
     def scale_data(self, array):
