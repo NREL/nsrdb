@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 from warnings import warn
 
-from cloud_fs import FileSystem as FS
 from nsrdb import DATADIR, DEFAULT_VAR_META
+from cloud_fs import FileSystem as FS
 
 logger = logging.getLogger(__name__)
 

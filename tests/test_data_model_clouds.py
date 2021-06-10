@@ -15,7 +15,7 @@ import datetime
 import h5py
 import tempfile
 
-from nsrdb import CONFIGDIR, TESTDATADIR
+from nsrdb import DEFAULT_VAR_META, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.data_model.clouds import CloudVarSingleH5
 from rex.utilities.loggers import init_logger
@@ -82,7 +82,7 @@ def test_regrid():
 
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     cloud_vars = DataModel.CLOUD_VARS
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    var_meta = DEFAULT_VAR_META
     date = datetime.date(year=2007, month=1, day=16)
     cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
     factory_kwargs = {v: {'source_dir': cloud_dir} for v in cloud_vars}
@@ -123,7 +123,7 @@ def test_regrid_duplicates():
 
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     cloud_vars = DataModel.CLOUD_VARS
-    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    var_meta = DEFAULT_VAR_META
     date = datetime.date(year=2007, month=1, day=16)
 
     with tempfile.TemporaryDirectory() as td:

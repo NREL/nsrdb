@@ -14,7 +14,7 @@ import pandas as pd
 import h5py
 import datetime
 
-from nsrdb import TESTDATADIR, CONFIGDIR, DATADIR
+from nsrdb import TESTDATADIR, DEFAULT_VAR_META, DATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from rex.utilities.loggers import init_logger
 
@@ -32,7 +32,7 @@ def test_asym(var='asymmetry'):
     grid = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
 
     # set test directory
-    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta = pd.read_csv(DEFAULT_VAR_META)
     var_meta['source_directory'] = DATADIR
 
     data = DataModel.run_single(var, date, grid, var_meta=var_meta)
@@ -76,7 +76,7 @@ def test_ancillary_single(var):
 
     # set test directory
     source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
-    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta = pd.read_csv(DEFAULT_VAR_META)
     var_meta['source_directory'] = source_dir
 
     data = DataModel.run_single(var, date, grid, var_meta=var_meta)
@@ -111,7 +111,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
 
     # set test directory
     source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
-    var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+    var_meta = pd.read_csv(DEFAULT_VAR_META)
     var_meta['source_directory'] = source_dir
 
     data = DataModel.run_multiple(var_list, date, grid,

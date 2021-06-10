@@ -15,7 +15,7 @@ from pandas.testing import assert_frame_equal, assert_index_equal
 import datetime
 import tempfile
 
-from nsrdb import TESTDATADIR, CONFIGDIR
+from nsrdb import TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector

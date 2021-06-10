@@ -14,7 +14,7 @@ import pandas as pd
 import datetime
 import tempfile
 
-from nsrdb import TESTDATADIR, CONFIGDIR
+from nsrdb import TESTDATADIR, DEFAULT_VAR_META
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 
@@ -33,7 +33,7 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
 
         # set test directory
         source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
-        var_meta = pd.read_csv(os.path.join(CONFIGDIR, 'nsrdb_vars.csv'))
+        var_meta = pd.read_csv(DEFAULT_VAR_META)
         var_meta['source_directory'] = source_dir
 
         data_model = DataModel.run_multiple(var_list, date,

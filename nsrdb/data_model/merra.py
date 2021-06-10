@@ -49,11 +49,9 @@ class MerraVar(AncillaryVarHandler):
         date : str
             Date stamp that should be in the MERRA file, format is YYYYMMDD
         """
-
-        y = str(self._date.year)
-        m = str(self._date.month).zfill(2)
-        d = str(self._date.day).zfill(2)
-        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
+        date = '{y}{m:02d}{d:02d}'.format(y=self._date.year,
+                                          m=self._date.month,
+                                          d=self._date.day)
 
         return date
 

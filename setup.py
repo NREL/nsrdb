@@ -72,6 +72,8 @@ setup(
             "nsrdb=nsrdb.cli:main",
         ],
     },
+    package_data={'nsrdb': ['data_model/data/*.csv',
+                            'data_model/data/*.txt']},
     test_suite="tests",
     install_requires=install_requires,
     extras_require={
