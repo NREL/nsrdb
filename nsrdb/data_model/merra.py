@@ -65,7 +65,7 @@ class MerraVar(AncillaryVarHandler):
             MERRA file path containing the target NSRDB variable.
         """
 
-        path = os.path.join(self.source_dir, self.dset_name)
+        path = os.path.join(self.source_dir, self.file_set)
         flist = FS(path).ls()
         fmerra = None
 
@@ -166,9 +166,9 @@ class MerraVar(AncillaryVarHandler):
                         data = np.degrees(
                             np.arctan2(u_vector, v_vector)) + 180
 
-                elif self.merra_name == 'TOTSCATAU':
+                elif self.dset_name == 'TOTSCATAU':
                     # Single scatter albedo is total scatter / aod
-                    data = f[self.merra_name][:] / f['TOTEXTTAU'][:]
+                    data = f[self.dset_name][:] / f['TOTEXTTAU'][:]
 
                 elif self.name in cld_vars:
                     # Special handling of cloud properties when
