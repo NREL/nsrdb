@@ -443,6 +443,7 @@ class DataModel:
             return None
 
         else:
+            # pylint: disable: not-callable
             tree = cKDTree(grid[labels])
             # Get the index of NN to NSRDB grid
             dist, index = tree.query(nsrdb_grid[labels], k=1)
