@@ -182,6 +182,7 @@ class GfsVar(AncillaryVarHandler):
         """
 
         self._grid = None
+        self._files = None
         super().__init__(name, var_meta=var_meta, date=date,
                          source_dir=source_dir)
 
@@ -224,17 +225,12 @@ class GfsVar(AncillaryVarHandler):
         files: list
             List of GFS file paths needed to fill given NSRDB day.
         """
-        files = self._get_gfs_files(self.source_dir, self.date_stamp)
+        if self._files is None:
+            files = self._get_gfs_files(self.source_dir, self.date_stamp)
 
-        if len(files) < len(self.time_index):
+            self._files = self._check_files(files)
 
-            m = ('Could not find required GFS file with date stamp "{}" '
-                 'in directory: {}'
-                 .format(self.date_stamp, self.source_dir))
-            logger.error(m)
-            raise FileNotFoundError(m)
-
-        return files
+        return self._files
 
     @property
     def shape(self):
@@ -302,10 +298,14 @@ class GfsVar(AncillaryVarHandler):
             Source directory containing GFS files
         date_stamp : str
             Date stamp that should be in the GFS file, format is YYYY_MMDD
+
+        Returns
+        -------
+        files : list
+            List of GFS files to use for given NSRDB date stamp
         """
         date_files = {'00z': [], '06z': [], '12z': [], '18z': []}
-        flist = FS(source_dir).ls()
-        for f in sorted(flist):
+        for f in sorted(FS(source_dir).ls()):
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
                 for k, v in date_files.items():
@@ -319,6 +319,44 @@ class GfsVar(AncillaryVarHandler):
             i = 2 + (j * 2 - len(files))
 
         return sorted(files)
+
+    def _check_files(self, files):
+        """
+        Check to make sure there are enough available files to model the
+        desired NSRDB date stamp. If needed pull files from the prior days 18z
+        model run
+
+        Parameters
+        ----------
+        files : list
+            List of GFS files to use for given NSRDB date stamp
+
+        Returns
+        -------
+        files : list
+            List of GFS files to use for given NSRDB date stamp
+        """
+        if len(files) < len(self.time_index):
+            date = self.time_index[0] - pd.Timedelta('1d')
+            date = '{y}_{m:02d}{d:02d}'.format(y=date.year,
+                                               m=date.month,
+                                               d=date.day)
+
+            files = []
+            hr_list = ["{:03d}hr".format(h) for h in range(6, 30, 3)]
+            for f in sorted(FS(self.source_dir).ls()):
+                hr_check = any(hr in f for hr in hr_list)
+                if date in f and '18z' in f and hr_check:
+                    files.append(os.path.join(self.source_dir, f))
+
+        if len(files) < len(self.time_index):
+            m = ('Could not find required GFS file with date stamp "{}" '
+                 'in directory: {}'
+                 .format(self.date_stamp, self.source_dir))
+            logger.error(m)
+            raise FileNotFoundError(m)
+
+        return files
 
     def pre_flight(self):
         """
@@ -338,6 +376,9 @@ class GfsVar(AncillaryVarHandler):
         time_index = pd.to_datetime(time_index)
         missing = ~self.time_index.isin(time_index)
         if np.any(missing):
-            pass
+            missing = ("The following GFS time-steps are missing: {}"
+                       .format(self.time_index[missing]))
+        else:
+            missing = ''
 
         return missing
