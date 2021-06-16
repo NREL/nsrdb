@@ -51,7 +51,7 @@ class VarFactory:
     HANDLER_NAMES = {'AsymVar': AsymVar,
                      'AlbedoVar': AlbedoVar,
                      'CloudVar': CloudVar,
-                     'GFSVar': GfsVar,
+                     'GfsVar': GfsVar,
                      'MerraVar': MerraVar,
                      'MaiacVar': MaiacVar,
                      'DewPoint': DewPoint,
