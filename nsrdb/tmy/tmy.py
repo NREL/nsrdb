@@ -422,47 +422,22 @@ class Tmy:
         self._tmy_years_short = None
         self._tmy_years_long = None
 
-        self._fpaths = [self._nsrdb_base_fp.format(y) for y in self._years]
+        self._supplemental = {} if supplemental_fp is None else supplemental_fp
 
-        self._supplemental = {}
-        if supplemental_fp is not None:
-            for sdset, sfp in supplemental_fp.items():
-                self._supplemental[sdset] = [sfp.format(y) for y in years]
-
-        self._check_weights(self._fpaths, self._supplemental, self._weights)
+        self._check_weights()
         self._init_daily_ghi_temp()
 
-    @staticmethod
-    def _check_weights(fpaths, supplemental, weights):
-        """Check the weights.
+    def _check_weights(self):
+        """Check that the weights are valid."""
 
-        Parameters
-        ----------
-        fpaths : list
-            List of nsrdb .h5 file paths.
-        supplemental : dict
-            Dictionary of supplemental source fpaths keyed by supplemental
-            dataset. Example:
-            {'poa': {'fpaths': ['/projects/pxs/poa_h5_dir/nsrdb_poa_1998.h5'],
-                     'fpaths_years': [1998]}}
-
-        weights : dict
-            Lookup of {dset: weight} where dset is a variable h5 dset name
-            and weight is a fractional TMY weighting. All weights must
-            sum to 1.0
-        """
-        if np.abs(sum(list(weights.values())) - 1) > 1e5:
+        if np.abs(sum(list(self._weights.values())) - 1) > 1e5:
             raise ValueError('Weights do not sum to 1.0!')
-        for dset in weights.keys():
-            dset, _ = Tmy._strip_dset_fun(dset)
 
-            if dset in supplemental:
-                fpaths_iter = supplemental[dset]['fpaths']
-            else:
-                fpaths_iter = fpaths
-
-            for fpath in fpaths_iter:
-                with MultiFileResource(fpath) as f:
+        for year in self._years:
+            for dset in self._weights.keys():
+                fpath, Handler = self._get_fpath(dset, year)
+                dset = self._strip_dset_fun(dset)[0]
+                with Handler(fpath) as f:
                     if dset not in f.dsets:
                         e = ('Weight dset "{}" not found in file: "{}"'
                              .format(dset, os.path.basename(fpath)))
@@ -867,7 +842,8 @@ class Tmy:
         freq : str
             Pandas datetimeindex frequency string ('30min', '1h').
         """
-        with MultiFileResource(self._fpaths[0]) as f:
+        fpath, Handler = self._get_fpath('ghi', self._years[0])
+        with Handler(fpath) as f:
             ti_len = len(f.time_index)
 
         if (ti_len == 17520) | (ti_len == 17568):
@@ -1390,26 +1366,29 @@ class TmyRunner:
     def meta(self):
         """Get the full NSRDB meta data."""
         if self._meta is None:
-            with Resource(self._tmy_obj._fpaths[0]) as res:
+            fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
+            with Handler(fpath) as res:
                 self._meta = res.meta.iloc[self._site_slice, :]
+
         return self._meta
 
     @property
     def dsets(self):
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
-            with Resource(self._tmy_obj._fpaths[0]) as res:
+            fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
+            with Handler(fpath) as res:
                 self._dsets = []
                 for d in res.dsets:
-                    if hasattr(res._h5[d], 'shape'):
-                        if res._h5[d].shape == res.shape:
-                            self._dsets.append(d)
+                    if res.shapes[d] == res.shape:
+                        self._dsets.append(d)
 
             if self._supplemental_fp is not None:
                 self._dsets += list(self._supplemental_fp.keys())
 
             self._dsets.append('tmy_year')
             self._dsets.append('tmy_year_short')
+            self._dsets = list(set(self._dsets))
 
         return self._dsets
 
