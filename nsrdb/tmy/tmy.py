@@ -22,7 +22,7 @@ from rex.utilities.hpc import SLURM
 from rex.utilities.execution import SpawnProcessPool
 
 from nsrdb.data_model.variable_factory import VarFactory
-from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.resource import Resource, MultiFileResource
 from nsrdb.file_handlers.outputs import Outputs
 
 
@@ -376,15 +376,15 @@ class Cdf:
 class Tmy:
     """NSRDB Typical Meteorological Year (TMY) calculation framework."""
 
-    def __init__(self, nsrdb_dir, years, weights, site_slice=None,
-                 supplemental_dirs=None):
+    def __init__(self, nsrdb_base_fp, years, weights, site_slice=None,
+                 supplemental_fp=None):
         """
         Parameters
         ----------
-        nsrdb_dir : str
-            Directory containing annual NSRDB files. This directory will be
-            parse for .h5 files containing year strings and "nsrdb" but not
-            "tmy", "tdy", or "tgy".
+        nsrdb_base_fp : str
+            Base nsrdb filepath to retrieve annual files from. Must include
+            a single {} format option for the year. Can include * for an
+            NSRDB multi file source.
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
@@ -393,16 +393,16 @@ class Tmy:
             sum to 1.0
         site_slice : slice
             Sites to consider in this TMY.
-        supplemental_dirs : None | dict
-            Supplemental data directories for source NSRDB-style datasets
-            that are inputs to the TMY calculation. For example:
-            {'poa': '/projects/pxs/poa_h5_dir/'}
+        supplemental_fp : None | dict
+            Supplemental data base filepaths including {} for year for
+            uncommon dataset inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
         """
 
         logger.debug('Initializing TMY algorithm for sites {}...'
                      .format(site_slice))
 
-        self._dir = nsrdb_dir
+        self._nsrdb_base_fp = nsrdb_base_fp
         self._years = sorted([int(y) for y in years])
         self._weights = weights
         self._site_slice = slice(None)
@@ -422,81 +422,15 @@ class Tmy:
         self._tmy_years_short = None
         self._tmy_years_long = None
 
-        self._fpaths, self._fpaths_years = self._parse_dir(self._dir,
-                                                           self._years)
+        self._fpaths = [self._nsrdb_base_fp.format(y) for y in self._years]
 
-        self._supplemental = self._parse_supplemental(supplemental_dirs,
-                                                      self._years)
+        self._supplemental = {}
+        if supplemental_fp is not None:
+            for sdset, sfp in supplemental_fp.items():
+                self._supplemental[sdset] = [sfp.format(y) for y in years]
 
         self._check_weights(self._fpaths, self._supplemental, self._weights)
         self._init_daily_ghi_temp()
-
-    @staticmethod
-    def _parse_dir(nsrdb_dir, years):
-        """Get the included nsrdb file paths from a directory.
-
-        Parameters
-        ----------
-        nsrdb_dir : str
-            Directory containing annual NSRDB files. This directory will be
-            parse for .h5 files containing year strings and "nsrdb" but not
-            "tmy", "tdy", or "tgy".
-        years : iterable
-            Iterable of years to include in the TMY calculation.
-
-        Returns
-        -------
-        fpaths : list
-            List of full filepaths to nsrdb .h5 files to include in the tmy.
-            Sorted by years.
-        fpath_years : list
-            List of years corresponding to fpaths.
-        """
-        fpath_years = []
-        fpaths = []
-        for year in years:
-            for fn in sorted(os.listdir(nsrdb_dir)):
-                if (str(year) in fn
-                        and fn.endswith('.h5')
-                        and 'nsrdb' in fn.lower()
-                        and 'tmy' not in fn.lower()
-                        and 'tdy' not in fn.lower()
-                        and 'tgy' not in fn.lower()):
-                    fpaths.append(os.path.join(nsrdb_dir, fn))
-                    fpath_years.append(year)
-                    break
-        logger.debug('Found the following fpaths: {}'.format(fpaths))
-        return fpaths, fpath_years
-
-    @staticmethod
-    def _parse_supplemental(supplemental_dirs, years):
-        """Parse a dict of supplemental source directories for extra datsets.
-
-        Parameters
-        ----------
-        supplemental_dirs : None | dict
-            Supplemental data directories for source NSRDB-style datasets
-            that are inputs to the TMY calculation. For example:
-            {'poa': '/projects/pxs/poa_h5_dir/'}
-        years : iterable
-            Iterable of years to include in the TMY calculation.
-
-        Returns
-        -------
-        supplemental : dict
-            Dictionary of supplemental source fpaths keyed by supplemental
-            dataset. Example:
-            {'poa': {'fpaths': ['/projects/pxs/poa_h5_dir/nsrdb_poa_1998.h5'],
-                     'fpaths_years': [1998]}}
-        """
-        supplemental = {}
-        if supplemental_dirs is not None:
-            for sdset, sdir in supplemental_dirs.items():
-                temp = Tmy._parse_dir(sdir, years)
-                supplemental[sdset] = {'fpaths': temp[0],
-                                       'fpaths_years': temp[1]}
-
-        return supplemental
 
     @staticmethod
     def _check_weights(fpaths, supplemental, weights):
@@ -528,8 +462,8 @@ class Tmy:
                 fpaths_iter = fpaths
 
             for fpath in fpaths_iter:
-                with h5py.File(fpath, 'r') as f:
-                    if dset not in list(f):
+                with MultiFileResource(fpath) as f:
+                    if dset not in f.dsets:
                         e = ('Weight dset "{}" not found in file: "{}"'
                              .format(dset, os.path.basename(fpath)))
                         raise KeyError(e)
@@ -595,30 +529,35 @@ class Tmy:
             arr = df.values
         return arr
 
-    def _get_fpaths_years(self, dset):
-        """Get a list of filepaths and years for the dataset by first checking
+    def _get_fpath(self, dset, year):
+        """Get a list of filepaths for a dataset by first checking
         the supplemental data sources and then the default source.
 
         Parameters
         ----------
         dset : str
             Dataset / variable name with optional min_ max_ mean_ sum_ prefix
+        year : int
+            Year of interest
 
         Returns
         -------
         fpaths : list
             List of filepaths for dset (considering supplemental data sources)
-        fpaths_years : list
-            List of years corresponding to fpaths
+        Handler : Resource | MultiFileResource
+            Resource handler object to use to open fpaths
         """
 
+        fpath = self._nsrdb_base_fp
         dset = self._strip_dset_fun(dset)[0]
         if dset in self._supplemental:
-            fpaths = self._supplemental[dset]['fpaths']
-            fpaths_years = self._supplemental[dset]['fpaths_years']
-            return fpaths, fpaths_years
-        else:
-            return self._fpaths, self._fpaths_years
+            fpath = self._supplemental[dset]
+
+        Handler = Resource
+        if '*' in fpath:
+            Handler = MultiFileResource
+
+        return fpath.format(year), Handler
 
     def _get_my_arr_raw(self, dset, unscale=True):
         """Get a multi-year 2D numpy array for a given dataset at source
@@ -644,19 +583,16 @@ class Tmy:
         else:
             dtype = np.int32
 
-        fpaths, fpaths_years = self._get_fpaths_years(dset)
-
-        for i, fpath in enumerate(fpaths):
-            fpath_year = fpaths_years[i]
-
-            with Resource(fpath, unscale=unscale) as res:
+        for year in self._years:
+            fpath, Handler = self._get_fpath(dset, year)
+            with Handler(fpath, unscale=unscale) as res:
                 temp = res[dset, :, self._site_slice]
 
             if arr is None:
                 shape = (len(self.my_time_index), temp.shape[1])
                 arr = np.zeros(shape, dtype=dtype)
 
-            mask = self.time_masks[fpath_year]
+            mask = self.time_masks[year]
 
             if len(temp) < mask.sum():
                 ind = int(mask.sum() % 8760)
@@ -879,7 +815,8 @@ class Tmy:
             Meta data from the current site slice.
         """
         if self._meta is None:
-            with Resource(self._fpaths[0]) as res:
+            fpath, Handler = self._get_fpath('ghi', self._years[0])
+            with Handler(fpath) as res:
                 meta = res.meta
             self._meta = meta.iloc[self._site_slice, :]
         return self._meta
@@ -930,8 +867,8 @@ class Tmy:
         freq : str
             Pandas datetimeindex frequency string ('30min', '1h').
         """
-        with h5py.File(self._fpaths[0], 'r') as f:
-            ti_len = f['time_index'].shape[0]
+        with MultiFileResource(self._fpaths[0]) as f:
+            ti_len = len(f.time_index)
 
         if (ti_len == 17520) | (ti_len == 17568):
             freq = '30min'
@@ -1226,9 +1163,8 @@ class Tmy:
         self._tmy_years_long = None
 
         for year in year_set:
-            fpaths = self._get_fpaths_years(dset)[0]
-            fpath = [f for f in fpaths if str(year) in f][0]
-            with Resource(fpath, unscale=unscale) as res:
+            fpath, Handler = self._get_fpath(dset, year)
+            with Handler(fpath, unscale=unscale) as res:
                 ti = res.time_index
                 temp = res[dset, :, self._site_slice]
                 temp, ti = self.drop_leap(temp, ti)
@@ -1296,7 +1232,7 @@ class Tmy:
         """
         if dset == 'tmy_year_short':
             return self.tmy_years_short
-        elif dset == 'tmy_year_long' or dset == 'tmy_year':
+        elif dset in ('tmy_year_long', 'tmy_year'):
             return self.tmy_years_long
         else:
             tmy_years = self.calculate_tmy_years()
@@ -1307,17 +1243,17 @@ class Tmy:
 class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
-    def __init__(self, nsrdb_dir, years, weights, sites_per_worker=100,
+    def __init__(self, nsrdb_base_fp, years, weights, sites_per_worker=100,
                  n_nodes=1, node_index=0, site_slice=None,
                  out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5',
-                 supplemental_dirs=None, var_meta=None):
+                 supplemental_fp=None, var_meta=None):
         """
         Parameters
         ----------
-        nsrdb_dir : str
-            Directory containing annual NSRDB files. This directory will be
-            parse for .h5 files containing year strings and "nsrdb" but not
-            "tmy", "tdy", or "tgy".
+        nsrdb_base_fp : str
+            Base nsrdb filepath to retrieve annual files from. Must include
+            a single {} format option for the year. Can include * for an
+            NSRDB multi file source.
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
@@ -1338,10 +1274,10 @@ class TmyRunner:
             Directory to dump temporary output files.
         fn_out : str
             Final output filename.
-        supplemental_dirs : None | dict
-            Supplemental data directories for source NSRDB-style datasets
-            that are inputs to the TMY calculation. For example:
-            {'poa': '/projects/pxs/poa_h5_dir/'}
+        supplemental_fp : None | dict
+            Supplemental data base filepaths including {} for year for
+            uncommon dataset inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
         var_meta : str
             CSV filepath containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -1350,7 +1286,7 @@ class TmyRunner:
         logger.info('Initializing TMY runner for years: {}'.format(years))
         logger.info('TMY weights: {}'.format(weights))
 
-        self._nsrdb_dir = nsrdb_dir
+        self._nsrdb_base_fp = nsrdb_base_fp
         self._years = years
         self._weights = weights
 
@@ -1370,15 +1306,15 @@ class TmyRunner:
         self._fn_out = fn_out
         self._final_fpath = os.path.join(self._out_dir, self._fn_out)
 
-        self._supplemental_dirs = supplemental_dirs
+        self._supplemental_fp = supplemental_fp
         self._var_meta = var_meta
 
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
 
-        self._tmy_obj = Tmy(self._nsrdb_dir, self._years, self._weights,
+        self._tmy_obj = Tmy(self._nsrdb_base_fp, self._years, self._weights,
                             site_slice=slice(0, 1),
-                            supplemental_dirs=supplemental_dirs)
+                            supplemental_fp=supplemental_fp)
 
         out = self._setup_job_chunks(self.meta, self._sites_per_worker,
                                      self._n_nodes, self._node_index,
@@ -1469,8 +1405,8 @@ class TmyRunner:
                         if res._h5[d].shape == res.shape:
                             self._dsets.append(d)
 
-            if self._supplemental_dirs is not None:
-                self._dsets += list(self._supplemental_dirs.keys())
+            if self._supplemental_fp is not None:
+                self._dsets += list(self._supplemental_fp.keys())
 
             self._dsets.append('tmy_year')
             self._dsets.append('tmy_year_short')
@@ -1672,16 +1608,16 @@ class TmyRunner:
                 f[dset] = arr
 
     @staticmethod
-    def run_single(nsrdb_dir, years, weights, site_slice, dsets, f_out,
-                   supplemental_dirs=None, var_meta=None):
+    def run_single(nsrdb_base_fp, years, weights, site_slice, dsets, f_out,
+                   supplemental_fp=None, var_meta=None):
         """Run TMY for a single site chunk (slice) and save to disk.
 
         Parameters
         ----------
-        nsrdb_dir : str
-            Directory containing annual NSRDB files. This directory will be
-            parse for .h5 files containing year strings and "nsrdb" but not
-            "tmy", "tdy", or "tgy".
+        nsrdb_base_fp : str
+            Base nsrdb filepath to retrieve annual files from. Must include
+            a single {} format option for the year. Can include * for an
+            NSRDB multi file source.
         years : iterable
             Iterable of years to include in the TMY calculation.
         weights : dict
@@ -1694,10 +1630,10 @@ class TmyRunner:
             List of TMY datasets to make.
         f_out : str
             Filepath to save file for this chunk.
-        supplemental_dirs : None | dict
-            Supplemental data directories for source NSRDB-style datasets
-            that are inputs to the TMY calculation. For example:
-            {'poa': '/projects/pxs/poa_h5_dir/'}
+        supplemental_fp : None | dict
+            Supplemental data base filepaths including {} for year for
+            uncommon dataset inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -1717,8 +1653,8 @@ class TmyRunner:
 
         if run:
             data_dict = {}
-            tmy = Tmy(nsrdb_dir, years, weights, site_slice,
-                      supplemental_dirs=supplemental_dirs)
+            tmy = Tmy(nsrdb_base_fp, years, weights, site_slice,
+                      supplemental_fp=supplemental_fp)
             for dset in dsets:
                 data_dict[dset] = tmy.get_tmy_timeseries(dset)
             TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
@@ -1733,9 +1669,9 @@ class TmyRunner:
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
             if not os.path.exists(f_out):
-                self.run_single(self._nsrdb_dir, self._years, self._weights,
-                                site_slice, self.dsets, f_out,
-                                supplemental_dirs=self._supplemental_dirs,
+                self.run_single(self._nsrdb_base_fp, self._years,
+                                self._weights, site_slice, self.dsets, f_out,
+                                supplemental_fp=self._supplemental_fp,
                                 var_meta=self._var_meta)
             else:
                 logger.info('Skipping, already exists: {}'.format(f_out))
@@ -1754,9 +1690,9 @@ class TmyRunner:
                 f_out = self._f_out_chunks[fi]
                 if not os.path.exists(f_out):
                     future = exe.submit(
-                        self.run_single, self._nsrdb_dir, self._years,
+                        self.run_single, self._nsrdb_base_fp, self._years,
                         self._weights, site_slice, self.dsets, f_out,
-                        supplemental_dirs=self._supplemental_dirs,
+                        supplemental_fp=self._supplemental_fp,
                         var_meta=self._var_meta)
                     futures[future] = i
                 else:
@@ -1772,41 +1708,41 @@ class TmyRunner:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
-    def tgy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None,
+    def tgy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
             n_nodes=1, node_index=0,
             log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_dirs=None, var_meta=None):
+            site_slice=None, supplemental_fp=None, var_meta=None):
         """Run the TGY."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_ghi': 1.0}
-        tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
+        tgy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  site_slice=site_slice, supplemental_fp=supplemental_fp,
                   var_meta=var_meta)
         tgy._run_parallel()
 
     @classmethod
-    def tdy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None,
+    def tdy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
             n_nodes=1, node_index=0,
             log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_dirs=None, var_meta=None):
+            site_slice=None, supplemental_fp=None, var_meta=None):
         """Run the TDY."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_dni': 1.0}
-        tdy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
+        tdy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  site_slice=site_slice, supplemental_fp=supplemental_fp,
                   var_meta=var_meta)
         tdy._run_parallel()
 
     @classmethod
-    def tmy(cls, nsrdb_dir, years, out_dir, fn_out, weights=None, n_nodes=1,
-            node_index=0, log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_dirs=None, var_meta=None):
+    def tmy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
+            n_nodes=1, node_index=0, log=True, log_level='INFO', log_file=None,
+            site_slice=None, supplemental_fp=None, var_meta=None):
         """Run the TMY. Option for custom weights."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
@@ -1823,23 +1759,23 @@ class TmyRunner:
                        'sum_dni': 0.25,
                        'sum_ghi': 0.25}
 
-        tmy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
+        tmy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  site_slice=site_slice, supplemental_fp=supplemental_fp,
                   var_meta=var_meta)
         tmy._run_parallel()
 
     @classmethod
-    def collect(cls, nsrdb_dir, years, out_dir, fn_out,
-                site_slice=None, supplemental_dirs=None, var_meta=None,
+    def collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
+                site_slice=None, supplemental_fp=None, var_meta=None,
                 log=True, log_level='INFO', log_file=None):
         """Run TMY collection."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
-        tgy = cls(nsrdb_dir, years, weights, out_dir=out_dir,
+        tgy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
                   fn_out=fn_out, n_nodes=1, node_index=0,
-                  site_slice=site_slice, supplemental_dirs=supplemental_dirs,
+                  site_slice=site_slice, supplemental_fp=supplemental_fp,
                   var_meta=var_meta)
         tgy._collect()
 
@@ -1901,32 +1837,32 @@ class TmyRunner:
         print(msg)
 
     @classmethod
-    def eagle_tmy(cls, fun_str, nsrdb_dir, years, out_dir, fn_out,
+    def eagle_tmy(cls, fun_str, nsrdb_base_fp, years, out_dir, fn_out,
                   weights=None, n_nodes=1, site_slice=None,
-                  supplemental_dirs=None, var_meta=None, **kwargs):
+                  supplemental_fp=None, var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY job on an Eagle node."""
 
         if isinstance(weights, dict):
             weights = json.dumps(weights)
-        if isinstance(supplemental_dirs, dict):
-            supplemental_dirs = json.dumps(supplemental_dirs)
+        if isinstance(supplemental_fp, dict):
+            supplemental_fp = json.dumps(supplemental_fp)
 
         node_name = kwargs.get('node_name', None)
 
         for node_index in range(n_nodes):
-            arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
+            arg_str = ('"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
                        'weights={weights}, '
                        'n_nodes={n_nodes}, '
                        'node_index={node_index}, '
                        'site_slice={site_slice}, '
-                       'supplemental_dirs={sdirs}, '
+                       'supplemental_fp={sfps}, '
                        'var_meta="{var_meta}"')
-            arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
+            arg_str = arg_str.format(nsrdb_base_fp=nsrdb_base_fp, years=years,
                                      out_dir=out_dir, fn_out=fn_out,
                                      weights=weights, n_nodes=n_nodes,
                                      node_index=node_index,
                                      site_slice=site_slice,
-                                     sdirs=supplemental_dirs,
+                                     sfps=supplemental_fp,
                                      var_meta=var_meta)
 
             if 'stdout_path' not in kwargs:
@@ -1939,8 +1875,8 @@ class TmyRunner:
             cls._eagle(fun_str, arg_str, **kwargs)
 
     @classmethod
-    def eagle_all(cls, nsrdb_dir, years, out_dir, n_nodes=1,
-                  site_slice=None, supplemental_dirs=None, var_meta=None,
+    def eagle_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
+                  site_slice=None, supplemental_fp=None, var_meta=None,
                   **kwargs):
         """Submit three eagle jobs for TMY, TGY, and TDY."""
 
@@ -1948,27 +1884,27 @@ class TmyRunner:
             y = sorted(list(years))[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.eagle_tmy(fun_str, nsrdb_dir, years, fun_out_dir,
+            cls.eagle_tmy(fun_str, nsrdb_base_fp, years, fun_out_dir,
                           fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
-                          supplemental_dirs=supplemental_dirs,
+                          supplemental_fp=supplemental_fp,
                           var_meta=var_meta, **kwargs)
 
     @classmethod
-    def eagle_collect(cls, nsrdb_dir, years, out_dir, fn_out,
-                      site_slice=None, supplemental_dirs=None,
+    def eagle_collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
+                      site_slice=None, supplemental_fp=None,
                       var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY file collection job on an Eagle node."""
 
-        if isinstance(supplemental_dirs, dict):
-            supplemental_dirs = json.dumps(supplemental_dirs)
+        if isinstance(supplemental_fp, dict):
+            supplemental_fp = json.dumps(supplemental_fp)
 
-        arg_str = ('"{nsrdb_dir}", {years}, "{out_dir}", "{fn_out}", '
-                   'site_slice={site_slice}, supplemental_dirs={supp_dirs}, '
+        arg_str = ('"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
+                   'site_slice={site_slice}, supplemental_fp={supp_dirs}, '
                    'var_meta="{var_meta}"')
-        arg_str = arg_str.format(nsrdb_dir=nsrdb_dir, years=years,
+        arg_str = arg_str.format(nsrdb_base_fp=nsrdb_base_fp, years=years,
                                  out_dir=out_dir, fn_out=fn_out,
                                  site_slice=site_slice,
-                                 supp_dirs=supplemental_dirs,
+                                 supp_dirs=supplemental_fp,
                                  var_meta=var_meta)
         if 'stdout_path' not in kwargs:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
@@ -1979,7 +1915,7 @@ class TmyRunner:
         cls._eagle('collect', arg_str, **kwargs)
 
     @classmethod
-    def eagle_collect_all(cls, nsrdb_dir, years, out_dir,
+    def eagle_collect_all(cls, nsrdb_base_fp, years, out_dir,
                           site_slice=None, var_meta=None, **kwargs):
         """Submit three eagle jobs to collect TMY, TGY, and TDY
         (directory setup depends on having run eagle_all() first)."""
@@ -1988,6 +1924,6 @@ class TmyRunner:
             y = sorted(list(years))[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.eagle_collect(nsrdb_dir, years, fun_out_dir,
+            cls.eagle_collect(nsrdb_base_fp, years, fun_out_dir,
                               fun_fn_out, site_slice=site_slice,
                               var_meta=var_meta, **kwargs)
