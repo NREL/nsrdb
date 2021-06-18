@@ -32,6 +32,9 @@ def run_checks(fp, i0, iend, step=1000):
         Chunk size to read at once.
     """
 
+    print('Running QA on {} from {} to {} with step size {}'
+          .format(fp, i0, iend, step))
+
     i0_static = i0
 
     with Resource(fp) as res:
@@ -86,11 +89,11 @@ def run_checks(fp, i0, iend, step=1000):
                         warn(m)
                         time.sleep(.2)
 
-                sum_data = data.sum(axis=0)
+                all_zeros = (data == 0).all(axis=0)
 
-                if any(sum_data == 0):
-                    m = ('Sites have full timeseries of zeros: {}'
-                         .format(np.where(sum_data == 0)[0]))
+                if any(all_zeros):
+                    m = ('Sites have full timeseries of zeros: {} in: {}'
+                         .format(np.where(all_zeros)[0], site_slice))
                     print(m)
                     warn(m)
                     time.sleep(.2)
