@@ -575,7 +575,7 @@ class Tmy:
                 temp = np.vstack((temp, temp2))
 
             elif len(temp) != mask.sum():
-                with Resource(fpath, unscale=False) as res:
+                with Resource(fpath) as res:
                     ti = res.time_index
                 temp = self.drop_leap(temp, ti)[0]
 
@@ -1297,6 +1297,7 @@ class TmyRunner:
                                      self._out_dir)
         self._site_chunks, self._site_chunks_index, self._f_out_chunks = out
 
+        logger.info('Node meta data is: \n{}'.format(self.meta))
         logger.info('Node index {} with n_nodes {} running site chunks: '
                     '{} ... {}'
                     .format(node_index, n_nodes,
@@ -1342,7 +1343,7 @@ class TmyRunner:
             Dictionary of file output paths keyed by the site chunk indices.
         """
 
-        arr = np.arange(len(meta))
+        arr = meta.index.values
         tmp = np.array_split(arr, np.ceil(len(arr) / sites_per_worker))
         site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
         site_chunks_index = list(range(len(site_chunks)))
@@ -1443,7 +1444,7 @@ class TmyRunner:
         status = self._pre_collect(status_file)
         self._init_final_fout()
 
-        with Outputs(self._final_fpath, mode='a', unscale=False) as out:
+        with Outputs(self._final_fpath, mode='a', unscale=True) as out:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
 
@@ -1451,7 +1452,7 @@ class TmyRunner:
                     logger.info('Skipping file, already collected: {}'
                                 .format(os.path.basename(f_out_chunk)))
                 else:
-                    with Resource(f_out_chunk, unscale=False) as chunk:
+                    with Resource(f_out_chunk, unscale=True) as chunk:
                         for dset in self.dsets:
 
                             try:
