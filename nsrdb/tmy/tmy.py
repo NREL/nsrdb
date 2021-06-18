@@ -1588,6 +1588,18 @@ class TmyRunner:
                 f[dset] = arr
 
     @staticmethod
+    def _run_file(fp):
+        """Check whether to run tmy for a given output filepath based on
+        whether that file already exists and its file size."""
+        run = True
+        if os.path.exists(fp):
+            size = os.path.getsize(fp)
+            if size > 1e6:
+                run = False
+
+        return run
+
+    @staticmethod
     def run_single(nsrdb_base_fp, years, weights, site_slice, dsets, f_out,
                    supplemental_fp=None, var_meta=None):
         """Run TMY for a single site chunk (slice) and save to disk.
@@ -1623,13 +1635,7 @@ class TmyRunner:
         True
         """
 
-        run = True
-        if os.path.exists(f_out):
-            size = os.path.getsize(f_out)
-            if size > 1e6:
-                logger.info('Skipping chunk, f_out already exists: {}'
-                            .format(f_out))
-                run = False
+        run = TmyRunner._run_file(f_out)
 
         if run:
             data_dict = {}
@@ -1639,6 +1645,9 @@ class TmyRunner:
                 data_dict[dset] = tmy.get_tmy_timeseries(dset)
             TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
                                     var_meta=var_meta)
+        else:
+            logger.info('Skipping chunk, f_out already exists: {}'
+                        .format(f_out))
 
         return True
 
@@ -1648,13 +1657,14 @@ class TmyRunner:
         for i, site_slice in enumerate(self.site_chunks):
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
-            if not os.path.exists(f_out):
+            if self._run_file(f_out):
                 self.run_single(self._nsrdb_base_fp, self._years,
                                 self._weights, site_slice, self.dsets, f_out,
                                 supplemental_fp=self._supplemental_fp,
                                 var_meta=self._var_meta)
             else:
                 logger.info('Skipping, already exists: {}'.format(f_out))
+
             logger.info('{} out of {} TMY chunks completed.'
                         .format(i + 1, len(self.site_chunks)))
 
@@ -1668,7 +1678,7 @@ class TmyRunner:
             for i, site_slice in enumerate(self.site_chunks):
                 fi = self._site_chunks_index[i]
                 f_out = self._f_out_chunks[fi]
-                if not os.path.exists(f_out):
+                if self._run_file(f_out):
                     future = exe.submit(
                         self.run_single, self._nsrdb_base_fp, self._years,
                         self._weights, site_slice, self.dsets, f_out,
@@ -1677,6 +1687,7 @@ class TmyRunner:
                     futures[future] = i
                 else:
                     logger.info('Skipping, already exists: {}'.format(f_out))
+
             logger.info('Finished kicking off {} futures.'
                         .format(len(futures)))
 
