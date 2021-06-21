@@ -8,7 +8,7 @@ import os
 import pandas as pd
 import time
 
-from cloud_fs import FileSystem as FS
+from cloud_fs import FileSystem as FS, FauxOpen
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 
@@ -28,6 +28,9 @@ class GfsVarSingle:
             Path to a single timestep GFS file
         """
         self._fpath = FS(fpath).open()
+        if isinstance(self._fpath, FauxOpen):
+            self._fpath = self._fpath.path
+
         # pylint: disable=no-member
         self._dataset = nc.Dataset(self._fpath, mode='r')
         self._dsets = None
@@ -71,7 +74,7 @@ class GfsVarSingle:
             out = self._dataset.variables[name][...]
 
         if isinstance(out, np.ma.MaskedArray):
-            out = out.out
+            out = out.data
 
         return out
 
@@ -158,7 +161,8 @@ class GfsVarSingle:
         if self._dataset.isopen():
             self._dataset.close()
 
-        self._fpath.close()
+        if not isinstance(self._fpath, str):
+            self._fpath.close()
 
 
 class GfsVar(AncillaryVarHandler):
@@ -256,15 +260,11 @@ class GfsVar(AncillaryVarHandler):
         if self._grid is None:
             with GfsVarSingle(self.files[0]) as f:
                 lon2d, lat2d = np.meshgrid(f['longitude'][:], f['latitude'][:])
+                elev = f['HGT_surface'][:]
 
             self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
-                                       'latitude': lat2d.ravel()})
-
-            # add elevation to coordinate set
-            elev = pd.read_csv(self.GFS_ELEV)
-            self._grid = self._grid.merge(elev,
-                                          on=['latitude', 'longitude'],
-                                          how='left')
+                                       'latitude': lat2d.ravel(),
+                                       'mean_elevation': elev.ravel()})
 
         return self._grid
 

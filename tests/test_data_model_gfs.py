@@ -22,8 +22,8 @@ from rex.utilities.loggers import init_logger
 RTOL = 0.01
 ATOL = 0.0
 
-DATE_16 = datetime.date(year=2021, month=6, day=16)
-DATE_9 = datetime.date(year=2021, month=6, day=9)
+DATE_20 = datetime.date(year=2021, month=6, day=20)
+DATE_21 = datetime.date(year=2021, month=6, day=21)
 
 
 def test_ancillary_single(var, date):
@@ -34,13 +34,13 @@ def test_ancillary_single(var, date):
     # set test directory
     source_dir = os.path.join(TESTDATADIR, 'gfs_source_files')
 
-    factory_kwargs = {'air_temperature': {'source_dir': source_dir,
-                                          'handler': 'GfsVar'}}
+    factory_kwargs = {'TMP_surface': {'source_dir': source_dir,
+                                      'handler': 'GfsVar'}}
 
     data = DataModel.run_single(var, date, grid, factory_kwargs=factory_kwargs)
 
 
 if __name__ == '__main__':
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
-    test_ancillary_single('air_temperature', DATE_9)
-    test_ancillary_single('air_temperature', DATE_16)
+    test_ancillary_single('TMP_surface', DATE_20)
+    test_ancillary_single('TMP_surface', DATE_21)
