@@ -17,7 +17,7 @@ from nsrdb.tmy.tmy import Cdf, Tmy
 
 RTOL = 0.001
 ATOL = 0.001
-NSRDB_DIR = os.path.join(TESTDATADIR, 'validation_nsrdb/')
+NSRDB_BASE_FP = os.path.join(TESTDATADIR, 'validation_nsrdb/nsrdb_*_{}.h5')
 BASELINE_DIR = os.path.join(TESTDATADIR, 'tgy_2017/')
 
 BASELINES_FILES = {0: 'DRA_36.62_-116.02_tgy.csv',
@@ -74,9 +74,9 @@ def test_fw_weighting():
     g_weights = {'sum_ghi': 1}
     d_weights = {'sum_dni': 1}
     m_weights = {'sum_dni': dw, 'sum_ghi': gw}
-    tgy = Tmy(NSRDB_DIR, years, g_weights, site_slice=slice(0, 1))
-    tdy = Tmy(NSRDB_DIR, years, d_weights, site_slice=slice(0, 1))
-    tmy = Tmy(NSRDB_DIR, years, m_weights, site_slice=slice(0, 1))
+    tgy = Tmy(NSRDB_BASE_FP, years, g_weights, site_slice=slice(0, 1))
+    tdy = Tmy(NSRDB_BASE_FP, years, d_weights, site_slice=slice(0, 1))
+    tmy = Tmy(NSRDB_BASE_FP, years, m_weights, site_slice=slice(0, 1))
     g_ws = tgy.get_weighted_fs()
     d_ws = tdy.get_weighted_fs()
     m_ws = tmy.get_weighted_fs()
@@ -89,13 +89,13 @@ def test_arr_sampling():
     """Test the array retrieval and daily sampling methods."""
     years = list(range(1998, 2005))
     weights = {'sum_air_temperature': 1.0}
-    tmy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 1))
+    tmy = Tmy(NSRDB_BASE_FP, years, weights, site_slice=slice(0, 1))
     subhourly_temp = tmy._get_my_arr('air_temperature')
     sum_temp = tmy._get_my_arr('sum_air_temperature')
     mean_temp = tmy._get_my_arr('mean_air_temperature')
     min_temp = tmy._get_my_arr('min_air_temperature')
     max_temp = tmy._get_my_arr('max_air_temperature')
-    tmy.my_daily_time_index
+    _ = tmy.my_daily_time_index
     ws = tmy.get_weighted_fs()
 
     assert len(tmy.my_time_index) == len(subhourly_temp)
@@ -134,7 +134,7 @@ def test_tmy_steps():
 
     years = list(range(1998, 2018))
     weights = {'sum_ghi': 1}
-    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
+    tgy = Tmy(NSRDB_BASE_FP, years, weights, site_slice=slice(0, 2))
 
     emsg = ('STEP1: TMY year selection based on FS metric failed! '
             'Low FS metrics do not correspond to selected years.')
@@ -186,7 +186,7 @@ def test_baseline_timeseries():
     f_baseline = os.path.join(TESTDATADIR, 'tmy_baseline/tgy_1998_2017.csv')
     years = list(range(1998, 2018))
     weights = {'sum_ghi': 1}
-    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 2))
+    tgy = Tmy(NSRDB_BASE_FP, years, weights, site_slice=slice(0, 2))
     data = tgy.get_tmy_timeseries('ghi')
 
     df_data = pd.DataFrame(data, index=tgy.time_index)
@@ -213,7 +213,7 @@ def plot_cdf():
     """Plot the CDF graph emulating the plot from the TMY users guide."""
     years = list(range(1998, 2018))
     weights = {'sum_ghi': 1}
-    tgy = Tmy(NSRDB_DIR, years, weights, site_slice=slice(0, 1))
+    tgy = Tmy(NSRDB_BASE_FP, years, weights, site_slice=slice(0, 1))
     arr = tgy._get_my_arr('sum_ghi')
     cdf = Cdf(arr, tgy.my_daily_time_index)
     cdf.plot_tmy_selection()

@@ -3,13 +3,15 @@ Classes to handle reading NSRDB resource data.
 """
 from rex.resource import ResourceDataset
 from rex.resource import Resource as rexResource
+from rex.multi_file_resource import MultiFileResource as rexMultiFileResource
 from rex.utilities.exceptions import ResourceKeyError
 from rex.utilities.parse_keys import parse_slice
 
 
 class Resource(rexResource):
     """
-    Base class to handle NSRDB .h5 files
+    Base class to handle NSRDB .h5 files with handling of legacy NSRDB
+    scale factors
     """
 
     SCALE_ATTR = 'scale_factor'
@@ -71,3 +73,8 @@ class Resource(rexResource):
             out = out.astype('float32')
 
         return out
+
+
+class MultiFileResource(rexMultiFileResource, Resource):
+    """Multi file resource handler with handling of legacy nsrdb scale factors
+    """
