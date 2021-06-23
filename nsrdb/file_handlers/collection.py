@@ -356,7 +356,8 @@ class Collector:
 
     @staticmethod
     def collect_flist(flist, collect_dir, f_out, dset, sites=None,
-                      var_meta=None, max_workers=None):
+                      sort=False, sort_key=None, var_meta=None,
+                      max_workers=None):
         """Collect a dataset from a file list with data pre-init.
 
         Collects data that can be chunked in both space and time.
@@ -373,6 +374,11 @@ class Collector:
             Dataset name to collect.
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
+        sort : bool
+            flag to sort flist to determine meta data order.
+        sort_key : None | fun
+            Optional sort key to sort flist by (determines how meta is built
+            if f_out does not exist).
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -382,7 +388,8 @@ class Collector:
         """
 
         time_index, meta, shape, dtype = Collector._get_collection_attrs(
-            flist, collect_dir, dset, sites=sites)
+            flist, collect_dir, dset, sites=sites, sort=sort,
+            sort_key=sort_key)
 
         logger.debug('Collecting file list of shape {}: {}'
                      .format(shape, flist))

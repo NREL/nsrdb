@@ -1623,7 +1623,7 @@ class Manager:
 
     @classmethod
     def collect(cls, meta_final, collect_dir, collect_tag, fout,
-                max_workers=None):
+                dsets=None, max_workers=None):
         """Perform final collection of chunk-aggregated files.
 
         Parameters
@@ -1637,6 +1637,8 @@ class Manager:
         fout : str
             File path to the output collected file (will be initialized by
             this method).
+        dsets : list | tuple
+            Select datasets to collect (None will default to all dsets)
         max_workers : int | None
             Number of workers to use in parallel. 1 runs serial,
             None uses all available.
@@ -1649,11 +1651,14 @@ class Manager:
         flist = [fn for fn in fns if fn.endswith('.h5')
                  and collect_tag in fn
                  and os.path.join(collect_dir, fn) != fout]
+        flist = sorted(
+            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1]))
 
         logger.info('Collecting aggregation chunks from {} files to: {}'
                     .format(len(flist), fout))
 
-        dsets, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
+        dsets_all, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
+        dsets = dsets_all if dsets is None else dsets
         Outputs.init_h5(fout, dsets, attrs, chunks, dtypes,
                         ti, meta_final)
 
