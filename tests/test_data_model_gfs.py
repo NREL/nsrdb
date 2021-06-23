@@ -33,14 +33,23 @@ def test_ancillary_single(var, date):
 
     # set test directory
     source_dir = os.path.join(TESTDATADIR, 'gfs_source_files')
+    var_meta = os.path.join(source_dir, 'nsrdb_vars_gfs.csv')
+    factory_kwargs = {var: {'source_dir': source_dir, 'handler': 'GfsVar'}}
 
-    factory_kwargs = {'TMP_surface': {'source_dir': source_dir,
-                                      'handler': 'GfsVar'}}
-
-    data = DataModel.run_single(var, date, grid, factory_kwargs=factory_kwargs)
+    data = DataModel.run_single(var, date, grid, var_meta=var_meta,
+                                factory_kwargs=factory_kwargs, scale=False)
+    print(var)
+    print(data)
 
 
 if __name__ == '__main__':
     init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
-    test_ancillary_single('TMP_surface', DATE_20)
-    test_ancillary_single('TMP_surface', DATE_21)
+    gfs_vars = ('air_temperature',
+                'ozone',
+                'surface_pressure',
+                'total_precipitable_water',
+                'wind_direction',
+                'wind_speed')
+    for var in gfs_vars:
+        for date in (DATE_20, DATE_21):
+            test_ancillary_single(var, date)

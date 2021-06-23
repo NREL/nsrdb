@@ -264,7 +264,7 @@ class GfsVar(AncillaryVarHandler):
 
             self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
                                        'latitude': lat2d.ravel(),
-                                       'mean_elevation': elev.ravel()})
+                                       'elevation': elev.ravel()})
 
         return self._grid
 
@@ -280,9 +280,19 @@ class GfsVar(AncillaryVarHandler):
             2D spatially gridded numpy array with shape (lat x lon).
         """
         data = np.zeros(self.shape, dtype=np.float32)
-        for i, file in enumerate(self.files):
-            with GfsVarSingle(file) as f:
-                data[i] = f[self.name].ravel()
+        for i, fp in enumerate(self.files):
+            with GfsVarSingle(fp) as f:
+                if self.name in ('wind_speed', 'wind_direction'):
+                    u_vector = f['UGRD_10maboveground'].ravel()
+                    v_vector = f['VGRD_10maboveground'].ravel()
+                    if self.name == 'wind_speed':
+                        data[i] = np.sqrt(u_vector**2 + v_vector**2)
+                    else:
+                        data[i] = np.degrees(np.arctan2(u_vector, v_vector))
+                        data[i] += 180
+
+                else:
+                    data[i] = f[self.dset_name].ravel()
 
         return data
 
