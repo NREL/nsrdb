@@ -12,7 +12,7 @@ from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.resource import Resource
 
 
-def run_checks(fp, i0, iend, step=1000):
+def run_checks(fp, i0, iend, interval=1, step=1000):
     """Run various checks on TMY files.
 
     Checks:
@@ -28,14 +28,19 @@ def run_checks(fp, i0, iend, step=1000):
         Starting site index.
     iend : int
         Ending site index.
+    interval : int
+        Interval to spot check instead of check everything from i0 to iend
     step : int
         Chunk size to read at once.
     """
 
-    print('Running QA on {} from {} to {} with step size {}'
-          .format(fp, i0, iend, step))
+    print('Running QA on {} from {} to {} with step size {} and interval {}'
+          .format(fp, i0, iend, step, interval))
 
-    i0_static = i0
+    n_split = int(np.ceil((iend - i0) / step))
+    chunks = np.array_split(np.arange(i0, iend), n_split)
+    chunks = [slice(x[0], x[-1] + 1) for x in chunks]
+    chunks = chunks[::interval]
 
     with Resource(fp) as res:
 
@@ -73,10 +78,7 @@ def run_checks(fp, i0, iend, step=1000):
             if 'psm_units' not in attrs:
                 raise KeyError('Could not find psm_units')
 
-            i0 = i0_static
-            while True:
-
-                site_slice = slice(i0, i0 + step)
+            for site_slice in chunks:
                 data = res[dset, :, site_slice]
                 print('\tSite {} min/max: {}/{}'
                       .format(site_slice, data.min(), data.max()))
@@ -97,8 +99,3 @@ def run_checks(fp, i0, iend, step=1000):
                     print(m)
                     warn(m)
                     time.sleep(.2)
-
-                if i0 > iend or (i0 + step) > iend:
-                    break
-                else:
-                    i0 += step
