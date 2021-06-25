@@ -60,7 +60,7 @@ class Resource(rexResource):
             scale_attr = self.SCALE_ATTR
 
         add_attr = self.OLD_ADD_ATTR
-        if self.OLD_ADD_ATTR in attrs:
+        if self.ADD_ATTR in attrs:
             add_attr = self.ADD_ATTR
 
         out = ResourceDataset.extract(ds, ds_slice, scale_attr=scale_attr,
