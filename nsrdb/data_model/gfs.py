@@ -42,7 +42,7 @@ class GfsVarSingle:
         """
         Closes dataset on exiting with
         """
-        self._fs.close()
+        self._fs._close()
 
         if type is not None:
             raise
@@ -269,9 +269,9 @@ class GfsVar(AncillaryVarHandler):
             with GfsVarSingle(fp) as f:
                 if self.name in ('wind_speed', 'wind_direction'):
                     if self.name == 'wind_speed':
-                        data[i] = f.wind_speed
+                        data[i] = f.wind_speed.ravel()
                     else:
-                        data[i] = f.wind_direction
+                        data[i] = f.wind_direction.ravel()
 
                 else:
                     data[i] = f[self.dset_name].ravel()

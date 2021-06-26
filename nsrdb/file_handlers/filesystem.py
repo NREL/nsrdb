@@ -33,13 +33,13 @@ class NSRDBFileSystem(FileSystem):
         return self.open()
 
     def __exit__(self, type, value, traceback):
-        self.close()
+        self._close()
 
         if type is not None:
             raise
 
     @staticmethod
-    def _close(handler):
+    def _close_handler(handler):
         """
         Close given file handler
 
@@ -54,12 +54,12 @@ class NSRDBFileSystem(FileSystem):
             except Exception as ex:
                 warn('Could not close {}: {}'.format(handler, ex))
 
-    def close(self):
+    def _close(self):
         """
         Close file and filesystem handler
         """
-        self._close(self._file_handler)
-        self._close(self._fs_handler)
+        self._close_handler(self._file_handler)
+        self._close_handler(self._fs_handler)
 
     def open(self):
         """
