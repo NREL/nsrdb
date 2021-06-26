@@ -6,7 +6,7 @@ import pandas as pd
 from warnings import warn
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
-from cloud_fs import FileSystem as FS
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +281,7 @@ class AncillaryVarHandler:
         chunks : tuple
             Data storage chunk shape (row_chunk, col_chunk).
         """
+        # pylint: disable=no-member
         r = self.var_meta.loc[self.mask, 'row_chunks'].values[0]
         c = self.var_meta.loc[self.mask, 'col_chunks'].values[0]
         try:
@@ -332,7 +333,7 @@ class AncillaryVarHandler:
         missing = ''
         # empty cell (no source dir) evaluates to 'nan'.
         if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
-            if not FS(self.source_dir).exists():
+            if not NFS(self.source_dir).exists():
                 # source dir is not nan and does not exist
                 missing = self.source_dir
 

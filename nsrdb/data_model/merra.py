@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MERRA2 source data."""
 import logging
-import netCDF4
 import numpy as np
 import os
 import pandas as pd
 
-from cloud_fs import FileSystem as FS
-
 from nsrdb import DATADIR
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ class MerraVar(AncillaryVarHandler):
         """
 
         path = os.path.join(self.source_dir, self.file_set)
-        flist = FS(path).ls()
+        flist = NFS(path).ls()
         fmerra = None
 
         for f in flist:
@@ -94,7 +92,7 @@ class MerraVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not FS(self.file).isfile():
+        if not NFS(self.file).isfile():
             missing = self.file
 
         return missing
@@ -152,51 +150,48 @@ class MerraVar(AncillaryVarHandler):
                     'cld_opd_dcomp', 'cld_reff_dcomp']
 
         # open NetCDF file
-        with FS(self.file).open() as fp:
-            # pylint: disable=no-member
-            with netCDF4.Dataset(fp, 'r') as f:
-
-                # depending on variable, might need extra logic
-                if self.name in ['wind_speed', 'wind_direction']:
-                    u_vector = f['U2M'][:]
-                    v_vector = f['V2M'][:]
-                    if self.name == 'wind_speed':
-                        data = np.sqrt(u_vector**2 + v_vector**2)
-                    else:
-                        data = np.degrees(
-                            np.arctan2(u_vector, v_vector)) + 180
-
-                elif self.dset_name == 'TOTSCATAU':
-                    # Single scatter albedo is total scatter / aod
-                    data = f[self.dset_name][:] / f['TOTEXTTAU'][:]
-
-                elif self.name in cld_vars:
-                    # Special handling of cloud properties when
-                    # satellite data is not available.
-                    opd = f['TAUTOT'][:]
-
-                    if self.name == 'cld_opd_dcomp':
-                        data = opd
-                    else:
-                        opd_hi = f['TAUHGH'][:]
-                        ctype = np.zeros_like(opd)
-                        ctype = np.where((opd > 0) & (opd_hi <= 0), 3, ctype)
-                        ctype = np.where((opd > 0) & (opd_hi > 0), 6, ctype)
-
-                        if self.name == 'cloud_type':
-                            data = ctype
-                        elif self.name == 'cld_reff_dcomp':
-                            data = np.zeros_like(opd)
-                            data = np.where(ctype == 3, 8.0, data)
-                            data = np.where(ctype == 6, 20.0, data)
-                        elif self.name in ['cld_press_acha',
-                                           'cloud_press_acha']:
-                            data = np.zeros_like(opd)
-                            data = np.where(ctype == 3, 800.0, data)
-                            data = np.where(ctype == 6, 250.0, data)
-
+        with NFS(self.file).open() as f:
+            # depending on variable, might need extra logic
+            if self.name in ['wind_speed', 'wind_direction']:
+                u_vector = f['U2M'][:]
+                v_vector = f['V2M'][:]
+                if self.name == 'wind_speed':
+                    data = np.sqrt(u_vector**2 + v_vector**2)
                 else:
-                    data = f[self.dset_name][:]
+                    data = np.degrees(
+                        np.arctan2(u_vector, v_vector)) + 180
+
+            elif self.dset_name == 'TOTSCATAU':
+                # Single scatter albedo is total scatter / aod
+                data = f[self.dset_name][:] / f['TOTEXTTAU'][:]
+
+            elif self.name in cld_vars:
+                # Special handling of cloud properties when
+                # satellite data is not available.
+                opd = f['TAUTOT'][:]
+
+                if self.name == 'cld_opd_dcomp':
+                    data = opd
+                else:
+                    opd_hi = f['TAUHGH'][:]
+                    ctype = np.zeros_like(opd)
+                    ctype = np.where((opd > 0) & (opd_hi <= 0), 3, ctype)
+                    ctype = np.where((opd > 0) & (opd_hi > 0), 6, ctype)
+
+                    if self.name == 'cloud_type':
+                        data = ctype
+                    elif self.name == 'cld_reff_dcomp':
+                        data = np.zeros_like(opd)
+                        data = np.where(ctype == 3, 8.0, data)
+                        data = np.where(ctype == 6, 20.0, data)
+                    elif self.name in ['cld_press_acha',
+                                       'cloud_press_acha']:
+                        data = np.zeros_like(opd)
+                        data = np.where(ctype == 3, 800.0, data)
+                        data = np.where(ctype == 6, 250.0, data)
+
+            else:
+                data = f[self.dset_name][:]
 
         # make the data a flat 2d array
         data = self._format_2d(data)
@@ -216,10 +211,8 @@ class MerraVar(AncillaryVarHandler):
         """
 
         if self._grid is None:
-            with FS(self.file).open() as fp:
-                # pylint: disable=no-member
-                with netCDF4.Dataset(fp, 'r') as nc:
-                    lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
+            with NFS(self.file) as f:
+                lon2d, lat2d = np.meshgrid(f['lon'][:], f['lat'][:])
 
             self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
                                        'latitude': lat2d.ravel()})

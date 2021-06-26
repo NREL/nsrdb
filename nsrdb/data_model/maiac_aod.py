@@ -8,6 +8,7 @@ import pandas as pd
 from cloud_fs import FileSystem as FS
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.resource import Resource
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class MaiacVar(AncillaryVarHandler):
         files : list
            List of filepaths to h5 files containing MAIAC AOD data.
         """
-        fns = [fn for fn in FS(self.source_dir).ls()
+        fns = [fn for fn in NFS(self.source_dir).ls()
                if str(self._date.year) in fn]
         fps = [os.path.join(self.source_dir, fn) for fn in fns]
         logger.debug('Found the following MAIAC files: {}'.format(fns))

@@ -43,10 +43,9 @@ from warnings import warn
 
 from rex.utilities.execution import SpawnProcessPool
 
-from cloud_fs import FileSystem as FS
-
 from nsrdb import DATADIR
 from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
@@ -349,7 +348,7 @@ class DataModel:
             raise ValueError(e)
 
         # Do not cache results if the intended Cache directory isn't available
-        if not FS(self.CACHE_DIR).exists():
+        if not NFS(self.CACHE_DIR).exists():
             cache = False
 
         if isinstance(cache, str):
@@ -368,7 +367,7 @@ class DataModel:
             cache_i = os.path.join(self.CACHE_DIR,
                                    cache.replace('.csv', '_i.csv'))
 
-            if FS(cache_i).exists() and FS(cache_d).exists():
+            if NFS(cache_i).exists() and NFS(cache_d).exists():
                 logger.warning('Found cached nearest neighbor indices, '
                                'importing: {}'.format(cache_i))
                 dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
@@ -939,7 +938,7 @@ class DataModel:
 
         if fpath_out is not None:
             fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
-            if FS(fpath_out).exists():
+            if NFS(fpath_out).exists():
                 logger.info('Skipping DataModel for "{}" with existing '
                             'fpath_out: {}'.format(var, fpath_out))
                 return fpath_out
@@ -1391,7 +1390,7 @@ class DataModel:
                               'format keywords: {}'.format(fpath_out))
             fpath_out = fpath_out.format(var=var,
                                          i=data_model.nsrdb_grid.index[0])
-            if FS(fpath_out).exists():
+            if NFS(fpath_out).exists():
                 logger.info('Skipping DataModel for "{}" with existing '
                             'fpath_out: {}'.format(var, fpath_out))
                 return fpath_out
@@ -1500,7 +1499,7 @@ class DataModel:
             for var in cloud_vars:
                 fpath_out_var = fpath_out.format(
                     var=var, i=data_model.nsrdb_grid.index[0])
-                if FS(fpath_out_var).exists():
+                if NFS(fpath_out_var).exists():
                     logger.info('Skipping DataModel for "{}" with existing '
                                 'fpath_out: {}'.format(var, fpath_out_var))
                     skip_list.append(var)

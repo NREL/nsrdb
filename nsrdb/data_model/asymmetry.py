@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """A framework for handling Asymmetry source data."""
 import datetime
-import h5py
 import logging
 import os
 import pandas as pd
 
-from cloud_fs import FileSystem as FS
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class AsymVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not FS(self.fpath).isfile():
+        if not NFS(self.fpath).isfile():
             missing = self.fpath
 
         return missing
@@ -81,11 +80,10 @@ class AsymVar(AncillaryVarHandler):
         data : np.ndarray
             Single month of asymmetry data with shape (1 x n_sites).
         """
-        with FS(self.fpath).open() as fp:
-            with h5py.File(fp, 'r') as f:
-                # take the data at all sites for the zero-indexed month
-                i = self._date.month - 1
-                data = f[self.name][i, :]
+        with NFS(self.fpath) as f:
+            # take the data at all sites for the zero-indexed month
+            i = self._date.month - 1
+            data = f[self.name][i, :]
 
         # reshape to (1 x n_sites)
         data = data.reshape((1, len(data)))
@@ -103,9 +101,8 @@ class AsymVar(AncillaryVarHandler):
         """
 
         if self._asym_grid is None:
-            with FS(self.fpath).open() as fp:
-                with h5py.File(fp, 'r') as f:
-                    self._asym_grid = pd.DataFrame(f['meta'][...])
+            with NFS(self.fpath) as f:
+                self._asym_grid = pd.DataFrame(f['meta'][...])
 
             if ('latitude' not in self._asym_grid
                     or 'longitude' not in self._asym_grid):

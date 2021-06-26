@@ -2,15 +2,13 @@
 """A framework for handling global forecasting system (GFS) source data as a
 real-time replacement for GFS."""
 import logging
-import netCDF4 as nc
 import numpy as np
 import os
 import pandas as pd
 import time
 
-from cloud_fs import FileSystem as FS, FauxOpen
-
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +25,9 @@ class GfsVarSingle:
         fpath : str
             Path to a single timestep GFS file
         """
-        self._fpath = FS(fpath).open()
-        if isinstance(self._fpath, FauxOpen):
-            self._fpath = self._fpath.path
-
         # pylint: disable=no-member
-        self._dataset = nc.Dataset(self._fpath, mode='r')
+        self._fs = NFS(fpath)
+        self._dataset = self._fs.open()
         self._dsets = None
         self._units = None
         self._timestep = None
@@ -47,7 +42,7 @@ class GfsVarSingle:
         """
         Closes dataset on exiting with
         """
-        self.close()
+        self._fs.close()
 
         if type is not None:
             raise
@@ -153,16 +148,6 @@ class GfsVarSingle:
         v_vector = self['VGRD_10maboveground'][...]
 
         return np.degrees(np.arctan2(u_vector, v_vector)) + 180
-
-    def close(self):
-        """
-        Close netCDF Dataset
-        """
-        if self._dataset.isopen():
-            self._dataset.close()
-
-        if not isinstance(self._fpath, str):
-            self._fpath.close()
 
 
 class GfsVar(AncillaryVarHandler):
@@ -283,13 +268,10 @@ class GfsVar(AncillaryVarHandler):
         for i, fp in enumerate(self.files):
             with GfsVarSingle(fp) as f:
                 if self.name in ('wind_speed', 'wind_direction'):
-                    u_vector = f['UGRD_10maboveground'].ravel()
-                    v_vector = f['VGRD_10maboveground'].ravel()
                     if self.name == 'wind_speed':
-                        data[i] = np.sqrt(u_vector**2 + v_vector**2)
+                        data[i] = f.wind_speed
                     else:
-                        data[i] = np.degrees(np.arctan2(u_vector, v_vector))
-                        data[i] += 180
+                        data[i] = f.wind_direction
 
                 else:
                     data[i] = f[self.dset_name].ravel()
@@ -315,7 +297,7 @@ class GfsVar(AncillaryVarHandler):
             List of GFS files to use for given NSRDB date stamp
         """
         date_files = {'00z': [], '06z': [], '12z': [], '18z': []}
-        for f in sorted(FS(source_dir).ls()):
+        for f in NFS(source_dir).ls():
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
                 for k, v in date_files.items():
@@ -354,7 +336,7 @@ class GfsVar(AncillaryVarHandler):
 
             files = []
             hr_list = ["{:03d}hr".format(h) for h in range(6, 30, 3)]
-            for f in sorted(FS(self.source_dir).ls()):
+            for f in NFS(self.source_dir).ls():
                 hr_check = any(hr in f for hr in hr_list)
                 if date in f and '18z' in f and hr_check:
                     files.append(os.path.join(self.source_dir, f))
