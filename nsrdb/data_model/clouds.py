@@ -600,7 +600,7 @@ class CloudVarSingleNC(CloudVarSingle):
                         msg = ('Exception masking {} in {}: {}'
                                .format(dset, fpath, e))
                         logger.error(msg)
-                        raise RuntimeError(msg)
+                        raise RuntimeError(msg) from e
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
@@ -951,7 +951,7 @@ class CloudVar(AncillaryVarHandler):
                     dirpath += '/'
                 if dirsearch in dirpath:
                     for fn in NFS(dirpath).ls():
-                        if any([tag in fn for tag in fsearch]):
+                        if any(tag in fn for tag in fsearch):
                             self._path = dirpath
                             break
                 if self._path is not None:
