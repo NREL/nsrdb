@@ -10,6 +10,7 @@ from nsrdb.data_model.asymmetry import AsymVar
 from nsrdb.data_model.gfs import GfsVar
 from nsrdb.data_model.maiac_aod import MaiacVar
 from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
+from nsrdb.data_model.nrel_data import NrelVar
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class VarFactory:
                      'GfsVar': GfsVar,
                      'MerraVar': MerraVar,
                      'MaiacVar': MaiacVar,
+                     'NrelVar': NrelVar,
                      'DewPoint': DewPoint,
                      'RelativeHumidity': RelativeHumidity,
                      'SolarZenithAngle': SolarZenithAngle,
