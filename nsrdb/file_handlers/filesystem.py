@@ -5,6 +5,7 @@ Utility to abstractly handle filesystem operations locally and in the cloud
 from cloud_fs import FileSystem
 import h5py
 import netCDF4 as nc
+from nsrdb.file_handlers.resource import Resource
 from warnings import warn
 
 
@@ -14,7 +15,8 @@ class NSRDBFileSystem(FileSystem):
     files in AWS S3
     """
 
-    def __init__(self, path, anon=False, profile=None, **kwargs):
+    def __init__(self, path, anon=False, profile=None, use_h5py=False,
+                 **kwargs):
         """
         Parameters
         ----------
@@ -24,10 +26,14 @@ class NSRDBFileSystem(FileSystem):
             Whether to use anonymous credentials, by default False
         profile : str, optional
             AWS credentials profile, by default None
+        use_h5py : bool
+            Flag to use h5py as the .h5 handler instead of the
+            rex/nsrdb Resource class.
         """
         super().__init__(path, anon=anon, profile=profile, **kwargs)
         self._fs_handler = None
         self._file_handler = None
+        self._use_h5py = use_h5py
 
     def __enter__(self):
         return self.open()
@@ -83,8 +89,10 @@ class NSRDBFileSystem(FileSystem):
             else:
                 self._file_handler = nc.Dataset('inmemory.nc', mode='r',
                                                 memory=self._fs_handler.read())
-        elif self.path.endswith('.h5'):
+        elif self.path.endswith('.h5') and self._use_h5py:
             self._file_handler = h5py.File(self._fs_handler, mode='r')
+        elif self.path.endswith('.h5') and not self._use_h5py:
+            self._file_handler = Resource(self._fs_handler, mode='r')
         else:
             self._file_handler = self._fs_handler
 
