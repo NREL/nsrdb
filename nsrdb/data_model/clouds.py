@@ -34,12 +34,12 @@ class CloudCoords:
     def check_file(fp):
         """Check if file has required vars for cloud coord correction"""
 
-        if fp.endswith('.nc'):
+        if fp.endswith(('.nc', '.nc4')):
             with NFS(fp) as f:
                 dsets = sorted(list(f.variables.keys()))
 
         elif fp.endswith('.h5'):
-            with NFS(fp) as f:
+            with NFS(fp, use_h5py=True) as f:
                 dsets = list(f)
 
         else:
@@ -285,7 +285,7 @@ class CloudVarSingleH5(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with NFS(self._fpath) as f:
+        with NFS(self._fpath, use_h5py=True) as f:
             out = list(f)
 
         return out
@@ -317,7 +317,7 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         grid = {}
-        with NFS(fpath) as f:
+        with NFS(fpath, use_h5py=True) as f:
             for dset in dsets:
                 if 'lat' in dset:
                     dset_out = 'latitude'
@@ -370,7 +370,7 @@ class CloudVarSingleH5(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
-        with NFS(fpath) as f:
+        with NFS(fpath, use_h5py=True) as f:
             sza = cls.pre_process(
                 'solar_zenith_angle', f['solar_zenith_angle'][...],
                 dict(f['solar_zenith_angle'].attrs))
@@ -492,7 +492,7 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         data = {}
-        with NFS(self._fpath) as f:
+        with NFS(self._fpath, use_h5py=True) as f:
             for dset in self._dsets:
                 if dset not in list(f):
                     raise KeyError('Could not find "{}" in the cloud '
