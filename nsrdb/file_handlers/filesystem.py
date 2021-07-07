@@ -81,8 +81,9 @@ class NSRDBFileSystem(FileSystem):
             - open h5py.File object
             - open netCDF4.Dataset object
         """
+
         self._fs_handler = super().open()
-        if self.path.endswith('.nc'):
+        if self.path.endswith(('.nc', '.nc4')):
             # pylint: disable=no-member
             if isinstance(self._fs_handler, str):
                 self._file_handler = nc.Dataset(self._fs_handler, mode='r')

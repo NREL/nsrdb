@@ -146,7 +146,7 @@ class MerraVar(AncillaryVarHandler):
                     'cld_opd_dcomp', 'cld_reff_dcomp']
 
         # open NetCDF file
-        with NFS(self.file).open() as f:
+        with NFS(self.file) as f:
             # depending on variable, might need extra logic
             if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]

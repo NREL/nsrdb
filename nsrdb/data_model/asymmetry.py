@@ -3,7 +3,6 @@
 import datetime
 import logging
 import os
-import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
@@ -98,7 +97,7 @@ class AsymVar(AncillaryVarHandler):
 
         if self._asym_grid is None:
             with NFS(self.fpath) as f:
-                self._asym_grid = pd.DataFrame(f['meta'][...])
+                self._asym_grid = f.meta
 
             if ('latitude' not in self._asym_grid
                     or 'longitude' not in self._asym_grid):
