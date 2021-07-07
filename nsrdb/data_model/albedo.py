@@ -22,7 +22,7 @@ class AlbedoVar(AncillaryVarHandler):
     # nearest neighbor tree method for this variable
     NN_METHOD = 'kdtree'
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -33,15 +33,11 @@ class AlbedoVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
         self._albedo_grid = None
         self._lon_good = None
         self._lat_good = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
         # Albedo benefits from caching the nn results
         self._cache_file = 'albedo_nn_cache.csv'

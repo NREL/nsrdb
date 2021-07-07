@@ -20,7 +20,7 @@ class AncillaryVarHandler:
     # nearest neighbor tree method for this variable
     NN_METHOD = 'haversine'
 
-    def __init__(self, name, var_meta=None, date=None, source_dir=None):
+    def __init__(self, name, var_meta=None, date=None, **kwargs):
         """
         Parameters
         ----------
@@ -31,17 +31,25 @@ class AncillaryVarHandler:
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
+        kwargs : dict
+            Optional kwargs to overwrite relevant data in the var_meta
         """
 
         self._var_meta = self._parse_var_meta(var_meta)
         self._name = name
         self._date = date
-        self._source_dir = source_dir
         self._cache_file = False
         self._mask = None
+
+        # overwrite data in var_meta with the passed in kwargs
+        for k, v in kwargs.items():
+            if k in self._var_meta:
+                self._var_meta.at[self.mask, k] = v
+
+        # legacy kwarg alias for source_directory
+        sd = kwargs.get('source_dir', None)
+        if sd:
+            self._var_meta.at[self.mask, 'source_directory'] = sd
 
     @staticmethod
     def _parse_var_meta(inp):
@@ -217,14 +225,12 @@ class AncillaryVarHandler:
         source_dir : str
             Directory containing source data files (with possible sub folders).
         """
-        if self._source_dir is None:
-            self._source_dir = self.var_meta.loc[
-                self.mask, 'source_directory'].values[0]
-            if not self._source_dir:
-                warn('Using default data directory for "{}"'
-                     .format(self.name))
-                self._source_dir = self.DEFAULT_DIR
-        return str(self._source_dir)
+        sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
+        if not sd:
+            warn('Using default data directory for "{}"'
+                 .format(self.name))
+            sd = self.DEFAULT_DIR
+        return str(sd)
 
     @property
     def temporal_method(self):

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MaiacVar(AncillaryVarHandler):
     """Framework for MAIAC AOD source data extraction."""
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -28,14 +28,10 @@ class MaiacVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
 
         self._grid = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def doy_index(self):

@@ -17,6 +17,7 @@ import datetime
 from nsrdb import TESTDATADIR, DEFAULT_VAR_META, DATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from rex.utilities.loggers import init_logger
+from rex import Resource
 
 
 RTOL = 0.01
@@ -134,6 +135,33 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                     data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
                                    atol=ATOL, rtol=RTOL)
+
+
+def test_nrel_data_handler(var='aod'):
+    """Test GFS processed variables"""
+    date = datetime.date(year=2021, month=1, day=1)
+
+    # NN to test GIDs 9 and 10
+    grid = pd.DataFrame({'latitude': [18.02, 18.18],
+                         'longitude': [-65.98, -65.98],
+                         'elevation': [0, 0]})
+
+    # set test directory
+    source_dir = os.path.join(TESTDATADIR, 'clim_avg')
+    factory_kwargs = {var: {'source_dir': source_dir,
+                            'handler': 'NrelVar',
+                            'file_set': 'pr_aod',
+                            'spatial_interp': 'NN',
+                            'elevation_correct': False,
+                            'temporal_interp': 'linear'}}
+
+    fp = os.path.join(source_dir, 'pr_aod.h5')
+    with Resource(fp) as res:
+        truth = res['aod', 0:48, 9:11]
+
+    aod = DataModel.run_single(var, date, grid, factory_kwargs=factory_kwargs,
+                               scale=False, nsrdb_freq='30min')
+    assert np.allclose(aod, truth)
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):

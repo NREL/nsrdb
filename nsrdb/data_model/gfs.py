@@ -18,6 +18,7 @@ DATADIR = os.path.join(os.path.dirname(DATADIR), 'data')
 
 class GfsVarSingle:
     """Handler single-file/single-timestep GFS data extraction."""
+
     def __init__(self, fpath):
         """
         Parameters
@@ -154,7 +155,7 @@ class GfsVar(AncillaryVarHandler):
     """Framework for GFS source data extraction."""
     GFS_ELEV = os.path.join(DATADIR, 'gfs_grid_srtm_500m_stats.csv')
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -165,15 +166,11 @@ class GfsVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
 
         self._grid = None
         self._files = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def time_index(self):

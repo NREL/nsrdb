@@ -92,7 +92,7 @@ class NSRDBFileSystem(FileSystem):
         elif self.path.endswith('.h5') and self._use_h5py:
             self._file_handler = h5py.File(self._fs_handler, mode='r')
         elif self.path.endswith('.h5') and not self._use_h5py:
-            self._file_handler = Resource(self._fs_handler, mode='r')
+            self._file_handler = Resource(self._fs_handler)
         else:
             self._file_handler = self._fs_handler
 

@@ -756,9 +756,10 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, source_dir=None, freq=None,
+    def __init__(self, name, var_meta, date, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'), adjust_coords=True,
+                 **kwargs):
         """
         Parameters
         ----------
@@ -769,10 +770,6 @@ class CloudVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         freq : str | None
             Optional timeseries frequency to force cloud files to
             (time_index.freqstr). If None, the frequency of the cloud file
@@ -786,10 +783,10 @@ class CloudVar(AncillaryVarHandler):
             coordiantes they shade.
         """
 
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
-        x = self._parse_cloud_dir(self.source_dir)
+        sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
+        x = self._parse_cloud_dir(sd)
         self._source_dir, self._prefix, self._suffix = x
 
         self._path = None
@@ -921,6 +918,16 @@ class CloudVar(AncillaryVarHandler):
             m = ('CloudVar handler has a frequency of "{}" for directory: {}'
                  .format(self.freq, self.path))
             logger.debug(m)
+
+    @property
+    def source_dir(self):
+        """Get the source directory containing the variable data files.
+
+        Returns
+        -------
+        str
+        """
+        return self._source_dir
 
     @property
     def path(self):

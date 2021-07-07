@@ -16,7 +16,7 @@ class AsymVar(AncillaryVarHandler):
 
     def __init__(self, name='asymmetry', var_meta=None,
                  date=datetime.date(year=2017, month=1, day=1),
-                 source_dir=None, fname='asymmetry_clim.h5'):
+                 fname='asymmetry_clim.h5', **kwargs):
         """
         Parameters
         ----------
@@ -27,16 +27,12 @@ class AsymVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         fname : str
             Asymmetry source data filename.
         """
         self._asym_grid = None
         self._fname = fname
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def fpath(self):

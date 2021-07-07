@@ -2,6 +2,7 @@
 """A framework for handling source data in the NREL resource format: .h5 source
 files with meta and time_index datasets, all data is (n_time, n_sites).
 """
+import os
 import logging
 import numpy as np
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 class NrelVar(AncillaryVarHandler):
     """Framework for NREL source data extraction."""
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -25,16 +26,12 @@ class NrelVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
 
         self._grid = None
         self._time_index = None
         self._row_mask = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def file(self):
@@ -60,7 +57,7 @@ class NrelVar(AncillaryVarHandler):
             logger.error(msg)
             raise FileNotFoundError(msg)
 
-        return flist[0]
+        return os.path.join(self.source_dir, flist[0])
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
