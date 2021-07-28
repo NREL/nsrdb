@@ -987,7 +987,7 @@ class DataModel:
             self[dep] = self.scale_data(dep, self[dep])
 
         if fpath_out is not None:
-            data = self._dump(var, fpath_out, data)
+            data = self.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
         return data
@@ -1285,7 +1285,7 @@ class DataModel:
 
         return futures
 
-    def _dump(self, var, fpath_out, data, purge=True):
+    def dump(self, var, fpath_out, data, purge=False, mode='w'):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1299,6 +1299,8 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         purge : bool
             Flag to purge data from memory after dumping to disk
+        mode : str, optional
+            Mode to open fpath_out with, by default 'w'
 
         Returns
         -------
@@ -1313,10 +1315,16 @@ class DataModel:
 
             logger.info('Writing: {}'.format(os.path.basename(fpath_out)))
 
+            if data is None:
+                data = self[var]
+
             # make file for each var
-            with Outputs(fpath_out, mode='w') as fout:
-                fout.time_index = self.nsrdb_ti
-                fout.meta = self.nsrdb_grid
+            with Outputs(fpath_out, mode=mode) as fout:
+                if 'time_index' not in fout:
+                    fout.time_index = self.nsrdb_ti
+
+                if 'meta' not in fout:
+                    fout.meta = self.nsrdb_grid
 
                 var_obj = VarFactory.get_base_handler(
                     var, var_meta=self._var_meta, date=self.date)
@@ -1424,7 +1432,7 @@ class DataModel:
                                      data.shape, var))
 
         if fpath_out is not None:
-            data = data_model._dump(var, fpath_out, data)
+            data = data_model.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
         return data
@@ -1529,7 +1537,8 @@ class DataModel:
             for var, arr in data.items():
                 fpath_out_var = fpath_out.format(
                     var=var, i=data_model.nsrdb_grid.index[0])
-                data[var] = data_model._dump(var, fpath_out_var, arr)
+                data[var] = data_model.dump(var, fpath_out_var, arr,
+                                            purge=True)
 
         logger.info('Finished "{}".'.format(cloud_vars))
 

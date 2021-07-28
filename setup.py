@@ -73,7 +73,8 @@ setup(
         ],
     },
     package_data={'nsrdb': ['data_model/data/*.csv',
-                            'data_model/data/*.txt']},
+                            'data_model/data/*.txt',
+                            'config/nsrdb_vars.csv']},
     test_suite="tests",
     install_requires=install_requires,
     extras_require={
