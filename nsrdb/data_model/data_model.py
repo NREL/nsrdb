@@ -174,9 +174,8 @@ class DataModel:
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_meta = var_meta
-        if factory_kwargs is None:
-            factory_kwargs = {}
-        self._factory_kwargs = factory_kwargs
+
+        self._factory_kwargs = {} if factory_kwargs is None else factory_kwargs
         self._scale = scale
         self._var_factory = VarFactory()
         self._processed = {}

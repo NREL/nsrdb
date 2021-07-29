@@ -3,6 +3,7 @@ Lambda function handler
 """
 from cloud_fs import FileSystem
 from datetime import date
+import json
 from nsrdb import NSRDB
 import os
 
@@ -24,21 +25,33 @@ def handler(event, context):
     if not day:
         day = date.today().strftime("%Y%m%d")
 
-    grid = 's3://puerto-rico-nrel/puerto-rico/puerto_rico_2km_meta.csv'
     grid = event['grid']
-    var_meta = 's3://puerto-rico-nrel/puerto-rico/puerto_rico_vars.csv'
     var_meta = event['var_meta']
     freq = event.get('freq', '5min')
+    out_dir = event['out_dir']
 
-    data_model = NSRDB.run_full(day, grid, freq, var_meta=var_meta,
+    factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
+                      'surface_pressure': {'handler': 'GfsVar'},
+                      'ozone': {'handler': 'GfsVar'},
+                      'total_precipitable_water': {'handler': 'GfsVar'},
+                      'alpha': {'handler': 'NrelVar'},
+                      'aod': {'handler': 'NrelVar'},
+                      'ssa': {'handler': 'NrelVar'},
+                      }
+    if isinstance(str, factory_kwargs):
+        factory_kwargs = json.loads(factory_kwargs)
+
+    data_model = NSRDB.run_full(day, grid, freq,
+                                var_meta=var_meta,
+                                factory_kwargs=factory_kwargs,
                                 log_level='DEBUG')
 
     temp_dir = event.get('temp_dir', None)
-    out_dir = event['out_dir']
     if temp_dir is None:
         temp_dir = out_dir
 
-    fpath = f'puerto-rico-{day}.h5'
+    file_prefix = event.get('file_prefix', 'puerto-rico')
+    fpath = f'{file_prefix}-{day}.h5'
     fpath_out = os.path.join(temp_dir, fpath)
     dump_vars = ['ghi', 'dni', 'dhi',
                  'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
