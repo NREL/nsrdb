@@ -29,6 +29,8 @@ def handler(event, context):
     var_meta = event['var_meta']
     freq = event.get('freq', '5min')
     out_dir = event['out_dir']
+    file_prefix = event['file_prefix']
+    fpath = f'{file_prefix}-{day}.h5'
 
     factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
                       'surface_pressure': {'handler': 'GfsVar'},
@@ -38,6 +40,7 @@ def handler(event, context):
                       'aod': {'handler': 'NrelVar'},
                       'ssa': {'handler': 'NrelVar'},
                       }
+    factory_kwargs = event.get("factory_kwargs", factory_kwargs)
     if isinstance(str, factory_kwargs):
         factory_kwargs = json.loads(factory_kwargs)
 
@@ -46,12 +49,10 @@ def handler(event, context):
                                 factory_kwargs=factory_kwargs,
                                 log_level='DEBUG')
 
-    temp_dir = event.get('temp_dir', None)
+    temp_dir = event.get('temp_dir', "/tmp")
     if temp_dir is None:
         temp_dir = out_dir
 
-    file_prefix = event.get('file_prefix', 'puerto-rico')
-    fpath = f'{file_prefix}-{day}.h5'
     fpath_out = os.path.join(temp_dir, fpath)
     dump_vars = ['ghi', 'dni', 'dhi',
                  'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
