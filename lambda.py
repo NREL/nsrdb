@@ -41,7 +41,7 @@ def handler(event, context):
                       'ssa': {'handler': 'NrelVar'},
                       }
     factory_kwargs = event.get("factory_kwargs", factory_kwargs)
-    if isinstance(str, factory_kwargs):
+    if isinstance(factory_kwargs, str):
         factory_kwargs = json.loads(factory_kwargs)
 
     data_model = NSRDB.run_full(day, grid, freq,
