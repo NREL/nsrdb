@@ -7,7 +7,6 @@ Created on 12/3/2020
 @author: gbuster
 """
 import h5py
-from copy import deepcopy
 import pytest
 import numpy as np
 import os
@@ -37,7 +36,7 @@ def test_missing_file(date='20190102'):
     os.remove(fp_temp)
     h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
 
-    with pytest.raises(FileNotFoundError) as e:
+    with pytest.raises(FileNotFoundError):
         MLCloudsFill.run(h5_source)
 
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
@@ -86,28 +85,43 @@ def test_mlclouds_fill(col_chunk, max_workers, date):
 
     day = (sza < 90)
 
+    # make sure some timesteps were missing cloud type and were filled
     missing = day & (raw_ctype < 0)
     assert missing.any()
     assert (fill_ctype >= 0).all()
 
+    # make sure there was at least one case with full timeseries of missing
+    # ctype and make sure it got set to clear sky
+    missing_full_timeseries = (missing | ~day).all(axis=0)
+    assert any(missing_full_timeseries)
+    i = np.where(missing_full_timeseries)[0][0]
+    assert (2 == fill_flag[:, i]).all()
+    assert (fill_ctype[:, i] == 0).all()
+
+    # make sure some timesteps were missing cloud pressure and were filled
     missing = day & (raw_press <= 0)
     assert missing.any()
     assert (fill_press >= 0).all() & (np.isnan(fill_press).sum() == 0)
 
+    # make sure some clouds were missing opd
     missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_opd <= 0)
     assert missing.any()
 
+    # make sure that the missing opd was filled with appropriate fill flag
     assert (fill_opd[missing] > 0).all() & (np.isnan(fill_opd).sum() == 0)
     assert ((fill_flag[missing] == 7) | (fill_flag[missing] == 1)).all()
 
+    # make sure that some clouds were missing reff and were filled
     missing = day & np.isin(fill_ctype, CLOUD_TYPES) & (raw_reff <= 0)
     assert missing.any()
     assert (fill_reff[missing] > 0).all() & (np.isnan(fill_reff).sum() == 0)
     assert ((fill_flag[missing] == 7) | (fill_flag[missing] == 1)).all()
 
+    # make sure that all nightime opd and reff is 0
     assert fill_opd[~day].sum() == 0
     assert fill_reff[~day].sum() == 0
 
+    # make sure that all fill flags are in the expected values
     assert np.isin(fill_flag, (0, 1, 2, 7)).all()
 
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
@@ -143,7 +157,6 @@ def test_mlclouds_fill_all(col_chunk=None, max_workers=1, date='20190102'):
         fill_reff = res['cld_reff_dcomp']
         fill_press = res['cld_press_acha']
         fill_ctype = res['cloud_type']
-        fill_flag = res['cloud_fill_flag']
         sza = res['solar_zenith_angle']
 
     day = (sza < 90)
