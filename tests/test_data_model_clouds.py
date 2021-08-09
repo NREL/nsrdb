@@ -149,7 +149,45 @@ def test_regrid_duplicates():
         assert cv.grid.duplicated().sum() == 0
 
 
-def execute_pytest(capture='all', flags='-rapP', purge=True):
+def test_regrid_big_dist():
+    """Test the data model regrid process mapping cloud data to a bad meta data
+    that is very far from the cloud data coordinates.
+    """
+    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
+    cloud_vars = DataModel.CLOUD_VARS
+    var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
+    date = datetime.date(year=2007, month=1, day=16)
+    cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
+    factory_kwargs = {v: {'source_dir': cloud_dir} for v in cloud_vars}
+    nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
+                              'west_psm_extent.csv')
+
+    msg = 'following NSRDB gids were further than'
+    with pytest.warns(UserWarning, match=msg):
+        data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
+                                    nsrdb_freq='1d', var_meta=var_meta,
+                                    factory_kwargs=factory_kwargs,
+                                    max_workers_regrid=1,
+                                    max_workers_cloud_io=1)
+
+    # test that the data model assigned missing values
+    assert (data['cloud_type'] == -15).all()
+    assert (data['cld_opd_dcomp'] == 0).all()
+    assert (data['cld_reff_dcomp'] == 0).all()
+    assert (data['cld_press_acha'] == 0).all()
+
+    data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
+                                nsrdb_freq='1d', var_meta=var_meta,
+                                factory_kwargs=factory_kwargs,
+                                dist_lim=1e6,
+                                max_workers_regrid=1,
+                                max_workers_cloud_io=1)
+
+    # test that the data model mapped NN over a large distance
+    assert (data['cloud_type'] != -15).all()
+
+
+def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.
 
     Parameters
