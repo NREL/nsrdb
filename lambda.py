@@ -5,6 +5,7 @@ from cloud_fs import FileSystem
 from datetime import date
 import json
 from nsrdb import NSRDB
+from rex import init_logger
 import os
 
 
@@ -20,7 +21,15 @@ def handler(event, context):
     context : dict
         The context in which the function is called.
     """
-    print(context)
+    if event.get('verbose', False):
+        log_level = 'DEBUG'
+    else:
+        log_level = 'INFO'
+
+    logger = init_logger('nsrdb', log_level=log_level)
+    logger.debug(f'event: {event}')
+    logger.debug(f'context: {context}')
+
     day = event.get('date', None)
     if not day:
         day = date.today().strftime("%Y%m%d")
@@ -44,10 +53,14 @@ def handler(event, context):
     if isinstance(factory_kwargs, str):
         factory_kwargs = json.loads(factory_kwargs)
 
+    logger.debug(f'NSRDB inputs:\nday = {day}\ngrid = {grid}\nfreq = {freq}'
+                 f'\nvar_meta = {var_meta}'
+                 f'\nfactory_kwargs = {factory_kwargs}')
+
     data_model = NSRDB.run_full(day, grid, freq,
                                 var_meta=var_meta,
                                 factory_kwargs=factory_kwargs,
-                                log_level='DEBUG')
+                                log_level=log_level)
 
     temp_dir = event.get('temp_dir', "/tmp")
     if temp_dir is None:
