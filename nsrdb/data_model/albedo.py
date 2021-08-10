@@ -74,7 +74,7 @@ class AlbedoVar(AncillaryVarHandler):
         falbedo = None
         flist = os.listdir(self.source_dir)
         for f in flist:
-            if self.date_stamp in f:
+            if self.date_stamp in f and f.endswith('.h5'):
                 falbedo = os.path.join(self.source_dir, f)
                 break
         if falbedo is None:
