@@ -42,14 +42,16 @@ def handler(event, context):
     fpath = f'{file_prefix}-{day}.h5'
 
     factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
-                      'surface_pressure': {'handler': 'GfsVar'},
+                      'alpha': {'handler': 'NrelVar'},
+                      'aod': {'handler': 'NrelVar'},
+                      'dew_point': {'handler': 'GfsVar'},
                       'ozone': {'handler': 'GfsVar'},
+                      'relative_humidity': {'handler': 'GfsVar'},
+                      'ssa': {'handler': 'NrelVar'},
+                      'surface_pressure': {'handler': 'GfsVar'},
                       'total_precipitable_water': {'handler': 'GfsVar'},
                       'wind_direction': {'handler': 'GfsVar'},
                       'wind_speed': {'handler': 'GfsVar'},
-                      'alpha': {'handler': 'NrelVar'},
-                      'aod': {'handler': 'NrelVar'},
-                      'ssa': {'handler': 'NrelVar'},
                       }
     factory_kwargs = event.get("factory_kwargs", factory_kwargs)
     if isinstance(factory_kwargs, str):
