@@ -45,6 +45,8 @@ def handler(event, context):
                       'surface_pressure': {'handler': 'GfsVar'},
                       'ozone': {'handler': 'GfsVar'},
                       'total_precipitable_water': {'handler': 'GfsVar'},
+                      'wind_direction': {'handler': 'GfsVar'},
+                      'wind_speed': {'handler': 'GfsVar'},
                       'alpha': {'handler': 'NrelVar'},
                       'aod': {'handler': 'NrelVar'},
                       'ssa': {'handler': 'NrelVar'},
