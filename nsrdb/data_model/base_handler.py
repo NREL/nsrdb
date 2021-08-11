@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
+from abc import ABC, abstractmethod
 import logging
 import numpy as np
 import pandas as pd
@@ -465,3 +466,15 @@ class AncillaryVarHandler:
         ti = ti[mask]
 
         return ti
+
+
+class BaseDerivedVar(ABC):
+    """Base class for variables derived from datasets in source data"""
+
+    # Class variable to store list of strings that are datasets interpolated
+    # from source data like MERRA that are used to derive this variable
+    DEPENDENCIES = tuple()
+
+    @abstractmethod
+    def derive(self):
+        """Placeholder for derive method"""

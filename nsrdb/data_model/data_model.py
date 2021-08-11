@@ -45,6 +45,7 @@ from rex.utilities.execution import SpawnProcessPool
 
 from nsrdb import DATADIR
 from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.data_model.base_handler import BaseDerivedVar
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
@@ -89,10 +90,12 @@ class DataModel:
                   'total_precipitable_water',
                   'wind_speed',
                   'wind_direction',
-                  'specific_humidity',
                   'alpha',
                   'aod',
                   'ssa',
+                  'relative_humidity',  # Derived from MERRA vars
+                  'dew_point',  # Derived from MERRA vars
+                  'solar_zenith_angle',  # Derived from MERRA vars
                   )
 
     # cloud variables from UW/GOES
@@ -112,30 +115,12 @@ class DataModel:
                      'refl_3_75um_nom',
                      )
 
-    # derived variables
-    DERIVED_VARS = ('relative_humidity',
-                    'dew_point',
-                    'solar_zenith_angle',
-                    )
-
-    # dependencies for derived variables.
-    DEPENDENCIES = {'relative_humidity': ('air_temperature',
-                                          'specific_humidity',
-                                          'surface_pressure'),
-                    'dew_point': ('air_temperature',
-                                  'specific_humidity',
-                                  'surface_pressure'),
-                    'solar_zenith_angle': ('air_temperature',
-                                           'surface_pressure'),
-                    }
-
     # all variables processed by this module
-    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS
-                         + CLOUD_VARS))
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS))
 
     # all variables processed by this module WITH mlclouds gap fill
-    ALL_VARS_ML = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS
-                            + CLOUD_VARS + MLCLOUDS_VARS))
+    ALL_VARS_ML = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS
+                            + MLCLOUDS_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
                  factory_kwargs=None, scale=True, max_workers=None):
@@ -565,9 +550,10 @@ class DataModel:
         for var in var_list:
             if var in self._var_factory.MAPPING:
                 var_kwargs = self._factory_kwargs.get(var, {})
-                var_obj = self._var_factory.get(var, var_meta=self._var_meta,
-                                                name=var, date=self.date,
-                                                dsets=[var], **var_kwargs)
+                var_obj = self._var_factory.get_instance(
+                    var, var_meta=self._var_meta,
+                    name=var, date=self.date,
+                    dsets=[var], **var_kwargs)
 
                 if hasattr(var_obj, 'pre_flight'):
                     missing = var_obj.pre_flight()
@@ -621,6 +607,71 @@ class DataModel:
 
         return data
 
+    def is_cloud_var(self, var):
+        """Determine whether or not the variable is a cloud variable from the
+        CLAVR-x / GOES data
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        is_cv : bool
+            True if var is a cloud variable
+        """
+
+        is_cv = var in self.CLOUD_VARS or var in self.MLCLOUDS_VARS
+        var_fact_kwargs = self._factory_kwargs.get(var, {})
+        if 'handler' in var_fact_kwargs:
+            is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
+
+        return is_cv
+
+    def is_derived_var(self, var):
+        """Determine whether or not the variable is derived from primary
+        source datasets
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        is_derived : bool
+            True if var is handled using a derived variable handler
+        """
+
+        kwargs = self._factory_kwargs.get(var, {})
+        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
+                                               **kwargs)
+        is_derived = issubclass(VarClass, BaseDerivedVar)
+        return is_derived
+
+    def get_dependencies(self, var):
+        """Get dependencies for a derived variable
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        deps : tuple
+            Tuple of string names of dependencies of the derived variable
+            input. Empty tuple if var is not derived.
+        """
+
+        kwargs = self._factory_kwargs.get(var, {})
+        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
+                                               **kwargs)
+        is_derived = issubclass(VarClass, BaseDerivedVar)
+        deps = tuple() if is_derived else VarClass.DEPENDENCIES
+        return deps
+
     def _cloud_regrid(self, cloud_vars, dist_lim=1.0,
                       max_workers_regrid=None, max_workers_cloud_io=None):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
@@ -659,13 +710,13 @@ class DataModel:
         # full cloud_var list is passed in kwargs
         logger.info('Starting DataModel Cloud Regrid process')
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
-        var_obj = self._var_factory.get(cloud_vars[0],
-                                        var_meta=self._var_meta,
-                                        name=cloud_vars[0],
-                                        date=self.date,
-                                        dsets=cloud_vars,
-                                        freq=self.nsrdb_ti.freqstr,
-                                        **var_kwargs)
+        var_obj = self._var_factory.get_instance(cloud_vars[0],
+                                                 var_meta=self._var_meta,
+                                                 name=cloud_vars[0],
+                                                 date=self.date,
+                                                 dsets=cloud_vars,
+                                                 freq=self.nsrdb_ti.freqstr,
+                                                 **var_kwargs)
 
         logger.debug('Cloud ReGrid file list: {}'
                      .format('\n\t'.join(var_obj.flist)))
@@ -945,29 +996,23 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        if var in self.DEPENDENCIES:
-            dependencies = self.DEPENDENCIES[var]
-
-        else:
-            raise KeyError('Did not recognize request to derive variable '
-                           '"{}".'.format(var))
-
         # ensure dependencies are processed before working on derived var
+        dependencies = self.get_dependencies(var)
         self._process_dependencies(dependencies)
 
         # get the derivation object from the var factory
-        obj = self._var_factory.get(var)
+        obj = self._var_factory.get_instance(var)
 
         try:
+            dep_kwargs = {k: self[k] for k in dependencies}
             if var == 'solar_zenith_angle':
                 data = obj.derive(
                     self.nsrdb_ti,
                     self.nsrdb_grid[['latitude', 'longitude']].values,
                     self.nsrdb_grid['elevation'].values,
-                    self['surface_pressure'],
-                    self['air_temperature'])
+                    **dep_kwargs)
             else:
-                data = obj.derive(*[self[k] for k in dependencies])
+                data = obj.derive(**dep_kwargs)
 
         except Exception as e:
             logger.exception('Could not derive "{}", received the exception: '
@@ -1006,9 +1051,9 @@ class DataModel:
         """
 
         var_kwargs = self._factory_kwargs.get(var, {})
-        var_obj = self._var_factory.get(var, var_meta=self._var_meta,
-                                        name=var, date=self.date,
-                                        **var_kwargs)
+        var_obj = self._var_factory.get_instance(var, var_meta=self._var_meta,
+                                                 name=var, date=self.date,
+                                                 **var_kwargs)
 
         if 'albedo' in var:
             # special exclusions for large-extent albedo
@@ -1132,21 +1177,13 @@ class DataModel:
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
-        cloud_vars = []
-        for cv in var_list:
-            is_cv = cv in cls.CLOUD_VARS or cv in cls.MLCLOUDS_VARS
-            var_fact_kwargs = data_model._factory_kwargs.get(cv, {})
-            if 'handler' in var_fact_kwargs:
-                is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
-            if is_cv:
-                cloud_vars.append(cv)
-
+        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
         var_list = [v for v in var_list if v not in cloud_vars]
 
         # remove derived (dependent) variables from var_list to be processed
         # last (most efficient to process depdencies first, dependents last)
-        derived_vars = [dv for dv in var_list if dv in cls.DERIVED_VARS]
-        var_list = [v for v in var_list if v not in cls.DERIVED_VARS]
+        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
+        var_list = [v for v in var_list if v not in derived_vars]
 
         logger.info('First processing data for variable list: {}'
                     .format(var_list))
@@ -1405,14 +1442,9 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        is_cv = var in cls.CLOUD_VARS or var in cls.MLCLOUDS_VARS
-        var_fact_kwargs = data_model._factory_kwargs.get(var, {})
-        if 'handler' in var_fact_kwargs:
-            is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
-
-        if is_cv:
+        if data_model.is_cloud_var(var):
             method = data_model._cloud_regrid
-        elif var in cls.DERIVED_VARS:
+        elif data_model.is_derived_var(var):
             method = data_model._derive
         else:
             method = data_model._interpolate

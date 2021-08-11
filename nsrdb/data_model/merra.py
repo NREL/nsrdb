@@ -6,7 +6,7 @@ import os
 import pandas as pd
 
 from nsrdb import DATADIR
-from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
@@ -236,20 +236,22 @@ class MerraVar(AncillaryVarHandler):
         return self._grid
 
 
-class RelativeHumidity:
+class RelativeHumidity(BaseDerivedVar):
     """Class to derive the relative humidity from other MERRA2 vars."""
 
+    DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
+
     @staticmethod
-    def derive(t, h, p):
+    def derive(air_temperature, specific_humidity, surface_pressure):
         """Derive the relative humidity from ancillary vars.
 
         Parameters
         ----------
-        t : np.ndarray
+        air_temperature : np.ndarray
             Temperature in Celsius
-        h : np.ndarray
+        specific_humidity : np.ndarray
             Specific humidity in kg/kg
-        p : np.ndarray
+        surface_pressure : np.ndarray
             Pressure in Pa
 
         Returns
@@ -260,32 +262,33 @@ class RelativeHumidity:
         logger.info('Deriving Relative Humidity from temperature, '
                     'humidity, and pressure')
 
-        if np.issubdtype(p.dtype, np.integer):
-            p = p.astype(np.float32)
+        if np.issubdtype(surface_pressure.dtype, np.integer):
+            surface_pressure = surface_pressure.astype(np.float32)
 
         # ensure that Pressure is in Pa (scale from mbar if not)
         convert_p = False
-        if np.max(p) < 10000:
+        if np.max(surface_pressure) < 10000:
             convert_p = True
-            p *= 100
+            surface_pressure *= 100
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False
-        if np.max(t) > 100:
+        if np.max(air_temperature) > 100:
             convert_t = True
-            t -= 273.15
+            air_temperature -= 273.15
 
         # determine ps (saturation vapor pressure):
         # Ref: https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
-        ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
+        ps = 610.79 * np.exp(air_temperature / (air_temperature + 238.3)
+                             * 17.2694)
         # determine w (mixing ratio)
         # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
         # esci241_lesson06_humidity.pdf
-        w = h / (1 - h)
+        w = specific_humidity / (1 - specific_humidity)
         # determine ws (saturation mixing ratio)
         # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
         # esci241_lesson06_humidity.pdf
         # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
-        ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
+        ws = 621.97 * (ps / 1000.) / (surface_pressure - (ps / 1000.))
         # determine RH
         # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         rh = w / ws * 100.
@@ -295,28 +298,30 @@ class RelativeHumidity:
 
         # ensure that pressure is reconverted to mbar
         if convert_p:
-            p /= 100
+            surface_pressure /= 100
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:
-            t += 273.15
+            air_temperature += 273.15
 
         return rh
 
 
-class DewPoint:
+class DewPoint(BaseDerivedVar):
     """Class to derive the dew point from other MERRA2 vars."""
 
+    DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
+
     @staticmethod
-    def derive(t, h, p):
+    def derive(air_temperature, specific_humidity, surface_pressure):
         """Derive the dew point from ancillary vars.
 
         Parameters
         ----------
-        t : np.ndarray
+        air_temperature : np.ndarray
             Temperature in Celsius
-        h : np.ndarray
+        specific_humidity : np.ndarray
             Specific humidity in kg/kg
-        p : np.ndarray
+        surface_pressure : np.ndarray
             Pressure in Pa
 
         Returns
@@ -329,16 +334,19 @@ class DewPoint:
 
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False
-        if np.max(t) > 100:
+        if np.max(air_temperature) > 100:
             convert_t = True
-            t -= 273.15
+            air_temperature -= 273.15
 
-        rh = RelativeHumidity.derive(t, h, p)
-        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t)))
-              / (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
+        rh = RelativeHumidity.derive(air_temperature, specific_humidity,
+                                     surface_pressure)
+
+        arg1 = np.log(rh / 100.0)
+        arg2 = (17.625 * air_temperature) / (243.04 + air_temperature)
+        dp = (243.04 * (arg1 + arg2) / (17.625 - arg1 - arg2))
 
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:
-            t += 273.15
+            air_temperature += 273.15
 
         return dp

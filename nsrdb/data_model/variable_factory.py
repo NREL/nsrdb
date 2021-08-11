@@ -2,7 +2,7 @@
 """Factory pattern for retrieving NSRDB data source handlers."""
 import logging
 
-from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
 from nsrdb.data_model.albedo import AlbedoVar
@@ -61,10 +61,8 @@ class VarFactory:
                      'SolarZenithAngle': SolarZenithAngle,
                      }
 
-    NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')
-
     @classmethod
-    def get(cls, var_name, *args, **kwargs):
+    def get_instance(cls, var_name, *args, **kwargs):
         """Get a processing variable instance for the given var name.
 
         Parameters
@@ -84,31 +82,11 @@ class VarFactory:
             Instantiated ancillary variable helper object (AsymVar, MerraVar).
         """
 
-        if 'handler' in kwargs:
-            handler = kwargs.pop('handler')
-            if handler not in cls.HANDLER_NAMES:
-                e = ('Did not recognize "{}" as an available NSRDB variable '
-                     'data handler. The following handlers are available: {}'
-                     .format(handler, list(cls.HANDLER_NAMES.keys())))
-                logger.error(e)
-                raise KeyError(e)
-            else:
-                handler_class = cls.HANDLER_NAMES[handler]
-                kwargs = cls._clean_kwargs(var_name, handler_class, kwargs)
-
-        elif var_name in cls.MAPPING:
-            handler_class = cls.MAPPING[var_name]
-            kwargs = cls._clean_kwargs(var_name, handler_class, kwargs)
-
-        else:
-            e = ('Did not recognize "{}" as an available NSRDB '
-                 'variable. The following variables are available: '
-                 '{}'.format(var_name, list(cls.MAPPING.keys())))
-            logger.error(e)
-            raise KeyError(e)
+        HandlerClass = cls.get_class(var_name, **kwargs)
+        kwargs = cls._clean_kwargs(HandlerClass, kwargs)
 
         try:
-            instance = handler_class(*args, **kwargs)
+            instance = HandlerClass(*args, **kwargs)
         except Exception as e:
             m = ('Received an exception trying to instantiate "{}":\n{}'
                  .format(var_name, e))
@@ -118,16 +96,58 @@ class VarFactory:
         return instance
 
     @classmethod
-    def _clean_kwargs(cls, var_name, handler_class, kwargs,
+    def get_class(cls, var_name, **kwargs):
+        """Get the Class that is used to process the target variable
+
+        Parameters
+        ----------
+        var_name : str
+            NSRDB variable name.
+        **kwargs : dict
+            List of keyword args for instantiation of ancillary var.
+            Can also include "handler" which specifies the handler name
+            explicitly.
+
+        Returns
+        -------
+        HandlerClass : ancillary class
+            Uninstantiated ancillary class (AsymVar, MerraVar).
+        """
+
+        if 'handler' in kwargs:
+            handler = kwargs.pop('handler')
+            if handler not in cls.HANDLER_NAMES:
+                e = ('Did not recognize "{}" as an available NSRDB variable '
+                     'data handler. The following handlers are available: {}'
+                     .format(handler, list(cls.HANDLER_NAMES.keys())))
+                logger.error(e)
+                raise KeyError(e)
+            else:
+                HandlerClass = cls.HANDLER_NAMES[handler]
+
+        elif var_name in cls.MAPPING:
+            HandlerClass = cls.MAPPING[var_name]
+
+        else:
+            e = ('Did not recognize "{}" as an available NSRDB '
+                 'variable. The following variables are available: '
+                 '{}'.format(var_name, list(cls.MAPPING.keys())))
+            logger.error(e)
+            raise KeyError(e)
+
+        return HandlerClass
+
+    @classmethod
+    def _clean_kwargs(cls, HandlerClass, kwargs,
                       cld_list=('extent', 'cloud_dir', 'dsets', 'freq')):
         """Clean a kwargs namespace for cloud var specific kwargs.
 
         Parameters
         ----------
-        handler_class : AncillaryVarHandler
+        HandlerClass : AncillaryVarHandler
             DataModel handler class. This method looks for the CloudVar class.
         kwargs : dict
-            Namespace of kwargs to init handler_class.
+            Namespace of kwargs to init HandlerClass.
         cld_list : tuple
             List of CloudVar specific input variables
             default: ('extent', 'cloud_dir', 'dsets')
@@ -139,10 +159,13 @@ class VarFactory:
             cleaned for cloud kwargs.
         """
 
-        if var_name in cls.NO_ARGS:
+        if 'handler' in kwargs:
+            del kwargs['handler']
+
+        if issubclass(HandlerClass, BaseDerivedVar):
             kwargs = {}
 
-        elif handler_class == CloudVar:
+        elif HandlerClass == CloudVar:
             if 'cloud_dir' in kwargs:
                 kwargs['source_dir'] = kwargs.pop('cloud_dir')
 
