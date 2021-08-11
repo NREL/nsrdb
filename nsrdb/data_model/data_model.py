@@ -668,8 +668,9 @@ class DataModel:
         kwargs = self._factory_kwargs.get(var, {})
         VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
                                                **kwargs)
-        is_derived = issubclass(VarClass, BaseDerivedVar)
-        deps = tuple() if is_derived else VarClass.DEPENDENCIES
+        deps = tuple()
+        if issubclass(VarClass, BaseDerivedVar):
+            deps = VarClass.DEPENDENCIES
         return deps
 
     def _cloud_regrid(self, cloud_vars, dist_lim=1.0,
@@ -1172,7 +1173,12 @@ class DataModel:
 
         # default multiple compute
         if var_list is None:
-            var_list = cls.ALL_SKY_VARS
+            var_list = cls.ALL_VARS
+
+        deps = tuple()
+        for var in var_list:
+            deps += data_model.get_dependencies(var)
+        var_list += deps
 
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
