@@ -364,8 +364,8 @@ class NSRDB:
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
                             time_index, meta, mode=mode)
 
-    @staticmethod
-    def _parse_data_model_output_ti(data_model_dir, nsrdb_freq):
+    @classmethod
+    def _parse_data_model_output_ti(cls, data_model_dir, nsrdb_freq):
         """Parse a directory of data model outputs for the resulting time index
 
         Parameters
@@ -386,8 +386,8 @@ class NSRDB:
                      if len(f.split('_')[0]) == 8 and f.endswith('.h5')]
         date_list = sorted(date_list)
 
-        start = NSRDB.to_datetime(date_list[0])
-        end = NSRDB.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
+        start = cls.to_datetime(date_list[0])
+        end = cls.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
 
         ti = pd.date_range(start=start, end=end, freq=nsrdb_freq,
                            closed='left')
@@ -417,8 +417,8 @@ class NSRDB:
                                   str(date.day).zfill(2))
         return datestr
 
-    @staticmethod
-    def date_to_doy(date):
+    @classmethod
+    def date_to_doy(cls, date):
         """Convert a date to a day of year integer.
 
         Parameters
@@ -432,7 +432,7 @@ class NSRDB:
         doy : int
             Day of year.
         """
-        return NSRDB.to_datetime(date).timetuple().tm_yday
+        return cls.to_datetime(date).timetuple().tm_yday
 
     @staticmethod
     def to_datetime(date):

@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import os
 import pandas as pd
+import re
 import time
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
@@ -14,6 +15,141 @@ logger = logging.getLogger(__name__)
 
 DATADIR = os.path.dirname(os.path.realpath(__file__))
 DATADIR = os.path.join(os.path.dirname(DATADIR), 'data')
+
+
+class GfSFiles:
+    """
+    Class to handle Gfs file selection
+    """
+    def __init__(self, source_dir, time_index):
+        """
+        Parameters
+        ----------
+        source_dir : str
+            Directory containing GFS files
+        time_index : pandas.DatetimeIndex
+            DatetimeIndex for day of interest
+        """
+        self._time_index = time_index
+        self._files = self._search_files(source_dir, self.time_index.min())
+
+    @property
+    def time_index(self):
+        """
+        Time index for the date of interest that files are needed for
+
+        Returns
+        -------
+        pandas.DatetimeIndex
+        """
+        return self._time_index
+
+    @staticmethod
+    def _make_date_stamp(date):
+        """
+        Get the GFS datestamp corresponding to the specified datetime date
+
+        Parameters
+        ----------
+        date : pandas.Timestamp
+            Timestamp for date of interest
+
+        Returns
+        -------
+        date : str
+            Date stamp that should be in the GFS file, format is YYYY_MMDD
+        """
+        date = '{y}_{m:02d}{d:02d}'.format(y=date.year,
+                                           m=date.month,
+                                           d=date.day)
+
+        return date
+
+    @staticmethod
+    def _get_fcst_offset(file_name):
+        """
+        Get offset from date beginning based on model start / forecast time
+
+        Parameters
+        ----------
+        file_name : str
+            File name
+
+        Returns
+        -------
+        offset : pd.Timedelta
+            Time delta from date 00:00:00
+        """
+        # pylint: disable=anomalous-backslash-in-string
+        pattern = re.compile('\d{02}z')
+        matcher = pattern.search(file_name)
+
+        offset = pd.Timedelta(matcher.group().replace('z', 'h'))
+
+        return offset
+
+    @staticmethod
+    def _get_model_offset(file_name):
+        """
+        Get offset from date beginning based on model time
+
+        Parameters
+        ----------
+        file_name : str
+            File name
+
+        Returns
+        -------
+        offset : pd.Timedelta
+            Time delta from date 00:00:00
+        """
+        # pylint: disable=anomalous-backslash-in-string
+        pattern = re.compile('\d{02}hr')
+        matcher = pattern.search(file_name)
+
+        offset = pd.Timedelta(matcher.group())
+
+        return offset
+
+    @classmethod
+    def _get_file_time(cls, file_name, start_time):
+        """
+        Get file time stamp and model offset
+
+        Parameters
+        ----------
+        file_name : str
+            File name
+        start_time : pandas.Timestamp
+            Start time to offset GFS files from
+
+        Returns
+        -------
+        timestamp : pandas.Timestamp
+            Timestamp of file
+        offset : pd.TimeDelta
+            Offset from forecast start time (model offset)
+        """
+        fcst_offset = cls._get_fcst_offset(file_name)
+        model_offset = cls._get_model_offset(file_name)
+        timestamp = start_time + fcst_offset + model_offset
+
+        return timestamp, model_offset
+
+    @classmethod
+    def _search_files(cls, source_dir, start_time):
+        files = []
+        date_stamp = cls._make_date_stamp(start_time)
+        for f in NFS(source_dir).ls():
+            if date_stamp in f:
+                fpath = os.path.join(source_dir, f)
+                timestamp, offset = cls._get_file_time(f, start_time)
+                files.append(pd.Series({'timestamp': timestamp,
+                                        'offset': offset}, name=fpath))
+
+        files = pd.concat(files, axis=1).T
+
+        return files
 
 
 class GfsVarSingle:
@@ -153,7 +289,6 @@ class GfsVarSingle:
 
 class GfsVar(AncillaryVarHandler):
     """Framework for GFS source data extraction."""
-    GFS_ELEV = os.path.join(DATADIR, 'gfs_grid_srtm_500m_stats.csv')
 
     def __init__(self, name, var_meta, date, **kwargs):
         """
@@ -302,7 +437,7 @@ class GfsVar(AncillaryVarHandler):
                         v.append(fpath)
 
         files = []
-        i = 2  # if all models are available date 2 files from each (00 and 03)
+        i = 2  # if all models are available take 2 files from each (00 and 03)
         for j, m in zip(range(1, 5), sorted(date_files)[::-1]):
             files.extend(date_files[m][:i])
             i = 2 + (j * 2 - len(files))
