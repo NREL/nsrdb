@@ -137,8 +137,24 @@ class GfsFiles:
         return timestamp, model_offset
 
     @classmethod
-    def _search_files(cls, source_dir, date_stamp, start_time):
+    def _search_files(cls, source_dir, start_time):
+        """
+        [summary]
+
+        Parameters
+        ----------
+        source_dir : [type]
+            [description]
+        start_time : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
         files = []
+        date_stamp = cls._make_date_stamp(start_time)
         for f in NFS(source_dir).ls():
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
