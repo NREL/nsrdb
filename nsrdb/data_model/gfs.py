@@ -17,7 +17,7 @@ DATADIR = os.path.dirname(os.path.realpath(__file__))
 DATADIR = os.path.join(os.path.dirname(DATADIR), 'data')
 
 
-class GfSFiles:
+class GfsFiles:
     """
     Class to handle Gfs file selection
     """
@@ -137,9 +137,8 @@ class GfSFiles:
         return timestamp, model_offset
 
     @classmethod
-    def _search_files(cls, source_dir, start_time):
+    def _search_files(cls, source_dir, date_stamp, start_time):
         files = []
-        date_stamp = cls._make_date_stamp(start_time)
         for f in NFS(source_dir).ls():
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
