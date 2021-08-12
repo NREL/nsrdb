@@ -68,6 +68,7 @@ class CloudCoords:
             Array of change in north/south location in decimal degrees.
         """
         delta_lat = (dist / CloudCoords.EARTH_RADIUS) * CloudCoords.TO_DEG
+
         return delta_lat
 
     @staticmethod
@@ -90,6 +91,7 @@ class CloudCoords:
         # Find the radius of a circle around the earth at given latitude.
         r = CloudCoords.EARTH_RADIUS * np.cos(latitude * CloudCoords.TO_RAD)
         delta_lon = (dist / r) * CloudCoords.TO_DEG
+
         return delta_lon
 
     @classmethod
@@ -478,6 +480,7 @@ class CloudVarSingleH5(CloudVarSingle):
         grid.loc[mask, :] = np.nan
         mask = ~(pd.isna(grid['latitude']) | pd.isna(grid['longitude']))
         grid = grid[mask]
+
         return grid, mask
 
     @property
@@ -601,6 +604,7 @@ class CloudVarSingleNC(CloudVarSingle):
                                .format(dset, fpath, e))
                         logger.error(msg)
                         raise RuntimeError(msg) from e
+
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
         if grid and CloudCoords.check_file(fpath) and adjust_coords:
@@ -744,6 +748,7 @@ class CloudVarSingleNC(CloudVarSingle):
                     fill_value = None
                     if hasattr(f.variables[dset], '_FillValue'):
                         fill_value = f.variables[dset]._FillValue
+
                     data[dset] = self.pre_process(
                         dset, f[dset][:].data, fill_value=fill_value,
                         sparse_mask=self._sparse_mask, index=self._index)
@@ -821,6 +826,7 @@ class CloudVar(AncillaryVarHandler):
         self._i = 0
         logger.info('Iterating through {} cloud data {} files located in "{}"'
                     .format(len(self.file_df), self._ftype, self.path))
+
         return self
 
     def __next__(self):
@@ -864,6 +870,7 @@ class CloudVar(AncillaryVarHandler):
                                     mem.used / 1e9, mem.total / 1e9))
 
             self._i += 1
+
             return timestamp, obj
 
         else:
@@ -902,6 +909,7 @@ class CloudVar(AncillaryVarHandler):
             cloud_dir = os.path.dirname(cloud_dir)
             if '*' in fbase:
                 prefix, suffix = fbase.split('*')
+
                 return cloud_dir, prefix, suffix
 
         raise ValueError('Could not parse cloud dir: {}'.format(cloud_dir))
@@ -956,11 +964,13 @@ class CloudVar(AncillaryVarHandler):
                 dirpath = dirpath.replace('\\', '/')
                 if not dirpath.endswith('/'):
                     dirpath += '/'
+
                 if dirsearch in dirpath:
                     for fn in NFS(dirpath).ls():
                         if any(tag in fn for tag in fsearch):
                             self._path = dirpath
                             break
+
                 if self._path is not None:
                     break
 
@@ -1073,14 +1083,17 @@ class CloudVar(AncillaryVarHandler):
         fl = NFS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
+
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
+
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.h5') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
             flist = sorted(flist, key=CloudVar.get_timestamp)
+
         return flist
 
     @staticmethod
@@ -1108,14 +1121,17 @@ class CloudVar(AncillaryVarHandler):
         fl = NFS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
+
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
+
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.nc') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
             flist = sorted(flist, key=CloudVar.get_timestamp)
+
         return flist
 
     @property
@@ -1207,8 +1223,10 @@ class CloudVar(AncillaryVarHandler):
         """
         if self._freq is None:
             self._freq = self.inferred_freq
+
         if len(self._freq) == 1:
             self._freq = '1{}'.format(self._freq)
+
         return self._freq
 
     @property

@@ -144,6 +144,7 @@ class AncillaryVarHandler:
             else:
                 raise KeyError('Variable "{}" not found in NSRDB meta.'
                                .format(self._name))
+
         return self._mask
 
     @property
@@ -170,6 +171,7 @@ class AncillaryVarHandler:
         ec = bool(temp.values[0])
         if np.isnan(temp.values[0]):
             ec = False
+
         return ec
 
     @property
@@ -231,6 +233,7 @@ class AncillaryVarHandler:
             warn('Using default data directory for "{}"'
                  .format(self.name))
             sd = self.DEFAULT_DIR
+
         return str(sd)
 
     @property
@@ -295,10 +298,12 @@ class AncillaryVarHandler:
             r = int(r)
         except ValueError:
             r = None
+
         try:
             c = int(c)
         except ValueError:
             c = None
+
         return (r, c)
 
     @property
@@ -379,6 +384,7 @@ class AncillaryVarHandler:
                     d_min = ''
                     if np.issubdtype(self.final_dtype, np.integer):
                         d_min = np.iinfo(self.final_dtype).min
+
                     w = ('NaN values found in "{}" before dtype conversion '
                          'to "{}". Will be assigned value of: "{}"'
                          .format(self.name, self.final_dtype, d_min))

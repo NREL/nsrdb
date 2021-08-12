@@ -7,7 +7,7 @@ import os
 import pandas as pd
 import time
 
-from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
@@ -371,3 +371,44 @@ class GfsVar(AncillaryVarHandler):
             missing = ''
 
         return missing
+
+
+class GfsDewPoint(BaseDerivedVar):
+    """Class to derive the dew point from other GFS vars."""
+
+    DEPENDENCIES = ('air_temperature', 'relative_humidity')
+
+    @staticmethod
+    def derive(air_temperature, relative_humidity):
+        """Derive the dew point from ancillary vars.
+
+        Parameters
+        ----------
+        air_temperature : np.ndarray
+            Temperature in Celsius
+        relative_humidity : np.arry
+            Relative Humidity
+
+        Returns
+        -------
+        dp : np.ndarray
+            Dew point in Celsius.
+        """
+        logger.info('Deriving Dew Point from temperature, '
+                    'and relative humidity')
+
+        # ensure that Temperature is in C (scale from Kelvin if not)
+        convert_t = False
+        if np.max(air_temperature) > 100:
+            convert_t = True
+            air_temperature -= 273.15
+
+        arg1 = np.log(relative_humidity / 100.0)
+        arg2 = (17.625 * air_temperature) / (243.04 + air_temperature)
+        dp = (243.04 * (arg1 + arg2) / (17.625 - arg1 - arg2))
+
+        # ensure that temeprature is reconverted to Kelvin
+        if convert_t:
+            air_temperature += 273.15
+
+        return dp

@@ -44,7 +44,7 @@ def handler(event, context):
     factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
                       'alpha': {'handler': 'NrelVar'},
                       'aod': {'handler': 'NrelVar'},
-                      'dew_point': {'handler': 'GfsVar'},
+                      'dew_point': {'handler': 'GfsDewPoint'},
                       'ozone': {'handler': 'GfsVar'},
                       'relative_humidity': {'handler': 'GfsVar'},
                       'ssa': {'handler': 'NrelVar'},

@@ -54,6 +54,7 @@ class MaiacVar(AncillaryVarHandler):
             Day of year integer (1-365 or 1-366).
         """
         doy = self._date.timetuple().tm_yday
+
         return doy
 
     @property
@@ -81,6 +82,7 @@ class MaiacVar(AncillaryVarHandler):
                if str(self._date.year) in fn]
         fps = [os.path.join(self.source_dir, fn) for fn in fns]
         logger.debug('Found the following MAIAC files: {}'.format(fns))
+
         return fps
 
     def pre_flight(self):

@@ -248,6 +248,7 @@ class DataModel:
                     & (self._ti.day == self.date.day))
             self._ti = self._ti[mask]
             self['time_index'] = self._ti
+
         return self._ti
 
     @property
@@ -261,6 +262,7 @@ class DataModel:
         """
         if self._nsrdb_data_shape is None:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
+
         return self._nsrdb_data_shape
 
     @property
@@ -426,7 +428,7 @@ class DataModel:
             return None
 
         else:
-            # pylint: disable: not-callable
+            # pylint: disable=not-callable
             tree = cKDTree(grid[labels])
             # Get the index of NN to NSRDB grid
             dist, index = tree.query(nsrdb_grid[labels], k=1)
@@ -447,6 +449,7 @@ class DataModel:
                 warn(msg)
 
             index = index.astype(np.int32)
+
             return index
 
     def get_weights(self, var_obj):
@@ -648,6 +651,7 @@ class DataModel:
         VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
                                                **kwargs)
         is_derived = issubclass(VarClass, BaseDerivedVar)
+
         return is_derived
 
     def get_dependencies(self, var):
@@ -671,6 +675,7 @@ class DataModel:
         deps = tuple()
         if issubclass(VarClass, BaseDerivedVar):
             deps = VarClass.DEPENDENCIES
+
         return deps
 
     def _cloud_regrid(self, cloud_vars, dist_lim=1.0,
@@ -884,6 +889,7 @@ class DataModel:
                         running += 1
                     elif future.done():
                         complete += 1
+
                 logger.info('{} ReGrid futures are running, {} are complete. '
                             'Memory usage is {:.3f} GB '
                             'out of {:.3f} GB total.'
@@ -1035,6 +1041,7 @@ class DataModel:
             data = self.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
+
         return data
 
     def _interpolate(self, var):
@@ -1178,6 +1185,7 @@ class DataModel:
         deps = tuple()
         for var in var_list:
             deps += data_model.get_dependencies(var)
+
         var_list += deps
 
         # remove cloud variables from var_list to be processed together
@@ -1307,6 +1315,7 @@ class DataModel:
                     if future.running():
                         running += 1
                         keys += [key]
+
                 logger.info('{} DataModel processing futures are running: {} '
                             'memory usage is {:.3f} GB out of {:.3f} GB total'
                             .format(running, keys, mem.used / 1e9,
@@ -1472,6 +1481,7 @@ class DataModel:
             data = data_model.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
+
         return data
 
     @classmethod
@@ -1549,8 +1559,10 @@ class DataModel:
                                 'fpath_out: {}'.format(var, fpath_out_var))
                     skip_list.append(var)
                     data[var] = fpath_out_var
+
             if any(skip_list):
                 cloud_vars = [cv for cv in cloud_vars if cv not in skip_list]
+
             if not any(cloud_vars):
                 return data
 

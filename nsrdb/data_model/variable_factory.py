@@ -7,7 +7,7 @@ from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
-from nsrdb.data_model.gfs import GfsVar
+from nsrdb.data_model.gfs import GfsVar, GfsDewPoint
 from nsrdb.data_model.maiac_aod import MaiacVar
 from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
 from nsrdb.data_model.nrel_data import NrelVar
@@ -53,6 +53,7 @@ class VarFactory:
                      'AlbedoVar': AlbedoVar,
                      'CloudVar': CloudVar,
                      'GfsVar': GfsVar,
+                     'GfsDewPoint': GfsDewPoint,
                      'MerraVar': MerraVar,
                      'MaiacVar': MaiacVar,
                      'NrelVar': NrelVar,
