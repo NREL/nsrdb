@@ -31,7 +31,7 @@ class GfsFiles:
             DatetimeIndex for day of interest
         """
         self._time_index = time_index
-        self._files = self._search_files(source_dir, self.time_index.min())
+        self._files = self._get_files(source_dir)
 
     @property
     def time_index(self):
@@ -43,6 +43,29 @@ class GfsFiles:
         pandas.DatetimeIndex
         """
         return self._time_index
+
+    @property
+    def date_stamp(self):
+        """
+        Date to get GFS files for
+
+        Returns
+        -------
+        str
+            Date in GFS file format of YYYY_MMDD
+        """
+        return self._make_date_stamp(self.time_index[0])
+
+    @property
+    def files(self):
+        """
+        GFS files that match time_index
+
+        Returns
+        -------
+        list
+        """
+        return self._files
 
     @staticmethod
     def _make_date_stamp(date):
@@ -130,28 +153,32 @@ class GfsFiles:
         offset : pd.TimeDelta
             Offset from forecast start time (model offset)
         """
-        fcst_offset = cls._get_fcst_offset(file_name)
-        model_offset = cls._get_model_offset(file_name)
-        timestamp = start_time + fcst_offset + model_offset
+        model_offset = cls._get_fcst_offset(file_name)
+        fcst_offset = cls._get_model_offset(file_name)
+        timestamp = start_time + model_offset + fcst_offset
 
-        return timestamp, model_offset
+        return timestamp, fcst_offset
 
     @classmethod
     def _search_files(cls, source_dir, start_time):
         """
-        [summary]
+        Search source dir for files that match given date/start_time
 
         Parameters
         ----------
-        source_dir : [type]
-            [description]
-        start_time : [type]
-            [description]
+        source_dir : str
+            Directory containing GFS files
+        start_time : pd.Timestamp
+            Timestamp for startime to get GFS files for, this should be the
+            desired date to find GFS files for with a time of 00:00:00
 
         Returns
         -------
-        [type]
-            [description]
+        files : pandas.DataFrame
+            DataFrame of all GFS files in source_dir for the given start_time
+            with the corresponding timestamp of the file and offset from the
+            GFS forecast start-time. Offset is used to pull the shortest
+            forecast time for each timestep in time_index
         """
         files = []
         date_stamp = cls._make_date_stamp(start_time)
@@ -165,6 +192,64 @@ class GfsFiles:
         files = pd.concat(files, axis=1).T
 
         return files
+
+    def _get_files(self, source_dir):
+        """
+        Get GFS files from source_dir that match the timesteps in time_index
+
+        Parameters
+        ----------
+        source_dir : str
+            Directory containing GFS files
+
+        Returns
+        -------
+        gfs_files : list
+            List of file paths for each timestep in time_index. Files with the
+            shortest forecast time ('offset') are chosen for each timestep
+        """
+        files = self._search_files(source_dir, self.time_index[0])
+        start_time = self.time_index[0] - pd.Timedelta('1D')
+        files = files.append(self._search_files(source_dir, start_time))
+        files = files.groupby('timestamp')
+
+        gfs_files = []
+        missing = []
+        for timestamp in self.time_index:
+            grp = files.get_group(timestamp)
+            if len(grp):
+                gfs_files.append(grp.sort_values('offset').index[0])
+            else:
+                missing.append(timestamp)
+
+        if missing:
+            m = ('Could not find the required GFS file with date stamp "{}" '
+                 'in directory {}, the following timestamps were missing:\n{}'
+                 .format(self.date_stamp, source_dir, missing))
+            logger.error(m)
+            raise FileNotFoundError(m)
+
+        return gfs_files
+
+    @classmethod
+    def get(cls, source_dir, time_index):
+        """
+        Get GFS files from source_dir that match the desired time_index
+
+        Parameters
+        ----------
+        source_dir : str
+            Directory containing GFS files
+        time_index : pandas.DatetimeIndex
+            DatetimeIndex for day of interest
+
+        Returns
+        -------
+        list
+            List of file paths for each timestep in time_index. Files with the
+            shortest forecast time ('offset') are chosen for each timestep
+        """
+        return cls(source_dir, time_index).files
 
 
 class GfsVarSingle:
@@ -362,9 +447,7 @@ class GfsVar(AncillaryVarHandler):
             List of GFS file paths needed to fill given NSRDB day.
         """
         if self._files is None:
-            files = self._get_gfs_files(self.source_dir, self.date_stamp)
-
-            self._files = self._check_files(files)
+            self._files = GfsFiles.get(self.source_dir, self.time_index)
 
         return self._files
 
@@ -424,78 +507,6 @@ class GfsVar(AncillaryVarHandler):
                     data[i] = f[self.dset_name].ravel()
 
         return data
-
-    @staticmethod
-    def _get_gfs_files(source_dir, date_stamp):
-        """
-        Search source_dir for all GFS files for the given date stamp.
-        Find files with the shortest forecast lead time.
-
-        Parameters
-        ----------
-        source_dir : str
-            Source directory containing GFS files
-        date_stamp : str
-            Date stamp that should be in the GFS file, format is YYYY_MMDD
-
-        Returns
-        -------
-        files : list
-            List of GFS files to use for given NSRDB date stamp
-        """
-        date_files = {'00z': [], '06z': [], '12z': [], '18z': []}
-        for f in NFS(source_dir).ls():
-            if date_stamp in f:
-                fpath = os.path.join(source_dir, f)
-                for k, v in date_files.items():
-                    if k in f:
-                        v.append(fpath)
-
-        files = []
-        i = 2  # if all models are available take 2 files from each (00 and 03)
-        for j, m in zip(range(1, 5), sorted(date_files)[::-1]):
-            files.extend(date_files[m][:i])
-            i = 2 + (j * 2 - len(files))
-
-        return sorted(files)
-
-    def _check_files(self, files):
-        """
-        Check to make sure there are enough available files to model the
-        desired NSRDB date stamp. If needed pull files from the prior days 18z
-        model run
-
-        Parameters
-        ----------
-        files : list
-            List of GFS files to use for given NSRDB date stamp
-
-        Returns
-        -------
-        files : list
-            List of GFS files to use for given NSRDB date stamp
-        """
-        if len(files) < len(self.time_index):
-            date = self.time_index[0] - pd.Timedelta('1d')
-            date = '{y}_{m:02d}{d:02d}'.format(y=date.year,
-                                               m=date.month,
-                                               d=date.day)
-
-            files = []
-            hr_list = ["{:03d}hr".format(h) for h in range(6, 30, 3)]
-            for f in NFS(self.source_dir).ls():
-                hr_check = any(hr in f for hr in hr_list)
-                if date in f and '18z' in f and hr_check:
-                    files.append(os.path.join(self.source_dir, f))
-
-        if len(files) < len(self.time_index):
-            m = ('Could not find required GFS file with date stamp "{}" '
-                 'in directory: {}'
-                 .format(self.date_stamp, self.source_dir))
-            logger.error(m)
-            raise FileNotFoundError(m)
-
-        return files
 
     def pre_flight(self):
         """
