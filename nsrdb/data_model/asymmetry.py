@@ -96,7 +96,7 @@ class AsymVar(AncillaryVarHandler):
         """
 
         if self._asym_grid is None:
-            with NFS(self.fpath) as f:
+            with NFS(self.fpath, use_rex=True) as f:
                 self._asym_grid = f.meta
 
             if ('latitude' not in self._asym_grid
