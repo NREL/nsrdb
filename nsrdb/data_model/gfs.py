@@ -189,7 +189,8 @@ class GfsFiles:
                 files.append(pd.Series({'timestamp': timestamp,
                                         'offset': offset}, name=fpath))
 
-        files = pd.concat(files, axis=1).T
+        if files:
+            files = pd.concat(files, axis=1).T
 
         return files
 
