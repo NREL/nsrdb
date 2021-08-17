@@ -11,7 +11,7 @@ from warnings import warn
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.utilities import split_sites_slice
 
-from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.filesystem import FileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class MyMean:
 
         for fpath in self._flist:
             logger.debug('\t- Checking file: {}'.format(fpath))
-            with Resource(fpath) as res:
+            with NFS(fpath) as res:
                 shape, base_dtype, _ = res.get_dset_properties(self._dset)
                 units = res.get_units(self._dset)
                 scale = res.get_scale_factor(self._dset)
@@ -182,7 +182,7 @@ class MyMean:
     def meta(self):
         """Get the meta dataframe."""
         if self._meta is None:
-            with Resource(self._flist[-1]) as res:
+            with NFS(self._flist[-1]) as res:
                 self._meta = res.meta
         return self._meta
 
@@ -199,7 +199,7 @@ class MyMean:
         for i, f in enumerate(self._flist):
             logger.info('Processing file {} out of {}: {}'
                         .format(i + 1, len(self._flist), f))
-            with Resource(f) as res:
+            with NFS(f) as res:
                 for j, site_slice in enumerate(self._site_slices):
                     new_data = res[self._dset, :, site_slice].mean(axis=0)
                     self._data[site_slice] += new_data
@@ -253,7 +253,7 @@ class MyMean:
         data : np.ndarray
             1D data averaged along axis 0 (time axis).
         """
-        with Resource(fpath) as res:
+        with NFS(fpath) as res:
             data = res[dset, :, site_slice].mean(axis=0)
         return data
 

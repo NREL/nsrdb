@@ -14,7 +14,7 @@ from warnings import warn
 from farms import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
 
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.filesystem import FileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -449,7 +449,7 @@ class CloudGapFill:
         """
         logger.info('Patching cloud properties in file: "{}"'.format(f_cloud))
 
-        with Resource(f_cloud) as f:
+        with NFS(f_cloud, use_rex=True) as f:
             dsets = f.dsets
             shape = f.shape
 
@@ -471,10 +471,10 @@ class CloudGapFill:
             logger.info('Patching cloud properties for column slice: {}'
                         .format(cols))
 
-            with Resource(f_ancillary) as f:
+            with NFS(f_ancillary, use_rex=True) as f:
                 sza = f['solar_zenith_angle', rows, cols]
 
-            with Resource(f_cloud) as f:
+            with NFS(f_cloud, use_rex=True) as f:
                 cloud_type = f['cloud_type', rows, cols]
                 fill_flag = None
                 if 'cloud_fill_flag' in dsets:
@@ -491,7 +491,7 @@ class CloudGapFill:
 
             for dset in dsets:
                 if 'cld_' in dset:
-                    with Resource(f_cloud) as f:
+                    with NFS(f_cloud, use_rex=True) as f:
                         cloud_prop = f[dset, rows, cols]
 
                     cloud_prop, fill_flag = cls.fill_cloud_prop(

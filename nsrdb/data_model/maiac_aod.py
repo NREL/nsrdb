@@ -5,11 +5,8 @@ import numpy as np
 import os
 import pandas as pd
 
-from cloud_fs import FileSystem as FS
-
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
-from nsrdb.file_handlers.resource import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -95,22 +92,21 @@ class MaiacVar(AncillaryVarHandler):
             If nothing is missing, return an empty string.
         """
         for fp in self.files:
-            with FS(fp).open() as f:
-                with Resource(f) as res:
-                    dsets = res.dsets
-                    msg = 'Needs "{}" dset: {}'
-                    assert 'latitude' in dsets, msg.format('latitude', fp)
-                    assert 'longitude' in dsets, msg.format('longitude', fp)
-                    assert 'aod' in dsets, msg.format('aod', fp)
-                    shape_lat = res.get_dset_properties('latitude')[0]
-                    shape_lon = res.get_dset_properties('longitude')[0]
-                    shape_aod = res.get_dset_properties('aod')[0]
-                    assert shape_lat == shape_lon
-                    msg = '"aod" dset must be 3D (x,y,time)'
-                    assert len(shape_aod) == 3, msg
-                    assert shape_aod[0] == shape_lat[0]
-                    assert shape_aod[1] == shape_lat[1]
-                    assert (shape_aod[2] == 365) | (shape_aod[2] == 366)
+            with NFS(fp, use_rex=True) as res:
+                dsets = res.dsets
+                msg = 'Needs "{}" dset: {}'
+                assert 'latitude' in dsets, msg.format('latitude', fp)
+                assert 'longitude' in dsets, msg.format('longitude', fp)
+                assert 'aod' in dsets, msg.format('aod', fp)
+                shape_lat = res.get_dset_properties('latitude')[0]
+                shape_lon = res.get_dset_properties('longitude')[0]
+                shape_aod = res.get_dset_properties('aod')[0]
+                assert shape_lat == shape_lon
+                msg = '"aod" dset must be 3D (x,y,time)'
+                assert len(shape_aod) == 3, msg
+                assert shape_aod[0] == shape_lat[0]
+                assert shape_aod[1] == shape_lat[1]
+                assert (shape_aod[2] == 365) | (shape_aod[2] == 366)
 
         return ''
 
@@ -128,12 +124,11 @@ class MaiacVar(AncillaryVarHandler):
         L = 0
         data = []
         for fp in self.files:
-            with FS(fp).open() as f:
-                with Resource(f) as res:
-                    logger.debug('Getting MAIAC aod from {}'
-                                 .format(os.path.basename(fp)))
-                    data.append(res['aod', :, :, self.doy_index].flatten())
-                    L += len(data[-1])
+            with NFS(fp, use_rex=True) as res:
+                logger.debug('Getting MAIAC aod from {}'
+                             .format(os.path.basename(fp)))
+                data.append(res['aod', :, :, self.doy_index].flatten())
+                L += len(data[-1])
 
         logger.debug('Stacking {} MAIAC aod data arrays'.format(len(data)))
         data = np.hstack(data)
@@ -156,16 +151,15 @@ class MaiacVar(AncillaryVarHandler):
 
         if self._grid is None:
             for fp in self.files:
-                with FS(fp).open() as f:
-                    with Resource(f) as res:
-                        temp = pd.DataFrame(
-                            {'longitude': res['longitude'].flatten(),
-                             'latitude': res['latitude'].flatten()})
-                        if self._grid is None:
-                            self._grid = temp
-                        else:
-                            self._grid = self._grid.append(temp,
-                                                           ignore_index=True)
+                with NFS(fp, use_rex=True) as res:
+                    temp = pd.DataFrame(
+                        {'longitude': res['longitude'].flatten(),
+                            'latitude': res['latitude'].flatten()})
+                    if self._grid is None:
+                        self._grid = temp
+                    else:
+                        self._grid = self._grid.append(temp,
+                                                       ignore_index=True)
 
             logger.debug('MAIAC AOD grid has {} coordinates'
                          .format(len(self._grid)))

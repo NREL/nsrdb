@@ -17,6 +17,8 @@ import os
 import pandas as pd
 import shutil
 
+from cloud_fs import FileSystem as FS
+
 from rex import init_logger
 from rex.utilities.hpc import SLURM
 from rex.utilities.execution import SpawnProcessPool
@@ -560,8 +562,9 @@ class Tmy:
 
         for year in self._years:
             fpath, Handler = self._get_fpath(dset, year)
-            with Handler(fpath, unscale=unscale) as res:
-                temp = res[dset, :, self._site_slice]
+            with FS(fpath).open() as f:
+                with Handler(f, unscale=unscale) as res:
+                    temp = res[dset, :, self._site_slice]
 
             if arr is None:
                 shape = (len(self.my_time_index), temp.shape[1])
@@ -575,8 +578,10 @@ class Tmy:
                 temp = np.vstack((temp, temp2))
 
             elif len(temp) != mask.sum():
-                with Resource(fpath) as res:
-                    ti = res.time_index
+                with FS(fpath).open() as f:
+                    with Resource(f, unscale=False) as res:
+                        ti = res.time_index
+
                 temp = self.drop_leap(temp, ti)[0]
 
             arr[mask, :] = temp
@@ -791,8 +796,10 @@ class Tmy:
         """
         if self._meta is None:
             fpath, Handler = self._get_fpath('ghi', self._years[0])
-            with Handler(fpath) as res:
-                meta = res.meta
+            with FS(fpath).open() as f:
+                with Handler(f) as res:
+                    meta = res.meta
+
             self._meta = meta.iloc[self._site_slice, :]
         return self._meta
 
@@ -1140,10 +1147,11 @@ class Tmy:
 
         for year in year_set:
             fpath, Handler = self._get_fpath(dset, year)
-            with Handler(fpath, unscale=unscale) as res:
-                ti = res.time_index
-                temp = res[dset, :, self._site_slice]
-                temp, ti = self.drop_leap(temp, ti)
+            with FS(fpath).open() as f:
+                with Handler(f, unscale=unscale) as res:
+                    ti = res.time_index
+                    temp = res[dset, :, self._site_slice]
+                    temp, ti = self.drop_leap(temp, ti)
 
             if masks is None:
                 masks = {m: (ti.month == m) for m in range(1, 13)}
@@ -1368,8 +1376,9 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with Handler(fpath) as res:
-                self._meta = res.meta.iloc[self._site_slice, :]
+            with FS(fpath).open() as f:
+                with Handler(f) as res:
+                    self._meta = res.meta.iloc[self._site_slice, :]
 
         return self._meta
 
@@ -1378,11 +1387,12 @@ class TmyRunner:
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with Handler(fpath) as res:
-                self._dsets = []
-                for d in res.dsets:
-                    if res.shapes[d] == res.shape:
-                        self._dsets.append(d)
+            with FS(fpath).open() as f:
+                with Handler(f) as res:
+                    self._dsets = []
+                    for d in res.dsets:
+                        if res.shapes[d] == res.shape:
+                            self._dsets.append(d)
 
             if self._supplemental_fp is not None:
                 self._dsets += list(self._supplemental_fp.keys())
