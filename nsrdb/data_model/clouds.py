@@ -604,6 +604,8 @@ class CloudVarSingleNC(CloudVarSingle):
                                .format(dset, fpath, e))
                         logger.error(msg)
                         raise RuntimeError(msg) from e
+                if not isinstance(sparse_mask, np.ndarray):
+                    sparse_mask = np.full(f[dset][:].data.shape, sparse_mask)
 
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
