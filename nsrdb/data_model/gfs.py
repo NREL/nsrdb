@@ -548,7 +548,7 @@ class GfsDewPoint(BaseDerivedVar):
         ----------
         air_temperature : np.ndarray
             Temperature in Celsius
-        relative_humidity : np.arry
+        relative_humidity : np.array
             Relative Humidity
 
         Returns

@@ -1008,7 +1008,8 @@ class DataModel:
         self._process_dependencies(dependencies)
 
         # get the derivation object from the var factory
-        obj = self._var_factory.get_instance(var)
+        kwargs = self._factory_kwargs.get(var, {})
+        obj = self._var_factory.get_instance(var, **kwargs)
 
         try:
             dep_kwargs = {k: self[k] for k in dependencies}
@@ -1022,8 +1023,8 @@ class DataModel:
                 data = obj.derive(**dep_kwargs)
 
         except Exception as e:
-            logger.exception('Could not derive "{}", received the exception: '
-                             '{}'.format(var, e))
+            logger.exception('Could not derive "{}" using "{}", received the '
+                             'exception: {}'.format(var, obj, e))
             raise e
 
         # convert units from MERRA to NSRDB
