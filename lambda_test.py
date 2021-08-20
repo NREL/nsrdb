@@ -11,4 +11,4 @@ if __name__ == '__main__':
     ts = time.time()
     handler(event, None)
     print('NSRDB lambda runtime: {:.4f} minutes'
-          .format(time.time() - ts / 60))
+          .format((time.time() - ts) / 60))
