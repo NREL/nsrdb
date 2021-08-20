@@ -64,7 +64,7 @@ def handler(event, context):
     data_model = NSRDB.run_full(day, grid, freq,
                                 var_meta=var_meta,
                                 factory_kwargs=factory_kwargs,
-                                low_mem=event.get('low_mem', True),
+                                low_mem=event.get('low_mem', False),
                                 max_workers=event.get('max_workers'),
                                 log_level=None)
 
