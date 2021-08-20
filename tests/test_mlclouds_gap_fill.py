@@ -188,6 +188,54 @@ def test_mlclouds_fill_all(col_chunk=None, max_workers=1, date='20190102'):
     shutil.rmtree(DAILY_DIR, ignore_errors=True)
 
 
+@pytest.mark.parametrize(('col_chunk', 'max_workers'),
+                         ((None, 1),
+                          (None, 2),
+                          (3, 1),
+                          (2, 2),
+                          ))
+def test_mlclouds_fill_low_mem(col_chunk, max_workers, date='20190103'):
+    """Test the low memory option for mlclouds prediction"""
+
+    # run with nominal memory usage (not low_mem)
+    fp_ctype = os.path.join(DAILY_DIR, '{}_cloud_type_0.h5'.format(date))
+    if os.path.exists(DAILY_DIR):
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
+    shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
+
+    with h5py.File(fp_ctype, 'a') as res:
+        ctype = res['cloud_type']
+        ctype[:, -1] = -15
+        ctype[slice(None, None, 10), 0] = -15
+
+    h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
+    MLCloudsFill.run(h5_source, col_chunk=col_chunk,
+                     max_workers=max_workers)
+
+    fill_files = os.path.join(DAILY_DIR, '{}_*_0.h5'.format(date))
+    with MultiFileNSRDB(fill_files) as res:
+        fill_opd = res['cld_opd_dcomp']
+
+    # Reset and run with low memory
+    if os.path.exists(DAILY_DIR):
+        shutil.rmtree(DAILY_DIR, ignore_errors=True)
+    shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
+
+    with h5py.File(fp_ctype, 'a') as res:
+        ctype = res['cloud_type']
+        ctype[:, -1] = -15
+        ctype[slice(None, None, 10), 0] = -15
+
+    MLCloudsFill.run(h5_source, col_chunk=col_chunk,
+                     max_workers=max_workers, low_mem=True)
+    with MultiFileNSRDB(fill_files) as res:
+        fill_opd_low_mem = res['cld_opd_dcomp']
+
+    assert np.allclose(fill_opd, fill_opd_low_mem)
+
+    shutil.rmtree(DAILY_DIR, ignore_errors=True)
+
+
 def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.
 

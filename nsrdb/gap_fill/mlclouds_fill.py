@@ -441,7 +441,8 @@ class MLCloudsFill:
                 logger.error(msg)
                 raise FileNotFoundError(msg)
 
-    def predict_cld_properties(self, feature_data, col_slice=None):
+    def predict_cld_properties(self, feature_data, col_slice=None,
+                               low_mem=False):
         """
         Predict cloud properties with phygnn
 
@@ -454,6 +455,11 @@ class MLCloudsFill:
             Column slice of the resource data to work on. This is a result of
             chunking the columns to reduce memory load. Just used for logging
             in this method.
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
 
         Returns
         -------
@@ -481,8 +487,18 @@ class MLCloudsFill:
 
         logger.debug('Predicting gap filled cloud data for column slice {}'
                      .format(col_slice))
-        labels = self.phygnn_model.predict(feature_df,
-                                           table=False)
+        if not low_mem:
+            labels = self.phygnn_model.predict(feature_df, table=False)
+        else:
+            len_df = len(feature_df)
+            chunks = np.array_split(np.arange(len_df),
+                                    int(np.ceil(len_df / 1000)))
+            labels = []
+            for index_chunk in chunks:
+                sub = feature_df.iloc[index_chunk]
+                labels.append(self.phygnn_model.predict(sub, table=False))
+            labels = np.concatenate(labels, axis=0)
+
         mem = psutil.virtual_memory()
         logger.debug('Prediction complete for column slice {}. Memory '
                      'utilization is {:.3f} GB out of {:.3f} GB total '
@@ -785,7 +801,7 @@ class MLCloudsFill:
         return feature_data, clean_data, fill_flag
 
     def _process_chunk(self, i_features, i_clean, i_flag, col_slice,
-                       clean_data, fill_flag):
+                       clean_data, fill_flag, low_mem=False):
         """Use cleaned and prepared data to run phygnn predictions and create
         final filled data for a single column chunk.
 
@@ -814,6 +830,11 @@ class MLCloudsFill:
         fill_flag : np.ndarray
             Integer array of flags showing what data was filled and why.
             This is for ALL chunks (full resource shape).
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
 
         Returns
         -------
@@ -829,7 +850,8 @@ class MLCloudsFill:
         """
 
         i_predicted = self.predict_cld_properties(i_features,
-                                                  col_slice=col_slice)
+                                                  col_slice=col_slice,
+                                                  low_mem=low_mem)
         i_filled = self.fill_bad_cld_properties(i_predicted, i_features,
                                                 col_slice=col_slice)
         i_clean.update(i_filled)
@@ -842,7 +864,7 @@ class MLCloudsFill:
 
     @classmethod
     def clean_data_model(cls, data_model, fill_all=False, model_path=None,
-                         var_meta=None, sza_lim=90):
+                         var_meta=None, sza_lim=90, low_mem=False):
         """Run the MLCloudsFill process on data in-memory in an nsrdb
         data model object.
 
@@ -865,6 +887,11 @@ class MLCloudsFill:
         sza_lim : int, optional
             Solar zenith angle limit below which missing cloud property data
             will be gap filled. By default 90 to fill all missing daylight data
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
 
         Returns
         -------
@@ -906,7 +933,7 @@ class MLCloudsFill:
                                                          sza_lim=sza_lim)
         logger.info('Completed MLClouds data prep')
 
-        predicted = obj.predict_cld_properties(feature_data)
+        predicted = obj.predict_cld_properties(feature_data, low_mem=low_mem)
         filled = obj.fill_bad_cld_properties(predicted, feature_data)
 
         feature_data['cloud_fill_flag'] = fill_flag
@@ -925,7 +952,7 @@ class MLCloudsFill:
 
     @classmethod
     def run(cls, h5_source, fill_all=False, model_path=None, var_meta=None,
-            sza_lim=90, col_chunk=None, max_workers=None):
+            sza_lim=90, col_chunk=None, max_workers=None, low_mem=False):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -958,6 +985,11 @@ class MLCloudsFill:
         max_workers : None | int
             Maximum workers for running mlclouds in parallel. 1 is serial and
             None uses all available workers.
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
         """
 
         logger.info('Running MLCloudsFill with h5_source: {}'
@@ -988,7 +1020,8 @@ class MLCloudsFill:
                                       col_slice=col_slice)
                 i_features, i_clean, i_flag = out
                 out = obj._process_chunk(i_features, i_clean, i_flag,
-                                         col_slice, clean_data, fill_flag)
+                                         col_slice, clean_data, fill_flag,
+                                         low_mem=low_mem)
                 clean_data, fill_flag = out
                 del i_features, i_clean, i_flag
 
@@ -1012,7 +1045,8 @@ class MLCloudsFill:
                     col_slice = futures[future]
                     i_features, i_clean, i_flag = future.result()
                     out = obj._process_chunk(i_features, i_clean, i_flag,
-                                             col_slice, clean_data, fill_flag)
+                                             col_slice, clean_data, fill_flag,
+                                             low_mem=low_mem)
                     clean_data, fill_flag = out
                     del i_features, i_clean, i_flag, future
 

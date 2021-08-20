@@ -1107,7 +1107,8 @@ class NSRDB:
     @classmethod
     def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
                  fill_all=False, model_path=None, dist_lim=1.0,
-                 max_workers=None, log_file=None, log_level='INFO'):
+                 max_workers=None, low_mem=False,
+                 log_file=None, log_level='INFO'):
         """Run the full nsrdb pipeline in-memory using serial compute.
 
         Parameters
@@ -1148,6 +1149,11 @@ class NSRDB:
         max_workers : int, optional
             Number of workers to use for NSRDB computation. If 1 run in serial,
             else in parallel. If None use all available cores. by default None
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -1192,7 +1198,8 @@ class NSRDB:
         data_model = MLCloudsFill.clean_data_model(data_model,
                                                    fill_all=fill_all,
                                                    model_path=model_path,
-                                                   var_meta=var_meta)
+                                                   var_meta=var_meta,
+                                                   low_mem=low_mem)
 
         all_sky_inputs = {k: v for k, v in data_model.processed_data.items()
                           if k in ALL_SKY_ARGS}
