@@ -1107,7 +1107,7 @@ class NSRDB:
     @classmethod
     def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
                  fill_all=False, model_path=None, dist_lim=1.0,
-                 log_file=None, log_level='INFO'):
+                 max_workers=None, log_file=None, log_level='INFO'):
         """Run the full nsrdb pipeline in-memory using serial compute.
 
         Parameters
@@ -1145,6 +1145,9 @@ class NSRDB:
             distance). NSRDB sites further than this value from GOES data
             pixels will be warned and given missing cloud types and properties
             resulting in a full clearsky timeseries.
+        max_workers : int, optional
+            Number of workers to use for NSRDB computation. If 1 run in serial,
+            else in parallel. If None use all available cores. by default None
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -1174,9 +1177,9 @@ class NSRDB:
             DataModel.ALL_VARS_ML, date, grid,
             nsrdb_freq=freq,
             var_meta=var_meta,
-            max_workers=1,
-            max_workers_regrid=1,
-            max_workers_cloud_io=1,
+            max_workers=max_workers,
+            max_workers_regrid=max_workers,
+            max_workers_cloud_io=max_workers,
             return_obj=True,
             fpath_out=None,
             scale=False,

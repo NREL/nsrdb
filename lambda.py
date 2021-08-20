@@ -64,7 +64,7 @@ def handler(event, context):
     data_model = NSRDB.run_full(day, grid, freq,
                                 var_meta=var_meta,
                                 factory_kwargs=factory_kwargs,
-                                log_level=log_level)
+                                log_level=None)
 
     temp_dir = event.get('temp_dir', "/tmp")
     if temp_dir is None:
