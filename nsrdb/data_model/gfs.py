@@ -104,7 +104,7 @@ class GfsFiles:
             Time delta from date 00:00:00
         """
         # pylint: disable=anomalous-backslash-in-string
-        pattern = re.compile('\d{02}z')
+        pattern = re.compile('\d{02}z')  # noqa: W605
         matcher = pattern.search(file_name)
 
         offset = pd.Timedelta(matcher.group().replace('z', 'h'))
@@ -127,7 +127,7 @@ class GfsFiles:
             Time delta from date 00:00:00
         """
         # pylint: disable=anomalous-backslash-in-string
-        pattern = re.compile('\d{02}hr')
+        pattern = re.compile('\d{02}hr')  # noqa: W605
         matcher = pattern.search(file_name)
 
         offset = pd.Timedelta(matcher.group())
@@ -210,17 +210,23 @@ class GfsFiles:
             shortest forecast time ('offset') are chosen for each timestep
         """
         files = self._search_files(source_dir, self.time_index[0])
+
         start_time = self.time_index[0] - pd.Timedelta('1D')
-        files = files.append(self._search_files(source_dir, start_time))
+        files2 = self._search_files(source_dir, start_time)
+        if isinstance(files, pd.DataFrame):
+            files = files.append(files2)
+        else:
+            files = files2
+
         files = files.groupby('timestamp')
 
         gfs_files = []
         missing = []
         for timestamp in self.time_index:
-            grp = files.get_group(timestamp)
-            if len(grp):
+            try:
+                grp = files.get_group(timestamp)
                 gfs_files.append(grp.sort_values('offset').index[0])
-            else:
+            except KeyError:
                 missing.append(timestamp)
 
         if missing:
