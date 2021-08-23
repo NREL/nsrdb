@@ -15,7 +15,7 @@ import datetime
 import h5py
 import tempfile
 
-from nsrdb import DEFAULT_VAR_META, TESTDATADIR
+from nsrdb import DEFAULT_VAR_META, TESTDATADIR, CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.data_model.clouds import CloudVarSingleH5
 from rex.utilities.loggers import init_logger

@@ -115,7 +115,7 @@ class MyMean:
 
         for fpath in self._flist:
             logger.debug('\t- Checking file: {}'.format(fpath))
-            with NFS(fpath) as res:
+            with NFS(fpath, use_rex=True) as res:
                 shape, base_dtype, _ = res.get_dset_properties(self._dset)
                 units = res.get_units(self._dset)
                 scale = res.get_scale_factor(self._dset)
@@ -182,7 +182,7 @@ class MyMean:
     def meta(self):
         """Get the meta dataframe."""
         if self._meta is None:
-            with NFS(self._flist[-1]) as res:
+            with NFS(self._flist[-1], use_rex=True) as res:
                 self._meta = res.meta
         return self._meta
 
@@ -199,7 +199,7 @@ class MyMean:
         for i, f in enumerate(self._flist):
             logger.info('Processing file {} out of {}: {}'
                         .format(i + 1, len(self._flist), f))
-            with NFS(f) as res:
+            with NFS(f, use_rex=True) as res:
                 for j, site_slice in enumerate(self._site_slices):
                     new_data = res[self._dset, :, site_slice].mean(axis=0)
                     self._data[site_slice] += new_data
@@ -253,7 +253,7 @@ class MyMean:
         data : np.ndarray
             1D data averaged along axis 0 (time axis).
         """
-        with NFS(fpath) as res:
+        with NFS(fpath, use_rex=True) as res:
             data = res[dset, :, site_slice].mean(axis=0)
         return data
 

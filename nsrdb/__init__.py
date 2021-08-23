@@ -7,9 +7,9 @@ import os
 from nsrdb.version import __version__
 
 NSRDBDIR = os.path.dirname(os.path.realpath(__file__))
-DATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'nsrdb',
-                       'data_model', 'data')
-DEFAULT_VAR_META = os.path.join(NSRDBDIR, 'config', 'nsrdb_vars.csv')
+CONFIGDIR = os.path.join(NSRDBDIR, 'config')
+DATADIR = os.path.join(NSRDBDIR, 'data_model', 'data')
+DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
 TESTDATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'tests', 'data')
 
 # This needs to go last because it depends on the global dirs above
