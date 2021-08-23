@@ -562,7 +562,7 @@ class Tmy:
 
         for year in self._years:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath).open() as f:
+            with FS(fpath) as f:
                 with Handler(f, unscale=unscale) as res:
                     temp = res[dset, :, self._site_slice]
 
@@ -578,7 +578,7 @@ class Tmy:
                 temp = np.vstack((temp, temp2))
 
             elif len(temp) != mask.sum():
-                with FS(fpath).open() as f:
+                with FS(fpath) as f:
                     with Resource(f, unscale=False) as res:
                         ti = res.time_index
 
@@ -796,7 +796,7 @@ class Tmy:
         """
         if self._meta is None:
             fpath, Handler = self._get_fpath('ghi', self._years[0])
-            with FS(fpath).open() as f:
+            with FS(fpath) as f:
                 with Handler(f) as res:
                     meta = res.meta
 
@@ -1147,7 +1147,7 @@ class Tmy:
 
         for year in year_set:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath).open() as f:
+            with FS(fpath) as f:
                 with Handler(f, unscale=unscale) as res:
                     ti = res.time_index
                     temp = res[dset, :, self._site_slice]
@@ -1376,7 +1376,7 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath).open() as f:
+            with FS(fpath) as f:
                 with Handler(f) as res:
                     self._meta = res.meta.iloc[self._site_slice, :]
 
@@ -1387,7 +1387,7 @@ class TmyRunner:
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath).open() as f:
+            with FS(fpath) as f:
                 with Handler(f) as res:
                     self._dsets = []
                     for d in res.dsets:
