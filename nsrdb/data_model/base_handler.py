@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
+from abc import ABC, abstractmethod
 import logging
 import numpy as np
-import os
 import pandas as pd
 from warnings import warn
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class AncillaryVarHandler:
     # nearest neighbor tree method for this variable
     NN_METHOD = 'haversine'
 
-    def __init__(self, name, var_meta=None, date=None, source_dir=None):
+    def __init__(self, name, var_meta=None, date=None, **kwargs):
         """
         Parameters
         ----------
@@ -31,17 +32,25 @@ class AncillaryVarHandler:
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
+        kwargs : dict
+            Optional kwargs to overwrite relevant data in the var_meta
         """
 
         self._var_meta = self._parse_var_meta(var_meta)
         self._name = name
         self._date = date
-        self._source_dir = source_dir
         self._cache_file = False
         self._mask = None
+
+        # overwrite data in var_meta with the passed in kwargs
+        for k, v in kwargs.items():
+            if k in self._var_meta:
+                self._var_meta.at[self.mask, k] = v
+
+        # legacy kwarg alias for source_directory
+        sd = kwargs.get('source_dir', None)
+        if sd:
+            self._var_meta.at[self.mask, 'source_directory'] = sd
 
     @staticmethod
     def _parse_var_meta(inp):
@@ -135,6 +144,7 @@ class AncillaryVarHandler:
             else:
                 raise KeyError('Variable "{}" not found in NSRDB meta.'
                                .format(self._name))
+
         return self._mask
 
     @property
@@ -161,6 +171,7 @@ class AncillaryVarHandler:
         ec = bool(temp.values[0])
         if np.isnan(temp.values[0]):
             ec = False
+
         return ec
 
     @property
@@ -217,14 +228,13 @@ class AncillaryVarHandler:
         source_dir : str
             Directory containing source data files (with possible sub folders).
         """
-        if self._source_dir is None:
-            self._source_dir = self.var_meta.loc[
-                self.mask, 'source_directory'].values[0]
-            if not self._source_dir:
-                warn('Using default data directory for "{}"'
-                     .format(self.name))
-                self._source_dir = self.DEFAULT_DIR
-        return str(self._source_dir)
+        sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
+        if not sd:
+            warn('Using default data directory for "{}"'
+                 .format(self.name))
+            sd = self.DEFAULT_DIR
+
+        return str(sd)
 
     @property
     def temporal_method(self):
@@ -238,19 +248,28 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'temporal_interp'].values[0])
 
     @property
-    def dset(self):
-        """Get the MERRA dset name from the NSRDB variable name.
+    def file_set(self):
+        """Get the source file set name for the NSRDB variable. This is
+        typically used for MERRA source filesets such as tavg1_2d_aer_Nx or
+        tavg1_2d_slv_Nx (for MERRA)
 
         Returns
         -------
-        dset : str
-            MERRA dset name, e.g.:
-                tavg1_2d_aer_Nx
-                tavg1_2d_ind_Nx
-                tavg1_2d_rad_Nx
-                tavg1_2d_slv_Nx
+        str
         """
-        return str(self.var_meta.loc[self.mask, 'merra_dset'].values[0])
+        return str(self.var_meta.loc[self.mask, 'file_set'].values[0])
+
+    @property
+    def dset_name(self):
+        """Get the source dataset name for the NSRDB variable. This is
+        typically the netcdf or h5 source dataset name for the variable such as
+        T2M or TOTANGSTR (for MERRA temp and alpha)
+
+        Returns
+        -------
+        str
+        """
+        return str(self.var_meta.loc[self.mask, 'dset_name'].values[0])
 
     @property
     def final_dtype(self):
@@ -272,16 +291,19 @@ class AncillaryVarHandler:
         chunks : tuple
             Data storage chunk shape (row_chunk, col_chunk).
         """
+        # pylint: disable=no-member
         r = self.var_meta.loc[self.mask, 'row_chunks'].values[0]
         c = self.var_meta.loc[self.mask, 'col_chunks'].values[0]
         try:
             r = int(r)
         except ValueError:
             r = None
+
         try:
             c = int(c)
         except ValueError:
             c = None
+
         return (r, c)
 
     @property
@@ -323,9 +345,10 @@ class AncillaryVarHandler:
         missing = ''
         # empty cell (no source dir) evaluates to 'nan'.
         if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
-            if not os.path.exists(self.source_dir):
+            if not NFS(self.source_dir).exists():
                 # source dir is not nan and does not exist
                 missing = self.source_dir
+
         return missing
 
     def scale_data(self, array):
@@ -361,6 +384,7 @@ class AncillaryVarHandler:
                     d_min = ''
                     if np.issubdtype(self.final_dtype, np.integer):
                         d_min = np.iinfo(self.final_dtype).min
+
                     w = ('NaN values found in "{}" before dtype conversion '
                          'to "{}". Will be assigned value of: "{}"'
                          .format(self.name, self.final_dtype, d_min))
@@ -443,6 +467,20 @@ class AncillaryVarHandler:
         ti = pd.date_range('1-1-{y}'.format(y=date.year),
                            '1-1-{y}'.format(y=date.year + 1),
                            freq=freq)[:-1]
+        # pylint: disable=no-member
         mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
+
         return ti
+
+
+class BaseDerivedVar(ABC):
+    """Base class for variables derived from datasets in source data"""
+
+    # Class variable to store list of strings that are datasets interpolated
+    # from source data like MERRA that are used to derive this variable
+    DEPENDENCIES = tuple()
+
+    @abstractmethod
+    def derive(self):
+        """Placeholder for derive method"""

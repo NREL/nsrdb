@@ -1,0 +1,81 @@
+{
+  "collect-data-model": {
+    "final": true,
+    "max_workers": 15,
+    "n_chunks": 1,
+    "n_writes": 10
+  },
+  "daily-all-sky": {
+    "col_chunk": 500
+  },
+  "data-model": {
+    "dist_lim": 2.0,
+    "doy_range": [
+      1,
+      366
+    ],
+    "factory_kwargs": {
+      "cld_opd_dcomp": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "cld_press_acha": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "cld_reff_dcomp": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "cloud_fraction": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "cloud_probability": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "cloud_type": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "refl_0_65um_nom": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "refl_0_65um_nom_stddev_3x3": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "refl_3_75um_nom": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "surface_albedo": {
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_2019/"
+      },
+      "temp_11_0um_nom": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "temp_11_0um_nom_stddev_3x3": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      },
+      "temp_3_75um_nom": {
+        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+      }
+    },
+    "max_workers": null,
+    "max_workers_cloud_io": null,
+    "max_workers_regrid": null,
+    "mlclouds": true
+  },
+  "direct": {
+    "log_level": "INFO",
+    "name": "conus_west",
+    "nsrdb_freq": "5min",
+    "nsrdb_grid": "/projects/pxs/reference_grids/nsrdb_meta_2km_conus_west.csv",
+    "out_dir": "./",
+    "year": 2019
+  },
+  "eagle": {
+    "alloc": "pxs",
+    "feature": "--qos=normal",
+    "memory": 83,
+    "walltime": 4
+  },
+  "ml-cloud-fill": {
+    "col_chunk": 10000,
+    "max_workers": null
+  }
+}

@@ -28,23 +28,18 @@ class PostDevelopCommand(develop):
         develop.run(self)
 
 
-try:
-    from pypandoc import convert_text
-except ImportError:
-    convert_text = lambda string, *args, **kwargs: string
-
 here = os.path.abspath(os.path.dirname(__file__))
 
-with open("README.md", encoding="utf-8") as readme_file:
-    readme = convert_text(readme_file.read(), "md", format="md")
+with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
+    readme = f.read()
+
+with open("requirements.txt") as f:
+    install_requires = f.readlines()
 
 with open(os.path.join(here, "nsrdb", "version.py"), encoding="utf-8") as f:
     version = f.read()
 
 version = version.split('=')[-1].strip().strip('"').strip("'")
-
-with open("requirements.txt") as f:
-    install_requires = f.readlines()
 
 test_requires = ["pytest>=5.2", ]
 description = "National Solar Radiation DataBase"
@@ -72,6 +67,14 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
+    entry_points={
+        "console_scripts": [
+            "nsrdb=nsrdb.cli:main",
+        ],
+    },
+    package_data={'nsrdb': ['data_model/data/*.csv',
+                            'data_model/data/*.txt',
+                            'config/nsrdb_vars.csv']},
     test_suite="tests",
     install_requires=install_requires,
     extras_require={

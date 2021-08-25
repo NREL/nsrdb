@@ -9,8 +9,6 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import pyhdf
-from pyhdf.SD import SD
 
 from nsrdb.albedo.ims import get_dt
 
@@ -74,6 +72,9 @@ class ModisDay:
         lat : 1D numpy array (float32)
             Array with latitude values for MODIS data
         """
+        import pyhdf
+        from pyhdf.SD import SD
+
         try:
             hdf = SD(self._filename)
         except pyhdf.error.HDF4Error as e:

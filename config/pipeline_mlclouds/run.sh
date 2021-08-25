@@ -1,1 +1,0 @@
-python -m nsrdb.cli pipeline -c ./config_pipeline.json

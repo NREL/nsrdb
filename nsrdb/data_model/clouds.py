@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """A framework for handling UW/GOES source data."""
 import datetime
-import h5py
 import logging
 import math
-import netCDF4
 import numpy as np
 import os
 import pandas as pd
@@ -14,6 +12,7 @@ from scipy.stats import mode
 from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +34,12 @@ class CloudCoords:
     def check_file(fp):
         """Check if file has required vars for cloud coord correction"""
 
-        if fp.endswith('.nc'):
-            with netCDF4.Dataset(fp, 'r') as f:
+        if fp.endswith(('.nc', '.nc4')):
+            with NFS(fp) as f:
                 dsets = sorted(list(f.variables.keys()))
 
         elif fp.endswith('.h5'):
-            with h5py.File(fp, 'r') as f:
+            with NFS(fp, use_h5py=True) as f:
                 dsets = list(f)
 
         else:
@@ -69,6 +68,7 @@ class CloudCoords:
             Array of change in north/south location in decimal degrees.
         """
         delta_lat = (dist / CloudCoords.EARTH_RADIUS) * CloudCoords.TO_DEG
+
         return delta_lat
 
     @staticmethod
@@ -91,6 +91,7 @@ class CloudCoords:
         # Find the radius of a circle around the earth at given latitude.
         r = CloudCoords.EARTH_RADIUS * np.cos(latitude * CloudCoords.TO_RAD)
         delta_lon = (dist / r) * CloudCoords.TO_DEG
+
         return delta_lon
 
     @classmethod
@@ -286,7 +287,7 @@ class CloudVarSingleH5(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with h5py.File(self._fpath, 'r') as f:
+        with NFS(self._fpath, use_h5py=True) as f:
             out = list(f)
 
         return out
@@ -318,9 +319,8 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         grid = {}
-        with h5py.File(fpath, 'r') as f:
+        with NFS(fpath, use_h5py=True) as f:
             for dset in dsets:
-
                 if 'lat' in dset:
                     dset_out = 'latitude'
                 elif 'lon' in dset:
@@ -372,7 +372,7 @@ class CloudVarSingleH5(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
-        with h5py.File(fpath, 'r') as f:
+        with NFS(fpath, use_h5py=True) as f:
             sza = cls.pre_process(
                 'solar_zenith_angle', f['solar_zenith_angle'][...],
                 dict(f['solar_zenith_angle'].attrs))
@@ -480,6 +480,7 @@ class CloudVarSingleH5(CloudVarSingle):
         grid.loc[mask, :] = np.nan
         mask = ~(pd.isna(grid['latitude']) | pd.isna(grid['longitude']))
         grid = grid[mask]
+
         return grid, mask
 
     @property
@@ -494,7 +495,7 @@ class CloudVarSingleH5(CloudVarSingle):
         """
 
         data = {}
-        with h5py.File(self._fpath, 'r') as f:
+        with NFS(self._fpath, use_h5py=True) as f:
             for dset in self._dsets:
                 if dset not in list(f):
                     raise KeyError('Could not find "{}" in the cloud '
@@ -542,7 +543,7 @@ class CloudVarSingleNC(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with netCDF4.Dataset(self._fpath, 'r') as f:
+        with NFS(self._fpath) as f:
             out = list(f.variables.keys())
 
         return out
@@ -577,10 +578,8 @@ class CloudVarSingleNC(CloudVarSingle):
 
         sparse_mask = None
         grid = {}
-
-        with netCDF4.Dataset(fpath, 'r') as f:
+        with NFS(fpath) as f:
             for dset in dsets:
-
                 if 'lat' in dset:
                     dset_out = 'latitude'
                 elif 'lon' in dset:
@@ -605,6 +604,8 @@ class CloudVarSingleNC(CloudVarSingle):
                                .format(dset, fpath, e))
                         logger.error(msg)
                         raise RuntimeError(msg) from e
+                if not isinstance(sparse_mask, np.ndarray):
+                    sparse_mask = np.full(f[dset][:].data.shape, sparse_mask)
 
                 grid[dset_out] = f[dset][:].data[sparse_mask]
 
@@ -649,7 +650,7 @@ class CloudVarSingleNC(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
-        with netCDF4.Dataset(fpath, 'r') as f:
+        with NFS(fpath) as f:
             sza = f['solar_zenith_angle'][:].data[sparse_mask]
             azi = f['solar_azimuth_angle'][:].data[sparse_mask]
             cld_height = f['cld_height_acha'][:].data[sparse_mask]
@@ -738,7 +739,7 @@ class CloudVarSingleNC(CloudVarSingle):
         """
 
         data = {}
-        with netCDF4.Dataset(self._fpath, 'r') as f:
+        with NFS(self._fpath) as f:
             for dset in self._dsets:
                 if dset not in list(f.variables.keys()):
                     raise KeyError('Could not find "{}" in the cloud '
@@ -749,6 +750,7 @@ class CloudVarSingleNC(CloudVarSingle):
                     fill_value = None
                     if hasattr(f.variables[dset], '_FillValue'):
                         fill_value = f.variables[dset]._FillValue
+
                     data[dset] = self.pre_process(
                         dset, f[dset][:].data, fill_value=fill_value,
                         sparse_mask=self._sparse_mask, index=self._index)
@@ -761,9 +763,10 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, source_dir=None, freq=None,
+    def __init__(self, name, var_meta, date, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'), adjust_coords=True,
+                 **kwargs):
         """
         Parameters
         ----------
@@ -774,10 +777,6 @@ class CloudVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str
-            Cloud data directory containing nested daily directories with
-            h5 or nc files from UW. Can be a normal directory path or
-            /directory/prefix*suffix where /directory/ can have more sub dirs.
         freq : str | None
             Optional timeseries frequency to force cloud files to
             (time_index.freqstr). If None, the frequency of the cloud file
@@ -791,10 +790,10 @@ class CloudVar(AncillaryVarHandler):
             coordiantes they shade.
         """
 
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
-        x = self._parse_cloud_dir(self.source_dir)
+        sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
+        x = self._parse_cloud_dir(sd)
         self._source_dir, self._prefix, self._suffix = x
 
         self._path = None
@@ -829,6 +828,7 @@ class CloudVar(AncillaryVarHandler):
         self._i = 0
         logger.info('Iterating through {} cloud data {} files located in "{}"'
                     .format(len(self.file_df), self._ftype, self.path))
+
         return self
 
     def __next__(self):
@@ -849,7 +849,7 @@ class CloudVar(AncillaryVarHandler):
             timestamp = self.file_df.index[self._i]
             fpath = self.file_df.iloc[self._i, 0]
 
-            if not isinstance(fpath, str) or not os.path.exists(fpath):
+            if not isinstance(fpath, str) or not NFS(fpath).exists():
                 msg = ('Cloud data timestep {} is missing its '
                        'source file.'.format(timestamp))
                 warn(msg)
@@ -872,6 +872,7 @@ class CloudVar(AncillaryVarHandler):
                                     mem.used / 1e9, mem.total / 1e9))
 
             self._i += 1
+
             return timestamp, obj
 
         else:
@@ -902,14 +903,15 @@ class CloudVar(AncillaryVarHandler):
         if cloud_dir is None:
             return cloud_dir, prefix, suffix
 
-        elif os.path.exists(cloud_dir):
+        elif NFS(cloud_dir).exists():
             return cloud_dir, prefix, suffix
 
-        elif os.path.exists(os.path.dirname(cloud_dir)):
+        elif NFS(os.path.dirname(cloud_dir)).exists():
             fbase = os.path.basename(cloud_dir)
             cloud_dir = os.path.dirname(cloud_dir)
             if '*' in fbase:
                 prefix, suffix = fbase.split('*')
+
                 return cloud_dir, prefix, suffix
 
         raise ValueError('Could not parse cloud dir: {}'.format(cloud_dir))
@@ -926,6 +928,16 @@ class CloudVar(AncillaryVarHandler):
             m = ('CloudVar handler has a frequency of "{}" for directory: {}'
                  .format(self.freq, self.path))
             logger.debug(m)
+
+    @property
+    def source_dir(self):
+        """Get the source directory containing the variable data files.
+
+        Returns
+        -------
+        str
+        """
+        return self._source_dir
 
     @property
     def path(self):
@@ -950,15 +962,17 @@ class CloudVar(AncillaryVarHandler):
             fsearch = [fsearch1, fsearch2, fsearch3]
 
             # walk through current directory looking for day directory
-            for dirpath, _, _ in os.walk(self._source_dir):
+            for dirpath, _, _ in NFS(self._source_dir).walk():
                 dirpath = dirpath.replace('\\', '/')
                 if not dirpath.endswith('/'):
                     dirpath += '/'
+
                 if dirsearch in dirpath:
-                    for fn in os.listdir(dirpath):
+                    for fn in NFS(dirpath).ls():
                         if any(tag in fn for tag in fsearch):
                             self._path = dirpath
                             break
+
                 if self._path is not None:
                     break
 
@@ -989,9 +1003,9 @@ class CloudVar(AncillaryVarHandler):
             raise IOError('No cloud dir input for cloud var handler!')
 
         missing = ''
-        if not os.path.exists(self._source_dir):
+        if not NFS(self._source_dir).exists():
             missing = self._source_dir
-        elif not os.path.exists(self.path):
+        elif not NFS(self.path).exists():
             missing = self.path
 
         return missing
@@ -1068,17 +1082,20 @@ class CloudVar(AncillaryVarHandler):
             files found.
         """
 
-        fl = os.listdir(path)
+        fl = NFS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
+
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
+
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.h5') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
             flist = sorted(flist, key=CloudVar.get_timestamp)
+
         return flist
 
     @staticmethod
@@ -1103,17 +1120,20 @@ class CloudVar(AncillaryVarHandler):
             files found.
         """
 
-        fl = os.listdir(path)
+        fl = NFS(path).ls()
         if prefix is not None:
             fl = [fn for fn in fl if fn.startswith(prefix)]
+
         if suffix is not None:
             fl = [fn for fn in fl if fn.endswith(suffix)]
+
         flist = [os.path.join(path, f) for f in fl
                  if f.endswith('.nc') and str(date.year) in f]
 
         if flist:
             # sort by timestep after the last underscore before .level2.h5
             flist = sorted(flist, key=CloudVar.get_timestamp)
+
         return flist
 
     @property
@@ -1170,13 +1190,13 @@ class CloudVar(AncillaryVarHandler):
         """
 
         for fp in flist:
-            if os.path.getsize(fp) < 1e6:
+            if NFS(fp).size() < 1e6:
                 msg = ('Cloud data source file is less than 1MB, skipping: {}'
                        .format(fp))
                 warn(msg)
                 logger.warning(msg)
 
-        flist = [fp for fp in flist if os.path.getsize(fp) > 1e6]
+        flist = [fp for fp in flist if NFS(fp).size() > 1e6]
 
         return flist
 
@@ -1205,8 +1225,10 @@ class CloudVar(AncillaryVarHandler):
         """
         if self._freq is None:
             self._freq = self.inferred_freq
+
         if len(self._freq) == 1:
             self._freq = '1{}'.format(self._freq)
+
         return self._freq
 
     @property

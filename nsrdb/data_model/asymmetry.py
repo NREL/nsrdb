@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """A framework for handling Asymmetry source data."""
 import datetime
-import h5py
 import logging
 import os
-import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class AsymVar(AncillaryVarHandler):
 
     def __init__(self, name='asymmetry', var_meta=None,
                  date=datetime.date(year=2017, month=1, day=1),
-                 source_dir=None, fname='asymmetry_clim.h5'):
+                 fname='asymmetry_clim.h5', **kwargs):
         """
         Parameters
         ----------
@@ -27,16 +26,12 @@ class AsymVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         fname : str
             Asymmetry source data filename.
         """
         self._asym_grid = None
         self._fname = fname
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def fpath(self):
@@ -54,8 +49,9 @@ class AsymVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not os.path.isfile(self.fpath):
+        if not NFS(self.fpath).isfile():
             missing = self.fpath
+
         return missing
 
     @property
@@ -79,8 +75,7 @@ class AsymVar(AncillaryVarHandler):
         data : np.ndarray
             Single month of asymmetry data with shape (1 x n_sites).
         """
-
-        with h5py.File(self.fpath, 'r') as f:
+        with NFS(self.fpath) as f:
             # take the data at all sites for the zero-indexed month
             i = self._date.month - 1
             data = f[self.name][i, :]
@@ -101,8 +96,8 @@ class AsymVar(AncillaryVarHandler):
         """
 
         if self._asym_grid is None:
-            with h5py.File(self.fpath, 'r') as f:
-                self._asym_grid = pd.DataFrame(f['meta'][...])
+            with NFS(self.fpath, use_rex=True) as f:
+                self._asym_grid = f.meta
 
             if ('latitude' not in self._asym_grid
                     or 'longitude' not in self._asym_grid):

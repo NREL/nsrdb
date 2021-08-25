@@ -2,13 +2,15 @@
 """Factory pattern for retrieving NSRDB data source handlers."""
 import logging
 
-from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
 from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
                                      CloudVarSingleNC)
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
+from nsrdb.data_model.gfs import GfsVar, GfsDewPoint
 from nsrdb.data_model.maiac_aod import MaiacVar
 from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
+from nsrdb.data_model.nrel_data import NrelVar
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 
 logger = logging.getLogger(__name__)
@@ -50,16 +52,18 @@ class VarFactory:
     HANDLER_NAMES = {'AsymVar': AsymVar,
                      'AlbedoVar': AlbedoVar,
                      'CloudVar': CloudVar,
+                     'GfsVar': GfsVar,
+                     'GfsDewPoint': GfsDewPoint,
                      'MerraVar': MerraVar,
                      'MaiacVar': MaiacVar,
+                     'NrelVar': NrelVar,
                      'DewPoint': DewPoint,
                      'RelativeHumidity': RelativeHumidity,
                      'SolarZenithAngle': SolarZenithAngle,
                      }
 
-    NO_ARGS = ('relative_humidity', 'dew_point', 'solar_zenith_angle')
-
-    def get(self, var_name, *args, **kwargs):
+    @classmethod
+    def get_instance(cls, var_name, *args, **kwargs):
         """Get a processing variable instance for the given var name.
 
         Parameters
@@ -79,31 +83,11 @@ class VarFactory:
             Instantiated ancillary variable helper object (AsymVar, MerraVar).
         """
 
-        if 'handler' in kwargs:
-            handler = kwargs.pop('handler')
-            if handler not in self.HANDLER_NAMES:
-                e = ('Did not recognize "{}" as an available NSRDB variable '
-                     'data handler. The following handlers are available: {}'
-                     .format(handler, list(self.HANDLER_NAMES.keys())))
-                logger.error(e)
-                raise KeyError(e)
-            else:
-                handler_class = self.HANDLER_NAMES[handler]
-                kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
-
-        elif var_name in self.MAPPING:
-            handler_class = self.MAPPING[var_name]
-            kwargs = self._clean_kwargs(var_name, handler_class, kwargs)
-
-        else:
-            e = ('Did not recognize "{}" as an available NSRDB '
-                 'variable. The following variables are available: '
-                 '{}'.format(var_name, list(self.MAPPING.keys())))
-            logger.error(e)
-            raise KeyError(e)
+        HandlerClass = cls.get_class(var_name, **kwargs)
+        kwargs = cls._clean_kwargs(HandlerClass, kwargs)
 
         try:
-            instance = handler_class(*args, **kwargs)
+            instance = HandlerClass(*args, **kwargs)
         except Exception as e:
             m = ('Received an exception trying to instantiate "{}":\n{}'
                  .format(var_name, e))
@@ -112,16 +96,59 @@ class VarFactory:
 
         return instance
 
-    def _clean_kwargs(self, var_name, handler_class, kwargs,
+    @classmethod
+    def get_class(cls, var_name, **kwargs):
+        """Get the Class that is used to process the target variable
+
+        Parameters
+        ----------
+        var_name : str
+            NSRDB variable name.
+        **kwargs : dict
+            List of keyword args for instantiation of ancillary var.
+            Can also include "handler" which specifies the handler name
+            explicitly.
+
+        Returns
+        -------
+        HandlerClass : ancillary class
+            Uninstantiated ancillary class (AsymVar, MerraVar).
+        """
+
+        if 'handler' in kwargs:
+            handler = kwargs.pop('handler')
+            if handler not in cls.HANDLER_NAMES:
+                e = ('Did not recognize "{}" as an available NSRDB variable '
+                     'data handler. The following handlers are available: {}'
+                     .format(handler, list(cls.HANDLER_NAMES.keys())))
+                logger.error(e)
+                raise KeyError(e)
+            else:
+                HandlerClass = cls.HANDLER_NAMES[handler]
+
+        elif var_name in cls.MAPPING:
+            HandlerClass = cls.MAPPING[var_name]
+
+        else:
+            e = ('Did not recognize "{}" as an available NSRDB '
+                 'variable. The following variables are available: '
+                 '{}'.format(var_name, list(cls.MAPPING.keys())))
+            logger.error(e)
+            raise KeyError(e)
+
+        return HandlerClass
+
+    @classmethod
+    def _clean_kwargs(cls, HandlerClass, kwargs,
                       cld_list=('extent', 'cloud_dir', 'dsets', 'freq')):
         """Clean a kwargs namespace for cloud var specific kwargs.
 
         Parameters
         ----------
-        handler_class : AncillaryVarHandler
+        HandlerClass : AncillaryVarHandler
             DataModel handler class. This method looks for the CloudVar class.
         kwargs : dict
-            Namespace of kwargs to init handler_class.
+            Namespace of kwargs to init HandlerClass.
         cld_list : tuple
             List of CloudVar specific input variables
             default: ('extent', 'cloud_dir', 'dsets')
@@ -133,10 +160,13 @@ class VarFactory:
             cleaned for cloud kwargs.
         """
 
-        if var_name in self.NO_ARGS:
+        if 'handler' in kwargs:
+            del kwargs['handler']
+
+        if issubclass(HandlerClass, BaseDerivedVar):
             kwargs = {}
 
-        elif handler_class == CloudVar:
+        elif HandlerClass == CloudVar:
             if 'cloud_dir' in kwargs:
                 kwargs['source_dir'] = kwargs.pop('cloud_dir')
 
@@ -165,8 +195,8 @@ class VarFactory:
 
         return AncillaryVarHandler(*args, **kwargs)
 
-    @staticmethod
-    def get_dset_attrs(dset, var_meta=None):
+    @classmethod
+    def get_dset_attrs(cls, dset, var_meta=None):
         """Use the variable factory to get output attributes for a single dset.
 
         Parameters
@@ -187,11 +217,12 @@ class VarFactory:
             Numpy datatype.
         """
 
-        var_obj = VarFactory.get_base_handler(dset, var_meta=var_meta)
+        var_obj = cls.get_base_handler(dset, var_meta=var_meta)
+
         return var_obj.attrs, var_obj.chunks, var_obj.final_dtype
 
-    @staticmethod
-    def get_dsets_attrs(dsets, var_meta=None):
+    @classmethod
+    def get_dsets_attrs(cls, dsets, var_meta=None):
         """Use the variable factory to get output attributes for list of dsets.
 
         Parameters
@@ -217,7 +248,7 @@ class VarFactory:
         dtypes = {}
 
         for dset in dsets:
-            out = VarFactory.get_dset_attrs(dset, var_meta=var_meta)
+            out = cls.get_dset_attrs(dset, var_meta=var_meta)
             attrs[dset], chunks[dset], dtypes[dset] = out
 
         return attrs, chunks, dtypes

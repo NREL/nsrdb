@@ -45,6 +45,8 @@ from rex.utilities.execution import SpawnProcessPool
 
 from nsrdb import DATADIR
 from nsrdb.data_model.variable_factory import VarFactory
+from nsrdb.data_model.base_handler import BaseDerivedVar
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
@@ -88,10 +90,12 @@ class DataModel:
                   'total_precipitable_water',
                   'wind_speed',
                   'wind_direction',
-                  'specific_humidity',
                   'alpha',
                   'aod',
                   'ssa',
+                  'relative_humidity',  # Derived from MERRA vars
+                  'dew_point',  # Derived from MERRA vars
+                  'solar_zenith_angle',  # Derived from MERRA vars
                   )
 
     # cloud variables from UW/GOES
@@ -111,30 +115,12 @@ class DataModel:
                      'refl_3_75um_nom',
                      )
 
-    # derived variables
-    DERIVED_VARS = ('relative_humidity',
-                    'dew_point',
-                    'solar_zenith_angle',
-                    )
-
-    # dependencies for derived variables.
-    DEPENDENCIES = {'relative_humidity': ('air_temperature',
-                                          'specific_humidity',
-                                          'surface_pressure'),
-                    'dew_point': ('air_temperature',
-                                  'specific_humidity',
-                                  'surface_pressure'),
-                    'solar_zenith_angle': ('air_temperature',
-                                           'surface_pressure'),
-                    }
-
     # all variables processed by this module
-    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS
-                         + CLOUD_VARS))
+    ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS))
 
     # all variables processed by this module WITH mlclouds gap fill
-    ALL_VARS_ML = tuple(set(ALL_SKY_VARS + MERRA_VARS + DERIVED_VARS
-                            + CLOUD_VARS + MLCLOUDS_VARS))
+    ALL_VARS_ML = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS
+                            + MLCLOUDS_VARS))
 
     def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
                  factory_kwargs=None, scale=True, max_workers=None):
@@ -173,9 +159,8 @@ class DataModel:
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_meta = var_meta
-        if factory_kwargs is None:
-            factory_kwargs = {}
-        self._factory_kwargs = factory_kwargs
+
+        self._factory_kwargs = {} if factory_kwargs is None else factory_kwargs
         self._scale = scale
         self._var_factory = VarFactory()
         self._processed = {}
@@ -263,6 +248,7 @@ class DataModel:
                     & (self._ti.day == self.date.day))
             self._ti = self._ti[mask]
             self['time_index'] = self._ti
+
         return self._ti
 
     @property
@@ -276,6 +262,7 @@ class DataModel:
         """
         if self._nsrdb_data_shape is None:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
+
         return self._nsrdb_data_shape
 
     @property
@@ -347,7 +334,7 @@ class DataModel:
             raise ValueError(e)
 
         # Do not cache results if the intended Cache directory isn't available
-        if not os.path.exists(self.CACHE_DIR):
+        if not NFS(self.CACHE_DIR).exists():
             cache = False
 
         if isinstance(cache, str):
@@ -366,7 +353,7 @@ class DataModel:
             cache_i = os.path.join(self.CACHE_DIR,
                                    cache.replace('.csv', '_i.csv'))
 
-            if os.path.exists(cache_i) and os.path.exists(cache_d):
+            if NFS(cache_i).exists() and NFS(cache_d).exists():
                 logger.warning('Found cached nearest neighbor indices, '
                                'importing: {}'.format(cache_i))
                 dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
@@ -435,12 +422,13 @@ class DataModel:
             msg = ('Exception building cloud NN '
                    'tree for {}: {}'.format(fpath, e))
             logger.error(msg)
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from e
 
         if grid is None:
             return None
 
         else:
+            # pylint: disable=not-callable
             tree = cKDTree(grid[labels])
             # Get the index of NN to NSRDB grid
             dist, index = tree.query(nsrdb_grid[labels], k=1)
@@ -461,6 +449,7 @@ class DataModel:
                 warn(msg)
 
             index = index.astype(np.int32)
+
             return index
 
     def get_weights(self, var_obj):
@@ -564,9 +553,10 @@ class DataModel:
         for var in var_list:
             if var in self._var_factory.MAPPING:
                 var_kwargs = self._factory_kwargs.get(var, {})
-                var_obj = self._var_factory.get(var, var_meta=self._var_meta,
-                                                name=var, date=self.date,
-                                                dsets=[var], **var_kwargs)
+                var_obj = self._var_factory.get_instance(
+                    var, var_meta=self._var_meta,
+                    name=var, date=self.date,
+                    dsets=[var], **var_kwargs)
 
                 if hasattr(var_obj, 'pre_flight'):
                     missing = var_obj.pre_flight()
@@ -620,6 +610,74 @@ class DataModel:
 
         return data
 
+    def is_cloud_var(self, var):
+        """Determine whether or not the variable is a cloud variable from the
+        CLAVR-x / GOES data
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        is_cv : bool
+            True if var is a cloud variable
+        """
+
+        is_cv = var in self.CLOUD_VARS or var in self.MLCLOUDS_VARS
+        var_fact_kwargs = self._factory_kwargs.get(var, {})
+        if 'handler' in var_fact_kwargs:
+            is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
+
+        return is_cv
+
+    def is_derived_var(self, var):
+        """Determine whether or not the variable is derived from primary
+        source datasets
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        is_derived : bool
+            True if var is handled using a derived variable handler
+        """
+
+        kwargs = self._factory_kwargs.get(var, {})
+        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
+                                               **kwargs)
+        is_derived = issubclass(VarClass, BaseDerivedVar)
+
+        return is_derived
+
+    def get_dependencies(self, var):
+        """Get dependencies for a derived variable
+
+        Parameters
+        ----------
+        var : str
+            NSRDB variable name
+
+        Returns
+        -------
+        deps : tuple
+            Tuple of string names of dependencies of the derived variable
+            input. Empty tuple if var is not derived.
+        """
+
+        kwargs = self._factory_kwargs.get(var, {})
+        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
+                                               **kwargs)
+        deps = tuple()
+        if issubclass(VarClass, BaseDerivedVar):
+            deps = VarClass.DEPENDENCIES
+
+        return deps
+
     def _cloud_regrid(self, cloud_vars, dist_lim=1.0,
                       max_workers_regrid=None, max_workers_cloud_io=None):
         """ReGrid data for multiple cloud variables to the NSRDB grid.
@@ -658,13 +716,13 @@ class DataModel:
         # full cloud_var list is passed in kwargs
         logger.info('Starting DataModel Cloud Regrid process')
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
-        var_obj = self._var_factory.get(cloud_vars[0],
-                                        var_meta=self._var_meta,
-                                        name=cloud_vars[0],
-                                        date=self.date,
-                                        dsets=cloud_vars,
-                                        freq=self.nsrdb_ti.freqstr,
-                                        **var_kwargs)
+        var_obj = self._var_factory.get_instance(cloud_vars[0],
+                                                 var_meta=self._var_meta,
+                                                 name=cloud_vars[0],
+                                                 date=self.date,
+                                                 dsets=cloud_vars,
+                                                 freq=self.nsrdb_ti.freqstr,
+                                                 **var_kwargs)
 
         logger.debug('Cloud ReGrid file list: {}'
                      .format('\n\t'.join(var_obj.flist)))
@@ -831,6 +889,7 @@ class DataModel:
                         running += 1
                     elif future.done():
                         complete += 1
+
                 logger.info('{} ReGrid futures are running, {} are complete. '
                             'Memory usage is {:.3f} GB '
                             'out of {:.3f} GB total.'
@@ -936,7 +995,7 @@ class DataModel:
 
         if fpath_out is not None:
             fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
-            if os.path.exists(fpath_out):
+            if NFS(fpath_out).exists():
                 logger.info('Skipping DataModel for "{}" with existing '
                             'fpath_out: {}'.format(var, fpath_out))
                 return fpath_out
@@ -944,33 +1003,28 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        if var in self.DEPENDENCIES:
-            dependencies = self.DEPENDENCIES[var]
-
-        else:
-            raise KeyError('Did not recognize request to derive variable '
-                           '"{}".'.format(var))
-
         # ensure dependencies are processed before working on derived var
+        dependencies = self.get_dependencies(var)
         self._process_dependencies(dependencies)
 
         # get the derivation object from the var factory
-        obj = self._var_factory.get(var)
+        kwargs = self._factory_kwargs.get(var, {})
+        obj = self._var_factory.get_instance(var, **kwargs)
 
         try:
+            dep_kwargs = {k: self[k] for k in dependencies}
             if var == 'solar_zenith_angle':
                 data = obj.derive(
                     self.nsrdb_ti,
                     self.nsrdb_grid[['latitude', 'longitude']].values,
                     self.nsrdb_grid['elevation'].values,
-                    self['surface_pressure'],
-                    self['air_temperature'])
+                    **dep_kwargs)
             else:
-                data = obj.derive(*[self[k] for k in dependencies])
+                data = obj.derive(**dep_kwargs)
 
         except Exception as e:
-            logger.exception('Could not derive "{}", received the exception: '
-                             '{}'.format(var, e))
+            logger.exception('Could not derive "{}" using "{}", received the '
+                             'exception: {}'.format(var, obj, e))
             raise e
 
         # convert units from MERRA to NSRDB
@@ -985,9 +1039,10 @@ class DataModel:
             self[dep] = self.scale_data(dep, self[dep])
 
         if fpath_out is not None:
-            data = self._dump(var, fpath_out, data)
+            data = self.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
+
         return data
 
     def _interpolate(self, var):
@@ -1005,9 +1060,9 @@ class DataModel:
         """
 
         var_kwargs = self._factory_kwargs.get(var, {})
-        var_obj = self._var_factory.get(var, var_meta=self._var_meta,
-                                        name=var, date=self.date,
-                                        **var_kwargs)
+        var_obj = self._var_factory.get_instance(var, var_meta=self._var_meta,
+                                                 name=var, date=self.date,
+                                                 **var_kwargs)
 
         if 'albedo' in var:
             # special exclusions for large-extent albedo
@@ -1126,26 +1181,24 @@ class DataModel:
 
         # default multiple compute
         if var_list is None:
-            var_list = cls.ALL_SKY_VARS
+            var_list = cls.ALL_VARS
+
+        deps = tuple()
+        for var in var_list:
+            deps += data_model.get_dependencies(var)
+
+        var_list += deps
 
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
-        cloud_vars = []
-        for cv in var_list:
-            is_cv = cv in cls.CLOUD_VARS or cv in cls.MLCLOUDS_VARS
-            var_fact_kwargs = data_model._factory_kwargs.get(cv, {})
-            if 'handler' in var_fact_kwargs:
-                is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
-            if is_cv:
-                cloud_vars.append(cv)
-
+        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
         var_list = [v for v in var_list if v not in cloud_vars]
 
         # remove derived (dependent) variables from var_list to be processed
         # last (most efficient to process depdencies first, dependents last)
-        derived_vars = [dv for dv in var_list if dv in cls.DERIVED_VARS]
-        var_list = [v for v in var_list if v not in cls.DERIVED_VARS]
+        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
+        var_list = [v for v in var_list if v not in derived_vars]
 
         logger.info('First processing data for variable list: {}'
                     .format(var_list))
@@ -1263,6 +1316,7 @@ class DataModel:
                     if future.running():
                         running += 1
                         keys += [key]
+
                 logger.info('{} DataModel processing futures are running: {} '
                             'memory usage is {:.3f} GB out of {:.3f} GB total'
                             .format(running, keys, mem.used / 1e9,
@@ -1283,7 +1337,7 @@ class DataModel:
 
         return futures
 
-    def _dump(self, var, fpath_out, data, purge=True):
+    def dump(self, var, fpath_out, data, purge=False, mode='w'):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1297,6 +1351,8 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         purge : bool
             Flag to purge data from memory after dumping to disk
+        mode : str, optional
+            Mode to open fpath_out with, by default 'w'
 
         Returns
         -------
@@ -1311,10 +1367,16 @@ class DataModel:
 
             logger.info('Writing: {}'.format(os.path.basename(fpath_out)))
 
+            if data is None:
+                data = self[var]
+
             # make file for each var
-            with Outputs(fpath_out, mode='w') as fout:
-                fout.time_index = self.nsrdb_ti
-                fout.meta = self.nsrdb_grid
+            with Outputs(fpath_out, mode=mode) as fout:
+                if 'time_index' not in fout:
+                    fout.time_index = self.nsrdb_ti
+
+                if 'meta' not in fout:
+                    fout.meta = self.nsrdb_grid
 
                 var_obj = VarFactory.get_base_handler(
                     var, var_meta=self._var_meta, date=self.date)
@@ -1388,7 +1450,7 @@ class DataModel:
                               'format keywords: {}'.format(fpath_out))
             fpath_out = fpath_out.format(var=var,
                                          i=data_model.nsrdb_grid.index[0])
-            if os.path.exists(fpath_out):
+            if NFS(fpath_out).exists():
                 logger.info('Skipping DataModel for "{}" with existing '
                             'fpath_out: {}'.format(var, fpath_out))
                 return fpath_out
@@ -1396,14 +1458,9 @@ class DataModel:
                 logger.info('Processing DataModel for "{}" with fpath_out: {}'
                             .format(var, fpath_out))
 
-        is_cv = var in cls.CLOUD_VARS or var in cls.MLCLOUDS_VARS
-        var_fact_kwargs = data_model._factory_kwargs.get(var, {})
-        if 'handler' in var_fact_kwargs:
-            is_cv = var_fact_kwargs['handler'].lower() == 'cloudvar'
-
-        if is_cv:
+        if data_model.is_cloud_var(var):
             method = data_model._cloud_regrid
-        elif var in cls.DERIVED_VARS:
+        elif data_model.is_derived_var(var):
             method = data_model._derive
         else:
             method = data_model._interpolate
@@ -1422,9 +1479,10 @@ class DataModel:
                                      data.shape, var))
 
         if fpath_out is not None:
-            data = data_model._dump(var, fpath_out, data)
+            data = data_model.dump(var, fpath_out, data, purge=True)
 
         logger.info('Finished "{}".'.format(var))
+
         return data
 
     @classmethod
@@ -1497,13 +1555,15 @@ class DataModel:
             for var in cloud_vars:
                 fpath_out_var = fpath_out.format(
                     var=var, i=data_model.nsrdb_grid.index[0])
-                if os.path.exists(fpath_out_var):
+                if NFS(fpath_out_var).exists():
                     logger.info('Skipping DataModel for "{}" with existing '
                                 'fpath_out: {}'.format(var, fpath_out_var))
                     skip_list.append(var)
                     data[var] = fpath_out_var
+
             if any(skip_list):
                 cloud_vars = [cv for cv in cloud_vars if cv not in skip_list]
+
             if not any(cloud_vars):
                 return data
 
@@ -1527,7 +1587,8 @@ class DataModel:
             for var, arr in data.items():
                 fpath_out_var = fpath_out.format(
                     var=var, i=data_model.nsrdb_grid.index[0])
-                data[var] = data_model._dump(var, fpath_out_var, arr)
+                data[var] = data_model.dump(var, fpath_out_var, arr,
+                                            purge=True)
 
         logger.info('Finished "{}".'.format(cloud_vars))
 

@@ -364,8 +364,8 @@ class NSRDB:
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
                             time_index, meta, mode=mode)
 
-    @staticmethod
-    def _parse_data_model_output_ti(data_model_dir, nsrdb_freq):
+    @classmethod
+    def _parse_data_model_output_ti(cls, data_model_dir, nsrdb_freq):
         """Parse a directory of data model outputs for the resulting time index
 
         Parameters
@@ -386,8 +386,8 @@ class NSRDB:
                      if len(f.split('_')[0]) == 8 and f.endswith('.h5')]
         date_list = sorted(date_list)
 
-        start = NSRDB.to_datetime(date_list[0])
-        end = NSRDB.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
+        start = cls.to_datetime(date_list[0])
+        end = cls.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
 
         ti = pd.date_range(start=start, end=end, freq=nsrdb_freq,
                            closed='left')
@@ -417,8 +417,8 @@ class NSRDB:
                                   str(date.day).zfill(2))
         return datestr
 
-    @staticmethod
-    def date_to_doy(date):
+    @classmethod
+    def date_to_doy(cls, date):
         """Convert a date to a day of year integer.
 
         Parameters
@@ -432,7 +432,7 @@ class NSRDB:
         doy : int
             Day of year.
         """
-        return NSRDB.to_datetime(date).timetuple().tm_yday
+        return cls.to_datetime(date).timetuple().tm_yday
 
     @staticmethod
     def to_datetime(date):
@@ -1107,6 +1107,7 @@ class NSRDB:
     @classmethod
     def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
                  fill_all=False, model_path=None, dist_lim=1.0,
+                 max_workers=None, low_mem=False,
                  log_file=None, log_level='INFO'):
         """Run the full nsrdb pipeline in-memory using serial compute.
 
@@ -1145,6 +1146,14 @@ class NSRDB:
             distance). NSRDB sites further than this value from GOES data
             pixels will be warned and given missing cloud types and properties
             resulting in a full clearsky timeseries.
+        max_workers : int, optional
+            Number of workers to use for NSRDB computation. If 1 run in serial,
+            else in parallel. If None use all available cores. by default None
+        low_mem : bool
+            Option to run predictions in low memory mode. Typically the
+            memory bloat during prediction is:
+            (n_time x n_sites x n_nodes_per_layer). low_mem=True will
+            reduce this to (1000 x n_nodes_per_layer)
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -1174,9 +1183,9 @@ class NSRDB:
             DataModel.ALL_VARS_ML, date, grid,
             nsrdb_freq=freq,
             var_meta=var_meta,
-            max_workers=1,
-            max_workers_regrid=1,
-            max_workers_cloud_io=1,
+            max_workers=max_workers,
+            max_workers_regrid=max_workers,
+            max_workers_cloud_io=max_workers,
             return_obj=True,
             fpath_out=None,
             scale=False,
@@ -1189,7 +1198,8 @@ class NSRDB:
         data_model = MLCloudsFill.clean_data_model(data_model,
                                                    fill_all=fill_all,
                                                    model_path=model_path,
-                                                   var_meta=var_meta)
+                                                   var_meta=var_meta,
+                                                   low_mem=low_mem)
 
         all_sky_inputs = {k: v for k, v in data_model.processed_data.items()
                           if k in ALL_SKY_ARGS}

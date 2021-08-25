@@ -3,16 +3,19 @@
 import logging
 import numpy as np
 
+from nsrdb.data_model.base_handler import BaseDerivedVar
 from nsrdb.solar_position.spa import SPA
 
 logger = logging.getLogger(__name__)
 
 
-class SolarZenithAngle:
+class SolarZenithAngle(BaseDerivedVar):
     """Class to derive the solar zenith angle."""
 
+    DEPENDENCIES = ('surface_pressure', 'air_temperature')
+
     @staticmethod
-    def derive(time_index, lat_lon, elev, pressure, temperature,
+    def derive(time_index, lat_lon, elev, surface_pressure, air_temperature,
                big_meta_threshold=1e6, n_chunks=10):
         """
         Compute the solar zenith angle after atmospheric refraction correction
@@ -27,9 +30,9 @@ class SolarZenithAngle:
         elev : ndarray
             Elevation above sea-level for site(s) of interest. Must be a 1D
             array with length equal to the number of sites.
-        pressure : ndarray
+        surface_pressure : ndarray
             Pressure at all sites in millibar (mbar is same as hPa)
-        temperature : ndarray
+        air_temperature : ndarray
             Temperature at all sites in C
         big_meta_threshold : int | float
             Threshold over which a meta data is considered "big" and the
@@ -46,10 +49,10 @@ class SolarZenithAngle:
         logger.info('Deriving Solar Zenith Angle.')
 
         convert_pressure = False
-        if np.max(pressure) > 1e4:
-            # ensure that pressure is in mbar (assume Pa if not)
+        if np.max(surface_pressure) > 1e4:
+            # ensure that surface_pressure is in mbar (assume Pa if not)
             convert_pressure = True
-            pressure /= 100
+            surface_pressure /= 100
 
         if len(elev) > big_meta_threshold:
             # SPA is memory intensive so do chunk compute for large grids
@@ -60,14 +63,15 @@ class SolarZenithAngle:
             chunks_index = np.array_split(np.arange(len(elev)), n_chunks)
             chunks_lat_lon = np.array_split(lat_lon, n_chunks)
             chunks_elev = np.array_split(elev, n_chunks)
-            chunks_pressure = np.array_split(pressure, n_chunks, axis=1)
-            chunks_temperature = np.array_split(temperature, n_chunks, axis=1)
+            chunks_p = np.array_split(surface_pressure, n_chunks, axis=1)
+            chunks_t = np.array_split(air_temperature, n_chunks, axis=1)
 
             for i, index in enumerate(chunks_index):
+
                 chunk_sza = SPA.apparent_zenith(
                     time_index, chunks_lat_lon[i], elev=chunks_elev[i],
-                    pressure=chunks_pressure[i],
-                    temperature=chunks_temperature[i])
+                    pressure=chunks_p[i], temperature=chunks_t[i])
+
                 islice = slice(index[0], index[-1] + 1)
                 apparent_sza[:, islice] = chunk_sza
                 logger.debug('Calculation chunk {} of {} complete for SZA.'
@@ -76,11 +80,11 @@ class SolarZenithAngle:
         else:
             apparent_sza = SPA.apparent_zenith(time_index, lat_lon,
                                                elev=elev,
-                                               pressure=pressure,
-                                               temperature=temperature)
+                                               pressure=surface_pressure,
+                                               temperature=air_temperature)
             apparent_sza = apparent_sza.astype(np.float32)
 
         if convert_pressure:
-            pressure *= 100
+            surface_pressure *= 100
 
         return apparent_sza

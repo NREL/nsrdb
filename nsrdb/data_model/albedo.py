@@ -5,13 +5,13 @@ Current framework will extract albedo data from a directory of daily 2018
 albedo files that are a combination of 1km MODIS (8day) with
 1km IMS snow (daily).
 """
-import h5py
 import logging
 import numpy as np
 import os
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class AlbedoVar(AncillaryVarHandler):
     # nearest neighbor tree method for this variable
     NN_METHOD = 'kdtree'
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -33,15 +33,11 @@ class AlbedoVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
         self._albedo_grid = None
         self._lon_good = None
         self._lat_good = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
         # Albedo benefits from caching the nn results
         self._cache_file = 'albedo_nn_cache.csv'
@@ -54,12 +50,13 @@ class AlbedoVar(AncillaryVarHandler):
         -------
         date : str
             Date stamp that should be in the NSRDB Albedo file,
-            format is DDD_YYYY where DDD is the one-indexed day of year.
+            format is YYYY_DDD where DDD is the one-indexed day of year.
         """
 
         d_i = str(self._date.timetuple().tm_yday).zfill(3)
         y = str(self._date.year)
         date = '{y}_{d_i}'.format(y=y, d_i=d_i)
+
         return date
 
     @property
@@ -72,17 +69,19 @@ class AlbedoVar(AncillaryVarHandler):
             NSRDB Albedo file path.
         """
         falbedo = None
-        flist = os.listdir(self.source_dir)
+        flist = NFS(self.source_dir).ls()
         for f in flist:
             if self.date_stamp in f and f.endswith('.h5'):
                 falbedo = os.path.join(self.source_dir, f)
                 break
+
         if falbedo is None:
             m = ('Could not find albedo file with date stamp "{}" '
                  'in directory: {}'
                  .format(self.date_stamp, self.source_dir))
             logger.error(m)
             raise FileNotFoundError(m)
+
         return falbedo
 
     def pre_flight(self):
@@ -96,8 +95,9 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not os.path.isfile(self.file):
+        if not NFS(self.file).isfile():
             missing = self.file
+
         return missing
 
     def exclusions_from_nsrdb(self, nsrdb_grid, margin=0.1):
@@ -169,8 +169,7 @@ class AlbedoVar(AncillaryVarHandler):
         lon_ex : None | tuple
             Longitude range to exclude (everything INSIDE range is excluded).
         """
-
-        with h5py.File(self.file, 'r') as f:
+        with NFS(self.file) as f:
             latitude = f['latitude'][...]
             longitude = f['longitude'][...]
 
@@ -229,7 +228,7 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         # open h5py NSRDB albedo file
-        with h5py.File(self.file, 'r') as f:
+        with NFS(self.file) as f:
             attrs = dict(f['surface_albedo'].attrs)
             scale = attrs.get('scale_factor', 1)
 
@@ -253,7 +252,8 @@ class AlbedoVar(AncillaryVarHandler):
                 # reshape to (time, space) as per NSRDB standard
                 data = data.reshape((1, len(self.grid)))
                 logger.debug('"surface_albedo" data has shape {} after '
-                             'lat/lon exclusion filter.'.format(data.shape))
+                             'lat/lon exclusion filter.'
+                             .format(data.shape))
 
         return data
 
@@ -270,7 +270,7 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         if self._albedo_grid is None:
-            with h5py.File(self.file, 'r') as f:
+            with NFS(self.file) as f:
                 if self._lat_good is not None:
                     latitude = f['latitude'][self._lat_good]
                 else:

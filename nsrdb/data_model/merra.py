@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MERRA2 source data."""
 import logging
-import netCDF4
 import numpy as np
 import os
 import pandas as pd
 
 from nsrdb import DATADIR
-from nsrdb.data_model.base_handler import AncillaryVarHandler
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
+from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class MerraVar(AncillaryVarHandler):
     # default MERRA paths.
     MERRA_ELEV = os.path.join(DATADIR, 'merra_grid_srtm_500m_stats.csv')
 
-    def __init__(self, name, var_meta, date, source_dir=None):
+    def __init__(self, name, var_meta, date, **kwargs):
         """
         Parameters
         ----------
@@ -29,14 +29,10 @@ class MerraVar(AncillaryVarHandler):
             Defaults to the NSRDB var meta csv in git repo.
         date : datetime.date
             Single day to extract data for.
-        source_dir : str | None
-            Optional data source directory. Will overwrite the source directory
-            from the var_meta input.
         """
 
-        self._merra_grid = None
-        super().__init__(name, var_meta=var_meta, date=date,
-                         source_dir=source_dir)
+        self._grid = None
+        super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
     def date_stamp(self):
@@ -47,11 +43,10 @@ class MerraVar(AncillaryVarHandler):
         date : str
             Date stamp that should be in the MERRA file, format is YYYYMMDD
         """
+        date = '{y}{m:02d}{d:02d}'.format(y=self._date.year,
+                                          m=self._date.month,
+                                          d=self._date.day)
 
-        y = str(self._date.year)
-        m = str(self._date.month).zfill(2)
-        d = str(self._date.day).zfill(2)
-        date = '{y}{m}{d}'.format(y=y, m=m, d=d)
         return date
 
     @property
@@ -64,8 +59,8 @@ class MerraVar(AncillaryVarHandler):
             MERRA file path containing the target NSRDB variable.
         """
 
-        path = os.path.join(self.source_dir, self.dset)
-        flist = os.listdir(path)
+        path = os.path.join(self.source_dir, self.file_set)
+        flist = NFS(path).ls()
         fmerra = None
 
         for f in flist:
@@ -93,20 +88,10 @@ class MerraVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not os.path.isfile(self.file):
+        if not NFS(self.file).isfile():
             missing = self.file
+
         return missing
-
-    @property
-    def merra_name(self):
-        """Get the MERRA variable name from the NSRDB variable name.
-
-        Returns
-        -------
-        merra_name : str
-            MERRA var name.
-        """
-        return str(self.var_meta.loc[self.mask, 'merra_name'].values[0])
 
     @property
     def time_index(self):
@@ -143,6 +128,7 @@ class MerraVar(AncillaryVarHandler):
                              dtype=np.float32)
         for i in range(data.shape[0]):
             flat_data[i, :] = data[i, :, :].ravel()
+
         return flat_data
 
     @property
@@ -160,8 +146,7 @@ class MerraVar(AncillaryVarHandler):
                     'cld_opd_dcomp', 'cld_reff_dcomp']
 
         # open NetCDF file
-        with netCDF4.Dataset(self.file, 'r') as f:
-
+        with NFS(self.file) as f:
             # depending on variable, might need extra logic
             if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
@@ -172,9 +157,9 @@ class MerraVar(AncillaryVarHandler):
                     data = np.degrees(
                         np.arctan2(u_vector, v_vector)) + 180
 
-            elif self.merra_name == 'TOTSCATAU':
+            elif self.dset_name == 'TOTSCATAU':
                 # Single scatter albedo is total scatter / aod
-                data = f[self.merra_name][:] / f['TOTEXTTAU'][:]
+                data = f[self.dset_name][:] / f['TOTEXTTAU'][:]
 
             elif self.name in cld_vars:
                 # Special handling of cloud properties when
@@ -195,13 +180,14 @@ class MerraVar(AncillaryVarHandler):
                         data = np.zeros_like(opd)
                         data = np.where(ctype == 3, 8.0, data)
                         data = np.where(ctype == 6, 20.0, data)
-                    elif self.name in ['cld_press_acha', 'cloud_press_acha']:
+                    elif self.name in ['cld_press_acha',
+                                       'cloud_press_acha']:
                         data = np.zeros_like(opd)
                         data = np.where(ctype == 3, 800.0, data)
                         data = np.where(ctype == 6, 250.0, data)
 
             else:
-                data = f[self.merra_name][:]
+                data = f[self.dset_name][:]
 
         # make the data a flat 2d array
         data = self._format_2d(data)
@@ -216,56 +202,56 @@ class MerraVar(AncillaryVarHandler):
 
         Returns
         -------
-        self._merra_grid : pd.DataFrame
+        self._grid : pd.DataFrame
             MERRA source coordinates with elevation
         """
 
-        if self._merra_grid is None:
+        if self._grid is None:
+            with NFS(self.file) as f:
+                lon2d, lat2d = np.meshgrid(f['lon'][:], f['lat'][:])
 
-            with netCDF4.Dataset(self.file, 'r') as nc:
-                lon2d, lat2d = np.meshgrid(nc['lon'][:], nc['lat'][:])
-
-            self._merra_grid = pd.DataFrame({'longitude': lon2d.ravel(),
-                                             'latitude': lat2d.ravel()})
+            self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
+                                       'latitude': lat2d.ravel()})
 
             # merra grid has some bad values around 0 lat/lon
             # quick fix is to set to zero
-            self._merra_grid.loc[(self._merra_grid['latitude'] > -0.1)
-                                 & (self._merra_grid['latitude'] < 0.1),
-                                 'latitude'] = 0
-            self._merra_grid.loc[(self._merra_grid['longitude'] > -0.1)
-                                 & (self._merra_grid['longitude'] < 0.1),
-                                 'longitude'] = 0
+            self._grid.loc[(self._grid['latitude'] > -0.1)
+                           & (self._grid['latitude'] < 0.1),
+                           'latitude'] = 0
+            self._grid.loc[(self._grid['longitude'] > -0.1)
+                           & (self._grid['longitude'] < 0.1),
+                           'longitude'] = 0
 
             # add elevation to coordinate set
             merra_elev = pd.read_csv(self.MERRA_ELEV)
-            self._merra_grid = self._merra_grid.merge(merra_elev,
-                                                      on=['latitude',
-                                                          'longitude'],
-                                                      how='left')
+            self._grid = self._grid.merge(merra_elev,
+                                          on=['latitude', 'longitude'],
+                                          how='left')
 
             # change column name from merra default
-            if 'mean_elevation' in self._merra_grid.columns.values:
-                self._merra_grid = self._merra_grid.rename(
+            if 'mean_elevation' in self._grid.columns.values:
+                self._grid = self._grid.rename(
                     {'mean_elevation': 'elevation'}, axis='columns')
 
-        return self._merra_grid
+        return self._grid
 
 
-class RelativeHumidity:
+class RelativeHumidity(BaseDerivedVar):
     """Class to derive the relative humidity from other MERRA2 vars."""
 
+    DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
+
     @staticmethod
-    def derive(t, h, p):
+    def derive(air_temperature, specific_humidity, surface_pressure):
         """Derive the relative humidity from ancillary vars.
 
         Parameters
         ----------
-        t : np.ndarray
+        air_temperature : np.ndarray
             Temperature in Celsius
-        h : np.ndarray
+        specific_humidity : np.ndarray
             Specific humidity in kg/kg
-        p : np.ndarray
+        surface_pressure : np.ndarray
             Pressure in Pa
 
         Returns
@@ -276,32 +262,33 @@ class RelativeHumidity:
         logger.info('Deriving Relative Humidity from temperature, '
                     'humidity, and pressure')
 
-        if np.issubdtype(p.dtype, np.integer):
-            p = p.astype(np.float32)
+        if np.issubdtype(surface_pressure.dtype, np.integer):
+            surface_pressure = surface_pressure.astype(np.float32)
 
         # ensure that Pressure is in Pa (scale from mbar if not)
         convert_p = False
-        if np.max(p) < 10000:
+        if np.max(surface_pressure) < 10000:
             convert_p = True
-            p *= 100
+            surface_pressure *= 100
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False
-        if np.max(t) > 100:
+        if np.max(air_temperature) > 100:
             convert_t = True
-            t -= 273.15
+            air_temperature -= 273.15
 
         # determine ps (saturation vapor pressure):
         # Ref: https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
-        ps = 610.79 * np.exp(t / (t + 238.3) * 17.2694)
+        ps = 610.79 * np.exp(air_temperature / (air_temperature + 238.3)
+                             * 17.2694)
         # determine w (mixing ratio)
         # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
         # esci241_lesson06_humidity.pdf
-        w = h / (1 - h)
+        w = specific_humidity / (1 - specific_humidity)
         # determine ws (saturation mixing ratio)
         # Ref: http://snowball.millersville.edu/~adecaria/ESCI241/
         # esci241_lesson06_humidity.pdf
         # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
-        ws = 621.97 * (ps / 1000.) / (p - (ps / 1000.))
+        ws = 621.97 * (ps / 1000.) / (surface_pressure - (ps / 1000.))
         # determine RH
         # Ref: https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
         rh = w / ws * 100.
@@ -311,28 +298,30 @@ class RelativeHumidity:
 
         # ensure that pressure is reconverted to mbar
         if convert_p:
-            p /= 100
+            surface_pressure /= 100
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:
-            t += 273.15
+            air_temperature += 273.15
 
         return rh
 
 
-class DewPoint:
+class DewPoint(BaseDerivedVar):
     """Class to derive the dew point from other MERRA2 vars."""
 
+    DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
+
     @staticmethod
-    def derive(t, h, p):
+    def derive(air_temperature, specific_humidity, surface_pressure):
         """Derive the dew point from ancillary vars.
 
         Parameters
         ----------
-        t : np.ndarray
+        air_temperature : np.ndarray
             Temperature in Celsius
-        h : np.ndarray
+        specific_humidity : np.ndarray
             Specific humidity in kg/kg
-        p : np.ndarray
+        surface_pressure : np.ndarray
             Pressure in Pa
 
         Returns
@@ -345,16 +334,19 @@ class DewPoint:
 
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False
-        if np.max(t) > 100:
+        if np.max(air_temperature) > 100:
             convert_t = True
-            t -= 273.15
+            air_temperature -= 273.15
 
-        rh = RelativeHumidity.derive(t, h, p)
-        dp = (243.04 * (np.log(rh / 100.) + (17.625 * t / (243.04 + t)))
-              / (17.625 - np.log(rh / 100.) - ((17.625 * t) / (243.04 + t))))
+        rh = RelativeHumidity.derive(air_temperature, specific_humidity,
+                                     surface_pressure)
+
+        arg1 = np.log(rh / 100.0)
+        arg2 = (17.625 * air_temperature) / (243.04 + air_temperature)
+        dp = (243.04 * (arg1 + arg2) / (17.625 - arg1 - arg2))
 
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:
-            t += 273.15
+            air_temperature += 273.15
 
         return dp

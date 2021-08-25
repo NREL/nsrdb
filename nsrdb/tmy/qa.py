@@ -9,7 +9,7 @@ import time
 from warnings import warn
 
 from nsrdb.data_model import VarFactory
-from nsrdb.file_handlers.resource import Resource
+from nsrdb.file_handlers.filesystem import FileSystem as NFS
 
 
 def run_checks(fp, i0, iend, interval=1, step=1000):
@@ -42,7 +42,7 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
     chunks = [slice(x[0], x[-1] + 1) for x in chunks]
     chunks = chunks[::interval]
 
-    with Resource(fp) as res:
+    with NFS(fp, use_rex=True) as res:
 
         ti = res.time_index
         meta = res.meta
