@@ -5,8 +5,10 @@ from cloud_fs import FileSystem
 from datetime import date
 import json
 from nsrdb import NSRDB
-from rex import init_logger
 import os
+from rex import init_logger
+import shutil
+import tempfile
 
 
 def handler(event, context):
@@ -25,10 +27,6 @@ def handler(event, context):
         log_level = 'DEBUG'
     else:
         log_level = 'INFO'
-
-    logger = init_logger('nsrdb', log_level=log_level)
-    logger.debug(f'event: {event}')
-    logger.debug(f'context: {context}')
 
     day = event.get('date', None)
     if not day:
@@ -57,27 +55,40 @@ def handler(event, context):
     if isinstance(factory_kwargs, str):
         factory_kwargs = json.loads(factory_kwargs)
 
+    temp_dir = event.get('temp_dir', "/tmp")
+    if temp_dir is None:
+        temp_dir = out_dir
+    else:
+        temp_dir = tempfile.mkdtemp(prefix=f'NSRDB_{day}_', dir=temp_dir)
+
+    logger = init_logger('nsrdb', log_level=log_level)
+    logger.debug(f'event: {event}')
+    logger.debug(f'context: {context}')
+
     logger.debug(f'NSRDB inputs:\nday = {day}\ngrid = {grid}\nfreq = {freq}'
                  f'\nvar_meta = {var_meta}'
                  f'\nfactory_kwargs = {factory_kwargs}')
 
-    data_model = NSRDB.run_full(day, grid, freq,
-                                var_meta=var_meta,
-                                factory_kwargs=factory_kwargs,
-                                low_mem=event.get('low_mem', False),
-                                max_workers=event.get('max_workers'),
-                                log_level=None)
+    try:
+        data_model = NSRDB.run_full(day, grid, freq,
+                                    var_meta=var_meta,
+                                    factory_kwargs=factory_kwargs,
+                                    low_mem=event.get('low_mem', False),
+                                    max_workers=event.get('max_workers'),
+                                    log_level=None)
 
-    temp_dir = event.get('temp_dir', "/tmp")
-    if temp_dir is None:
-        temp_dir = out_dir
+        fpath_out = os.path.join(temp_dir, fpath)
+        dump_vars = ['ghi', 'dni', 'dhi',
+                     'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
+        for v in dump_vars:
+            data_model.dump(v, fpath_out, None, mode='a')
 
-    fpath_out = os.path.join(temp_dir, fpath)
-    dump_vars = ['ghi', 'dni', 'dhi',
-                 'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
-    for v in dump_vars:
-        data_model.dump(v, fpath_out, None, mode='a')
-
-    if temp_dir != out_dir:
-        dst_path = os.path.join(out_dir, fpath)
-        FileSystem.copy(fpath_out, dst_path)
+        if temp_dir != out_dir:
+            dst_path = os.path.join(out_dir, fpath)
+            FileSystem.copy(fpath_out, dst_path)
+    except Exception:
+        logger.exception('Failed to run NSRDB!')
+        raise
+    finally:
+        if temp_dir != out_dir:
+            shutil.rmtree(temp_dir)
