@@ -1911,7 +1911,7 @@ class TmyRunner:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         if 'node_name' not in kwargs:
             kwargs['node_name'] = \
-                'col_{}'.format(os.path.basename(fn_out.strip('.h5')))
+                'col_{}'.format(os.path.basename(fn_out.replace('.h5', '')))
 
         cls._eagle('collect', arg_str, **kwargs)
 

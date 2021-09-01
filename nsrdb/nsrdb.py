@@ -747,8 +747,8 @@ class NSRDB:
 
             if job_name is not None:
                 if job_name.endswith('_{}'.format(i_fname)):
-                    fname = fname.replace('nsrdb_', '{}_'.format(
-                        job_name.replace('_{}'.format(i_fname), '')))
+                    jns = job_name[:-2]
+                    fname = fname.replace('nsrdb_', '{}_'.format(jns))
                 else:
                     fname = fname.replace('nsrdb_', '{}_'.format(job_name))
 
