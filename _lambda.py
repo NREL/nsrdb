@@ -6,7 +6,7 @@ from datetime import date
 import json
 from nsrdb import NSRDB
 import os
-from rex import init_logger
+from rex import init_logger, safe_json_load
 import shutil
 import tempfile
 
@@ -23,6 +23,9 @@ def handler(event, context):
     context : dict
         The context in which the function is called.
     """
+    if isinstance(event, str):
+        event = safe_json_load(event)
+
     if event.get('verbose', False):
         log_level = 'DEBUG'
     else:
