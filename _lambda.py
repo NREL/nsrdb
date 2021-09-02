@@ -74,7 +74,7 @@ def handler(event, context):
                                     var_meta=var_meta,
                                     factory_kwargs=factory_kwargs,
                                     low_mem=event.get('low_mem', False),
-                                    max_workers=event.get('max_workers'),
+                                    max_workers=1,
                                     log_level=None)
 
         fpath_out = os.path.join(temp_dir, fpath)
