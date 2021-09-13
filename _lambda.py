@@ -31,7 +31,7 @@ def handler(event, context):
         os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key
 
     aws_secret_key = event.get('AWS_SECRET_ACCESS_KEY')
-    if aws_access_key:
+    if aws_secret_key:
         os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_key
 
     if event.get('verbose', False):
