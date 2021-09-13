@@ -65,6 +65,8 @@ def handler(event, context):
         temp_dir = tempfile.mkdtemp(prefix=f'NSRDB_{day}_', dir=temp_dir)
 
     logger = init_logger('nsrdb', log_level=log_level)
+    aws_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    logger.debug(f'AWS_ACCESS_KEY_ID: {aws_key}')
     logger.debug(f'event: {event}')
     logger.debug(f'context: {context}')
 
