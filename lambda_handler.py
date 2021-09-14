@@ -11,6 +11,19 @@ import shutil
 import tempfile
 
 
+class LambdaArgs(dict):
+    """
+    Class to handle Lambda function args either from event or env vars
+    """
+    def __init__(self, event):
+        self.update({k.lower(): v for k, v in os.environ.items()})
+
+        if isinstance(event, str):
+            event = safe_json_load(event)
+
+        self.update(event)
+
+
 def handler(event, context):
     """
     Wrapper for NSRDB to allow AWS Lambda invocation
@@ -23,23 +36,22 @@ def handler(event, context):
     context : dict
         The context in which the function is called.
     """
-    if isinstance(event, str):
-        event = safe_json_load(event)
+    args = LambdaArgs(event)
 
-    if event.get('verbose', False):
+    if args.get('verbose', False):
         log_level = 'DEBUG'
     else:
         log_level = 'INFO'
 
-    day = event.get('date', None)
+    day = args.get('date', None)
     if not day:
         day = date.today().strftime("%Y%m%d")
 
-    grid = event['grid']
-    var_meta = event['var_meta']
-    freq = event.get('freq', '5min')
-    out_dir = event['out_dir']
-    file_prefix = event['file_prefix']
+    grid = args['grid']
+    var_meta = args['var_meta']
+    freq = args.get('freq', '5min')
+    out_dir = args['out_dir']
+    file_prefix = args['file_prefix']
     fpath = f'{file_prefix}-{day}.h5'
 
     factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
@@ -54,19 +66,17 @@ def handler(event, context):
                       'wind_direction': {'handler': 'GfsVar'},
                       'wind_speed': {'handler': 'GfsVar'},
                       }
-    factory_kwargs = event.get("factory_kwargs", factory_kwargs)
+    factory_kwargs = args.get("factory_kwargs", factory_kwargs)
     if isinstance(factory_kwargs, str):
         factory_kwargs = json.loads(factory_kwargs)
 
-    temp_dir = event.get('temp_dir', "/tmp")
+    temp_dir = args.get('temp_dir', "/tmp")
     if temp_dir is None:
         temp_dir = out_dir
     else:
         temp_dir = tempfile.mkdtemp(prefix=f'NSRDB_{day}_', dir=temp_dir)
 
     logger = init_logger('nsrdb', log_level=log_level)
-    aws_key = os.environ.get('AWS_ACCESS_KEY_ID')
-    logger.debug(f'AWS_ACCESS_KEY_ID: {aws_key}')
     logger.debug(f'event: {event}')
     logger.debug(f'context: {context}')
 
@@ -78,7 +88,7 @@ def handler(event, context):
         data_model = NSRDB.run_full(day, grid, freq,
                                     var_meta=var_meta,
                                     factory_kwargs=factory_kwargs,
-                                    low_mem=event.get('low_mem', False),
+                                    low_mem=args.get('low_mem', False),
                                     max_workers=1,
                                     log_level=None)
 
@@ -97,3 +107,8 @@ def handler(event, context):
     finally:
         if temp_dir != out_dir:
             shutil.rmtree(temp_dir)
+
+    success = f'NSRDB ran successfully for {day}'
+    success = {'statusCode': 200, 'body': json.dumps(success)}
+
+    return success
