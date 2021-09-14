@@ -218,7 +218,7 @@ class GfsFiles:
         else:
             files = files2
 
-        if not files:
+        if isinstance(files, list):
             msg = ("Could not find any GFS files for {} in {}"
                    .format(self.time_index[0], source_dir))
             logger.error(msg)
