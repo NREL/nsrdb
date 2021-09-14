@@ -1,7 +1,7 @@
 """
 Lambda function handler tester
 """
-from _lambda import handler
+from lambda_handler import handler
 from rex import safe_json_load
 import sys
 import time
