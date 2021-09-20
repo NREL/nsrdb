@@ -270,6 +270,7 @@ class MLCloudsFill:
 
         t0 = time.time()
         feature_data = feature_raw.copy()
+
         day = (feature_data['solar_zenith_angle'] < sza_lim)
 
         cloud_type = feature_data['cloud_type']
@@ -289,6 +290,11 @@ class MLCloudsFill:
                            full_missing_ctype_mask.sum()))
             logger.error(msg)
             raise RuntimeError(msg)
+
+        feature_data['cld_opd_dcomp'] = np.nan_to_num(
+            feature_data['cld_opd_dcomp'], nan=-1.0)
+        feature_data['cld_reff_dcomp'] = np.nan_to_num(
+            feature_data['cld_reff_dcomp'], nan=-1.0)
 
         cloudy = np.isin(cloud_type, ICE_TYPES + WATER_TYPES)
         day_clouds = day & cloudy
@@ -321,8 +327,11 @@ class MLCloudsFill:
 
         mask = feature_data['cld_opd_dcomp'] <= 0
         feature_data['cld_opd_dcomp'][mask] = np.nan
+        feature_data['cld_opd_dcomp'][~cloudy] = 0.0
+
         mask = feature_data['cld_reff_dcomp'] <= 0
         feature_data['cld_reff_dcomp'][mask] = np.nan
+        feature_data['cld_reff_dcomp'][~cloudy] = 0.0
 
         logger.debug('Column NaN values:')
         for c, d in feature_data.items():
@@ -352,9 +361,6 @@ class MLCloudsFill:
                     feature_data[c] = future.result()
 
         logger.debug('Feature data interpolation is complete.')
-
-        feature_data['cld_opd_dcomp'][~cloudy] = 0.0
-        feature_data['cld_reff_dcomp'][~cloudy] = 0.0
 
         assert ~(feature_data['cloud_type'] < 0).any()
         assert ~any(np.isnan(d).any() for d in feature_data.values())
