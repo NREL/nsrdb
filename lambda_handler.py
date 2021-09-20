@@ -74,6 +74,9 @@ def handler(event, context):
     if temp_dir is None:
         temp_dir = out_dir
     else:
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
         temp_dir = tempfile.mkdtemp(prefix=f'NSRDB_{day}_', dir=temp_dir)
 
     logger = init_logger('nsrdb', log_level=log_level)
