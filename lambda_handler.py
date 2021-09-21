@@ -8,7 +8,9 @@ from nsrdb import NSRDB
 import os
 from rex import init_logger, safe_json_load
 import shutil
+import sys
 import tempfile
+import time
 
 
 class LambdaArgs(dict):
@@ -115,3 +117,12 @@ def handler(event, context):
     success = {'statusCode': 200, 'body': json.dumps(success)}
 
     return success
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        event = safe_json_load(sys.argv[1])
+        ts = time.time()
+        handler(event, None)
+        print('NSRDB lambda runtime: {:.4f} minutes'
+              .format((time.time() - ts) / 60))

@@ -1,7 +1,0 @@
-{
-    "grid": "s3://puerto-rico-nrel/config/puerto_rico_2km_meta.csv",
-    "var_meta": "s3://puerto-rico-nrel/config/puerto_rico_vars.csv",
-    "out_dir": "s3://puerto-rico-nrel/puerto_rico/2021",
-    "file_prefix": "puerto-rico",
-    "temp_dir": "/projects/pxs/lambda_test/"
-}
