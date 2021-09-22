@@ -7,8 +7,9 @@ import json
 from nsrdb import NSRDB
 import os
 from rex import init_logger, safe_json_load
-import shutil
+import sys
 import tempfile
+import time
 
 
 class LambdaArgs(dict):
@@ -71,47 +72,50 @@ def handler(event, context):
         factory_kwargs = json.loads(factory_kwargs)
 
     temp_dir = args.get('temp_dir', "/tmp")
-    if temp_dir is None:
-        temp_dir = out_dir
-    else:
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
 
-        temp_dir = tempfile.mkdtemp(prefix=f'NSRDB_{day}_', dir=temp_dir)
+    with tempfile.TemporaryDirectory(prefix=f'NSRDB_{day}_',
+                                     dir=temp_dir) as temp_dir:
+        logger = init_logger('nsrdb', log_level=log_level)
+        logger.debug(f'event: {event}')
+        logger.debug(f'context: {context}')
+        logger.debug(f'NSRDB inputs:'
+                     f'\nday = {day}'
+                     f'\ngrid = {grid}'
+                     f'\nfreq = {freq}'
+                     f'\nvar_meta = {var_meta}'
+                     f'\nfactory_kwargs = {factory_kwargs}')
+        try:
+            data_model = NSRDB.run_full(day, grid, freq,
+                                        var_meta=var_meta,
+                                        factory_kwargs=factory_kwargs,
+                                        low_mem=args.get('low_mem', False),
+                                        max_workers=1,
+                                        log_level=None)
 
-    logger = init_logger('nsrdb', log_level=log_level)
-    logger.debug(f'event: {event}')
-    logger.debug(f'context: {context}')
+            fpath_out = os.path.join(temp_dir, fpath)
+            dump_vars = ['ghi', 'dni', 'dhi',
+                         'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
+            for v in dump_vars:
+                data_model.dump(v, fpath_out, None, mode='a')
 
-    logger.debug(f'NSRDB inputs:\nday = {day}\ngrid = {grid}\nfreq = {freq}'
-                 f'\nvar_meta = {var_meta}'
-                 f'\nfactory_kwargs = {factory_kwargs}')
-
-    try:
-        data_model = NSRDB.run_full(day, grid, freq,
-                                    var_meta=var_meta,
-                                    factory_kwargs=factory_kwargs,
-                                    low_mem=args.get('low_mem', False),
-                                    max_workers=1,
-                                    log_level=None)
-
-        fpath_out = os.path.join(temp_dir, fpath)
-        dump_vars = ['ghi', 'dni', 'dhi',
-                     'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
-        for v in dump_vars:
-            data_model.dump(v, fpath_out, None, mode='a')
-
-        if temp_dir != out_dir:
             dst_path = os.path.join(out_dir, fpath)
             FileSystem.copy(fpath_out, dst_path)
-    except Exception:
-        logger.exception('Failed to run NSRDB!')
-        raise
-    finally:
-        if temp_dir != out_dir:
-            shutil.rmtree(temp_dir)
+        except Exception:
+            logger.exception('Failed to run NSRDB!')
+            raise
 
     success = f'NSRDB ran successfully for {day}'
     success = {'statusCode': 200, 'body': json.dumps(success)}
 
     return success
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        event = safe_json_load(sys.argv[1])
+        ts = time.time()
+        handler(event, None)
+        print('NSRDB lambda runtime: {:.4f} minutes'
+              .format((time.time() - ts) / 60))
