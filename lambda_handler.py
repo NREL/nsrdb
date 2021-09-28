@@ -2,7 +2,7 @@
 Lambda function handler
 """
 from cloud_fs import FileSystem
-from datetime import date
+from datetime import datetime
 import json
 from nsrdb import NSRDB
 import os
@@ -46,7 +46,7 @@ def handler(event, context):
 
     day = args.get('date', None)
     if not day:
-        day = date.today().strftime("%Y%m%d")
+        day = datetime.utcnow().strftime("%Y%m%d")
 
     grid = args['grid']
     var_meta = args['var_meta']
