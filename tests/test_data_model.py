@@ -96,12 +96,15 @@ def test_ancillary_single(var):
             data_baseline = var_obj.scale_data(data_baseline)
 
         diff = np.abs(data_baseline - data)
+        rel_diff = np.abs(data_baseline - data) / data_baseline
         mean_baseline = np.mean(data_baseline)
         mean_test = np.mean(data)
-        msg = ('Data for "{}" has abs diff of: max {}, mean {}, min {} '
+        msg = ('Data for "{}" has abs diff of: max {}, mean {}, min {}, '
+               'relative abs diff of: max {}, mean {}, min {} '
                'with a mean baseline data value of: {} and mean test data '
                'value of: {}'
                .format(var, diff.max(), diff.mean(), diff.min(),
+                       rel_diff.max(), rel_diff.mean(), rel_diff.min(),
                        mean_baseline, mean_test))
 
         assert np.allclose(data_baseline, data, atol=ATOL, rtol=RTOL), msg
