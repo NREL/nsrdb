@@ -94,6 +94,11 @@ def test_ancillary_single(var):
             var_obj = VarFactory.get_base_handler(
                 var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
+
+        print(data_baseline.min(), data_baseline.mean(), data_baseline.max())
+        print(data.min(), data.mean(), date.maxs())
+        diff = data_baseline - data
+        print(diff.min(), diff.mean(), diff.max())
         assert np.allclose(data_baseline, data,
                            atol=ATOL, rtol=RTOL)
 
