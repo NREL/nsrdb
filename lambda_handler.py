@@ -53,6 +53,7 @@ def handler(event, context):
     freq = args.get('freq', '5min')
     out_dir = args['out_dir']
     file_prefix = args['file_prefix']
+    max_workers = args.get('max_workers', 1)
     fpath = f'{file_prefix}-{day}.h5'
 
     factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
@@ -90,15 +91,26 @@ def handler(event, context):
             data_model = NSRDB.run_full(day, grid, freq,
                                         var_meta=var_meta,
                                         factory_kwargs=factory_kwargs,
+                                        fill_all=args.get('fill_all', False),
                                         low_mem=args.get('low_mem', False),
-                                        max_workers=1,
+                                        max_workers=max_workers,
                                         log_level=None)
 
+            if not args.get('debug_dsets', False):
+                dump_vars = ['ghi', 'dni', 'dhi',
+                             'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
+            else:
+                dump_vars = [d for d in list(data_model.processed_data.keys())
+                             if d not in ('time_index', 'meta', 'flag')]
+
             fpath_out = os.path.join(temp_dir, fpath)
-            dump_vars = ['ghi', 'dni', 'dhi',
-                         'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
             for v in dump_vars:
-                data_model.dump(v, fpath_out, None, mode='a')
+                try:
+                    data_model.dump(v, fpath_out, None, mode='a')
+                except Exception as e:
+                    msg = ('Could not write "{}" to disk, got error: {}'
+                           .format(v, e))
+                    logger.warning(msg)
 
             dst_path = os.path.join(out_dir, fpath)
             FileSystem.copy(fpath_out, dst_path)
