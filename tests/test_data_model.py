@@ -94,8 +94,17 @@ def test_ancillary_single(var):
             var_obj = VarFactory.get_base_handler(
                 var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
-        assert np.allclose(data_baseline, data,
-                           atol=ATOL, rtol=RTOL)
+
+        diff = np.abs(data_baseline - data)
+        mean_baseline = np.mean(data_baseline)
+        mean_test = np.mean(data)
+        msg = ('Data for "{}" has abs diff of: max {}, mean {}, min {} '
+               'with a mean baseline data value of: {} and mean test data '
+               'value of: {}'
+               .format(var, diff.max(), diff.mean(), diff.min(),
+                       mean_baseline, mean_test))
+
+        assert np.allclose(data_baseline, data, atol=ATOL, rtol=RTOL), msg
 
 
 def test_parallel(var_list=('surface_pressure', 'air_temperature',
