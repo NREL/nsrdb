@@ -67,8 +67,9 @@ def make_fill_flag(irrad, cs_irrad, cloud_type, missing_cld_props,
         data and the reason why.
     """
 
-    # Make a categorical numerical fill flag
-    new_fill_flag = np.zeros_like(irrad).astype(np.int8)
+    # Make a categorical numerical fill flag, uint8 is the default dtype of
+    # fill_flag as of 2021
+    new_fill_flag = np.zeros_like(irrad).astype(np.uint8)
 
     # make fill flags
     new_fill_flag[(cloud_type == -15)] = 1

@@ -94,8 +94,26 @@ def test_ancillary_single(var):
             var_obj = VarFactory.get_base_handler(
                 var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
-        assert np.allclose(data_baseline, data,
-                           atol=ATOL, rtol=RTOL)
+
+        bad = ~np.isclose(data_baseline, data, atol=ATOL, rtol=RTOL)
+        diff = np.abs(data_baseline - data)
+        rel_diff = np.abs(data_baseline - data) / data_baseline
+        mean_baseline = np.mean(data_baseline)
+        mean_test = np.mean(data)
+        msg = ('Data for "{}" has {} values not close out of {} '
+               'with abs diff of: max {:.3f}, mean {:.3f}, min {:.3f}, '
+               'relative abs diff of: max {:.3f}, mean {:.3f}, min {:.3f} '
+               'with a mean baseline data value of: {:.3f} and mean test data '
+               'value of: {:.3f}. '
+               '\nBad baseline values: {}, '
+               '\nbad test values: {}'
+               .format(var, bad.sum(), bad.shape[0] * bad.shape[1],
+                       diff.max(), diff.mean(), diff.min(),
+                       rel_diff.max(), rel_diff.mean(), rel_diff.min(),
+                       mean_baseline, mean_test,
+                       data_baseline[bad], data[bad]))
+
+        assert np.allclose(data_baseline, data, atol=ATOL, rtol=RTOL), msg
 
 
 def test_parallel(var_list=('surface_pressure', 'air_temperature',

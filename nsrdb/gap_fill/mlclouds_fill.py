@@ -201,10 +201,16 @@ class MLCloudsFill:
         # before the df.interpolate() call.
         bad = np.isnan(array)
         any_bad = bad.any()
-        all_bad = (~bad).sum(axis=0) < 3
-        if any(all_bad):
+        bad_cols = (~bad).sum(axis=0) < 3
+        if bad.all():
+            msg = ('Feature dataset "{}" has all NaN data! Filling with zeros.'
+                   .format(dset))
+            logger.warning(msg)
+            warn(msg)
+            array[:] = 0
+        elif bad_cols.any():
             mean_impute = np.nanmean(array, axis=0)
-            count = all_bad.sum()
+            count = bad_cols.sum()
             msg = ('Feature dataset "{}" has {} columns with nearly all NaN '
                    'values out of {} ({:.2f}%) ({} NaN values out of '
                    '{} total {:.2f}%). Filling with mean values by site.'
@@ -214,7 +220,7 @@ class MLCloudsFill:
                            100 * bad.sum() / array.size))
             logger.warning(msg)
             warn(msg)
-            array[:, all_bad] = mean_impute[all_bad]
+            array[:, bad_cols] = mean_impute[bad_cols]
 
         # attempt to fill all remaining NaN values that should be scattered
         # throughout (not full sites missing data)
@@ -225,14 +231,14 @@ class MLCloudsFill:
         # Fill any persistent NaN values with the global mean (these are
         # usually sites that have no valid data at all)
         bad = np.isnan(array)
-        all_bad = (~bad).sum(axis=0) < 3
-        if bad.any() or all_bad.any():
+        bad_cols = (~bad).sum(axis=0) < 3
+        if bad.any() or bad_cols.any():
             mean_impute = np.nanmean(array)
             msg = ('There were {} observations (out of {}) that have '
                    'persistent NaN values and {} sites (out of {}) that '
                    'still have all NaN values that could not be '
                    'cleaned for {}. Filling with global mean value of {}'
-                   .format(bad.sum(), bad.size, all_bad.sum(),
+                   .format(bad.sum(), bad.size, bad_cols.sum(),
                            array.shape[1], dset, mean_impute))
             logger.warning(msg)
             warn(msg)

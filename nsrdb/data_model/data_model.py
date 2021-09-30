@@ -724,8 +724,8 @@ class DataModel:
                                                  freq=self.nsrdb_ti.freqstr,
                                                  **var_kwargs)
 
-        logger.debug('Cloud ReGrid file list: {}'
-                     .format('\n\t'.join(var_obj.flist)))
+        logger.debug('Cloud ReGrid file list of length {}: \n\t{}'
+                     .format(len(var_obj.flist), '\n\t'.join(var_obj.flist)))
 
         if max_workers_regrid != 1:
             logger.info('Starting cloud data ReGrid with {} futures '
@@ -1365,7 +1365,8 @@ class DataModel:
                 fpath_out = fpath_out.format(var=var,
                                              i=self.nsrdb_grid.index[0])
 
-            logger.info('Writing: {}'.format(os.path.basename(fpath_out)))
+            logger.info('Writing {} to: {}'
+                        .format(var, os.path.basename(fpath_out)))
 
             if data is None:
                 data = self[var]
