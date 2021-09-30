@@ -48,10 +48,15 @@ def handler(event, context):
     if not day:
         day = datetime.utcnow().strftime("%Y%m%d")
 
+    year = day[:4]
+
     grid = args['grid']
     var_meta = args['var_meta']
     freq = args.get('freq', '5min')
     out_dir = args['out_dir']
+    if not out_dir.endswith('year'):
+        out_dir += year
+
     file_prefix = args['file_prefix']
     max_workers = args.get('max_workers', 1)
     fpath = f'{file_prefix}-{day}.h5'
