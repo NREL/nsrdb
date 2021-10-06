@@ -220,6 +220,16 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'units'].values[0])
 
     @property
+    def source(self):
+        """Get the source file specification which is sent to glob().
+
+        Returns
+        -------
+        source : str | None
+        """
+        return self.var_meta.loc[self.mask, 'source'].values[0]
+
+    @property
     def source_dir(self):
         """Get the source directory containing the variable data files.
 
