@@ -77,6 +77,7 @@ class MaiacVar(AncillaryVarHandler):
         pat = super().pattern
         if pat is None:
             pat = os.path.join(self.source_dir, '*{}*'.format(self._date.year))
+
         return pat
 
     @property

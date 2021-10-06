@@ -46,6 +46,7 @@ class MerraVar(AncillaryVarHandler):
         if pat is None:
             pat = os.path.join(self.source_dir, self.file_set,
                                '*{}*'.format(self.date_stamp))
+
         return pat
 
     @property

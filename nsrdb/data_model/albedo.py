@@ -63,6 +63,7 @@ class AlbedoVar(AncillaryVarHandler):
             format is YYYY_DDD where DDD is the one-indexed day of year.
         """
         date = '{y}_{doy}'.format(y=str(self._date.year), doy=self.doy)
+
         return date
 
     @property
@@ -77,8 +78,10 @@ class AlbedoVar(AncillaryVarHandler):
         if pat is None:
             pat = os.path.join(
                 self.source_dir, '*{}*.h5'.format(self.date_stamp))
+
         if '{doy}' in pat:
             pat = pat.format(doy=self.doy)
+
         return pat
 
     def pre_flight(self):

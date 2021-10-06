@@ -44,6 +44,7 @@ class AsymVar(AncillaryVarHandler):
         pat = super().pattern
         if pat is None:
             pat = os.path.join(self.source_dir, self._fname)
+
         return pat
 
     def pre_flight(self):

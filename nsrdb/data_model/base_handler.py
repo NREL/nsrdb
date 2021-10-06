@@ -230,10 +230,13 @@ class AncillaryVarHandler:
         pat = None
         if 'pattern' in self._var_meta:
             pat = self.var_meta.loc[self.mask, 'pattern'].values[0]
+
         if isinstance(pat, (int, float)):
             pat = None
+
         msg = 'Bad pattern: {} {}'.format(pat, type(pat))
         assert isinstance(pat, (type(None), str)), msg
+
         return pat
 
     @property

@@ -44,6 +44,7 @@ class NrelVar(AncillaryVarHandler):
         pat = super().pattern
         if pat is None:
             pat = os.path.join(self.source_dir, '*{}*'.format(self.file_set))
+
         return pat
 
     def pre_flight(self):

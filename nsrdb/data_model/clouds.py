@@ -887,8 +887,10 @@ class CloudVar(AncillaryVarHandler):
                    'handler. Can have {doy} format key.')
             logger.error(msg)
             raise KeyError(msg)
+
         if '{doy}' in pat:
             pat = pat.format(doy=self.doy)
+
         return pat
 
     def pre_flight(self):
