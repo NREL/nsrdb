@@ -55,7 +55,7 @@ def handler(event, context):
     freq = args.get('freq', '5min')
     out_dir = args['out_dir']
     if not out_dir.endswith('year'):
-        out_dir += year
+        out_dir = os.path.join(out_dir, year)
 
     file_prefix = args['file_prefix']
     max_workers = args.get('max_workers', 1)
