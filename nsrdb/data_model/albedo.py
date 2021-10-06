@@ -43,6 +43,16 @@ class AlbedoVar(AncillaryVarHandler):
         self._cache_file = 'albedo_nn_cache.csv'
 
     @property
+    def doy(self):
+        """Get the day of year string e.g. 001 for jan 1 and 365 for Dec 31
+
+        Returns
+        -------
+        str
+        """
+        return str(self._date.timetuple().tm_yday).zfill(3)
+
+    @property
     def date_stamp(self):
         """Get the Albedo datestamp corresponding to the specified date
 
@@ -52,11 +62,7 @@ class AlbedoVar(AncillaryVarHandler):
             Date stamp that should be in the NSRDB Albedo file,
             format is YYYY_DDD where DDD is the one-indexed day of year.
         """
-
-        d_i = str(self._date.timetuple().tm_yday).zfill(3)
-        y = str(self._date.year)
-        date = '{y}_{d_i}'.format(y=y, d_i=d_i)
-
+        date = '{y}_{doy}'.format(y=str(self._date.year), doy=self.doy)
         return date
 
     @property
@@ -71,6 +77,8 @@ class AlbedoVar(AncillaryVarHandler):
         if pat is None:
             pat = os.path.join(
                 self.source_dir, '*{}*.h5'.format(self.date_stamp))
+        if '{doy}' in pat:
+            pat = pat.format(doy=self.doy)
         return pat
 
     def pre_flight(self):
