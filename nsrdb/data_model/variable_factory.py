@@ -167,6 +167,7 @@ class VarFactory:
             kwargs = {}
 
         elif HandlerClass == CloudVar:
+            # handle legacy cloud dir kwarg
             if 'cloud_dir' in kwargs:
                 kwargs['source_dir'] = kwargs.pop('cloud_dir')
 
@@ -277,7 +278,8 @@ class VarFactory:
                          'with kwargs: {} and fpath: {}'
                          .format(dsets, kwargs, fpath))
 
-        kwarg_ignore = ('handler', 'source_dir')
+        kwarg_ignore = ('handler', 'source_dir', 'source_directory',
+                        'cloud_dir', 'pattern')
         kwargs = {k: v for k, v in kwargs.items()
                   if k not in kwarg_ignore}
 

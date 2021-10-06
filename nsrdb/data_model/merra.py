@@ -35,6 +35,20 @@ class MerraVar(AncillaryVarHandler):
         super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
+
+        Returns
+        -------
+        str
+        """
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(self.source_dir, self.file_set,
+                               '*{}*'.format(self.date_stamp))
+        return pat
+
+    @property
     def date_stamp(self):
         """Get the MERRA datestamp corresponding to the specified datetime date
 
@@ -48,34 +62,6 @@ class MerraVar(AncillaryVarHandler):
                                           d=self._date.day)
 
         return date
-
-    @property
-    def file(self):
-        """Get the MERRA file path for the target NSRDB variable name.
-
-        Returns
-        -------
-        fmerra : str
-            MERRA file path containing the target NSRDB variable.
-        """
-
-        path = os.path.join(self.source_dir, self.file_set)
-        flist = NFS(path).ls()
-        fmerra = None
-
-        for f in flist:
-            if self.date_stamp in f:
-                fmerra = os.path.join(path, f)
-                break
-
-        if fmerra is None:
-            emsg = ('Could not find MERRA source file for dataset "{}" with '
-                    'date stamp {} in dir: {}'
-                    .format(self.name, self.date_stamp, path))
-            logger.error(emsg)
-            raise FileNotFoundError(emsg)
-
-        return fmerra
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.

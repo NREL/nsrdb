@@ -220,14 +220,21 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'units'].values[0])
 
     @property
-    def source(self):
-        """Get the source file specification which is sent to glob().
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
 
         Returns
         -------
-        source : str | None
+        str | None
         """
-        return self.var_meta.loc[self.mask, 'source'].values[0]
+        pat = None
+        if 'pattern' in self._var_meta:
+            pat = self.var_meta.loc[self.mask, 'pattern'].values[0]
+        if isinstance(pat, (int, float)):
+            pat = None
+        msg = 'Bad pattern: {} {}'.format(pat, type(pat))
+        assert isinstance(pat, (type(None), str)), msg
+        return pat
 
     @property
     def source_dir(self):
@@ -245,6 +252,27 @@ class AncillaryVarHandler:
             sd = self.DEFAULT_DIR
 
         return str(sd)
+
+    @property
+    def file(self):
+        """Get the file path for the target NSRDB variable name based on
+        the glob self.pattern.
+
+        Returns
+        -------
+        str
+        """
+
+        fps = NFS(self.pattern).glob()
+        if not any(fps) or len(fps) > 1:
+            emsg = ('Could not find or found too many source files '
+                    'for dataset "{}" with glob pattern: "{}". '
+                    'Found {} files: {}'
+                    .format(self.name, self.pattern, len(fps), fps))
+            logger.error(emsg)
+            raise FileNotFoundError(emsg)
+
+        return fps[0]
 
     @property
     def temporal_method(self):

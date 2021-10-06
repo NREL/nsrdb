@@ -34,9 +34,17 @@ class AsymVar(AncillaryVarHandler):
         super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
-    def fpath(self):
-        """Get the Asymmetry source file path with file name."""
-        return os.path.join(self.source_dir, self._fname)
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
+
+        Returns
+        -------
+        str
+        """
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(self.source_dir, self._fname)
+        return pat
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
@@ -49,8 +57,8 @@ class AsymVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not NFS(self.fpath).isfile():
-            missing = self.fpath
+        if not NFS(self.file).isfile():
+            missing = self.file
 
         return missing
 
@@ -75,7 +83,7 @@ class AsymVar(AncillaryVarHandler):
         data : np.ndarray
             Single month of asymmetry data with shape (1 x n_sites).
         """
-        with NFS(self.fpath) as f:
+        with NFS(self.file) as f:
             # take the data at all sites for the zero-indexed month
             i = self._date.month - 1
             data = f[self.name][i, :]
@@ -96,13 +104,13 @@ class AsymVar(AncillaryVarHandler):
         """
 
         if self._asym_grid is None:
-            with NFS(self.fpath, use_rex=True) as f:
+            with NFS(self.file, use_rex=True) as f:
                 self._asym_grid = f.meta
 
             if ('latitude' not in self._asym_grid
                     or 'longitude' not in self._asym_grid):
                 raise ValueError('Asymmetry file did not have '
                                  'latitude/longitude meta data. '
-                                 'Please check: {}'.format(self.fpath))
+                                 'Please check: {}'.format(self.file))
 
         return self._asym_grid

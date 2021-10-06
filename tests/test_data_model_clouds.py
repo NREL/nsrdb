@@ -84,8 +84,8 @@ def test_regrid():
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = DEFAULT_VAR_META
     date = datetime.date(year=2007, month=1, day=16)
-    cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
-    factory_kwargs = {v: {'source_dir': cloud_dir} for v in cloud_vars}
+    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data/{doy}/*.h5')
+    factory_kwargs = {v: {'pattern': pattern} for v in cloud_vars}
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
@@ -157,8 +157,8 @@ def test_regrid_big_dist():
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2007, month=1, day=16)
-    cloud_dir = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
-    factory_kwargs = {v: {'source_dir': cloud_dir} for v in cloud_vars}
+    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data/{doy}/*.h5')
+    factory_kwargs = {v: {'pattern': pattern} for v in cloud_vars}
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'west_psm_extent.csv')
 
@@ -185,6 +185,23 @@ def test_regrid_big_dist():
 
     # test that the data model mapped NN over a large distance
     assert (data['cloud_type'] != -15).all()
+
+
+def test_bad_kwargs():
+    """Test that the cloud hander raises an error if proper path pattern is
+    not provided"""
+
+    cloud_vars = DataModel.CLOUD_VARS
+    var_meta = DEFAULT_VAR_META
+    date = datetime.date(year=2007, month=1, day=16)
+    nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
+                              'east_psm_extent.csv')
+
+    with pytest.raises(RuntimeError):
+        DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
+                             nsrdb_freq='1d', var_meta=var_meta,
+                             max_workers_regrid=1,
+                             max_workers_cloud_io=1)
 
 
 def execute_pytest(capture='all', flags='-rapP'):

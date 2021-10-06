@@ -60,29 +60,18 @@ class AlbedoVar(AncillaryVarHandler):
         return date
 
     @property
-    def file(self):
-        """Get the Albedo file path for the target NSRDB date.
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
 
         Returns
         -------
-        falbedo : str
-            NSRDB Albedo file path.
+        str
         """
-        falbedo = None
-        flist = NFS(self.source_dir).ls()
-        for f in flist:
-            if self.date_stamp in f and f.endswith('.h5'):
-                falbedo = os.path.join(self.source_dir, f)
-                break
-
-        if falbedo is None:
-            m = ('Could not find albedo file with date stamp "{}" '
-                 'in directory: {}'
-                 .format(self.date_stamp, self.source_dir))
-            logger.error(m)
-            raise FileNotFoundError(m)
-
-        return falbedo
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(
+                self.source_dir, '*{}*.h5'.format(self.date_stamp))
+        return pat
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
