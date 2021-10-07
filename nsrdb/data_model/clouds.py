@@ -770,16 +770,10 @@ class CloudVar(AncillaryVarHandler):
 
         super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
-        sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
-        x = self._parse_cloud_dir(sd)
-        self._source_dir, self._prefix, self._suffix = x
-
-        self._path = None
         self._freq = freq
         self._flist = None
         self._file_df = None
         self._dsets = dsets
-        self._ftype = None
         self._i = None
         self._adjust_coords = adjust_coords
 
@@ -792,7 +786,7 @@ class CloudVar(AncillaryVarHandler):
         if len(self.file_df) != len(self.flist):
             msg = ('Bad number of cloud data files for {}. Counted {} files '
                    'in {} but expected: {}'
-                   .format(self._date, len(self.flist), self.path,
+                   .format(self._date, len(self.flist), self.pattern,
                            len(self.file_df)))
             warn(msg)
             logger.warning(msg)
@@ -804,8 +798,8 @@ class CloudVar(AncillaryVarHandler):
     def __iter__(self):
         """Initialize this instance as an iter object."""
         self._i = 0
-        logger.info('Iterating through {} cloud data {} files located in "{}"'
-                    .format(len(self.file_df), self._ftype, self.path))
+        logger.info('Iterating through {} cloud data files located in "{}"'
+                    .format(len(self.file_df), self.pattern))
 
         return self
 
@@ -856,135 +850,62 @@ class CloudVar(AncillaryVarHandler):
         else:
             raise StopIteration
 
-    @staticmethod
-    def _parse_cloud_dir(cloud_dir):
-        """Parse a cloud directory string for cloud dir and prefix/suffix.
-
-        Parameters
-        ----------
-        cloud_dir : str | None
-            Complete directory path or /directory/prefix*suffix
-
-        Returns
-        -------
-        cloud_dir : str | None
-            Base directory path
-        prefix : str | None
-            File prefix if * in cloud_dir
-        suffix : str | None
-            File suffix if * in cloud_dir
-        """
-
-        prefix = None
-        suffix = None
-
-        if cloud_dir is None:
-            return cloud_dir, prefix, suffix
-
-        elif NFS(cloud_dir).exists():
-            return cloud_dir, prefix, suffix
-
-        elif NFS(os.path.dirname(cloud_dir)).exists():
-            fbase = os.path.basename(cloud_dir)
-            cloud_dir = os.path.dirname(cloud_dir)
-            if '*' in fbase:
-                prefix, suffix = fbase.split('*')
-
-                return cloud_dir, prefix, suffix
-
-        raise ValueError('Could not parse cloud dir: {}'.format(cloud_dir))
-
     def _check_freq(self):
         """Check the input vs inferred file frequency and warn if != """
         if self.freq.lower() != self.inferred_freq.lower():
             w = ('CloudVar handler has an input frequency of "{}" but '
-                 'inferred a frequency of "{}" for directory: {}'
-                 .format(self.freq, self.inferred_freq, self.path))
+                 'inferred a frequency of "{}" for pattern: {}'
+                 .format(self.freq, self.inferred_freq, self.pattern))
             logger.warning(w)
             warn(w)
         else:
-            m = ('CloudVar handler has a frequency of "{}" for directory: {}'
-                 .format(self.freq, self.path))
+            m = ('CloudVar handler has a frequency of "{}" for pattern: {}'
+                 .format(self.freq, self.pattern))
             logger.debug(m)
 
     @property
-    def source_dir(self):
-        """Get the source directory containing the variable data files.
+    def doy(self):
+        """Get the day of year string e.g. 001 for jan 1 and 365 for Dec 31
 
         Returns
         -------
         str
         """
-        return self._source_dir
+        return str(self._date.timetuple().tm_yday).zfill(3)
 
     @property
-    def path(self):
-        """Final path containing cloud data files.
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
 
-        The path is searched in _source_dir based on the analysis date.
-
-        Where _source_dir is defined in the nsrdb_vars.csv meta/config file.
+        Returns
+        -------
+        str | None
         """
+        pat = super().pattern
+        if pat is None:
+            msg = ('Need "pattern" input kwarg to initialize CloudVar data '
+                   'handler. Can have {doy} format key.')
+            logger.error(msg)
+            raise KeyError(msg)
 
-        if self._path is None:
+        if '{doy}' in pat:
+            pat = pat.format(doy=self.doy)
 
-            doy = str(self._date.timetuple().tm_yday).zfill(3)
-
-            dirsearch = '/{}/'.format(doy)
-
-            fsearch1 = '{}{}'.format(self._date.year, doy)
-            fsearch2 = '{}_{}'.format(self._date.year, doy)
-            fsearch3 = '{}{}{}'.format(self._date.year,
-                                       str(self._date.month).zfill(2),
-                                       str(self._date.day).zfill(2))
-            fsearch = [fsearch1, fsearch2, fsearch3]
-
-            # walk through current directory looking for day directory
-            for dirpath, _, _ in NFS(self._source_dir).walk():
-                dirpath = dirpath.replace('\\', '/')
-                if not dirpath.endswith('/'):
-                    dirpath += '/'
-
-                if dirsearch in dirpath:
-                    for fn in NFS(dirpath).ls():
-                        if any(tag in fn for tag in fsearch):
-                            self._path = dirpath
-                            break
-
-                if self._path is not None:
-                    break
-
-            if self._path is None:
-                msg = ('Could not find cloud data dir for date {} in '
-                       'source_dir {}. Looked for {} and any of: {}'
-                       .format(self._date, self._source_dir, dirsearch,
-                               fsearch))
-                logger.exception(msg)
-                raise IOError(msg)
-            else:
-                logger.debug('Cloud data dir for date {} found at: {}'
-                             .format(self._date, self._path))
-
-        return self._path
+        return pat
 
     def pre_flight(self):
-        """Perform pre-flight checks - source dir check.
+        """Perform pre-flight checks - source pattern check.
 
         Returns
         -------
         missing : str
-            Look for the source dir and return the string if not found.
+            Look for the source pattern and return the string if not found.
             If nothing is missing, return an empty string.
         """
 
-        if self._source_dir is None:
-            raise IOError('No cloud dir input for cloud var handler!')
-
         missing = ''
-        if not NFS(self._source_dir).exists():
-            missing = self._source_dir
-        elif not NFS(self.path).exists():
-            missing = self.path
+        if not any(self.flist):
+            missing = self.pattern
 
         return missing
 
@@ -1038,81 +959,15 @@ class CloudVar(AncillaryVarHandler):
 
         return time
 
-    @staticmethod
-    def get_h5_flist(path, date, prefix=None, suffix=None):
-        """Get the .h5 cloud data file path list.
-
-        Parameters
-        ----------
-        path : str
-            Terminal directory containing .h5 files.
-        date : datetime.date
-            Date of files to look for.
-        prefix : str | None
-            File prefix to look for in filenames or None
-        suffix : str | None
-            File suffix to look for in filenames or None
+    @property
+    def file(self):
+        """Alias for cloudvar file list.
 
         Returns
         -------
-        flist : list
-            List of full file paths sorted by timestamp. Empty list if no
-            files found.
+        list
         """
-
-        fl = NFS(path).ls()
-        if prefix is not None:
-            fl = [fn for fn in fl if fn.startswith(prefix)]
-
-        if suffix is not None:
-            fl = [fn for fn in fl if fn.endswith(suffix)]
-
-        flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.h5') and str(date.year) in f]
-
-        if flist:
-            # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=CloudVar.get_timestamp)
-
-        return flist
-
-    @staticmethod
-    def get_nc_flist(path, date, prefix=None, suffix=None):
-        """Get the .nc cloud data file path list.
-
-        Parameters
-        ----------
-        path : str
-            Terminal directory containing .nc files.
-        date : datetime.date
-            Date of files to look for.
-        prefix : str | None
-            File prefix to look for in filenames or None
-        suffix : str | None
-            File suffix to look for in filenames or None
-
-        Returns
-        -------
-        flist : list
-            List of full file paths sorted by timestamp. Empty list if no
-            files found.
-        """
-
-        fl = NFS(path).ls()
-        if prefix is not None:
-            fl = [fn for fn in fl if fn.startswith(prefix)]
-
-        if suffix is not None:
-            fl = [fn for fn in fl if fn.endswith(suffix)]
-
-        flist = [os.path.join(path, f) for f in fl
-                 if f.endswith('.nc') and str(date.year) in f]
-
-        if flist:
-            # sort by timestep after the last underscore before .level2.h5
-            flist = sorted(flist, key=CloudVar.get_timestamp)
-
-        return flist
+        return self.flist
 
     @property
     def flist(self):
@@ -1130,24 +985,18 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._flist is None:
-            self._flist = self.get_h5_flist(self.path, self._date,
-                                            prefix=self._prefix,
-                                            suffix=self._suffix)
-            self._ftype = '.h5'
+            self._flist = NFS(self.pattern).glob()
+            if not any(self._flist):
+                emsg = ('Could not find or found too many source files '
+                        'for dataset "{}" with glob pattern: "{}". '
+                        'Found {} files: {}'
+                        .format(self.name, self.pattern,
+                                len(self._flist), self._flist))
+                logger.error(emsg)
+                raise FileNotFoundError(emsg)
 
-            if not self._flist:
-                self._flist = self.get_nc_flist(self.path, self._date,
-                                                prefix=self._prefix,
-                                                suffix=self._suffix)
-                self._ftype = '.nc'
-
-            if not self._flist:
-                raise IOError('Could not find .h5 or .nc files for {} '
-                              'with prefix "{}" and suffix "{}" in '
-                              'directory: {}'
-                              .format(self._date, self._prefix, self._suffix,
-                                      self.path))
-
+            # sort by timestep after the last underscore before .level2.h5
+            self._flist = sorted(self._flist, key=self.get_timestamp)
             self._flist = self._remove_bad_files(self._flist)
 
         return self._flist

@@ -16,43 +16,43 @@
     ],
     "factory_kwargs": {
       "cld_opd_dcomp": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cld_press_acha": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cld_reff_dcomp": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_fraction": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_probability": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "cloud_type": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_0_65um_nom": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_0_65um_nom_stddev_3x3": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "refl_3_75um_nom": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "surface_albedo": {
-        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_2019/"
+        "pattern": "/projects/pxs/ancillary/albedo/nsrdb_2019/*{doy}*.h5"
       },
       "temp_11_0um_nom": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "temp_11_0um_nom_stddev_3x3": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       },
       "temp_3_75um_nom": {
-        "source_dir": "/projects/pxs/uwisc/2019_west/clavrx_OR_ABI-L1b-RadC-*.nc"
+        "pattern": "/projects/pxs/uwisc/2019_west/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc"
       }
     },
     "max_workers": null,

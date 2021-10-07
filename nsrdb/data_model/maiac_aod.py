@@ -67,20 +67,51 @@ class MaiacVar(AncillaryVarHandler):
         return self._get_time_index(self._date, freq='1D')
 
     @property
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
+
+        Returns
+        -------
+        str
+        """
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(self.source_dir, '*{}*'.format(self._date.year))
+
+        return pat
+
+    @property
+    def file(self):
+        """Get the file paths for the target NSRDB variable name based on
+        the glob self.pattern.
+
+        Returns
+        -------
+        list
+        """
+
+        fps = NFS(self.pattern).glob()
+        if not any(fps):
+            emsg = ('Could not find source files '
+                    'for dataset "{}" with glob pattern: "{}". '
+                    'Found {} files: {}'
+                    .format(self.name, self.pattern, len(fps), fps))
+            logger.error(emsg)
+            raise FileNotFoundError(emsg)
+
+        logger.debug('Found the following MAIAC files: {}'.format(fps))
+
+        return fps
+
+    @property
     def files(self):
         """Get multiple MAIAC AOD filepaths based on source_dir and year.
 
         Returns
         -------
-        files : list
-           List of filepaths to h5 files containing MAIAC AOD data.
+        list
         """
-        fns = [fn for fn in NFS(self.source_dir).ls()
-               if str(self._date.year) in fn]
-        fps = [os.path.join(self.source_dir, fn) for fn in fns]
-        logger.debug('Found the following MAIAC files: {}'.format(fns))
-
-        return fps
+        return self.file
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.

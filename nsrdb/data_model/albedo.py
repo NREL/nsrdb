@@ -43,6 +43,16 @@ class AlbedoVar(AncillaryVarHandler):
         self._cache_file = 'albedo_nn_cache.csv'
 
     @property
+    def doy(self):
+        """Get the day of year string e.g. 001 for jan 1 and 365 for Dec 31
+
+        Returns
+        -------
+        str
+        """
+        return str(self._date.timetuple().tm_yday).zfill(3)
+
+    @property
     def date_stamp(self):
         """Get the Albedo datestamp corresponding to the specified date
 
@@ -52,37 +62,27 @@ class AlbedoVar(AncillaryVarHandler):
             Date stamp that should be in the NSRDB Albedo file,
             format is YYYY_DDD where DDD is the one-indexed day of year.
         """
-
-        d_i = str(self._date.timetuple().tm_yday).zfill(3)
-        y = str(self._date.year)
-        date = '{y}_{d_i}'.format(y=y, d_i=d_i)
+        date = '{y}_{doy}'.format(y=str(self._date.year), doy=self.doy)
 
         return date
 
     @property
-    def file(self):
-        """Get the Albedo file path for the target NSRDB date.
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
 
         Returns
         -------
-        falbedo : str
-            NSRDB Albedo file path.
+        str
         """
-        falbedo = None
-        flist = NFS(self.source_dir).ls()
-        for f in flist:
-            if self.date_stamp in f and f.endswith('.h5'):
-                falbedo = os.path.join(self.source_dir, f)
-                break
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(
+                self.source_dir, '*{}*.h5'.format(self.date_stamp))
 
-        if falbedo is None:
-            m = ('Could not find albedo file with date stamp "{}" '
-                 'in directory: {}'
-                 .format(self.date_stamp, self.source_dir))
-            logger.error(m)
-            raise FileNotFoundError(m)
+        if '{doy}' in pat:
+            pat = pat.format(doy=self.doy)
 
-        return falbedo
+        return pat
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.

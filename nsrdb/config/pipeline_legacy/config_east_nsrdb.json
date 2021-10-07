@@ -20,19 +20,19 @@
     ],
     "factory_kwargs": {
       "cld_opd_dcomp": {
-        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+        "pattern": "/projects/pxs/uwisc/2019_east/{doy}/level2/clavrx_OR_ABI-L1b-RadF*.level2.nc"
       },
       "cld_press_acha": {
-        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+        "pattern": "/projects/pxs/uwisc/2019_east/{doy}/level2/clavrx_OR_ABI-L1b-RadF*.level2.nc"
       },
       "cld_reff_dcomp": {
-        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+        "pattern": "/projects/pxs/uwisc/2019_east/{doy}/level2/clavrx_OR_ABI-L1b-RadF*.level2.nc"
       },
       "cloud_type": {
-        "source_dir": "/projects/pxs/uwisc/2019_east/clavrx_OR_ABI-L1b-RadF*.level2.nc"
+        "pattern": "/projects/pxs/uwisc/2019_east/{doy}/level2/clavrx_OR_ABI-L1b-RadF*.level2.nc"
       },
       "surface_albedo": {
-        "source_dir": "/projects/pxs/albedo/nsrdb_2019/"
+        "pattern": "/projects/pxs/albedo/nsrdb_2019/*{doy}*.h5"
       }
     },
     "max_workers": 10,

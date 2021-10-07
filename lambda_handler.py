@@ -3,9 +3,13 @@ Lambda function handler
 """
 from cloud_fs import FileSystem
 from datetime import datetime
+import h5py
 import json
 from nsrdb import NSRDB
+from nsrdb.data_model.clouds import CloudVar
+import numpy as np
 import os
+import pandas as pd
 from rex import init_logger, safe_json_load
 import sys
 import tempfile
@@ -23,6 +27,67 @@ class LambdaArgs(dict):
             event = safe_json_load(event)
 
         self.update(event)
+
+
+def load_var_meta(var_meta_path, date, run_full_day=False):
+    """
+    Load variable meta and update cloud variable pattern
+
+    Parameters
+    ----------
+    var_meta_path : str
+        Path to variable meta .csv file
+    date : str
+        Date that NSRDB will be run for, used to create pattern
+    run_full_day : bool, optional
+        Flag indicating if the entire day is going to be run or if the most
+        recent file should be run, by default False
+
+    Returns
+    -------
+    var_meta : pandas.DataFrame
+        Variable meta table with cloud variables pattern updated
+    timestep : int
+        Timestep of newest file to run, None if run_full_day is True
+    """
+    var_meta = pd.read_csv(var_meta_path)
+    date = NSRDB.to_datetime(date)
+    year = date.strftime('%Y')
+    cloud_vars = var_meta['data_source'] == 'UW-GOES'
+    var_meta.loc[cloud_vars, 'pattern'] = \
+        var_meta.loc[cloud_vars, 'source_directory'].apply(
+        lambda d: os.path.join(d, year, '{doy}', '*.nc')).values
+    if not run_full_day:
+        name = var_meta.loc[cloud_vars, 'var'].values[0]
+        cloud_files = CloudVar(name, var_meta, date).file_df
+        timestep = np.where(~cloud_files['flist'].isna())[0].max()
+        var_meta.loc[cloud_vars, 'pattern'] = \
+            cloud_files.iloc[timestep].values[0]
+    else:
+        timestep = None
+
+    return var_meta, timestep
+
+
+def update_timestep(out_fpath, data_model, timestep):
+    """
+    Update the given timestep in out_fpath with data in data_model
+
+    Parameters
+    ----------
+    out_fpath : str
+        Path to output .h5 file to update
+    data_model : nsrdb.DataModel
+        NSRDB DataModel with computed data for given timestep
+    timestep : int
+        Position of timestep to update
+    """
+    with h5py.File(out_fpath, mode='a') as f:
+        dump_vars = [v for v in f
+                     if v not in ['time_index', 'meta', 'coordinates']]
+        for v in dump_vars:
+            ds = f[v]
+            ds[timestep] = data_model[v][timestep]
 
 
 def handler(event, context):
@@ -93,6 +158,20 @@ def handler(event, context):
                      f'\nvar_meta = {var_meta}'
                      f'\nfactory_kwargs = {factory_kwargs}')
         try:
+            fpath_out = os.path.join(temp_dir, fpath)
+            dst_path = os.path.join(out_dir, fpath)
+            run_full_day = args.get('run_full_day', False)
+            if not run_full_day:
+                if FileSystem(dst_path).exists():
+                    logger.debug('Copying {} to {} to fill in newest timestep'
+                                 .format(dst_path, fpath_out))
+                    FileSystem.copy(dst_path, fpath_out)
+                else:
+                    run_full_day = True
+
+            var_meta, timestep = load_var_meta(var_meta, day,
+                                               run_full_day=run_full_day)
+
             data_model = NSRDB.run_full(day, grid, freq,
                                         var_meta=var_meta,
                                         factory_kwargs=factory_kwargs,
@@ -101,23 +180,30 @@ def handler(event, context):
                                         max_workers=max_workers,
                                         log_level=None)
 
-            if not args.get('debug_dsets', False):
-                dump_vars = ['ghi', 'dni', 'dhi',
-                             'clearsky_ghi', 'clearsky_dni', 'clearsky_dhi']
+            if run_full_day:
+                if not args.get('debug_dsets', False):
+                    dump_vars = ['ghi', 'dni', 'dhi',
+                                 'clearsky_ghi', 'clearsky_dni',
+                                 'clearsky_dhi']
+                else:
+                    dump_vars = [d for d
+                                 in list(data_model.processed_data.keys())
+                                 if d not in ('time_index', 'meta', 'flag')]
+
+                logger.debug('Dumping data for {} to {}'
+                             .format(dump_vars, fpath_out))
+                for v in dump_vars:
+                    try:
+                        data_model.dump(v, fpath_out, None, mode='a')
+                    except Exception as e:
+                        msg = ('Could not write "{}" to disk, got error: {}'
+                               .format(v, e))
+                        logger.warning(msg)
             else:
-                dump_vars = [d for d in list(data_model.processed_data.keys())
-                             if d not in ('time_index', 'meta', 'flag')]
+                logger.debug('Updating data for {} in {}'
+                             .format(timestep, fpath_out))
+                update_timestep(fpath_out, data_model, timestep)
 
-            fpath_out = os.path.join(temp_dir, fpath)
-            for v in dump_vars:
-                try:
-                    data_model.dump(v, fpath_out, None, mode='a')
-                except Exception as e:
-                    msg = ('Could not write "{}" to disk, got error: {}'
-                           .format(v, e))
-                    logger.warning(msg)
-
-            dst_path = os.path.join(out_dir, fpath)
             FileSystem.copy(fpath_out, dst_path)
         except Exception:
             logger.exception('Failed to run NSRDB!')

@@ -450,6 +450,17 @@ class GfsVar(AncillaryVarHandler):
         return date
 
     @property
+    def file(self):
+        """
+        Overrides the base handler file attribute
+
+        Returns
+        -------
+        list
+        """
+        return self.files
+
+    @property
     def files(self):
         """
         Get the GFS file paths for the target NSRDB day.

@@ -34,30 +34,18 @@ class NrelVar(AncillaryVarHandler):
         super().__init__(name, var_meta=var_meta, date=date, **kwargs)
 
     @property
-    def file(self):
-        """Get the file path for the target NSRDB variable name.
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
 
         Returns
         -------
-        str
+        str | None
         """
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(self.source_dir, '*{}*'.format(self.file_set))
 
-        flist = NFS(self.source_dir).ls()
-        flist = [f for f in flist if self.file_set in f]
-
-        if len(flist) > 1:
-            msg = ('Found multiple files for "{}" with file set "{}": {}'
-                   .format(self.name, self.file_set, flist))
-            logger.error(msg)
-            raise FileNotFoundError(msg)
-
-        if not any(flist):
-            msg = ('Could not find file for "{}" with file set "{}" in {}'
-                   .format(self.name, self.file_set, self.source_dir))
-            logger.error(msg)
-            raise FileNotFoundError(msg)
-
-        return os.path.join(self.source_dir, flist[0])
+        return pat
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
