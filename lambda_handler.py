@@ -5,7 +5,10 @@ from cloud_fs import FileSystem
 from datetime import datetime
 import json
 from nsrdb import NSRDB
+from nsrdb.data_model.clouds import CloudVar
+import numpy as np
 import os
+import pandas as pd
 from rex import init_logger, safe_json_load
 import sys
 import tempfile
@@ -23,6 +26,42 @@ class LambdaArgs(dict):
             event = safe_json_load(event)
 
         self.update(event)
+
+
+def load_var_meta(var_meta_path, date, run_full_day=False):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    var_meta_path : [type]
+        [description]
+    date : [type]
+        [description]
+    run_full_day : bool, optional
+        [description], by default False
+
+    Returns
+    -------
+
+    """
+    var_meta = pd.read_csv(var_meta_path)
+    date = NSRDB.to_datetime(date)
+    year = date.strftime('%Y')
+    cloud_vars = var_meta['data_source'] == 'UW-GOES'
+    var_meta.loc[cloud_vars, 'pattern'] = \
+        var_meta.loc[cloud_vars, 'source_directory'].apply(
+        lambda d: os.path.join(d, year, '{doy}', '*.nc')).values
+    if not run_full_day:
+        name = var_meta.loc[cloud_vars, 'var'].values[0]
+        cloud_files = CloudVar(name, var_meta, date).file_df
+        newest_file = np.where(~cloud_files['flist'].isna())[0].max()
+        var_meta.loc[cloud_vars, 'pattern'] = \
+            cloud_files.iloc[newest_file].values[0]
+    else:
+        newest_file = None
+
+    return var_meta, newest_file
 
 
 def handler(event, context):
@@ -80,6 +119,11 @@ def handler(event, context):
     temp_dir = args.get('temp_dir', "/tmp")
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
+
+    dst_path = os.path.join(out_dir, fpath)
+    run_full_day = args.get('run_full_day', False)
+    if not run_full_day:
+        run_full_day = ~FileSystem(dst_path).exists()
 
     with tempfile.TemporaryDirectory(prefix=f'NSRDB_{day}_',
                                      dir=temp_dir) as temp_dir:
