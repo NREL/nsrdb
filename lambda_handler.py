@@ -146,11 +146,6 @@ def handler(event, context):
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    dst_path = os.path.join(out_dir, fpath)
-    run_full_day = args.get('run_full_day', False)
-    if not run_full_day:
-        run_full_day = ~FileSystem(dst_path).exists()
-
     with tempfile.TemporaryDirectory(prefix=f'NSRDB_{day}_',
                                      dir=temp_dir) as temp_dir:
         logger = init_logger('nsrdb', log_level=log_level)
@@ -168,10 +163,13 @@ def handler(event, context):
             run_full_day = args.get('run_full_day', False)
             if not run_full_day:
                 if FileSystem(dst_path).exists():
+                    logger.debug('Copying {} to {} to fill in newest timestep'
+                                 .format(dst_path, fpath_out))
                     FileSystem.copy(dst_path, fpath_out)
                 else:
                     run_full_day = True
 
+            print(run_full_day)
             var_meta, timestep = load_var_meta(var_meta, day,
                                                run_full_day=run_full_day)
 
