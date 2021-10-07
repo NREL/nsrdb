@@ -169,7 +169,6 @@ def handler(event, context):
                 else:
                     run_full_day = True
 
-            print(run_full_day)
             var_meta, timestep = load_var_meta(var_meta, day,
                                                run_full_day=run_full_day)
 
