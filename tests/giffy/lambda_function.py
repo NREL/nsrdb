@@ -1,7 +1,7 @@
-
 """
 GIF ify lambda function
 """
+from cloud_fs import FileSystem
 import json
 import logging
 import matplotlib as mpl
@@ -40,7 +40,7 @@ class LambdaArgs(dict):
         self.update(event)
 
 
-def make_images(h5_fpath, img_dir, args):
+def make_images(h5_fpath, img_dir, **kwargs):
     """
     [summary]
 
@@ -65,33 +65,34 @@ def make_images(h5_fpath, img_dir, args):
 
     fn_base = os.path.join(img_dir, 'image_{}.png')
 
-    dset = args.get('dset', 'ghi')
-    cbar_label = args.get('cbar_label', 'Global Horizontal Irradiance (W/m2)')
-    counties_fpath = args.get('counties_fpath', SP_FPATH)
-    logo = args.get('logo', LOGO)
-    local_timezone = args.get('local_timezone', 0)
+    dset = kwargs.get('dset', 'ghi')
+    cbar_label = kwargs.get('cbar_label',
+                            'Global Horizontal Irradiance (W/m2)')
+    counties_fpath = kwargs.get('counties_fpath', SP_FPATH)
+    logo = kwargs.get('logo', LOGO)
+    local_timezone = kwargs.get('local_timezone', 0)
 
-    figsize = args.get('figsize', (10, 4))
-    dpi = args.get('dpi', 300)
-    xlim = args.get('xlim', None)
-    ylim = args.get('ylim', None)
-    print_timestamp = args.get('print_timestamp', True)
-    logo_scale = args.get('logo_scale', 0.7)
+    figsize = kwargs.get('figsize', (10, 4))
+    dpi = kwargs.get('dpi', 300)
+    xlim = kwargs.get('xlim', None)
+    ylim = kwargs.get('ylim', None)
+    print_timestamp = kwargs.get('print_timestamp', True)
+    logo_scale = kwargs.get('logo_scale', 0.7)
 
-    alpha = args.get('alpha', 1.0)
-    face_color = args.get('face_color', 'k')
-    text_color = args.get('text_color', '#969696')
-    cmap = args.get('cmap', 'YlOrRd')
-    max_irrad = args.get('max_irrad', 1000)
-    min_irrad = args.get('min_irrad', 0)
+    alpha = kwargs.get('alpha', 1.0)
+    face_color = kwargs.get('face_color', 'k')
+    text_color = kwargs.get('text_color', '#969696')
+    cmap = kwargs.get('cmap', 'YlOrRd')
+    max_irrad = kwargs.get('max_irrad', 1000)
+    min_irrad = kwargs.get('min_irrad', 0)
 
-    shape_color = args.get('shape_color', '#2f2f2f')
-    shape_edge_color = args.get('shape_edge_color', 'k')
-    shape_line_width = args.get('shape_line_width', 0.25)
-    shape_aspect = args.get('shape_aspect', 1.15)
+    shape_color = kwargs.get('shape_color', '#2f2f2f')
+    shape_edge_color = kwargs.get('shape_edge_color', 'k')
+    shape_line_width = kwargs.get('shape_line_width', 0.25)
+    shape_aspect = kwargs.get('shape_aspect', 1.15)
 
-    resource_map_interval = args.get('resource_map_interval', 1)
-    marker_size = args.get('marker_size', 10)
+    resource_map_interval = kwargs.get('resource_map_interval', 1)
+    marker_size = kwargs.get('marker_size', 10)
 
     logger.info('reading data...')
     with Resource(h5_fpath) as res:
@@ -191,7 +192,7 @@ def make_images(h5_fpath, img_dir, args):
         plt.close()
 
 
-def make_gif(fpath_out, img_dir, file_tag='image_', duration=None):
+def make_gif(fpath_out, img_dir, **kwargs):
     """
     [summary]
 
@@ -201,11 +202,10 @@ def make_gif(fpath_out, img_dir, file_tag='image_', duration=None):
         [description]
     img_dir : [type]
         [description]
-    file_tag : str, optional
-        [description], by default 'image_'
-    duration : [type], optional
-        [description], by default None
+    kwargs
     """
+    file_tag = kwargs.get('file_tag', 'image_')
+    duration = kwargs.get('duration', None)
     filenames = [f for f in os.listdir(img_dir)
                  if f.endswith('.png')
                  and file_tag in f]
@@ -237,13 +237,29 @@ def main(event, context):
         [description]
     """
     args = LambdaArgs(event)
+    h5_path = "s3://" + args['Records']['object']['key']
+    out_dir = args['out_dir']
 
     logger = init_logger(__name__)
+    logger.debug(f'event: {event}')
+    logger.debug(f'context: {context}')
+    logger.debug(f'GIFFY inputs:'
+                 f'\nh5_path = {h5_path}'
+                 f'\nout_dir = {out_dir}')
+    img_dir = args.get('img_dir', '/tmp')
+    with tempfile.TemporaryDirectory(prefix='images_',
+                                     dir=img_dir) as temp_dir:
+        fname = os.path.basename(h5_path)
+        h5_local = os.path.join(temp_dir, fname)
+        FileSystem.copy(h5_path, h5_local)
+        make_images(h5_local, temp_dir, **args)
+        out_fpath = os.path.join(out_dir, fname.replace('.h5', '.gif'))
+        make_gif(out_fpath, temp_dir, **args)
 
-    success = f'GIFify of {} ran successfully for'
+    success = f'GIFify of {h5_path} ran successfully for'
     success = {'statusCode': 200, 'body': json.dumps(success)}
 
-    return
+    return success
 
 
 if __name__ == "__main__":
