@@ -226,7 +226,7 @@ def main(event, context):
         The context in which the function is called.
     """
     args = LambdaArgs(event)
-    h5_path = args.get('h5_path')
+    h5_path = args.pop('h5_path', None)
     if h5_path is None:
         h5_path = "s3://" + args['Records']['object']['key']
 
@@ -243,13 +243,15 @@ def main(event, context):
     logger.debug(f'GIFFY inputs:'
                  f'\nh5_path = {h5_path}'
                  f'\nout_dir = {out_dir}')
-    img_dir = args.get('img_dir', '/tmp')
+    img_dir = args.pop('img_dir', '/tmp')
     with tempfile.TemporaryDirectory(prefix='images_',
                                      dir=img_dir) as temp_dir:
         fname = os.path.basename(h5_path)
         h5_local = os.path.join(temp_dir, fname)
         FileSystem.copy(h5_path, h5_local)
+
         make_images(h5_local, temp_dir, **args)
+
         gif_fpath = os.path.join(temp_dir, fname.replace('.h5', '.gif'))
         make_gif(gif_fpath, temp_dir, **args)
 
