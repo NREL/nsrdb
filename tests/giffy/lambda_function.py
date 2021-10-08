@@ -96,7 +96,8 @@ def make_images(h5_fpath, img_dir, **kwargs):
     data = data[mask]
     time_index = time_index[mask]
 
-    logger.info(f'{dset} stats: ', data.min(), data.mean(), data.max())
+    logger.info('{} stats: {}, {}, {}'
+                .format(dset, data.min(), data.mean(), data.max()))
     logger.info('read complete')
 
     if xlim is None:
