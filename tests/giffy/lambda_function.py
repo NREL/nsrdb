@@ -95,6 +95,8 @@ def make_images(h5_fpath, img_dir, **kwargs):
 
     data = data[mask]
     time_index = time_index[mask]
+    logger.debug('Creating images for {} timesteps:\n{}'
+                 .format(len(time_index), time_index))
 
     logger.info('{} stats: {}, {}, {}'
                 .format(dset, data.min(), data.mean(), data.max()))
@@ -249,14 +251,21 @@ def main(event, context):
                                      dir=img_dir) as temp_dir:
         fname = os.path.basename(h5_path)
         h5_local = os.path.join(temp_dir, fname)
+        logger.debug('Copying {} to {}'.format(h5_path, h5_local))
         FileSystem.copy(h5_path, h5_local)
 
+        logger.debug('Creating images of {} for all available daylight '
+                     'timesteps and saving to {}'
+                     .format(args.get('dset', 'ghi'), temp_dir))
         make_images(h5_local, temp_dir, **args)
 
         gif_fpath = os.path.join(temp_dir, fname.replace('.h5', '.gif'))
+        logger.debug('Creating {} from images in {}'
+                     .format(gif_fpath, temp_dir))
         make_gif(gif_fpath, temp_dir, **args)
 
         out_fpath = os.path.join(out_dir, os.path.basename(gif_fpath))
+        logger.debug('Copying {} to {}'.format(gif_fpath, out_fpath))
         FileSystem.copy(gif_fpath, out_fpath)
 
     success = f'GIFify of {h5_path} ran successfully for'
