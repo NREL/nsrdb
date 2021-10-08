@@ -42,24 +42,16 @@ class LambdaArgs(dict):
 
 def make_images(h5_fpath, img_dir, **kwargs):
     """
-    [summary]
+    Create images from each timestep in NSRDB h5 fpath
 
     Parameters
     ----------
-    h5_fpath : [type]
-        [description]
-    img_dir : [type]
-        [description]
-    dset : str, optional
-        [description], by default 'ghi'
-    cbar_label : str, optional
-        [description], by default 'Global Horizontal Irradiance (W/m2)'
-    counties_fpath : [type], optional
-        [description], by default None
-    logo : [type], optional
-        [description], by default None
-    local_timezone : int, optional
-        [description], by default 0
+    h5_fpath : str
+        Path to NSRDB .h5 file
+    img_dir : str
+        Path to save image files to
+    kwargs : dict
+        Additional kwargs
     """
     np.seterr(all='ignore')
 
@@ -194,15 +186,16 @@ def make_images(h5_fpath, img_dir, **kwargs):
 
 def make_gif(fpath_out, img_dir, **kwargs):
     """
-    [summary]
+    Make GIF from images in img_dir
 
     Parameters
     ----------
-    fpath_out : [type]
-        [description]
-    img_dir : [type]
-        [description]
-    kwargs
+    fpath_out : str
+        Path to save GIF to
+    img_dir : str
+        Path to directory containing images to create GIF from
+    kwargs : dict
+        Additional kwargs
     """
     file_tag = kwargs.get('file_tag', 'image_')
     duration = kwargs.get('duration', None)
@@ -222,25 +215,29 @@ def make_gif(fpath_out, img_dir, **kwargs):
 
 def main(event, context):
     """
-    [summary]
+    Create GIF from NSRDB .h5 file
 
     Parameters
     ----------
-    event : [type]
-        [description]
-    context : [type]
-        [description]
-
-    Returns
-    -------
-    [type]
-        [description]
+    event : dict
+        The event dict that contains the parameters sent when the function
+        is invoked.
+    context : dict
+        The context in which the function is called.
     """
     args = LambdaArgs(event)
-    h5_path = "s3://" + args['Records']['object']['key']
+    h5_path = args.get('h5_path')
+    if h5_path is None:
+        h5_path = "s3://" + args['Records']['object']['key']
+
     out_dir = args['out_dir']
 
-    logger = init_logger(__name__)
+    if args.get('verbose', False):
+        log_level = 'DEBUG'
+    else:
+        log_level = 'INFO'
+
+    logger = init_logger(__name__, log_level=log_level)
     logger.debug(f'event: {event}')
     logger.debug(f'context: {context}')
     logger.debug(f'GIFFY inputs:'
@@ -253,8 +250,11 @@ def main(event, context):
         h5_local = os.path.join(temp_dir, fname)
         FileSystem.copy(h5_path, h5_local)
         make_images(h5_local, temp_dir, **args)
-        out_fpath = os.path.join(out_dir, fname.replace('.h5', '.gif'))
-        make_gif(out_fpath, temp_dir, **args)
+        gif_fpath = os.path.join(temp_dir, fname.replace('.h5', '.gif'))
+        make_gif(gif_fpath, temp_dir, **args)
+
+        out_fpath = os.path.join(out_dir, os.path.basename(gif_fpath))
+        FileSystem.copy(gif_fpath, out_fpath)
 
     success = f'GIFify of {h5_path} ran successfully for'
     success = {'statusCode': 200, 'body': json.dumps(success)}
