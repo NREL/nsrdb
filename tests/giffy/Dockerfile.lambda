@@ -1,0 +1,19 @@
+
+# syntax=docker/dockerfile:1.0.0-experimental
+
+# Build command requires docker build kit and ssh key path
+# docker build -t giffy-lambda -f Dockerfile.lambda .
+
+FROM public.ecr.aws/lambda/python:3.8
+# Set working directory
+WORKDIR /giffy
+RUN mkdir -p /giffy
+
+# Copy package
+COPY . /giffy
+
+# Install dependencies
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+CMD ["lambda_handler.handler"]

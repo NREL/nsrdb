@@ -1,5 +1,5 @@
 """
-GIF ify lambda function
+GIF ify lambda handler
 """
 from cloud_fs import FileSystem
 import json
@@ -216,7 +216,7 @@ def make_gif(fpath_out, img_dir, **kwargs):
     logger.info('Saved: {}'.format(fpath_out))
 
 
-def main(event, context):
+def handler(event, context):
     """
     Create GIF from NSRDB .h5 file
 
@@ -278,6 +278,6 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         event = safe_json_load(sys.argv[1])
         ts = time.time()
-        main(event, None)
+        handler(event, None)
         logger.info('Giffy runtime: {:.4f} minutes'
                     .format((time.time() - ts) / 60))
