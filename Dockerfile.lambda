@@ -1,4 +1,3 @@
-
 # syntax=docker/dockerfile:1.0.0-experimental
 
 # Build command requires docker build kit and ssh key path
