@@ -6,7 +6,7 @@
 FROM public.ecr.aws/lambda/python:3.8
 
 # Copy files to image
-RUN mkdir -p /giffy
+RUN mkdir -p -m 755 /giffy
 
 # Set working directory
 WORKDIR /giffy
@@ -16,5 +16,7 @@ COPY . /giffy
 
 # Install dependencies
 RUN pip3 install -r requirements.txt
+
+RUN chmod 755 -R /giffy
 
 CMD ["lambda_handler.handler"]

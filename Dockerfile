@@ -6,7 +6,7 @@
 FROM python:3.8-slim-buster
 
 WORKDIR /nsrdb
-RUN mkdir -p /nsrdb
+RUN mkdir -p -m 755 /nsrdb
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
@@ -26,5 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip
 RUN --mount=type=ssh,id=github_ssh_key pip install --no-cache-dir git+ssh://git@github.com/NREL/rest2.git
 RUN pip install --no-cache-dir -e .
 RUN --mount=type=ssh,id=github_ssh_key pip install --no-cache-dir git+ssh://git@github.com/NREL/mlclouds.git
+
+RUN chmod 755 -R /giffy
 
 ENTRYPOINT ["nsrdb"]
