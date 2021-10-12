@@ -17,6 +17,4 @@ COPY . /giffy
 # Install dependencies
 RUN pip3 install -r requirements.txt
 
-RUN chmod 755 -R /giffy
-
 CMD ["lambda_handler.handler"]

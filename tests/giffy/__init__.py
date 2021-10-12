@@ -1,0 +1,3 @@
+"""
+Giffy Module setup
+"""

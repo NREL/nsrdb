@@ -2,8 +2,5 @@
 .*
 .*/
 
-# non-package directories
-tests/
-
 # Docker Files
 Docker*
