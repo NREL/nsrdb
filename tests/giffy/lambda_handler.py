@@ -231,7 +231,7 @@ def handler(event, context):
     args = LambdaArgs(event)
     h5_path = args.pop('h5_path', None)
     if h5_path is None:
-        h5_path = "s3://" + args['Records']['object']['key']
+        h5_path = "s3://" + args['Records'][0]['s3']['object']['key']
 
     out_dir = args['out_dir']
 
