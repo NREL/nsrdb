@@ -39,6 +39,7 @@ class LambdaHandler(dict):
             self['var_meta'], self.day, run_full_day=rfd)
         self._timestep = None
         self._fpath_out = None
+        self._data_model = None
 
         if self.get('verbose', False):
             log_level = 'DEBUG'
@@ -207,6 +208,27 @@ class LambdaHandler(dict):
         """
         return self.get('freq', '5min')
 
+    @property
+    def data_model(self):
+        """
+        Completed NSRDB data model
+
+        Returns
+        -------
+        NSRDB.DataModel
+        """
+        if self._data_model is None:
+            self._data_model = NSRDB.run_full(
+                self.day, self.grid, self.freq,
+                var_meta=self.var_meta,
+                factory_kwargs=self.factory_kwargs,
+                fill_all=self.get('fill_all', False),
+                low_mem=self.get('low_mem', False),
+                max_workers=self.get('max_workers', 1),
+                log_level=None)
+
+        return self._data_model
+
     @staticmethod
     def load_var_meta(var_meta_path, date, run_full_day=False):
         """
@@ -293,25 +315,6 @@ class LambdaHandler(dict):
 
         return out_vars
 
-    def run_nsrdb(self):
-        """
-        Run the full NSRDB pipeline
-
-        Returns
-        -------
-        data_model : NSRDB.DataModel
-            Completed NSRDB data model
-        """
-        data_model = NSRDB.run_full(self.day, self.grid, self.freq,
-                                    var_meta=self.var_meta,
-                                    factory_kwargs=self.factory_kwargs,
-                                    fill_all=self.get('fill_all', False),
-                                    low_mem=self.get('low_mem', False),
-                                    max_workers=self.get('max_workers', 1),
-                                    log_level=None)
-
-        return data_model
-
     def dump_to_h5(self, data_model):
         """
         Dump NSRDB data to .h5 file. Depending on input parameters the
@@ -391,8 +394,7 @@ class LambdaHandler(dict):
                            f'\nfactory_kwargs = {nsrdb.factory_kwargs}')
 
         try:
-            data_model = nsrdb.run_nsrdb()
-            nsrdb.dump_to_h5(data_model)
+            nsrdb.dump_to_h5(nsrdb.data_model)
         except Exception:
             nsrdb.logger.exception('Failed to run NSRDB!')
             raise
