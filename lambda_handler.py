@@ -113,13 +113,13 @@ def handler(event, context):
     if not day:
         day = datetime.utcnow().strftime("%Y%m%d")
 
-    year = day[:4]
-
     grid = args['grid']
     var_meta = args['var_meta']
     freq = args.get('freq', '5min')
     out_dir = args['out_dir']
-    if not out_dir.endswith('year'):
+
+    year = day[:4]
+    if not out_dir.endswith(year):
         out_dir = os.path.join(out_dir, year)
 
     file_prefix = args['file_prefix']

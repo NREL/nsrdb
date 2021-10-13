@@ -278,8 +278,8 @@ def handler(event, context):
     logger = init_logger(__name__, log_level=log_level)
     out_dir = args['out_dir']
     try:
-        year = parse_year(h5_path)
-        if not out_dir.endswith('year'):
+        year = str(parse_year(h5_path))
+        if not out_dir.endswith(year):
             out_dir = os.path.join(out_dir, year)
     except RuntimeError:
         msg = ("Cannot parse year from {}, year will not be appended to "
