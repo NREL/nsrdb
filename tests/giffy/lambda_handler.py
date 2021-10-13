@@ -12,7 +12,7 @@ import numpy as np
 import os
 import pandas as pd
 from PIL import Image
-from rex import Resource, safe_json_load, init_logger
+from rex import Resource, safe_json_load, init_logger, parse_year
 import sys
 import tempfile
 import time
@@ -38,6 +38,40 @@ class LambdaArgs(dict):
             event = safe_json_load(event)
 
         self.update(event)
+
+
+def get_axis_lim(values, buffer=0.05):
+    """
+    Compute axis limits by buffering the min and max values by given buffer
+    amount
+
+    Parameters
+    ----------
+    values : ndarry
+        Axis values
+    buffer : float, optional
+        Amount to buffer by, by default 0.05
+
+    Returns
+    -------
+    v_min : float
+        axis min
+    v_max : float
+        axis max
+    """
+    v_min = values.min()
+    if v_min < 0:
+        v_min *= 1 + buffer
+    else:
+        v_min *= 1 - buffer
+
+    v_max = values.max()
+    if v_max < 0:
+        v_max *= 1 - buffer
+    else:
+        v_max *= 1 + buffer
+
+    return v_min, v_max
 
 
 def make_images(h5_fpath, img_dir, **kwargs):
@@ -102,11 +136,12 @@ def make_images(h5_fpath, img_dir, **kwargs):
                 .format(dset, data.min(), data.mean(), data.max()))
     logger.info('read complete')
 
+    buffer = kwargs.get('lim_buffer', 0.001)
     if xlim is None:
-        xlim = (meta.longitude.min() * 1.05, meta.longitude.max() * 1.05)
+        xlim = get_axis_lim(meta.longitude, buffer=buffer)
 
     if ylim is None:
-        ylim = (meta.latitude.min() * 1.05, meta.latitude.max() * 1.05)
+        ylim = get_axis_lim(meta.latitude, buffer=buffer)
 
     cmap_obj = plt.get_cmap(cmap)
     cNorm = colors.Normalize(vmin=min_irrad, vmax=max_irrad)
@@ -235,14 +270,22 @@ def handler(event, context):
         h5_path = ("s3://{}/{}"
                    .format(s3_obj['bucket']['name'], s3_obj['object']['key']))
 
-    out_dir = args['out_dir']
-
     if args.get('verbose', False):
         log_level = 'DEBUG'
     else:
         log_level = 'INFO'
 
     logger = init_logger(__name__, log_level=log_level)
+    out_dir = args['out_dir']
+    try:
+        year = parse_year(h5_path)
+        if not out_dir.endswith('year'):
+            out_dir = os.path.join(out_dir, year)
+    except RuntimeError:
+        msg = ("Cannot parse year from {}, year will not be appended to "
+               "out_dir".format(h5_path))
+        logger.warning(msg)
+
     logger.debug(f'event: {event}')
     logger.debug(f'context: {context}')
     logger.debug(f'GIFFY inputs:'
