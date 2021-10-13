@@ -37,7 +37,6 @@ class LambdaHandler(dict):
         rfd = self.get('run_full_day', False)
         self._var_meta, self._timestep = self.load_var_meta(
             self['var_meta'], self.day, run_full_day=rfd)
-        self._timestep = None
         self._fpath_out = None
         self._data_model = None
 
