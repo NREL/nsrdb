@@ -16,7 +16,7 @@ import tempfile
 import time
 
 
-class Handler(dict):
+class LambdaHandler(dict):
     """
     Lambda Handler class
     """
@@ -366,16 +366,16 @@ class Handler(dict):
             FileSystem.copy(local_out, self.fpath_out)
 
     @classmethod
-    def run(cls, event, context):
+    def run(cls, event, context=None):
         """
-        Wrapper for NSRDB to allow AWS Lambda invocation
+        Run NSRDB from given event and update .h5 file on S3
 
         Parameters
         ----------
         event : dict
             The event dict that contains the parameters sent when the function
             is invoked.
-        context : dict
+        context : dict, optional
             The context in which the function is called.
         """
         nsrdb = cls(event)
@@ -404,10 +404,25 @@ class Handler(dict):
         return success
 
 
+def handler(event, context):
+    """
+        Wrapper for NSRDB to allow AWS Lambda invocation
+
+        Parameters
+        ----------
+        event : dict
+            The event dict that contains the parameters sent when the function
+            is invoked.
+        context : dict
+            The context in which the function is called.
+        """
+    return LambdaHandler.run(event, context=context)
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         event = safe_json_load(sys.argv[1])
         ts = time.time()
-        Handler.run(event, None)
+        LambdaHandler.run(event)
         print('NSRDB lambda runtime: {:.4f} minutes'
               .format((time.time() - ts) / 60))
