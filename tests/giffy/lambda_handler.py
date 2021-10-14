@@ -236,12 +236,10 @@ def make_gif(fpath_out, img_dir, **kwargs):
         Additional kwargs
     """
     file_tag = kwargs.get('file_tag', 'image_')
-    duration = kwargs.get('duration', None)
+    duration = kwargs.get('duration', 250)
     filenames = [f for f in os.listdir(img_dir)
                  if f.endswith('.png')
                  and file_tag in f]
-    if duration is None:
-        duration = len(filenames)
 
     filenames = sorted(filenames,
                        key=lambda x: int(x.replace('.png', '').split('_')[-1]))
