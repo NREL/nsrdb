@@ -32,12 +32,35 @@ class LambdaArgs(dict):
     """
 
     def __init__(self, event):
-        self.update({k.lower(): v for k, v in os.environ.items()})
+        self.update({k.lower(): self._parse_env_var(v)
+                     for k, v in os.environ.items()})
 
         if isinstance(event, str):
             event = safe_json_load(event)
 
         self.update(event)
+
+    @staticmethod
+    def _parse_env_var(v):
+        """
+        Convert ENV Var type if needed
+
+        Parameters
+        ----------
+        v : str
+            ENV variable value as a string
+
+        Returns
+        -------
+        v : obj
+            ENV variable value converted to proper type
+        """
+        try:
+            v = json.loads(v)
+        except json.JSONDecodeError:
+            pass
+
+        return v
 
 
 def get_axis_lim(values, buffer=0.05):
@@ -201,7 +224,10 @@ def make_images(h5_fpath, img_dir, **kwargs):
         ax.set_ylim(ylim)
 
         if print_timestamp:
-            local_timestamp = timestamp + pd.DateOffset(hours=local_timezone)
+            local_timestamp = timestamp
+            if local_timezone != 0:
+                local_timestamp = (local_timestamp.tz_localize(None)
+                                   + pd.DateOffset(hours=local_timezone))
             plt.text(0.12, 0.885, str(local_timestamp),
                      transform=fig.transFigure)
 

@@ -27,7 +27,8 @@ class LambdaHandler(dict):
         event : dict
             Event or test dictionary
         """
-        self.update({k.lower(): v for k, v in os.environ.items()})
+        self.update({k.lower(): self._parse_env_var(v)
+                     for k, v in os.environ.items()})
 
         if isinstance(event, str):
             event = safe_json_load(event)
@@ -227,6 +228,28 @@ class LambdaHandler(dict):
                 log_level=None)
 
         return self._data_model
+
+    @staticmethod
+    def _parse_env_var(v):
+        """
+        Convert ENV Var type if needed
+
+        Parameters
+        ----------
+        v : str
+            ENV variable value as a string
+
+        Returns
+        -------
+        v : obj
+            ENV variable value converted to proper type
+        """
+        try:
+            v = json.loads(v)
+        except json.JSONDecodeError:
+            pass
+
+        return v
 
     @staticmethod
     def load_var_meta(var_meta_path, date, run_full_day=False):
