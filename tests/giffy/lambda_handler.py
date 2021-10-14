@@ -121,7 +121,7 @@ def make_images(h5_fpath, img_dir, **kwargs):
     logo = kwargs.get('logo', LOGO)
     local_timezone = kwargs.get('local_timezone', 0)
 
-    figsize = kwargs.get('figsize', (10, 4))
+    figsize = tuple(kwargs.get('figsize', (10, 4)))
     dpi = kwargs.get('dpi', 300)
     xlim = kwargs.get('xlim', None)
     ylim = kwargs.get('ylim', None)
