@@ -18,17 +18,20 @@ logger = logging.getLogger(__name__)
 
 
 class CloudCoords:
-    """Class to correct cloud coordinates based on solar position / shading."""
+    """Class to correct cloud coordinates based on parallax correction and
+    also solar position / shading."""
 
     EARTH_RADIUS = 6371
     TO_RAD = math.pi / 180
     TO_DEG = 180 / math.pi
 
-    REQUIRED = ('latitude_pc',
-                'longitude_pc',
+    REQUIRED = ('latitude',
+                'longitude',
                 'solar_zenith_angle',
                 'solar_azimuth_angle',
-                'cld_height_acha')
+                'sensor_zenith_angle',
+                'cld_height_acha',
+                )
 
     @staticmethod
     def check_file(fp):
@@ -95,8 +98,11 @@ class CloudCoords:
         return delta_lon
 
     @classmethod
-    def adjust_coords(cls, lat, lon, sza, azi, cld_height, sza_threshold=85):
-        """Adjust parallax corrected coordinates for sun position shading.
+    def adjust_coords(cls, lat, lon, zen, azi, cld_height, zen_threshold=85,
+                      option='parallax'):
+        """Adjust cloud coordinates for parallax correction using the viewing
+        geometry from the sensor or for shading geometry based on the sun's
+        position.
 
         Parameters
         ----------
@@ -104,30 +110,37 @@ class CloudCoords:
             Latitude values in decimal degrees
         lon : np.ndarray
             Longitude values in decimal degrees
-        sza : np.ndarray
-            Solar zenith angle for every lat/lon value for one timestep
+        zen : np.ndarray
+            Sensor or solar zen angle for every lat/lon value for one timestep
             in degrees.
         azi : np.ndarray
-            Solar azimuth angle for every lat/lon value for one timestep
-            in degrees.
+            Sensor or solar azimuth angle for every lat/lon value for one
+            timestep in degrees.
         cld_height : np.ndarray
             Cloud height in km.
-        sza_threshold : float | int
+        zen_threshold : float | int
             Thresold over which coordinate adjustments are truncated.
-            Coordinate solar adjustments to to infinity at sza of 90.
+            Coordinate solar shading adjustments approach infinity at a solar
+            zenith angle of 90.
+        option : str
+            Either "parallax" or "shading".
 
         Returns
         -------
         lat : np.ndarray
-            Latitude values in decimal degrees adjusted for the sun position
-            so that clouds are mapped to the coordinates they are shading.
+            Latitude values in decimal degrees adjusted for either A) parallax
+            correction based on the viewing geometry from the sensor (option ==
+            "parallax") or B) the sun position so that clouds are mapped to the
+            coordinates they are shading (option == "shading").
         lon : np.ndarray
-            Longitude values in decimal degrees adjusted for the sun position
-            so that clouds are mapped to the coordinates they are shading.
+            Longitude values in decimal degrees adjusted for either A) parallax
+            correction based on the viewing geometry from the sensor (option ==
+            "parallax") or B) the sun position so that clouds are mapped to the
+            coordinates they are shading (option == "shading").
         """
 
         shapes = {'lat': lat.shape, 'lon': lon.shape,
-                  'sza': sza.shape, 'azi': azi.shape,
+                  'zen': zen.shape, 'azi': azi.shape,
                   'cld_height': cld_height.shape}
         shapes_list = list(shapes.values())
         check = [shapes_list[0] == x for x in shapes_list[1:]]
@@ -141,13 +154,17 @@ class CloudCoords:
             cld_height /= 1000
 
         cld_height[(cld_height < 0)] = np.nan
-        sza[(sza > sza_threshold)] = sza_threshold
-        sza *= cls.TO_RAD
+        zen[(zen > zen_threshold)] = zen_threshold
+        zen *= cls.TO_RAD
         azi *= cls.TO_RAD
 
-        delta_dist = cld_height * np.tan(sza)
-        delta_x = -1 * delta_dist * np.sin(azi)
-        delta_y = -1 * delta_dist * np.cos(azi)
+        delta_dist = cld_height * np.tan(zen)
+        delta_x = delta_dist * np.sin(azi)
+        delta_y = delta_dist * np.cos(azi)
+
+        if option.lower() == 'shading':
+            delta_x *= -1
+            delta_y *= -1
 
         delta_lon = cls.dist_to_longitude(lat, delta_x)
         delta_lat = cls.dist_to_latitude(delta_y)
@@ -242,7 +259,8 @@ class CloudVarSingleH5(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'),
+                 parallax_correct=True, solar_shading=True):
         """
         Parameters
         ----------
@@ -254,14 +272,18 @@ class CloudVarSingleH5(CloudVarSingle):
             Nearest neighbor results array to extract a subset of the data.
         dsets : tuple | list
             Source datasets to extract.
-        adjust_coords : bool
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
         """
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
-        self._grid = self._parse_grid(self._fpath, adjust_coords=adjust_coords,
+        self._grid = self._parse_grid(self._fpath, solar_shading=solar_shading,
+                                      parallax_correct=parallax_correct,
                                       pre_proc_flag=pre_proc_flag)
         if self.pre_proc_flag:
             self._grid, self._sparse_mask = self.make_sparse(self._grid)
@@ -275,8 +297,9 @@ class CloudVarSingleH5(CloudVarSingle):
         return out
 
     @classmethod
-    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True, pre_proc_flag=True):
+    def _parse_grid(cls, fpath, dsets=('latitude', 'longitude'),
+                    parallax_correct=True, solar_shading=True,
+                    pre_proc_flag=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -284,10 +307,13 @@ class CloudVarSingleH5(CloudVarSingle):
         fpath : str
             Full file path to netcdf4 file.
         dsets : tuple
-            Latitude, longitude datasets to retrieve from cloud file. H5
-            files have parallax corrected datasets (*_pc). Output dataset
-            names will always be 'latitude' and 'longitude'.
-        adjust_coords : bool
+            Latitude, longitude datasets to retrieve from cloud file. New code
+            will perform parallax correction and solar shading adjustment based
+            on sensor and sun position and cloud height.
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
         pre_proc_flag : bool
@@ -303,26 +329,13 @@ class CloudVarSingleH5(CloudVarSingle):
         grid = {}
         with NFS(fpath, use_h5py=True) as f:
             for dset in dsets:
-                if 'lat' in dset:
-                    dset_out = 'latitude'
-                elif 'lon' in dset:
-                    dset_out = 'longitude'
-                else:
-                    raise KeyError('Did not recognize dataset as latitude '
-                                   'or longitude: "{}"'.format(dset))
+                grid[dset] = cls.pre_process(dset, f[dset][...],
+                                             dict(f[dset].attrs))
 
-                if dset not in list(f):
-                    wmsg = ('Could not find {}. Using {} instead.'
-                            .format(dset, dset_out))
-                    warn(wmsg)
-                    logger.warning(wmsg)
-                    dset = dset_out
-
-                grid[dset_out] = cls.pre_process(dset, f[dset][...],
-                                                 dict(f[dset].attrs))
-
-        if grid and CloudCoords.check_file(fpath) and adjust_coords:
-            grid = cls.solpo_grid_adjust(fpath, grid)
+        if grid and (parallax_correct or solar_shading):
+            grid = cls.correct_coordinates(fpath, grid,
+                                           parallax_correct=parallax_correct,
+                                           solar_shading=solar_shading)
 
         grid = pd.DataFrame(grid)
 
@@ -335,7 +348,8 @@ class CloudVarSingleH5(CloudVarSingle):
         return grid
 
     @classmethod
-    def solpo_grid_adjust(cls, fpath, grid):
+    def correct_coordinates(cls, fpath, grid, parallax_correct=True,
+                            solar_shading=True):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -346,6 +360,12 @@ class CloudVarSingleH5(CloudVarSingle):
         grid : dict
             Dictionary with latitude and longitude keys and corresponding
             numpy array values.
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
 
         Returns
         -------
@@ -355,10 +375,13 @@ class CloudVarSingleH5(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with NFS(fpath, use_h5py=True) as f:
-            sza = cls.pre_process(
+            sen_zen = cls.pre_process(
+                'sensor_zenith_angle', f['sensor_zenith_angle'][...],
+                dict(f['sensor_zenith_angle'].attrs))
+            sol_zen = cls.pre_process(
                 'solar_zenith_angle', f['solar_zenith_angle'][...],
                 dict(f['solar_zenith_angle'].attrs))
-            azi = cls.pre_process(
+            sol_azi = cls.pre_process(
                 'solar_azimuth_angle', f['solar_azimuth_angle'][...],
                 dict(f['solar_azimuth_angle'].attrs))
             cld_height = cls.pre_process(
@@ -366,15 +389,21 @@ class CloudVarSingleH5(CloudVarSingle):
                 dict(f['cld_height_acha'].attrs))
 
         try:
-            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
-                                                 grid['longitude'],
-                                                 sza, azi, cld_height)
+            lat, lon = grid['latitude'], grid['longitude']
+            if parallax_correct:
+                lat, lon = CloudCoords.adjust_coords(lat, lon, sen_zen,
+                                                     sen_azi, cld_height,
+                                                     option='parallax')
+            if parallax_correct and solar_shading:
+                lat, lon = CloudCoords.adjust_coords(lat, lon, sol_zen,
+                                                     sol_azi, cld_height,
+                                                     option='shading')
+            grid['latitude'], grid['longitude'] = lat, lon
+
         except Exception as e:
             logger.warning('Could not perform cloud coordinate adjustment '
                            'for: {}, received error: {}'
                            .format(os.path.basename(fpath), e))
-        else:
-            grid['latitude'], grid['longitude'] = lat, lon
 
         return grid
 
@@ -497,7 +526,8 @@ class CloudVarSingleNC(CloudVarSingle):
 
     def __init__(self, fpath, pre_proc_flag=True, index=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True):
+                        'cld_press_acha'),
+                 parallax_correct=True, solar_shading=True):
         """
         Parameters
         ----------
@@ -509,7 +539,10 @@ class CloudVarSingleNC(CloudVarSingle):
             Nearest neighbor results array to extract a subset of the data.
         dsets : tuple | list
             Source datasets to extract.
-        adjust_coords : bool
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
         """
@@ -517,7 +550,8 @@ class CloudVarSingleNC(CloudVarSingle):
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
         self._grid, self._sparse_mask = self._parse_grid(
-            self._fpath, adjust_coords=adjust_coords,
+            self._fpath, parallax_correct=parallax_correct,
+            solar_shading=solar_shading,
             pre_proc_flag=pre_proc_flag)
 
     @property
@@ -529,8 +563,9 @@ class CloudVarSingleNC(CloudVarSingle):
         return out
 
     @classmethod
-    def _parse_grid(cls, fpath, dsets=('latitude_pc', 'longitude_pc'),
-                    adjust_coords=True, pre_proc_flag=True):
+    def _parse_grid(cls, fpath, dsets=('latitude', 'longitude'),
+                    parallax_correct=True, solar_shading=True,
+                    pre_proc_flag=True):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -538,10 +573,13 @@ class CloudVarSingleNC(CloudVarSingle):
         fpath : str
             Full file path to netcdf4 file.
         dsets : tuple
-            Latitude, longitude datasets to retrieve from cloud file. NetCDF4
-            files have parallax corrected datasets (*_pc). Output dataset
-            names will always be 'latitude' and 'longitude'.
-        adjust_coords : bool
+            Latitude, longitude datasets to retrieve from cloud file. New code
+            will perform parallax correction and solar shading adjustment based
+            on sensor and sun position and cloud height.
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
         pre_proc_flag : bool
@@ -560,21 +598,6 @@ class CloudVarSingleNC(CloudVarSingle):
         grid = {}
         with NFS(fpath) as f:
             for dset in dsets:
-                if 'lat' in dset:
-                    dset_out = 'latitude'
-                elif 'lon' in dset:
-                    dset_out = 'longitude'
-                else:
-                    raise KeyError('Did not recognize dataset as latitude '
-                                   'or longitude: "{}"'.format(dset))
-
-                if dset not in list(f.variables.keys()):
-                    wmsg = ('Could not find {}. Using {} instead.'
-                            .format(dset, dset_out))
-                    warn(wmsg)
-                    logger.warning(wmsg)
-                    dset = dset_out
-
                 # use netCDF masked array mask to reduce ~1/4 of the data
                 if sparse_mask is None:
                     try:
@@ -587,10 +610,12 @@ class CloudVarSingleNC(CloudVarSingle):
                 if not isinstance(sparse_mask, np.ndarray):
                     sparse_mask = np.full(f[dset][:].data.shape, sparse_mask)
 
-                grid[dset_out] = f[dset][:].data[sparse_mask]
+                grid[dset] = f[dset][:].data[sparse_mask]
 
-        if grid and CloudCoords.check_file(fpath) and adjust_coords:
-            grid = cls.solpo_grid_adjust(fpath, grid, sparse_mask)
+        if grid and (parallax_correct or solar_shading):
+            grid = cls.correct_coordinates(fpath, grid, sparse_mask,
+                                           parallax_correct=parallax_correct,
+                                           solar_shading=solar_shading)
 
         grid = pd.DataFrame(grid)
 
@@ -609,7 +634,8 @@ class CloudVarSingleNC(CloudVarSingle):
         return grid, sparse_mask
 
     @staticmethod
-    def solpo_grid_adjust(fpath, grid, sparse_mask):
+    def correct_coordinates(fpath, grid, sparse_mask, parallax_correct=True,
+                            solar_shading=True):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -622,6 +648,12 @@ class CloudVarSingleNC(CloudVarSingle):
             numpy array values.
         sparse_mask : np.ndarray
             Boolean array to mask the native dataset shapes from fpath.
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
+            Flag to adjust cloud coordinates so clouds are assigned to the
+            coordiantes they shade.
 
         Returns
         -------
@@ -631,20 +663,27 @@ class CloudVarSingleNC(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with NFS(fpath) as f:
-            sza = f['solar_zenith_angle'][:].data[sparse_mask]
-            azi = f['solar_azimuth_angle'][:].data[sparse_mask]
+            sen_zen = f['sensor_zenith_angle'][:].data[sparse_mask]
+            sol_zen = f['solar_zenith_angle'][:].data[sparse_mask]
+            sol_azi = f['solar_azimuth_angle'][:].data[sparse_mask]
             cld_height = f['cld_height_acha'][:].data[sparse_mask]
 
         try:
-            lat, lon = CloudCoords.adjust_coords(grid['latitude'],
-                                                 grid['longitude'],
-                                                 sza, azi, cld_height)
+            lat, lon = grid['latitude'], grid['longitude']
+            if parallax_correct:
+                lat, lon = CloudCoords.adjust_coords(lat, lon, sen_zen,
+                                                     sen_azi, cld_height,
+                                                     option='parallax')
+            if parallax_correct and solar_shading:
+                lat, lon = CloudCoords.adjust_coords(lat, lon, sol_zen,
+                                                     sol_azi, cld_height,
+                                                     option='shading')
+            grid['latitude'], grid['longitude'] = lat, lon
+
         except Exception as e:
             logger.warning('Could not perform cloud coordinate adjustment '
                            'for: {}, received error: {}'
                            .format(os.path.basename(fpath), e))
-        else:
-            grid['latitude'], grid['longitude'] = lat, lon
 
         return grid
 
@@ -743,7 +782,8 @@ class CloudVar(AncillaryVarHandler):
 
     def __init__(self, name, var_meta, date, freq=None,
                  dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'), adjust_coords=True,
+                        'cld_press_acha'),
+                 parallax_correct=True, solar_shading=True,
                  **kwargs):
         """
         Parameters
@@ -763,7 +803,10 @@ class CloudVar(AncillaryVarHandler):
             Source datasets to extract. It is more efficient to extract all
             required datasets at once from each cloud file, so that only one
             kdtree is built for each unique coordinate set in each cloud file.
-        adjust_coords : bool
+        parallax_correct : bool
+            Flag to adjust cloud coordinates so clouds are overhead their
+            coordinates and not at the apparent location from the sensor.
+        solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
             coordiantes they shade.
         """
@@ -775,11 +818,12 @@ class CloudVar(AncillaryVarHandler):
         self._file_df = None
         self._dsets = dsets
         self._i = None
-        self._adjust_coords = adjust_coords
+        self._parallax_correct = parallax_correct
+        self._solar_shading = solar_shading
 
-        if self._adjust_coords:
-            logger.info('Cloud coordinate adjustment based on solar '
-                        'position shading is active.')
+        logger.info('Cloud coordinate parallax correction: {}, solar '
+                    'shading adjustment: {}'
+                    .format(parallax_correct, solar_shading))
 
         self._check_freq()
 
@@ -830,11 +874,16 @@ class CloudVar(AncillaryVarHandler):
             else:
                 # initialize a single timestep helper object
                 if fpath.endswith('.h5'):
-                    obj = CloudVarSingleH5(fpath, dsets=self._dsets,
-                                           adjust_coords=self._adjust_coords)
+                    obj = CloudVarSingleH5(
+                        fpath, dsets=self._dsets,
+                        parallax_correct=self._parallax_correct,
+                        solar_shading=self._solar_shading)
+
                 elif fpath.endswith('.nc'):
-                    obj = CloudVarSingleNC(fpath, dsets=self._dsets,
-                                           adjust_coords=self._adjust_coords)
+                    obj = CloudVarSingleNC(
+                        fpath, dsets=self._dsets,
+                        parallax_correct=self._parallax_correct,
+                        solar_shading=self._solar_shading)
 
                 mem = psutil.virtual_memory()
                 logger.info('Cloud data timestep {} has source file: {}. '
