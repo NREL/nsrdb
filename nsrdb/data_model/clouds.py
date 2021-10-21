@@ -97,9 +97,51 @@ class CloudCoords:
 
         return delta_lon
 
+    @staticmethod
+    def calc_sensor_azimuth(lat, lon, sen_zen):
+        """Calculate an array of sensor azimuth angles given observed lat/lon
+        arrays and an array of sensor zenith angles
+
+        This is based on the equations in the reference:
+        https://keisan.casio.com/exec/system/1224587128#mistake
+
+        Parameters
+        ----------
+        lat : np.ndarray
+            Latitude values in decimal degrees
+        lon : np.ndarray
+            Longitude values in decimal degrees
+        sen_zen : np.ndarray
+            Sensor zenith angle for every lat/lon value for one timestep
+            in degrees.
+
+        Returns
+        -------
+        sen_azi : np.ndarray
+            Senzor azimuth angle from -180 to +180 in degrees. Array has the
+            same shape as input lat/lon/sen_zen.
+        """
+
+        nadir_lat = 0.0
+        nadir_lon = lon[np.argmin(sen_zen)]
+
+        lat = np.radians(lat)
+        lon = np.radians(lon)
+        nadir_lat = np.radians(nadir_lat)
+        nadir_lon = np.radians(nadir_lon)
+
+        dx = nadir_lon - lon
+        atan_x1 = np.cos(lat)*np.tan(nadir_lat) - np.sin(lat)*np.cos(dx)
+        atan_x2 = np.sin(dx)
+        sen_azi = np.arctan2(atan_x1, atan_x2)
+        sen_azi = 90 - np.degrees(sen_azi)
+        sen_azi[(sen_azi > 180)] -= 360
+
+        return sen_azi
+
     @classmethod
-    def adjust_coords(cls, lat, lon, zen, azi, cld_height, zen_threshold=85,
-                      option='parallax'):
+    def correct_coords(cls, lat, lon, zen, azi, cld_height, zen_threshold=85,
+                       option='parallax'):
         """Adjust cloud coordinates for parallax correction using the viewing
         geometry from the sensor or for shading geometry based on the sun's
         position.
@@ -391,13 +433,14 @@ class CloudVarSingleH5(CloudVarSingle):
         try:
             lat, lon = grid['latitude'], grid['longitude']
             if parallax_correct:
-                lat, lon = CloudCoords.adjust_coords(lat, lon, sen_zen,
-                                                     sen_azi, cld_height,
-                                                     option='parallax')
-            if parallax_correct and solar_shading:
-                lat, lon = CloudCoords.adjust_coords(lat, lon, sol_zen,
-                                                     sol_azi, cld_height,
-                                                     option='shading')
+                sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
+                lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
+                                                      sen_azi, cld_height,
+                                                      option='parallax')
+            if solar_shading:
+                lat, lon = CloudCoords.correct_coords(lat, lon, sol_zen,
+                                                      sol_azi, cld_height,
+                                                      option='shading')
             grid['latitude'], grid['longitude'] = lat, lon
 
         except Exception as e:
@@ -671,13 +714,14 @@ class CloudVarSingleNC(CloudVarSingle):
         try:
             lat, lon = grid['latitude'], grid['longitude']
             if parallax_correct:
-                lat, lon = CloudCoords.adjust_coords(lat, lon, sen_zen,
-                                                     sen_azi, cld_height,
-                                                     option='parallax')
-            if parallax_correct and solar_shading:
-                lat, lon = CloudCoords.adjust_coords(lat, lon, sol_zen,
-                                                     sol_azi, cld_height,
-                                                     option='shading')
+                sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
+                lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
+                                                      sen_azi, cld_height,
+                                                      option='parallax')
+            if solar_shading:
+                lat, lon = CloudCoords.correct_coords(lat, lon, sol_zen,
+                                                      sol_azi, cld_height,
+                                                      option='shading')
             grid['latitude'], grid['longitude'] = lat, lon
 
         except Exception as e:
