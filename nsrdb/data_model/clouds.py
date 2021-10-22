@@ -2,7 +2,6 @@
 """A framework for handling UW/GOES source data."""
 import datetime
 import logging
-import math
 import numpy as np
 import os
 import pandas as pd
@@ -22,8 +21,6 @@ class CloudCoords:
     also solar position / shading."""
 
     EARTH_RADIUS = 6371
-    TO_RAD = math.pi / 180
-    TO_DEG = 180 / math.pi
 
     REQUIRED = ('latitude',
                 'longitude',
@@ -70,7 +67,7 @@ class CloudCoords:
         delta_lat : np.ndarray
             Array of change in north/south location in decimal degrees.
         """
-        delta_lat = (dist / CloudCoords.EARTH_RADIUS) * CloudCoords.TO_DEG
+        delta_lat = np.degrees(dist / CloudCoords.EARTH_RADIUS)
 
         return delta_lat
 
@@ -92,8 +89,8 @@ class CloudCoords:
             Array of change in east/west location in decimal degrees.
         """
         # Find the radius of a circle around the earth at given latitude.
-        r = CloudCoords.EARTH_RADIUS * np.cos(latitude * CloudCoords.TO_RAD)
-        delta_lon = (dist / r) * CloudCoords.TO_DEG
+        r = CloudCoords.EARTH_RADIUS * np.cos(np.radians(latitude))
+        delta_lon = np.degrees(dist / r)
 
         return delta_lon
 
@@ -131,7 +128,7 @@ class CloudCoords:
         nadir_lon = np.radians(nadir_lon)
 
         dx = nadir_lon - lon
-        atan_x1 = np.cos(lat)*np.tan(nadir_lat) - np.sin(lat)*np.cos(dx)
+        atan_x1 = np.cos(lat) * np.tan(nadir_lat) - np.sin(lat) * np.cos(dx)
         atan_x2 = np.sin(dx)
         sen_azi = np.arctan2(atan_x1, atan_x2)
         sen_azi = 90 - np.degrees(sen_azi)
@@ -197,8 +194,9 @@ class CloudCoords:
 
         cld_height[(cld_height < 0)] = np.nan
         zen[(zen > zen_threshold)] = zen_threshold
-        zen *= cls.TO_RAD
-        azi *= cls.TO_RAD
+
+        zen = np.radians(zen)
+        azi = np.radians(azi)
 
         delta_dist = cld_height * np.tan(zen)
         delta_x = delta_dist * np.sin(azi)
@@ -371,6 +369,13 @@ class CloudVarSingleH5(CloudVarSingle):
         grid = {}
         with NFS(fpath, use_h5py=True) as f:
             for dset in dsets:
+
+                if dset not in list(f):
+                    msg = ('Could not find "{}" in file: "{}"'
+                            .format(dset, fpath))
+                    logger.error(msg)
+                    raise KeyError(msg)
+
                 grid[dset] = cls.pre_process(dset, f[dset][...],
                                              dict(f[dset].attrs))
 
@@ -641,6 +646,13 @@ class CloudVarSingleNC(CloudVarSingle):
         grid = {}
         with NFS(fpath) as f:
             for dset in dsets:
+
+                if dset not in f.variables.keys():
+                    msg = ('Could not find "{}" in file: "{}"'
+                            .format(dset, fpath))
+                    logger.error(msg)
+                    raise KeyError(msg)
+
                 # use netCDF masked array mask to reduce ~1/4 of the data
                 if sparse_mask is None:
                     try:
@@ -650,6 +662,7 @@ class CloudVarSingleNC(CloudVarSingle):
                                .format(dset, fpath, e))
                         logger.error(msg)
                         raise RuntimeError(msg) from e
+
                 if not isinstance(sparse_mask, np.ndarray):
                     sparse_mask = np.full(f[dset][:].data.shape, sparse_mask)
 
