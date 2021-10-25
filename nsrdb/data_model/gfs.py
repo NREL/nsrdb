@@ -9,7 +9,7 @@ import re
 import time
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
-from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 

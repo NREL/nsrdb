@@ -46,7 +46,7 @@ from rex.utilities.execution import SpawnProcessPool
 from nsrdb import DATADIR
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.data_model.base_handler import BaseDerivedVar
-from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
