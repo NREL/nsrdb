@@ -9,7 +9,7 @@ import time
 from warnings import warn
 
 from nsrdb.data_model import VarFactory
-from nsrdb.file_handlers.filesystem import FileSystem as NFS
+from nsrdb.file_handlers.file_system import FileSystem as NFS
 
 
 def run_checks(fp, i0, iend, interval=1, step=1000):

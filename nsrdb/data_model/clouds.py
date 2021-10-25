@@ -11,7 +11,7 @@ from scipy.stats import mode
 from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
@@ -372,7 +372,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
                 if dset not in list(f):
                     msg = ('Could not find "{}" in file: "{}"'
-                            .format(dset, fpath))
+                           .format(dset, fpath))
                     logger.error(msg)
                     raise KeyError(msg)
 
@@ -649,7 +649,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
                 if dset not in f.variables.keys():
                     msg = ('Could not find "{}" in file: "{}"'
-                            .format(dset, fpath))
+                           .format(dset, fpath))
                     logger.error(msg)
                     raise KeyError(msg)
 

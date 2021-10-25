@@ -11,7 +11,7 @@ from warnings import warn
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.utilities import split_sites_slice
 
-from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 
 logger = logging.getLogger(__name__)
