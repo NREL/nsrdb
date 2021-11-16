@@ -1,7 +1,7 @@
 netCDF4>=1.5
 matplotlib
 NREL-cloud_fs>=0.0.8
-NREL-farms>=1.0.3
+NREL-farms>=1.0.4
 NREL-reV>=0.5.1
 NREL-rest2>=1.0.1
 scikit-learn>=1.0
