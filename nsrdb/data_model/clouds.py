@@ -141,7 +141,8 @@ class CloudCoords:
                        option='parallax'):
         """Adjust cloud coordinates for parallax correction using the viewing
         geometry from the sensor or for shading geometry based on the sun's
-        position.
+        position. Height data for clearsky pixels should be NaN or zero, which
+        will return un-manipulated lat/lon values.
 
         Parameters
         ----------
@@ -156,7 +157,9 @@ class CloudCoords:
             Sensor or solar azimuth angle for every lat/lon value for one
             timestep in degrees.
         cld_height : np.ndarray
-            Cloud height in km.
+            Cloud height in km. Clearsky pixels should have
+            (cld_height == np.nan | 0) which will return un-manipulated lat/lon
+            values.
         zen_threshold : float | int
             Thresold over which coordinate adjustments are truncated.
             Coordinate solar shading adjustments approach infinity at a solar
@@ -189,7 +192,10 @@ class CloudCoords:
             logger.error(e)
             raise ValueError(e)
 
-        if np.nanmax(cld_height) > 1000:
+        # if the mean cloud height is 1000+
+        # assume units are in meters and convert to km
+        # cloud heights should never be >1000km
+        if np.nanmean(cld_height) > 1000:
             cld_height /= 1000
 
         cld_height[(cld_height < 0)] = np.nan
