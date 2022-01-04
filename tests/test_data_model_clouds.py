@@ -6,11 +6,12 @@ Created on Thu Nov 29 09:54:51 2018
 
 @author: gbuster
 """
-
+import datetime
 import os
 import shutil
 import pytest
 import numpy as np
+import pandas as pd
 import datetime
 import h5py
 import tempfile
@@ -47,6 +48,23 @@ def cloud_data():
     data = c.source_data
     cloud_data = {'grid': grid, 'data': data}
     return cloud_data
+
+
+def test_cloud_dir():
+    """Test the basic CloudVar handler functions with an incomplete cloud data
+    directory."""
+    date = datetime.date(2022, 1, 4)
+
+    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
+    pattern = os.path.join(cdir, fn)
+
+    msg = 'Bad number of cloud data files for 2022-01-04. Counted 6 files'
+    with pytest.warns(UserWarning, match=msg):
+        cv = CloudVar('cloud_type', var_meta=None, date=date, freq='5min',
+                      pattern=pattern)
+    assert (~pd.isna(cv.file_df['flist'])).sum() == 6
+    assert len(cv.flist) == 6
 
 
 @pytest.mark.parametrize('dset',
@@ -223,10 +241,9 @@ def test_sensor_azi_calc():
     cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
     fp = os.path.join(cdir, fn)
 
-    dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-           'cld_press_acha', 'solar_zenith_angle', 'solar_azimuth_angle',
-           'sensor_zenith_angle', 'sensor_azimuth_angle',
-           )
+    dsets = ('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
+             'solar_zenith_angle', 'solar_azimuth_angle',
+             'sensor_zenith_angle', 'sensor_azimuth_angle')
     cv_raw = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=False,
                               solar_shading=False, remap_pc=False)
 
@@ -258,10 +275,10 @@ def test_parallax_shading_correct(plot=False):
     xlim = (-66, -65)
     ylim = (18, 19)
 
-    dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp', 'cld_height_acha',
-           'cld_press_acha', 'solar_zenith_angle', 'solar_azimuth_angle',
-           'sensor_zenith_angle', 'sensor_azimuth_angle',
-           )
+    dsets = ('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+             'cld_height_acha', 'cld_press_acha', 'solar_zenith_angle',
+             'solar_azimuth_angle', 'sensor_zenith_angle',
+             'sensor_azimuth_angle')
 
     cv_raw = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=False,
                               solar_shading=False, remap_pc=False)
