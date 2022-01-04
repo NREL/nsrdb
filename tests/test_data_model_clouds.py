@@ -17,7 +17,8 @@ import tempfile
 
 from nsrdb import DEFAULT_VAR_META, TESTDATADIR, CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
-from nsrdb.data_model.clouds import CloudVarSingleH5
+from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
+                                     CloudVarSingleNC, CloudCoords)
 
 RTOL = 0.001
 ATOL = 0.001
@@ -212,6 +213,98 @@ def test_bad_kwargs():
                              nsrdb_freq='1d', var_meta=var_meta,
                              max_workers_regrid=1,
                              max_workers_cloud_io=1)
+
+
+def test_sensor_azi_calc():
+    """Test the calculation of sensor azimuth angle from lat/lon/zenith. This
+    is necessary because old files don't have sensor_azimuth_angle datasets"""
+
+    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s20220041341174_PR.level2.nc'
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
+    fp = os.path.join(cdir, fn)
+
+    dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
+           'cld_press_acha', 'solar_zenith_angle', 'solar_azimuth_angle',
+           'sensor_zenith_angle', 'sensor_azimuth_angle',
+           )
+    cv_raw = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=False,
+                              solar_shading=False, remap_pc=False)
+
+    grid = cv_raw.grid
+    sensor_zenith = cv_raw.source_data['sensor_zenith_angle']
+    azi_raw = cv_raw.source_data['sensor_azimuth_angle']
+
+    azi_calc = CloudCoords.calc_sensor_azimuth(grid.latitude, grid.longitude,
+                                               sensor_zenith)
+
+    assert np.allclose(azi_raw, azi_calc, rtol=0.001)
+
+
+def test_parallax_shading_correct(plot=False):
+    """Test parallax/shading correction and remapping algorithms. Most of the
+    power of this test in the ability to plot and manually inspect the results.
+    """
+
+    # solar zenith ~84deg
+    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s20220041121174_PR.level2.nc'
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
+
+    # solar zenith ~57deg
+    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s20220041341174_PR.level2.nc'
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
+
+    fp = os.path.join(cdir, fn)
+
+    xlim = (-66, -65)
+    ylim = (18, 19)
+
+    dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp', 'cld_height_acha',
+           'cld_press_acha', 'solar_zenith_angle', 'solar_azimuth_angle',
+           'sensor_zenith_angle', 'sensor_azimuth_angle',
+           )
+
+    cv_raw = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=False,
+                              solar_shading=False, remap_pc=False)
+    cv_pc = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=True,
+                             solar_shading=True, remap_pc=False)
+    cv_remap = CloudVarSingleNC(fp, dsets=dsets, parallax_correct=True,
+                                solar_shading=True, remap_pc=True)
+
+    assert np.allclose(cv_remap.grid, cv_raw.grid)
+    assert not np.allclose(cv_remap.grid, cv_pc.grid)
+
+    if plot:
+        import matplotlib.pyplot as plt
+
+        jobs = {'raw': cv_raw, 'pc': cv_pc, 'remap': cv_remap}
+
+        for name, cv_obj in jobs.items():
+            grid = cv_obj.grid
+
+            kws_dict = {'cloud_type': {'vmin': 0, 'vmax': 5, 'cmap': 'tab20'},
+                        'cld_opd_dcomp': {'vmin': 0, 'vmax': 10}}
+
+            for dset in ('cloud_type', 'cld_opd_dcomp', 'cld_height_acha'):
+                data = cv_obj.source_data[dset]
+                kws = kws_dict.get(dset, {})
+
+                fig = plt.figure(figsize=(10, 7))
+                a = plt.scatter(grid.longitude, grid.latitude, c=data,
+                                marker='s', s=50, linewidth=0, **kws)
+                plt.xlim(xlim)
+                plt.ylim(ylim)
+                plt.colorbar(a, label=dset)
+                plt.savefig('./_focus_pr_clouds_{}_{}.png'.format(dset, name),
+                            dpi=300)
+                plt.close()
+
+                fig = plt.figure(figsize=(10, 7))
+                a = plt.scatter(grid.longitude, grid.latitude, c=data,
+                                marker='s', s=10, linewidth=0, **kws)
+                plt.colorbar(a, label=dset)
+                plt.savefig('./_full_pr_clouds_{}_{}.png'.format(dset, name),
+                            dpi=300)
+                plt.close()
 
 
 def execute_pytest(capture='all', flags='-rapP'):
