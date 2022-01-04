@@ -1,6 +1,9 @@
 # test plots from pytest
 tests/data/test_plots/*
 
+# mac stuff
+.DS_Store
+
 # Dask stuff:
 dask-worker-space/
 

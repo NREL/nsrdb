@@ -25,6 +25,11 @@ class CloudCoords:
 
     EARTH_RADIUS = 6371
 
+    # default NADIR longitudes for sensor azimuth calculation. GOES West is now
+    # at -137 but this should have very minor impact on azimuth angle.
+    DEFAULT_NADIR_E = -75
+    DEFAULT_NADIR_W = -135
+
     REQUIRED = ('latitude',
                 'longitude',
                 'solar_zenith_angle',
@@ -97,10 +102,16 @@ class CloudCoords:
 
         return delta_lon
 
-    @staticmethod
-    def calc_sensor_azimuth(lat, lon, sen_zen):
+    @classmethod
+    def calc_sensor_azimuth(cls, lat, lon, sen_zen):
         """Calculate an array of sensor azimuth angles given observed lat/lon
-        arrays and an array of sensor zenith angles
+        arrays and an array of sensor zenith angles. NADIR is calculated based
+        on the minimum zenith angle and the corresponding longitude, unless the
+        minimum zenith angle is >5deg in which case the NADIR is taken from the
+        default east/west class attributes based on the average longitude
+
+        This is necessary because old cloud files dont have the
+        sensor_azimuth_angle dataset.
 
         This is based on the equations in the reference:
         https://keisan.casio.com/exec/system/1224587128#mistake
@@ -123,7 +134,16 @@ class CloudCoords:
         """
 
         nadir_lat = 0.0
-        nadir_lon = lon[np.argmin(sen_zen)]
+        min_zen = np.abs(np.nanmin(sen_zen))
+        if min_zen > 5:
+            diff_w = np.abs(np.nanmean(lon) - cls.DEFAULT_NADIR_W)
+            diff_e = np.abs(np.nanmean(lon) - cls.DEFAULT_NADIR_E)
+            if diff_w < diff_e:
+                nadir_lon = cls.DEFAULT_NADIR_W
+            else:
+                nadir_lon = cls.DEFAULT_NADIR_E
+        else:
+            nadir_lon = lon[np.argmin(sen_zen)]
 
         lat = np.radians(lat)
         lon = np.radians(lon)
@@ -198,10 +218,10 @@ class CloudCoords:
         # if the mean cloud height is 1000+
         # assume units are in meters and convert to km
         # cloud heights should never be >1000km
+        cld_height[(cld_height < 0)] = np.nan
         if np.nanmean(cld_height) > 1000:
             cld_height /= 1000
 
-        cld_height[(cld_height < 0)] = np.nan
         zen[(zen > zen_threshold)] = zen_threshold
 
         zen = np.radians(zen)
@@ -582,11 +602,13 @@ class CloudVarSingleH5(CloudVarSingle):
         try:
             lat, lon = grid['latitude'], grid['longitude']
             if parallax_correct:
+                logger.debug('Running sensor parallax correction.')
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
                 lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
                                                       sen_azi, cld_height,
                                                       option='parallax')
             if solar_shading:
+                logger.debug('Running cloud shading coordinate correction.')
                 lat, lon = CloudCoords.correct_coords(lat, lon, sol_zen,
                                                       sol_azi, cld_height,
                                                       option='shading')
@@ -884,7 +906,7 @@ class CloudVarSingleNC(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with NFS(fpath) as f:
-            missing = [d for d in CloudCoords.REQUIRED if d not in f]
+            missing = [d for d in CloudCoords.REQUIRED if d not in f.variables]
             if any(missing):
                 msg = ('Could not correct cloud coordinates, missing datasets '
                        '{} from source file: {}'.format(missing, fpath))
