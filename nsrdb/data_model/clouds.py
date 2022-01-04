@@ -1166,7 +1166,9 @@ class CloudVar(AncillaryVarHandler):
 
     def _check_freq(self):
         """Check the input vs inferred file frequency and warn if != """
-        if self.freq.lower() != self.inferred_freq.lower():
+        test_freq_1 = self.freq.lower().replace('T', 'min')
+        test_freq_2 = self.inferred_freq.lower().replace('T', 'min')
+        if test_freq_1 != test_freq_2:
             w = ('CloudVar handler has an input frequency of "{}" but '
                  'inferred a frequency of "{}" for pattern: {}'
                  .format(self.freq, self.inferred_freq, self.pattern))
