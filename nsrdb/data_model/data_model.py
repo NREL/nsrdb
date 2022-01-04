@@ -1238,6 +1238,7 @@ class DataModel:
             deps += data_model.get_dependencies(var)
 
         var_list += deps
+        var_list = tuple(set(var_list))
 
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
@@ -1340,6 +1341,7 @@ class DataModel:
             nsrdb variable name.
         """
 
+        var_list = list(set(var_list))
         logger.info('Processing variables in parallel: {}'.format(var_list))
         # start a local cluster
         futures = {}
