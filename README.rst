@@ -21,25 +21,24 @@ documentation can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrd
 Installation
 ============
 
-1. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
+#. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
    environment: ``conda create --name nsrdb python=3.7``
-2. Activate your new conda env: ``conda activate nsrdb``
-3. Navigate to the nsrdb directory that contains setup.py and run:
+#. Activate your new conda env: ``conda activate nsrdb``
+#. There is a known dependency issue between h5py and netCDF4. it is
+   recommended that you install ``conda install netCDF4`` before pip installing
+   the nsrdb code base.
+#. If running with the MLClouds model, you will have to install this code base
+   (the private mlclouds repo is `here <https://github.com/NREL/mlclouds>`_)
+   before installing the nsrdb code base.
+#. Navigate to the nsrdb directory that contains setup.py and run:
    ``pip install -e .``
-4. There is a known dependency issue between h5py and netCDF4. If you get an
-   error using the netCDF4 module, try installing from ``conda`` instead of
-   ``pip``
-
-    a. ``pip uninstall netCDF4``
-    b. ``conda install netCDF4``
-
-5. Test your installation:
+#. Test your installation:
 
     a. Start ipython and test the following import:
        ``from nsrdb.data_model import DataModel``
     b. Navigate to the tests/ directory and run the command: ``pytest``
 
-6. If you are a developer, also run `pre-commit install` in the directory
+#. If you are a developer, also run `pre-commit install` in the directory
    containing .pre-commit-config.yaml.
 
 NOTE: If you are trying to run the ``albedo`` sub-module you will need to
