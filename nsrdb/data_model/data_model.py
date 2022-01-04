@@ -749,14 +749,15 @@ class DataModel:
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
             for _, cloud_obj_single in cloud_obj_all:
-                fpath = cloud_obj_single.fpath
-                logger.debug('Calculating ReGrid nearest neighbors for: {}'
-                             .format(fpath))
-                temp = self.get_cloud_nn(cloud_obj_single,
-                                         self.nsrdb_grid,
-                                         dist_lim=dist_lim)
-                regrid_ind[fpath] = temp[0]
-                cloud_obj_all.save_obj(temp[1])
+                if cloud_obj_single is not None:
+                    fpath = cloud_obj_single.fpath
+                    logger.debug('Calculating ReGrid nearest neighbors for: {}'
+                                 .format(fpath))
+                    temp = self.get_cloud_nn(cloud_obj_single,
+                                             self.nsrdb_grid,
+                                             dist_lim=dist_lim)
+                    regrid_ind[fpath] = temp[0]
+                    cloud_obj_all.save_obj(temp[1])
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
                      'to extract and map cloud data to the NSRDB grid.')
@@ -818,11 +819,12 @@ class DataModel:
         with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
             for _, cloud_obj_single in cloud_obj_all:
-                future = exe.submit(self.get_cloud_nn,
-                                    cloud_obj_single,
-                                    self.nsrdb_grid,
-                                    dist_lim=dist_lim)
-                futures[future] = cloud_obj_single.fpath
+                if cloud_obj_single is not None:
+                    future = exe.submit(self.get_cloud_nn,
+                                        cloud_obj_single,
+                                        self.nsrdb_grid,
+                                        dist_lim=dist_lim)
+                    futures[future] = cloud_obj_single.fpath
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -912,8 +914,8 @@ class DataModel:
                     assert ts == self.nsrdb_ti[i]
 
                     # cloud_obj_single is None if cloud data file is missing
-                    regrid_ind_single = regrid_ind[cloud_obj_single.fpath]
                     if cloud_obj_single is not None:
+                        regrid_ind_single = regrid_ind[cloud_obj_single.fpath]
                         if regrid_ind_single is not None:
                             future = exe.submit(self._cloud_get_data,
                                                 cloud_obj_single,
