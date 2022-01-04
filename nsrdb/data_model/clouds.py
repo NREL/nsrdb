@@ -460,7 +460,7 @@ class CloudVarSingleH5(CloudVarSingle):
             self._grid, self._raw_grid, self._sparse_mask = self.make_sparse(
                 self._grid, self._raw_grid)
 
-        if remap_pc:
+        if remap_pc and (parallax_correct or solar_shading):
             self.remap_pc_coords()
 
     @property
@@ -513,9 +513,6 @@ class CloudVarSingleH5(CloudVarSingle):
                 grid[dset] = cls.pre_process(dset, f[dset][...],
                                              dict(f[dset].attrs))
 
-        if pre_proc_flag:
-            grid = cls._clean_dup_coords(grid)
-
         if grid and (parallax_correct or solar_shading):
             raw_grid = pd.DataFrame(grid)
             grid = cls.correct_coordinates(fpath, grid,
@@ -527,6 +524,10 @@ class CloudVarSingleH5(CloudVarSingle):
         if grid.empty:
             raw_grid = None
             grid = None
+
+        elif pre_proc_flag:
+            grid = cls._clean_dup_coords(grid)
+            raw_grid = cls._clean_dup_coords(raw_grid)
 
         return grid, raw_grid
 
@@ -558,6 +559,13 @@ class CloudVarSingleH5(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with NFS(fpath, use_h5py=True) as f:
+            missing = [d for d in CloudCoords.REQUIRED if d not in f]
+            if any(missing):
+                msg = ('Could not correct cloud coordinates, missing datasets '
+                       '{} from source file: {}'.format(missing, fpath))
+                logger.error(msg)
+                raise KeyError(msg)
+
             sen_zen = cls.pre_process(
                 'sensor_zenith_angle', f['sensor_zenith_angle'][...],
                 dict(f['sensor_zenith_angle'].attrs))
@@ -754,7 +762,7 @@ class CloudVarSingleNC(CloudVarSingle):
             solar_shading=solar_shading,
             pre_proc_flag=pre_proc_flag)
 
-        if remap_pc:
+        if remap_pc and (parallax_correct or solar_shading):
             self.remap_pc_coords()
 
     @property
@@ -822,9 +830,6 @@ class CloudVarSingleNC(CloudVarSingle):
 
                 grid[dset] = f[dset][:].data[sparse_mask]
 
-        if pre_proc_flag:
-            grid = cls._clean_dup_coords(grid)
-
         if grid and (parallax_correct or solar_shading):
             raw_grid = pd.DataFrame(grid)
             grid = cls.correct_coordinates(fpath, grid, sparse_mask,
@@ -836,6 +841,10 @@ class CloudVarSingleNC(CloudVarSingle):
         if grid.empty:
             raw_grid = None
             grid = None
+
+        elif pre_proc_flag:
+            grid = cls._clean_dup_coords(grid)
+            raw_grid = cls._clean_dup_coords(raw_grid)
 
         if sparse_mask.sum() == 0:
             msg = ('Cloud data handler had a completely empty sparse mask '
@@ -875,6 +884,13 @@ class CloudVarSingleNC(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         with NFS(fpath) as f:
+            missing = [d for d in CloudCoords.REQUIRED if d not in f]
+            if any(missing):
+                msg = ('Could not correct cloud coordinates, missing datasets '
+                       '{} from source file: {}'.format(missing, fpath))
+                logger.error(msg)
+                raise KeyError(msg)
+
             sen_zen = f['sensor_zenith_angle'][:].data[sparse_mask]
             sol_zen = f['solar_zenith_angle'][:].data[sparse_mask]
             sol_azi = f['solar_azimuth_angle'][:].data[sparse_mask]
@@ -1366,7 +1382,14 @@ class CloudVar(AncillaryVarHandler):
                                           tolerance=tolerance)
 
             # make sure that flist still matches
-            assert all(fp in self._file_df['flist'] for fp in self.flist)
+            not_used = [fp for fp in self.flist
+                        if fp not in self._file_df['flist'].values.tolist()]
+            if any(not_used):
+                msg = ('Some available cloud source data files were not used: '
+                       '{}\nCloud file mapping table:\n{}'
+                       .format(not_used, self._file_df))
+                logger.error(msg)
+                raise RuntimeError(msg)
 
         return self._file_df
 

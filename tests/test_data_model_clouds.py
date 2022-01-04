@@ -18,7 +18,6 @@ import tempfile
 from nsrdb import DEFAULT_VAR_META, TESTDATADIR, CONFIGDIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.data_model.clouds import CloudVarSingleH5
-from rex.utilities.loggers import init_logger
 
 RTOL = 0.001
 ATOL = 0.001
@@ -37,10 +36,12 @@ COORD_RANGES = {'latitude': (-90, 90),
 def cloud_data():
     """Return cloud data for a single timestep."""
 
-    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
-    fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data/016/',
+    kwargs = {'parallax_correct': False,
+              'solar_shading': False,
+              'remap_pc': False}
+    fpath = os.path.join(TESTDATADIR, 'uw_test_cloud_data_h5/016/',
                          'goes12_2007_016_0000.level2.h5')
-    c = CloudVarSingleH5(fpath)
+    c = CloudVarSingleH5(fpath, **kwargs)
     grid = c.grid
     data = c.source_data
     cloud_data = {'grid': grid, 'data': data}
@@ -80,12 +81,15 @@ def test_single_coords(cloud_data, dset):
 def test_regrid():
     """Test the cloud regrid algorithm."""
 
-    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = DEFAULT_VAR_META
     date = datetime.date(year=2007, month=1, day=16)
-    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data/{doy}/*.h5')
-    factory_kwargs = {v: {'pattern': pattern} for v in cloud_vars}
+    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data_h5/{doy}/*.h5')
+    kwargs = {'pattern': pattern,
+              'parallax_correct': False,
+              'solar_shading': False,
+              'remap_pc': False}
+    factory_kwargs = {v: kwargs for v in cloud_vars}
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
@@ -121,19 +125,22 @@ def test_regrid():
 def test_regrid_duplicates():
     """Test the cloud regrid algorithm with duplicate coordinates."""
 
-    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = DEFAULT_VAR_META
     date = datetime.date(year=2007, month=1, day=16)
 
+    kwargs = {'parallax_correct': False,
+              'solar_shading': False,
+              'remap_pc': False}
+
     with tempfile.TemporaryDirectory() as td:
-        source_clouds = os.path.join(TESTDATADIR, 'uw_test_cloud_data')
+        source_clouds = os.path.join(TESTDATADIR, 'uw_test_cloud_data_h5')
         temp_clouds = os.path.join(td, 'clouds/')
         temp_cloud_fp = os.path.join(
             temp_clouds, '016/goes12_2007_016_0000.level2.h5')
         shutil.copytree(source_clouds, temp_clouds)
 
-        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True)
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True, **kwargs)
         assert cv.grid.duplicated().sum() == 0
 
         with h5py.File(temp_cloud_fp, 'a') as res:
@@ -142,10 +149,10 @@ def test_regrid_duplicates():
             res['latitude'][1000:1025, 1000:1025] = lat_copy
             res['longitude'][1000:1025, 1000:1025] = lon_copy
 
-        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=False)
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=False, **kwargs)
         assert cv.grid.duplicated().sum() > 100
 
-        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True)
+        cv = CloudVarSingleH5(temp_cloud_fp, pre_proc_flag=True, **kwargs)
         assert cv.grid.duplicated().sum() == 0
 
 
@@ -153,12 +160,15 @@ def test_regrid_big_dist():
     """Test the data model regrid process mapping cloud data to a bad meta data
     that is very far from the cloud data coordinates.
     """
-    init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
     cloud_vars = DataModel.CLOUD_VARS
     var_meta = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
     date = datetime.date(year=2007, month=1, day=16)
-    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data/{doy}/*.h5')
-    factory_kwargs = {v: {'pattern': pattern} for v in cloud_vars}
+    pattern = os.path.join(TESTDATADIR, 'uw_test_cloud_data_h5/{doy}/*.h5')
+    kwargs = {'pattern': pattern,
+              'parallax_correct': False,
+              'solar_shading': False,
+              'remap_pc': False}
+    factory_kwargs = {v: kwargs for v in cloud_vars}
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'west_psm_extent.csv')
 

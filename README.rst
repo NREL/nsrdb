@@ -27,11 +27,14 @@ Installation
 #. There is a known dependency issue between h5py and netCDF4. it is
    recommended that you install ``conda install netCDF4`` before pip installing
    the nsrdb code base.
-#. If running with the MLClouds model, you will have to install this code base
-   (the private mlclouds repo is `here <https://github.com/NREL/mlclouds>`_)
-   before installing the nsrdb code base.
+#. You will have to install the REST2 code base (the private NREL-REST2 repo is
+   `here <https://github.com/NREL/rest2>`_) BEFORE installing the nsrdb code
+   base.
 #. Navigate to the nsrdb directory that contains setup.py and run:
    ``pip install -e .``
+#. If running with the MLClouds model, you will have to install this code base
+   (the private MLClouds repo is `here <https://github.com/NREL/mlclouds>`_)
+   AFTER installing the nsrdb code base.
 #. Test your installation:
 
     a. Start ipython and test the following import:

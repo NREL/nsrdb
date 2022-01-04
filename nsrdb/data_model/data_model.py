@@ -747,7 +747,7 @@ class DataModel:
                         .format(len(cloud_obj_all.flist)))
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
-            for cloud_obj_single in cloud_obj_all:
+            for _, cloud_obj_single in cloud_obj_all:
                 fpath = cloud_obj_single.fpath
                 logger.debug('Calculating ReGrid nearest neighbors for: {}'
                              .format(fpath))
@@ -816,7 +816,7 @@ class DataModel:
         loggers = ['nsrdb']
         with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
-            for cloud_obj_single in cloud_obj_all:
+            for _, cloud_obj_single in cloud_obj_all:
                 future = exe.submit(self.get_cloud_nn,
                                     cloud_obj_single,
                                     self.nsrdb_grid,
