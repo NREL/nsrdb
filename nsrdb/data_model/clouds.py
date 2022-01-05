@@ -215,11 +215,11 @@ class CloudCoords:
             logger.error(e)
             raise ValueError(e)
 
-        # if the mean cloud height is 1000+
+        # if the maximum cloud height is 100+
         # assume units are in meters and convert to km
-        # cloud heights should never be >1000km
+        # cloud heights should never be >100km
         cld_height[(cld_height < 0)] = np.nan
-        if np.nanmean(cld_height) > 1000:
+        if np.nanmax(cld_height) > 100:
             cld_height /= 1000
 
         zen[(zen > zen_threshold)] = zen_threshold
@@ -283,10 +283,7 @@ class CloudVarSingle:
         self._remap_pc_index_clouds = None
 
     def __contains__(self, dset):
-        if dset in self.dsets:
-            return True
-        else:
-            return False
+        return dset in self.dsets
 
     def __repr__(self):
         return 'CloudVarSingle handler for filepath: "{}"'.format(self.fpath)
@@ -300,7 +297,7 @@ class CloudVarSingle:
                                   'file types.')
 
     @property
-    def dests(self):
+    def dsets(self):
         """Get a list of the available datasets in the cloud file."""
         return self._available_dsets
 

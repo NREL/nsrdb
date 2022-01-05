@@ -324,6 +324,44 @@ def test_parallax_shading_correct(plot=False):
                 plt.close()
 
 
+@pytest.mark.parametrize(
+    'kws',
+    ({'lat': 20, 'lon': 0, 'zen': 0, 'azi': 180, 'height': 1000,
+      'lat_pc': 20, 'lon_pc': 0},
+     {'lat': 20, 'lon': 0, 'zen': 10, 'azi': 180, 'height': 1000,
+      'lat_pc': 19.998, 'lon_pc': 0},
+     {'lat': 20, 'lon': 0, 'zen': 30, 'azi': 180, 'height': 1000,
+      'lat_pc': 19.995, 'lon_pc': 0},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': 180, 'height': 1000,
+      'lat_pc': 19.984, 'lon_pc': 0},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': 180, 'height': 10000,
+      'lat_pc': 19.844, 'lon_pc': 0},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': 135, 'height': 10000,
+      'lat_pc': 19.890, 'lon_pc': 0.117},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': 90, 'height': 10000,
+      'lat_pc': 20, 'lon_pc': 0.166},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': -90, 'height': 10000,
+      'lat_pc': 20, 'lon_pc': -0.166},
+     {'lat': 20, 'lon': 0, 'zen': 60, 'azi': -90, 'height': 10000,
+      'lat_pc': 20, 'lon_pc': 0.166, 'option': 'shading'},
+     {'lat': 20, 'lon': 0, 'zen': 80, 'azi': 135, 'height': 10000,
+      'lat_pc': 20.361, 'lon_pc': -.384, 'option': 'shading'},
+     {'lat': 20, 'lon': 0, 'zen': 80, 'azi': -135, 'height': 10000,
+      'lat_pc': 20.361, 'lon_pc': .384, 'option': 'shading'}))
+def test_parallax_sanity(kws):
+    """This checks baseline parallax/shading corrections just based on logical
+    directions/magnitudes of shift."""
+    lat = np.array([kws['lat']]).astype(float)
+    lon = np.array([kws['lon']]).astype(float)
+    zen = np.array([kws['zen']]).astype(float)
+    azi = np.array([kws['azi']]).astype(float)
+    height = np.array([kws['height']]).astype(float)
+    lat, lon = CloudCoords.correct_coords(lat, lon, zen, azi, height,
+                                          option=kws.get('option', 'parallax'))
+    assert np.allclose(kws['lat_pc'], lat, atol=0.001)
+    assert np.allclose(kws['lon_pc'], lon, atol=0.001)
+
+
 def execute_pytest(capture='all', flags='-rapP'):
     """Execute module as pytest with detailed summary report.
 
