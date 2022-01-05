@@ -272,6 +272,7 @@ class CloudVarSingle:
         self._dsets = dsets
         self.pre_proc_flag = pre_proc_flag
         self._index = index
+        self._available_dsets = None
         self._grid = None
         self._tree = None
 
@@ -280,6 +281,12 @@ class CloudVarSingle:
         self._raw_cloud_mask = None
         self._remap_pc_index = None
         self._remap_pc_index_clouds = None
+
+    def __contains__(self, dset):
+        if dset in self.dsets:
+            return True
+        else:
+            return False
 
     def __repr__(self):
         return 'CloudVarSingle handler for filepath: "{}"'.format(self.fpath)
@@ -291,6 +298,11 @@ class CloudVarSingle:
         """Abstract placeholder for data retrieval method"""
         raise NotImplementedError('get_dset() must be defined for H5 or NC '
                                   'file types.')
+
+    @property
+    def dests(self):
+        """Get a list of the available datasets in the cloud file."""
+        return self._available_dsets
 
     @property
     def fpath(self):
@@ -470,6 +482,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
+
         grids = self._parse_grid(self._fpath,
                                  solar_shading=solar_shading,
                                  parallax_correct=parallax_correct,
@@ -486,10 +499,12 @@ class CloudVarSingleH5(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with NFS(self._fpath, use_h5py=True) as f:
-            out = list(f)
 
-        return out
+        if self._available_dsets is None:
+            with NFS(self._fpath, use_h5py=True) as f:
+                self._available_dsets = list(f)
+
+        return self._available_dsets
 
     @classmethod
     def _parse_grid(cls, fpath, parallax_correct=True, solar_shading=True,
@@ -578,6 +593,7 @@ class CloudVarSingleH5(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
+        lat, lon = grid['latitude'], grid['longitude']
         with NFS(fpath, use_h5py=True) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f]
             if any(missing):
@@ -599,8 +615,14 @@ class CloudVarSingleH5(CloudVarSingle):
                 'cld_height_acha', f['cld_height_acha'][...],
                 dict(f['cld_height_acha'].attrs))
 
+            if 'sensor_azimuth_angle' in f:
+                sen_azi = cls.pre_process(
+                    'sensor_azimuth_angle', f['sensor_azimuth_angle'][...],
+                    dict(f['sensor_azimuth_angle'].attrs))
+            else:
+                sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
+
         try:
-            lat, lon = grid['latitude'], grid['longitude']
             if parallax_correct:
                 logger.debug('Running sensor parallax correction.')
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
@@ -779,6 +801,7 @@ class CloudVarSingleNC(CloudVarSingle):
 
         super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
                          dsets=dsets)
+
         self._grid, self._raw_grid, self._sparse_mask = self._parse_grid(
             self._fpath, parallax_correct=parallax_correct,
             solar_shading=solar_shading,
@@ -790,10 +813,12 @@ class CloudVarSingleNC(CloudVarSingle):
     @property
     def dsets(self):
         """Get a list of the available datasets in the cloud file."""
-        with NFS(self._fpath) as f:
-            out = list(f.variables.keys())
 
-        return out
+        if self._available_dsets is None:
+            with NFS(self._fpath) as f:
+                self._available_dsets = list(f.variables.keys())
+
+        return self._available_dsets
 
     @classmethod
     def _parse_grid(cls, fpath, parallax_correct=True, solar_shading=True,
@@ -905,6 +930,7 @@ class CloudVarSingleNC(CloudVarSingle):
             numpy array values. Coordinates are adjusted for solar position
             so that clouds are linked to the coordinate that they are shading.
         """
+        lat, lon = grid['latitude'], grid['longitude']
         with NFS(fpath) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f.variables]
             if any(missing):
@@ -918,10 +944,13 @@ class CloudVarSingleNC(CloudVarSingle):
             sol_azi = f['solar_azimuth_angle'][:].data[sparse_mask]
             cld_height = f['cld_height_acha'][:].data[sparse_mask]
 
-        try:
-            lat, lon = grid['latitude'], grid['longitude']
-            if parallax_correct:
+            if 'sensor_azimuth_angle' in f.variables:
+                sen_azi = f['sensor_azimuth_angle'][:].data[sparse_mask]
+            else:
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
+
+        try:
+            if parallax_correct:
                 lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
                                                       sen_azi, cld_height,
                                                       option='parallax')
