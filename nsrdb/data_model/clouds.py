@@ -1081,8 +1081,8 @@ class CloudVar(AncillaryVarHandler):
         self._obj_cache = {}
 
         logger.info('Cloud coordinate parallax correction: {}, solar '
-                    'shading adjustment: {}'
-                    .format(parallax_correct, solar_shading))
+                    'shading adjustment: {}, coordinate remapping: {}'
+                    .format(parallax_correct, solar_shading, remap_pc))
 
         self._check_freq()
 
