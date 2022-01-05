@@ -907,6 +907,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
     else:
         cmd = ("python -c '{import_str};{f}({a})'"
                .format(import_str=import_str, f=fun_str, a=arg_str))
+        slurm_id = None
         out = slurm_manager.sbatch(cmd,
                                    alloc=alloc,
                                    memory=memory,
@@ -916,13 +917,15 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
                                    stdout_path=stdout_path)[0]
 
         if out:
+            slurm_id = out
             msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
-                   .format(name, out))
-            Status.add_job(
-                out_dir, command, name, replace=True,
-                job_attrs={'job_id': out,
-                           'hardware': 'eagle',
-                           'out_dir': out_dir})
+                   .format(name, slurm_id))
+
+        Status.add_job(
+            out_dir, command, name, replace=True,
+            job_attrs={'job_id': slurm_id,
+                       'hardware': 'eagle',
+                       'out_dir': out_dir})
 
     click.echo(msg)
     logger.info(msg)
