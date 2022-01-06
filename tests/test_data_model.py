@@ -21,10 +21,6 @@ from rex.utilities.loggers import init_logger
 from rex import Resource
 
 
-RTOL = 0.01
-ATOL = 0.0
-
-
 def test_data_model_dump(var='asymmetry'):
     """Test dump routine with .tmp suffix"""
     with tempfile.TemporaryDirectory() as td:
@@ -71,7 +67,7 @@ def test_asym(var='asymmetry'):
                 var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
         assert np.allclose(data_baseline, data,
-                           atol=ATOL, rtol=RTOL)
+                           atol=0, rtol=0.01)
 
 
 @pytest.mark.parametrize('var',
@@ -100,7 +96,8 @@ def test_ancillary_single(var):
     var_meta = pd.read_csv(DEFAULT_VAR_META)
     var_meta['source_directory'] = source_dir
 
-    data = DataModel.run_single(var, date, grid, var_meta=var_meta)
+    # process integer-scaled data
+    data = DataModel.run_single(var, date, grid, var_meta=var_meta, scale=True)
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -111,11 +108,17 @@ def test_ancillary_single(var):
     else:
         with h5py.File(baseline_path, 'r') as f:
             data_baseline = f[var][...]
+
+            # make sure baseline data is in integer precision
             var_obj = VarFactory.get_base_handler(
                 var, var_meta=var_meta, date=date)
             data_baseline = var_obj.scale_data(data_baseline)
 
-        bad = ~np.isclose(data_baseline, data, atol=ATOL, rtol=RTOL)
+            # set data type to prevent overflow when doing error metrics
+            data_baseline = data_baseline.astype(float)
+            data = data.astype(float)
+
+        bad = ~np.isclose(data_baseline, data, atol=1.0, rtol=0.0)
         diff = np.abs(data_baseline - data)
         rel_diff = np.abs(data_baseline - data) / data_baseline
         mean_baseline = np.mean(data_baseline)
@@ -133,7 +136,9 @@ def test_ancillary_single(var):
                        mean_baseline, mean_test,
                        data_baseline[bad], data[bad]))
 
-        assert np.allclose(data_baseline, data, atol=ATOL, rtol=RTOL), msg
+        # abs tolerance has to be >=1 because we're comparing integer precision
+        # still some small relative tolerance issues so also use rtol=1%
+        assert np.allclose(data_baseline, data, atol=1.0, rtol=0.01), msg
 
 
 def test_parallel(var_list=('surface_pressure', 'air_temperature',
@@ -172,7 +177,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                         key, var_meta=var_meta, date=date)
                     data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
-                                   atol=ATOL, rtol=RTOL)
+                                   atol=0.0, rtol=0.01)
 
 
 def test_nrel_data_handler(var='aod'):
