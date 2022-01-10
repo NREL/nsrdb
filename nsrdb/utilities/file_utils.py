@@ -25,6 +25,23 @@ DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
 
+def clean_meta(meta):
+    """Converts NaN values in string columns to str("None"),
+    timezone to integer, elevation to float32
+
+    Parameters
+    ----------
+    meta : pd.DataFrame
+        DataFrame of meta data from grid file csv.
+        The first column must be the NSRDB site gid's.
+    """
+    for n in meta.columns:
+    if meta[n].dtype=='object':
+        meta[n].replace(np.nan,str('None'),inplace=True)
+    if n=='timezone':
+       meta[n] = meta[n].astype('int32')
+    if n=='elevation':
+        meta[n] = meta[n].astype('float32')
 
 def clean_meta(meta):
     """Converts NaN values in string columns to "None",
