@@ -51,6 +51,7 @@ from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn, knn
+from nsrdb.utilities.file_utils import clean_meta
 
 logger = logging.getLogger(__name__)
 
@@ -197,10 +198,10 @@ class DataModel:
         """
 
         if isinstance(inp, pd.DataFrame):
-            self._nsrdb_grid = inp
+            self._nsrdb_grid = clean_meta(inp)
         elif inp.endswith('.csv'):
             self._nsrdb_grid_file = inp
-            self._nsrdb_grid = pd.read_csv(inp, index_col=0)
+            self._nsrdb_grid = clean_meta(pd.read_csv(inp, index_col=0))
         else:
             raise TypeError('Expected csv grid file or DataFrame but '
                             'received: {}'.format(inp))

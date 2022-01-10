@@ -17,11 +17,14 @@ from urllib.error import URLError
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.loggers import init_logger
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
+
 
 def clean_meta(meta):
     """Converts NaN values in string columns to str("None"),
@@ -34,12 +37,14 @@ def clean_meta(meta):
         The first column must be the NSRDB site gid's.
     """
     for n in meta.columns:
-    if meta[n].dtype=='object':
-        meta[n].replace(np.nan,str('None'),inplace=True)
-    if n=='timezone':
-       meta[n] = meta[n].astype('int32')
-    if n=='elevation':
-        meta[n] = meta[n].astype('float32')
+        if isinstance(meta.dtypes[n], object):
+            meta[n].replace(np.nan, str('None'), inplace=True)
+        if n == 'timezone':
+            meta[n] = meta[n].astype('int32')
+        if n == 'elevation':
+            meta[n] = meta[n].astype('float32')
+    return meta
+
 
 def repack_h5(fpath, f_new=None, inplace=True):
     """Repack an h5 file potentially decreasing its memory footprint.
