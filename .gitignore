@@ -124,3 +124,6 @@ scratch
 
 # VSCode config
 .vscode
+
+# Visual Studio
+.vs/
