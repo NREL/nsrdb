@@ -8,6 +8,7 @@ import logging
 from reV.handlers.outputs import Outputs as RevOutputs
 
 from rex.utilities.loggers import create_dirs
+from rex.rechunk_h5.chunk_size import ArrayChunkSize
 
 from nsrdb.version import __version__
 
@@ -25,7 +26,7 @@ class Outputs(RevOutputs):
 
     @classmethod
     def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta,
-                mode='w-'):
+                add_coords=False, mode='w-'):
         """Initialize a full h5 output file with the final intended shape.
         Parameters
         ----------
@@ -46,7 +47,19 @@ class Outputs(RevOutputs):
         mode : str
             Outputs write mode. w- will raise error if fout exists. w will
             overwrite file.
+        add_coords: bool
+            Option to include coordinates in output
         """
+
+        meta_chunks = ArrayChunkSize.compute(meta)
+        chunks['meta'] = meta_chunks
+
+        if add_coords:
+            #get coordinates
+            #coords = ...
+            #coords_chunks = ArrayChunkSize.compute(coords)
+            #chunks['coords'] = coords_chunks
+            pass
 
         if not os.path.exists(os.path.dirname(fout)):
             create_dirs(os.path.dirname(fout))
@@ -56,6 +69,10 @@ class Outputs(RevOutputs):
         with cls(fout, mode=mode) as f:
             f['time_index'] = time_index
             f['meta'] = meta
+
+            if add_coords:
+                #f['coords'] = coords
+                pass
 
             shape = (len(time_index), len(meta))
 
