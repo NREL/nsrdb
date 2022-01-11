@@ -73,7 +73,8 @@ class Outputs(RevOutputs):
             f['meta'] = meta
 
             if add_coords:
-                #f['coords'] = coords
+                """f['coords'] = coords
+                """
                 pass
 
             shape = (len(time_index), len(meta))
