@@ -4,13 +4,12 @@ Classes to handle NSRSDB h5 output files.
 """
 import os
 import logging
+import numpy as np
 
 from reV.handlers.outputs import Outputs as RevOutputs
 
 from rex.utilities.loggers import create_dirs
 from rex.rechunk_h5.chunk_size import ArrayChunkSize
-
-import numpy as np
 
 from nsrdb.version import __version__
 
