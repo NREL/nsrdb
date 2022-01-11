@@ -55,10 +55,12 @@ class Outputs(RevOutputs):
         chunks['meta'] = meta_chunks
 
         if add_coords:
-            #get coordinates
-            #coords = ...
-            #coords_chunks = ArrayChunkSize.compute(coords)
-            #chunks['coords'] = coords_chunks
+            """
+            get coordinates
+            coords = ...
+            coords_chunks = ArrayChunkSize.compute(coords)
+            chunks['coords'] = coords_chunks
+            """
             pass
 
         if not os.path.exists(os.path.dirname(fout)):
