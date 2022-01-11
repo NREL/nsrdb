@@ -10,6 +10,8 @@ from reV.handlers.outputs import Outputs as RevOutputs
 from rex.utilities.loggers import create_dirs
 from rex.rechunk_h5.chunk_size import ArrayChunkSize
 
+import numpy as np
+
 from nsrdb.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -51,17 +53,13 @@ class Outputs(RevOutputs):
             Option to include coordinates in output
         """
 
-        meta_chunks = ArrayChunkSize.compute(meta)
+        meta_chunks = ArrayChunkSize.compute(meta.to_numpy())
         chunks['meta'] = meta_chunks
 
         if add_coords:
-            """
-            get coordinates
-            coords = ...
+            coords = meta[['latitude', 'longitude']].to_numpy()
             coords_chunks = ArrayChunkSize.compute(coords)
             chunks['coords'] = coords_chunks
-            """
-            pass
 
         if not os.path.exists(os.path.dirname(fout)):
             create_dirs(os.path.dirname(fout))
@@ -73,9 +71,7 @@ class Outputs(RevOutputs):
             f['meta'] = meta
 
             if add_coords:
-                """f['coords'] = coords
-                """
-                pass
+                f['coords'] = coords.astype(np.float32)
 
             shape = (len(time_index), len(meta))
 
