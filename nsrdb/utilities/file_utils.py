@@ -38,11 +38,11 @@ def clean_meta(meta):
     """
     for n in meta.columns:
         if isinstance(meta.dtypes[n], object):
-            meta[n].replace(np.nan, str('None'), inplace=True)
+            meta[n].replace(np.nan, 'None', inplace=True)
         if n == 'timezone':
-            meta[n] = meta[n].astype('int32')
+            meta[n] = meta[n].astype('int8')
         if n == 'elevation':
-            meta[n] = meta[n].astype('float32')
+            meta[n] = meta[n].astype('int16')
     return meta
 
 
