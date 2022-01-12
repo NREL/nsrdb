@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import datetime
 import tempfile
-import h5py
 
 from nsrdb import TESTDATADIR, DEFAULT_VAR_META
 from nsrdb.data_model import DataModel, VarFactory

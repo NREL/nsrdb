@@ -27,8 +27,8 @@ TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
 
 
 def clean_meta(meta):
-    """Converts NaN values in string columns to str("None"),
-    timezone to integer, elevation to float32
+    """Converts NaN values in string columns to "None",
+    timezone to int8, elevation to int16
 
     Parameters
     ----------
@@ -37,12 +37,12 @@ def clean_meta(meta):
         The first column must be the NSRDB site gid's.
     """
     for n in meta.columns:
-        if isinstance(meta.dtypes[n], object):
-            meta[n].replace(np.nan, 'None', inplace=True)
+        if meta.dtypes[n] == object:
+            meta[n] = meta[n].replace(np.nan, 'None')
         if n == 'timezone':
-            meta[n] = meta[n].astype('int8')
+            meta[n] = meta[n].astype(np.int8)
         if n == 'elevation':
-            meta[n] = meta[n].astype('int16')
+            meta[n] = meta[n].astype(np.int16)
     return meta
 
 
