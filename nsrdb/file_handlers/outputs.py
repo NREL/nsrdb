@@ -56,11 +56,6 @@ class Outputs(RevOutputs):
         meta_chunks = ArrayChunkSize.compute(meta.to_numpy())
         chunks['meta'] = meta_chunks
 
-        if add_coords:
-            coords = meta[['latitude', 'longitude']].to_numpy()
-            coords_chunks = ArrayChunkSize.compute(coords)
-            chunks['coords'] = coords_chunks
-
         if not os.path.exists(os.path.dirname(fout)):
             create_dirs(os.path.dirname(fout))
 
@@ -71,7 +66,11 @@ class Outputs(RevOutputs):
             f['meta'] = meta
 
             if add_coords:
-                f['coords'] = coords.astype(np.float32)
+                coords = meta[['latitude', 'longitude']].to_numpy()
+                coords = coords.astype(np.float32)
+                coords_chunks = ArrayChunkSize.compute(coords)
+                chunks['coords'] = coords_chunks
+                f['coords'] = coords
 
             shape = (len(time_index), len(meta))
 
