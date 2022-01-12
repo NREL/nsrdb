@@ -13,13 +13,55 @@ import numpy as np
 import pandas as pd
 import datetime
 import tempfile
+import h5py
 
 from nsrdb import TESTDATADIR, DEFAULT_VAR_META
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.utilities.file_utils import clean_meta
 
 RTOL = 0.05
 ATOL = .1
+
+
+def test_clean_meta(meta):
+    """Test clean_meta routine
+
+    Parameters
+    ----------
+    meta : pd.DataFrame
+        DataFrame of meta data from grid file csv.
+        The first column must be the NSRDB site gid's.
+    """
+    meta = clean_meta(meta)
+
+    assert meta['elevation'].dtype == np.int16
+    assert meta['timezone'].dtype == np.int8
+    assert not meta.isnull().values.any()
+
+
+def test_coordinate_export():
+    """Test coordinate export handling"""
+    meta_file = os.path.join(TESTDATADIR, 'meta/',
+                             'surfrad_meta.csv')
+    meta = pd.read_csv(meta_file, index_col=0)
+    with tempfile.TemporaryDirectory() as td:
+        out_file = os.path.join(td, 'coordinate_export_test.h5')
+        date = datetime.date(year=2017, month=1, day=1)
+        with Outputs(out_file, mode='w') as fout:
+            fout.time_index = pd.date_range('1-1-{y}'.format(y=date.year),
+                                            '1-1-{y}'.format(y=date.year + 1),
+                                            freq='1yr')[:-1]
+            fout.meta = meta
+            fout.init_h5(out_file, [], {}, {}, {},
+                         fout.time_index, fout.meta,
+                         mode='a', add_coords=True)
+
+    coords_check = meta[['latitude', 'longitude']].to_numpy()
+    coords_check = coords_check.astype(np.float32)
+    coords = h5py.File(out_file, 'r')['coordinates'][()]
+
+    assert np.array_equal(coords_check, coords)
 
 
 def test_output_handler(var_list=('surface_pressure', 'air_temperature',

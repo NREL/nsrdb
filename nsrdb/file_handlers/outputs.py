@@ -69,8 +69,9 @@ class Outputs(RevOutputs):
                 coords = meta[['latitude', 'longitude']].to_numpy()
                 coords = coords.astype(np.float32)
                 coords_chunks = ArrayChunkSize.compute(coords)
-                chunks['coords'] = coords_chunks
-                f['coords'] = coords
+                chunks['coordinates'] = coords_chunks
+                f._create_dset('coordinates', coords.shape, np.float32,
+                               chunks=coords_chunks, data=coords)
 
             shape = (len(time_index), len(meta))
 
