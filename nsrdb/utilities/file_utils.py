@@ -78,7 +78,7 @@ def repack_h5(fpath, f_new=None, inplace=True):
                 .format(cmd))
 
     # use subprocess to submit command and wait until it is done
-    x = run(cmd)
+    x = run(cmd, check=True)
     if x.returncode != 0:
         e = ('H5Repack process terminated with return code of {}.'
              '\nSTDOUT: \n{}\nSTDERR: \n{}'
@@ -133,10 +133,10 @@ def url_download(url, target):
     logger.debug('URL downloading: {}'.format(url))
 
     try:
-        req = urlopen(url)
-        with open(target, 'wb') as dfile:
-            # gz archive must be written as a binary file
-            dfile.write(req.read())
+        with urlopen(url) as req:
+            with open(target, 'wb') as dfile:
+                # gz archive must be written as a binary file
+                dfile.write(req.read())
 
     except URLError as e:
         logger.info('Skipping: {} was not downloaded'
@@ -184,15 +184,15 @@ def convert_h4(path4, f_h4, path5, f_h5):
         cmd = shlex.split(cmd)
 
         # submit subprocess and wait for stdout/stderr
-        process = Popen(cmd, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-        stderr = stderr.decode('ascii').rstrip()
-        stdout = stdout.decode('ascii').rstrip()
-        if stderr:
-            logger.warning('Conversion of "{}" returned a stderr: "{}"'
-                           .format(cmd, stderr))
-        else:
-            logger.debug('Finished conversion of: "{}"'.format(f_h5))
+        with Popen(cmd, stdout=PIPE, stderr=PIPE) as process:
+            stdout, stderr = process.communicate()
+            stderr = stderr.decode('ascii').rstrip()
+            stdout = stdout.decode('ascii').rstrip()
+            if stderr:
+                logger.warning('Conversion of "{}" returned a stderr: "{}"'
+                               .format(cmd, stderr))
+            else:
+                logger.debug('Finished conversion of: "{}"'.format(f_h5))
 
     return (stdout, stderr)
 
