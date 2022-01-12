@@ -53,11 +53,10 @@ def test_coordinate_export():
                          fout.time_index, fout.meta,
                          mode='a', add_coords=True)
 
-    coords_check = meta[['latitude', 'longitude']].to_numpy()
-    coords_check = coords_check.astype(np.float32)
-    coords = h5py.File(out_file, 'r')['coordinates'][()]
+            coords_check = meta[['latitude', 'longitude']].to_numpy()
+            coords_check = coords_check.astype(np.float32)
 
-    assert np.array_equal(coords_check, coords)
+            assert np.array_equal(coords_check, fout['coordinates'])
 
 
 def test_output_handler(var_list=('surface_pressure', 'air_temperature',
