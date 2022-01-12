@@ -45,13 +45,12 @@ def test_coordinate_export():
         out_file = os.path.join(td, 'coordinate_export_test.h5')
         date = datetime.date(year=2017, month=1, day=1)
         with Outputs(out_file, mode='w') as fout:
-            fout.time_index = pd.date_range('1-1-{y}'.format(y=date.year),
-                                            '1-1-{y}'.format(y=date.year + 1),
-                                            freq='6m')[:-1]
-            fout.meta = meta
+            time_index = pd.date_range('1-1-{y}'.format(y=date.year),
+                                       '1-1-{y}'.format(y=date.year + 1),
+                                       freq='6m')[:-1]
             fout.init_h5(out_file, [], {}, {}, {},
-                         fout.time_index, fout.meta,
-                         mode='a', add_coords=True)
+                         time_index, meta, mode='a',
+                         add_coords=True)
 
             coords_check = meta[['latitude', 'longitude']].to_numpy()
             coords_check = coords_check.astype(np.float32)
