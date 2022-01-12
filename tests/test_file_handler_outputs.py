@@ -24,15 +24,11 @@ RTOL = 0.05
 ATOL = .1
 
 
-def test_clean_meta(meta):
-    """Test clean_meta routine
-
-    Parameters
-    ----------
-    meta : pd.DataFrame
-        DataFrame of meta data from grid file csv.
-        The first column must be the NSRDB site gid's.
-    """
+def test_clean_meta():
+    """Test clean_meta routine"""
+    meta_file = os.path.join(TESTDATADIR, 'meta/',
+                             'surfrad_meta.csv')
+    meta = pd.read_csv(meta_file, index_col=0)
     meta = clean_meta(meta)
 
     assert meta['elevation'].dtype == np.int16
