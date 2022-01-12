@@ -145,6 +145,14 @@ NSRDB Versions
       - Enabled cloud solar shading coordinate adjustment by default, enabled
         MLClouds machine learning gap fill method for missing cloud properties
         (cloud fill flag #7)
+    * - 3.2.1
+      - 1/12/2021
+      - 2021
+      - Implemented an algorithm to re-map the parallax and shading corrected
+        cloud coordinates to the nominal GOES coordinate system. This fixes the
+        issue of PC cloud coordinates conflicting with clearsky coordinates.
+        This also fixes the strange pattern that was found in the long term
+        means generated from PC data.
 
 *Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the
