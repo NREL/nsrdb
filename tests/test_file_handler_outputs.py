@@ -29,6 +29,7 @@ def test_clean_meta():
     meta_file = os.path.join(TESTDATADIR, 'meta/',
                              'surfrad_meta.csv')
     meta = pd.read_csv(meta_file, index_col=0)
+    meta.loc[meta.sample(frac=0.4).index, 'state'] = np.nan
     meta = clean_meta(meta)
 
     assert meta['elevation'].dtype == np.int16
