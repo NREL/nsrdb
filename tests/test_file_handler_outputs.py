@@ -47,7 +47,7 @@ def test_coordinate_export():
         with Outputs(out_file, mode='w') as fout:
             fout.time_index = pd.date_range('1-1-{y}'.format(y=date.year),
                                             '1-1-{y}'.format(y=date.year + 1),
-                                            freq='1yr')[:-1]
+                                            freq='6m')[:-1]
             fout.meta = meta
             fout.init_h5(out_file, [], {}, {}, {},
                          fout.time_index, fout.meta,
