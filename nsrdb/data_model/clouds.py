@@ -13,7 +13,6 @@ from warnings import warn
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.file_handlers.filesystem import NSRDBFileSystem as NFS
-from nsrdb.utilities.file_utils import ts_freq_check
 
 logger = logging.getLogger(__name__)
 
@@ -777,8 +776,6 @@ class CloudVar(AncillaryVarHandler):
         self._dsets = dsets
         self._i = None
         self._adjust_coords = adjust_coords
-
-        ts_freq_check(freq)
 
         if self._adjust_coords:
             logger.info('Cloud coordinate adjustment based on solar '
