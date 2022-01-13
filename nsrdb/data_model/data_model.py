@@ -1373,6 +1373,7 @@ class DataModel:
                 data = self[var]
 
             # make file for each var
+            fpath_out += '.tmp'
             with Outputs(fpath_out, mode=mode) as fout:
                 if 'time_index' not in fout:
                     fout.time_index = self.nsrdb_ti
@@ -1388,6 +1389,8 @@ class DataModel:
                                dtype=var_obj.final_dtype,
                                chunks=var_obj.chunks, attrs=attrs)
 
+            os.rename(fpath_out, fpath_out.strip('.tmp'))
+            fpath_out = fpath_out.strip('.tmp')
             if purge:
                 del data
                 data = fpath_out

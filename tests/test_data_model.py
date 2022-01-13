@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import h5py
 import datetime
+import tempfile
 
 from nsrdb import TESTDATADIR, DEFAULT_VAR_META, DATADIR
 from nsrdb.data_model import DataModel, VarFactory
@@ -22,6 +23,25 @@ from rex import Resource
 
 RTOL = 0.01
 ATOL = 0.0
+
+
+def test_data_model_dump(var='asymmetry'):
+    """Test dump routine with .tmp suffix"""
+    with tempfile.TemporaryDirectory() as td:
+        init_logger('nsrdb.data_model', log_file=None, log_level='DEBUG')
+
+        out_file = os.path.join(td, var + '.h5')
+        date = datetime.date(year=2017, month=1, day=1)
+        var_meta = pd.read_csv(DEFAULT_VAR_META)
+        var_meta['source_directory'] = DATADIR
+        grid = os.path.join(TESTDATADIR, 'reference_grids/',
+                            'west_psm_extent.csv')
+        data_model = DataModel(date, grid)
+        data = data_model.run_single(var, date, grid, var_meta=var_meta)
+        data = data_model.dump(var, out_file, data, purge=True, mode='w')
+
+        if not os.path.exists(out_file):
+            assert os.path.exists(out_file + '.tmp')
 
 
 def test_asym(var='asymmetry'):
