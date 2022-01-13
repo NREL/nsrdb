@@ -37,29 +37,10 @@ def ts_freq_check(freq):
     """
 
     suffix = re.sub(r'[0-9]+', '', freq)
-    assert suffix.lower() in ['min', 'h', 'd', 't']
-
-
-def clean_meta(meta):
-    """Converts NaN values in string columns to "None",
-    timezone to int8, elevation to int16
-
-    Parameters
-    ----------
-    meta : pd.DataFrame
-        DataFrame of meta data from grid file csv.
-        The first column must be the NSRDB site gid's.
-    """
-    for n in meta.columns:
-        if meta.dtypes[n] == object:
-            meta[n] = meta[n].replace(np.nan, 'None')
-        if n == 'timezone':
-            meta[n] = meta[n].astype(np.int8)
-        if n == 'elevation':
-            meta[n] = meta[n].astype(np.int16)
-        if n == 'urban':
-            meta[n] = meta[n].replace(np.nan, 0)
-    return meta
+    if suffix.lower() not in ['min', 'h', 'd', 't']:
+        msg = f'Bad frequency: {freq}'
+        logger.error(msg)
+        raise KeyError(msg)
 
 
 def clean_meta(meta):
