@@ -9,6 +9,7 @@ import logging
 import os
 import shlex
 import shutil
+import re
 from subprocess import Popen, PIPE, run
 import time
 from urllib.request import urlopen
@@ -24,6 +25,19 @@ logger = logging.getLogger(__name__)
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
+
+
+def ts_freq_check(freq):
+    """Checks freq argument for valid string
+
+    Parameters
+    ----------
+    freq : str | None
+        Timeseries frequency for NSRDB output
+    """
+
+    suffix = re.sub(r'[0-9]+', '', freq)
+    assert suffix.lower() in ['min', 'h', 'd', 't']
 
 
 def clean_meta(meta):
