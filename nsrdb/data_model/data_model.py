@@ -1443,8 +1443,8 @@ class DataModel:
                                dtype=var_obj.final_dtype,
                                chunks=var_obj.chunks, attrs=attrs)
 
-            os.rename(fpath_out, fpath_out.strip('.tmp'))
-            fpath_out = fpath_out.strip('.tmp')
+            os.rename(fpath_out, fpath_out.replace('.tmp', ''))
+            fpath_out = fpath_out.replace('.tmp', '')
             if purge:
                 del data
                 data = fpath_out
