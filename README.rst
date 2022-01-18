@@ -21,25 +21,27 @@ documentation can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrd
 Installation
 ============
 
-1. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
+#. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
    environment: ``conda create --name nsrdb python=3.7``
-2. Activate your new conda env: ``conda activate nsrdb``
-3. Navigate to the nsrdb directory that contains setup.py and run:
+#. Activate your new conda env: ``conda activate nsrdb``
+#. There is a known dependency issue between h5py and netCDF4. it is
+   recommended that you install ``conda install netCDF4`` before pip installing
+   the nsrdb code base.
+#. You will have to install the REST2 code base (the private NREL-REST2 repo is
+   `here <https://github.com/NREL/rest2>`_) BEFORE installing the nsrdb code
+   base.
+#. Navigate to the nsrdb directory that contains setup.py and run:
    ``pip install -e .``
-4. There is a known dependency issue between h5py and netCDF4. If you get an
-   error using the netCDF4 module, try installing from ``conda`` instead of
-   ``pip``
-
-    a. ``pip uninstall netCDF4``
-    b. ``conda install netCDF4``
-
-5. Test your installation:
+#. If running with the MLClouds model, you will have to install this code base
+   (the private MLClouds repo is `here <https://github.com/NREL/mlclouds>`_)
+   AFTER installing the nsrdb code base.
+#. Test your installation:
 
     a. Start ipython and test the following import:
        ``from nsrdb.data_model import DataModel``
     b. Navigate to the tests/ directory and run the command: ``pytest``
 
-6. If you are a developer, also run `pre-commit install` in the directory
+#. If you are a developer, also run `pre-commit install` in the directory
    containing .pre-commit-config.yaml.
 
 NOTE: If you are trying to run the ``albedo`` sub-module you will need to
@@ -143,6 +145,14 @@ NSRDB Versions
       - Enabled cloud solar shading coordinate adjustment by default, enabled
         MLClouds machine learning gap fill method for missing cloud properties
         (cloud fill flag #7)
+    * - 3.2.1
+      - 1/12/2021
+      - 2021
+      - Implemented an algorithm to re-map the parallax and shading corrected
+        cloud coordinates to the nominal GOES coordinate system. This fixes the
+        issue of PC cloud coordinates conflicting with clearsky coordinates.
+        This also fixes the strange pattern that was found in the long term
+        means generated from PC data.
 
 *Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the

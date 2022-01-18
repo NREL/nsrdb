@@ -314,7 +314,7 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
 
     with Handler(f_source) as res:
         data_shape = res.shape
-        missing = [arg not in res.dsets for arg in ALL_SKY_ARGS]
+        missing = [arg for arg in ALL_SKY_ARGS if arg not in res.dsets]
         if any(missing):
             msg = ('Cannot run all_sky, missing datasets {} from source: {}'
                    .format(missing, f_source))

@@ -188,7 +188,8 @@ class Collector:
         return row_slice, col_slice
 
     @staticmethod
-    def get_data(fpath, dset, time_index, meta, sites=None):
+    def get_data(fpath, dset, time_index, meta, scale_factor, dtype,
+                 sites=None):
         """Retreive a data array from a chunked file.
 
         Parameters
@@ -201,13 +202,20 @@ class Collector:
             Time index of the final file.
         final_meta : pd.DataFrame
             Meta data of the final file.
+        scale_factor : int | float
+            Final destination scale factor after collection. If the data
+            retrieval from the files to be collected has a different scale
+            factor, the collected data will be rescaled and returned as
+            float32.
+        dtype : np.dtype
+            Final dtype to return data as
         sites : None | np.ndarray
             Subset of site indices to collect. None collects all sites.
 
         Returns
         -------
         f_data : np.ndarray
-            Data array from the fpath.
+            Data array from the fpath cast as input dtype.
         row_slice : slice
             final_time_index[row_slice] = new_time_index
         col_slice : slice
@@ -217,6 +225,7 @@ class Collector:
         with Outputs(fpath, unscale=False, mode='r') as f:
             f_ti = f.time_index
             f_meta = f.meta
+            source_scale_factor = f.attrs[dset].get('scale_factor', 1)
 
             if dset not in f.dsets:
                 e = ('Trying to collect dataset "{}" but cannot find in '
@@ -235,6 +244,15 @@ class Collector:
 
         row_slice, col_slice = Collector.get_slices(time_index, meta,
                                                     f_ti, f_meta)
+
+        if scale_factor != source_scale_factor:
+            f_data = f_data.astype(np.float32)
+            f_data *= (scale_factor / source_scale_factor)
+
+        if np.issubdtype(dtype, np.integer):
+            f_data = np.round(f_data)
+
+        f_data = f_data.astype(dtype)
 
         return f_data, row_slice, col_slice
 
@@ -387,19 +405,24 @@ class Collector:
             None uses all available.
         """
 
-        time_index, meta, shape, dtype = Collector._get_collection_attrs(
-            flist, collect_dir, dset, sites=sites, sort=sort,
-            sort_key=sort_key)
+        time_index, meta, shape, _ = \
+            Collector._get_collection_attrs(flist, collect_dir, dset,
+                                            sites=sites, sort=sort,
+                                            sort_key=sort_key)
+
+        attrs, _, final_dtype = VarFactory.get_dset_attrs(
+            dset, var_meta=var_meta)
+        scale_factor = attrs.get('scale_factor', 1)
 
         logger.debug('Collecting file list of shape {}: {}'
                      .format(shape, flist))
 
-        data = np.zeros(shape, dtype=dtype)
+        data = np.zeros(shape, dtype=final_dtype)
         mem = psutil.virtual_memory()
         logger.debug('Initializing output dataset "{0}" in-memory with shape '
                      '{1} and dtype {2}. Current memory usage is '
                      '{3:.3f} GB out of {4:.3f} GB total.'
-                     .format(dset, shape, dtype,
+                     .format(dset, shape, final_dtype,
                              mem.used / 1e9, mem.total / 1e9))
 
         if max_workers == 1:
@@ -410,6 +433,8 @@ class Collector:
                 f_data, row_slice, col_slice = Collector.get_data(fpath, dset,
                                                                   time_index,
                                                                   meta,
+                                                                  scale_factor,
+                                                                  final_dtype,
                                                                   sites=sites)
                 data[row_slice, col_slice] = f_data
         else:
@@ -424,7 +449,8 @@ class Collector:
                 for fname in flist:
                     fpath = os.path.join(collect_dir, fname)
                     futures.append(exe.submit(Collector.get_data, fpath, dset,
-                                              time_index, meta, sites=sites))
+                                              time_index, meta, scale_factor,
+                                              final_dtype, sites=sites))
                 for future in as_completed(futures):
                     completed += 1
                     mem = psutil.virtual_memory()
@@ -515,16 +541,18 @@ class Collector:
                 flist = json.loads(flist)
 
         with Outputs(f_out, mode='a') as f:
-
             time_index = f.time_index
             meta = f.meta
+            dtype = f.get_dset_properties(dset)[1]
+            scale_factor = f.get_scale_factor(dset)
 
             for fname in flist:
                 logger.debug('Collecting file "{}".'.format(fname))
                 fpath = os.path.join(collect_dir, fname)
 
                 data, rows, cols = Collector.get_data(fpath, dset, time_index,
-                                                      meta)
+                                                      meta, scale_factor,
+                                                      dtype)
                 f[dset, rows, cols] = data
 
         if write_status and job_name is not None:
@@ -620,8 +648,9 @@ class Collector:
                     raise ValueError(e)
 
                 if not os.path.exists(f_out):
-                    time_index, meta, _, _ = collector._get_collection_attrs(
-                        collector.flist, collect_dir, dset, sites=sites)
+                    time_index, meta, _, _ = \
+                        collector._get_collection_attrs(
+                            collector.flist, collect_dir, dset, sites=sites)
                     collector._init_collected_h5(f_out, time_index, meta)
 
                 flist_chunks = np.array_split(np.array(collector.flist),

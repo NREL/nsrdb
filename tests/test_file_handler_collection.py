@@ -99,8 +99,12 @@ def test_collect_lowmem():
             assert 'data_source' in attrs
             assert 'spatial_interp_method' in attrs
             assert_frame_equal(meta, meta_collected)
-            assert np.allclose(data, data_collected)
             assert len(ti) == 105120
+
+            # reduced precision for changed dtypes (aod in Jan 2022)
+            msg = 'Dset failed: {}'.format(dset)
+            assert np.allclose(data, data_collected,
+                               rtol=0.001, atol=0.001), msg
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):
