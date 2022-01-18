@@ -1435,11 +1435,14 @@ class CloudVar(AncillaryVarHandler):
             not_used = [fp for fp in self.flist
                         if fp not in self._file_df['flist'].values.tolist()]
             if any(not_used):
+                file_names = self._file_df['flist'].values
+                file_names = [os.path.basename(fp) for fp in file_names]
+                temp_df = self._file_df.copy()
+                temp_df['flist'] = file_names
                 msg = ('Some available cloud source data files were not used: '
                        '{}\nCloud file mapping table:\n{}'
-                       .format(not_used, self._file_df))
-                logger.error(msg)
-                raise RuntimeError(msg)
+                       .format(not_used, temp_df))
+                logger.warning(msg)
 
         return self._file_df
 
