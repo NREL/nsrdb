@@ -28,6 +28,7 @@ from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
+from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,9 @@ class NSRDB:
         self._freq = freq
         self._var_meta = var_meta
         self._ti = None
+
+        ts_freq_check(freq)
+
         if make_out_dirs:
             self.make_out_dirs()
 
@@ -131,7 +135,7 @@ class NSRDB:
         """
 
         if isinstance(self._grid, str):
-            self._grid = pd.read_csv(self._grid, index_col=0)
+            self._grid = clean_meta(pd.read_csv(self._grid, index_col=0))
         return self._grid
 
     @staticmethod

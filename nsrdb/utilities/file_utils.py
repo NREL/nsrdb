@@ -9,6 +9,7 @@ import logging
 import os
 import shlex
 import shutil
+import re
 from subprocess import Popen, PIPE, run
 import time
 from urllib.request import urlopen
@@ -17,11 +18,51 @@ from urllib.error import URLError
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.loggers import init_logger
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
+
+
+def ts_freq_check(freq):
+    """Checks freq argument for valid string
+
+    Parameters
+    ----------
+    freq : str | None
+        Timeseries frequency for NSRDB output
+    """
+
+    suffix = re.sub(r'[0-9]+', '', freq)
+    if suffix.lower() not in ['min', 'h', 'd', 't']:
+        msg = f'Bad frequency: {freq}'
+        logger.error(msg)
+        raise KeyError(msg)
+
+
+def clean_meta(meta):
+    """Converts NaN values in string columns to "None",
+    timezone to int8, elevation to int16
+
+    Parameters
+    ----------
+    meta : pd.DataFrame
+        DataFrame of meta data from grid file csv.
+        The first column must be the NSRDB site gid's.
+    """
+    for n in meta.columns:
+        if meta.dtypes[n] == object:
+            meta[n] = meta[n].replace(np.nan, 'None')
+        if n == 'timezone':
+            meta[n] = meta[n].astype(np.int8)
+        if n == 'elevation':
+            meta[n] = meta[n].astype(np.int16)
+        if n == 'urban':
+            meta[n] = meta[n].replace(np.nan, -1)
+    return meta
 
 
 def repack_h5(fpath, f_new=None, inplace=True):
@@ -56,7 +97,7 @@ def repack_h5(fpath, f_new=None, inplace=True):
                 .format(cmd))
 
     # use subprocess to submit command and wait until it is done
-    x = run(cmd)
+    x = run(cmd, check=True)
     if x.returncode != 0:
         e = ('H5Repack process terminated with return code of {}.'
              '\nSTDOUT: \n{}\nSTDERR: \n{}'
@@ -111,10 +152,10 @@ def url_download(url, target):
     logger.debug('URL downloading: {}'.format(url))
 
     try:
-        req = urlopen(url)
-        with open(target, 'wb') as dfile:
-            # gz archive must be written as a binary file
-            dfile.write(req.read())
+        with urlopen(url) as req:
+            with open(target, 'wb') as dfile:
+                # gz archive must be written as a binary file
+                dfile.write(req.read())
 
     except URLError as e:
         logger.info('Skipping: {} was not downloaded'
@@ -162,15 +203,15 @@ def convert_h4(path4, f_h4, path5, f_h5):
         cmd = shlex.split(cmd)
 
         # submit subprocess and wait for stdout/stderr
-        process = Popen(cmd, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-        stderr = stderr.decode('ascii').rstrip()
-        stdout = stdout.decode('ascii').rstrip()
-        if stderr:
-            logger.warning('Conversion of "{}" returned a stderr: "{}"'
-                           .format(cmd, stderr))
-        else:
-            logger.debug('Finished conversion of: "{}"'.format(f_h5))
+        with Popen(cmd, stdout=PIPE, stderr=PIPE) as process:
+            stdout, stderr = process.communicate()
+            stderr = stderr.decode('ascii').rstrip()
+            stdout = stdout.decode('ascii').rstrip()
+            if stderr:
+                logger.warning('Conversion of "{}" returned a stderr: "{}"'
+                               .format(cmd, stderr))
+            else:
+                logger.debug('Finished conversion of: "{}"'.format(f_h5))
 
     return (stdout, stderr)
 

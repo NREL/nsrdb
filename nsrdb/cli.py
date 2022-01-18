@@ -18,6 +18,7 @@ from rex.utilities.utilities import safe_json_load
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
 from nsrdb.pipeline import Status, NsrdbPipeline
+from nsrdb.utilities.file_utils import ts_freq_check
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +442,8 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
     ctx.obj['NSRDB_FREQ'] = nsrdb_freq
     ctx.obj['VAR_META'] = var_meta
     ctx.obj['OUT_DIR'] = out_dir
+
+    ts_freq_check(nsrdb_freq)
 
     if verbose:
         ctx.obj['LOG_LEVEL'] = 'DEBUG'

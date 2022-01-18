@@ -84,6 +84,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+testing.ipynb
 
 # pyenv
 .python-version
@@ -124,3 +125,6 @@ scratch
 
 # VSCode config
 .vscode
+
+# Visual Studio
+.vs/
