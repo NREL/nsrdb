@@ -71,7 +71,8 @@ def test_collect(dates=('20190102', '20190103', '20190104')):
     with MultiFileNSRDB(h5_source) as res:
         L = len(res.time_index)
         for dset in dsets:
-            assert np.allclose(res[dset], all_data[dset][-L:, :])
+            assert np.allclose(res[dset], all_data[dset][-L:, :],
+                               rtol=0.001, atol=0.001)
 
             attrs = res.get_attrs(dset)
             attrs_final = all_attrs[dset]
@@ -83,7 +84,7 @@ def test_collect(dates=('20190102', '20190103', '20190104')):
 
             for k, v in attrs.items():
                 assert k in attrs_final
-                if ('dcomp' not in dset
+                if ('dcomp' not in dset and 'aod' not in dset
                         and k not in ('physical_max', 'source_dir')):
                     msg = '{}: {}: {} vs {}'.format(dset, k, v, attrs_final[k])
                     assert str(v) == str(attrs_final[k]), msg

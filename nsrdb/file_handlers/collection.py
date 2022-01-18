@@ -249,6 +249,9 @@ class Collector:
             f_data = f_data.astype(np.float32)
             f_data *= (scale_factor / source_scale_factor)
 
+        if np.issubdtype(dtype, np.integer):
+            f_data = np.round(f_data)
+
         f_data = f_data.astype(dtype)
 
         return f_data, row_slice, col_slice
@@ -288,9 +291,6 @@ class Collector:
             Output (collected) dataset shape
         dtype : str
             Dataset output (collected on disk) dataset data type.
-        scale_factor : int | float
-            Scale factor to multiply floating point data in physical units to
-            integer precision for disk storage.
         """
 
         if sort:
@@ -320,9 +320,8 @@ class Collector:
         fp0 = os.path.join(collect_dir, flist[0])
         with Outputs(fp0, mode='r') as fin:
             dtype = fin.get_dset_properties(dset)[1]
-            scale_factor = fin.get_scale_factor(dset)
 
-        return time_index, meta, shape, dtype, scale_factor
+        return time_index, meta, shape, dtype
 
     @staticmethod
     def _init_collected_h5(f_out, time_index, meta):
@@ -406,20 +405,24 @@ class Collector:
             None uses all available.
         """
 
-        time_index, meta, shape, dtype, scale_factor = \
+        time_index, meta, shape, _ = \
             Collector._get_collection_attrs(flist, collect_dir, dset,
                                             sites=sites, sort=sort,
                                             sort_key=sort_key)
 
+        attrs, _, final_dtype = VarFactory.get_dset_attrs(
+            dset, var_meta=var_meta)
+        scale_factor = attrs.get('scale_factor', 1)
+
         logger.debug('Collecting file list of shape {}: {}'
                      .format(shape, flist))
 
-        data = np.zeros(shape, dtype=dtype)
+        data = np.zeros(shape, dtype=final_dtype)
         mem = psutil.virtual_memory()
         logger.debug('Initializing output dataset "{0}" in-memory with shape '
                      '{1} and dtype {2}. Current memory usage is '
                      '{3:.3f} GB out of {4:.3f} GB total.'
-                     .format(dset, shape, dtype,
+                     .format(dset, shape, final_dtype,
                              mem.used / 1e9, mem.total / 1e9))
 
         if max_workers == 1:
@@ -431,7 +434,7 @@ class Collector:
                                                                   time_index,
                                                                   meta,
                                                                   scale_factor,
-                                                                  dtype,
+                                                                  final_dtype,
                                                                   sites=sites)
                 data[row_slice, col_slice] = f_data
         else:
@@ -447,7 +450,7 @@ class Collector:
                     fpath = os.path.join(collect_dir, fname)
                     futures.append(exe.submit(Collector.get_data, fpath, dset,
                                               time_index, meta, scale_factor,
-                                              dtype, sites=sites))
+                                              final_dtype, sites=sites))
                 for future in as_completed(futures):
                     completed += 1
                     mem = psutil.virtual_memory()
@@ -526,7 +529,7 @@ class Collector:
                         log_level=log_level)
 
         if not os.path.exists(f_out):
-            time_index, meta, _, _, _ = Collector._get_collection_attrs(
+            time_index, meta, _, _ = Collector._get_collection_attrs(
                 flist, collect_dir, dset, sort=sort, sort_key=sort_key)
 
             Collector._init_collected_h5(f_out, time_index, meta)
@@ -645,7 +648,7 @@ class Collector:
                     raise ValueError(e)
 
                 if not os.path.exists(f_out):
-                    time_index, meta, _, _, _ = \
+                    time_index, meta, _, _ = \
                         collector._get_collection_attrs(
                             collector.flist, collect_dir, dset, sites=sites)
                     collector._init_collected_h5(f_out, time_index, meta)
