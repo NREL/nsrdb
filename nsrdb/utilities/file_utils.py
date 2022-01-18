@@ -61,7 +61,7 @@ def clean_meta(meta):
         if n == 'elevation':
             meta[n] = meta[n].astype(np.int16)
         if n == 'urban':
-            meta[n] = meta[n].replace(np.nan, 0)
+            meta[n] = meta[n].replace(np.nan, -1)
     return meta
 
 
