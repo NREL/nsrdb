@@ -1430,7 +1430,7 @@ class CloudVar(AncillaryVarHandler):
                                           left_index=True, right_index=True,
                                           direction='nearest',
                                           tolerance=tolerance)
-            
+
             # make sure that flist still matches
             not_used = [fp for fp in self.flist
                         if fp not in self._file_df['flist'].values.tolist()]
