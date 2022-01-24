@@ -1436,7 +1436,8 @@ class CloudVar(AncillaryVarHandler):
                         if fp not in self._file_df['flist'].values.tolist()]
             if any(not_used):
                 file_names = self._file_df['flist'].values
-                file_names = [os.path.basename(fp) for fp in file_names]
+                file_names = [os.path.basename(fp) if isinstance(fp, str)
+                              else fp for fp in file_names]
                 temp_df = self._file_df.copy()
                 temp_df['flist'] = file_names
                 msg = ('Some available cloud source data files were not used: '

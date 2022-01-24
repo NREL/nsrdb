@@ -36,11 +36,12 @@ def ts_freq_check(freq):
         Timeseries frequency for NSRDB output
     """
 
-    suffix = re.sub(r'[0-9]+', '', freq)
-    if suffix.lower() not in ['min', 'h', 'd', 't']:
-        msg = f'Bad frequency: {freq}'
-        logger.error(msg)
-        raise KeyError(msg)
+    if freq is not None:
+        suffix = re.sub(r'[0-9]+', '', freq)
+        if suffix.lower() not in ['min', 'h', 'd', 't']:
+            msg = f'Bad frequency: {freq}'
+            logger.error(msg)
+            raise KeyError(msg)
 
 
 def clean_meta(meta):
