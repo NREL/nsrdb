@@ -45,12 +45,12 @@ class AncillaryVarHandler:
         # overwrite data in var_meta with the passed in kwargs
         for k, v in kwargs.items():
             if k in self._var_meta:
-                self._var_meta.at[self.mask, k] = v
+                self._var_meta.loc[self.mask, k] = v
 
         # legacy kwarg alias for source_directory
         sd = kwargs.get('source_dir', None)
         if sd:
-            self._var_meta.at[self.mask, 'source_directory'] = sd
+            self._var_meta.loc[self.mask, 'source_directory'] = sd
 
     @staticmethod
     def _parse_var_meta(inp):
