@@ -14,7 +14,7 @@ from warnings import warn
 from farms import WATER_TYPES, ICE_TYPES, CLEAR_TYPES, CLOUD_TYPES, SZA_LIM
 
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.file_handlers.file_system import FileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
 
