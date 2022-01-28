@@ -86,7 +86,7 @@ def _setup_paths(ctx):
               help='Logging level')
 @click.option('--log-file', type=click.Path(), default='log/nsrdb.albedo.log',
               help='Logging output file.')
-@click.option('--tiff', '-t', is_flag=True, default=False,
+@click.option('--tiff', '-t', is_flag=True, default=True,
               help='Create TIFF and world file in addition to h5 file.')
 @click.pass_context
 def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
@@ -118,8 +118,10 @@ def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
               help='Shape of MODIS data, in format: XXX YYY')
 @click.option('--ims-shape', nargs=2, type=int, default=None,
               help='Shape of IMS data, in format: XXX YYY')
+@click.option('--max-workers', type=int, default=None,
+              help='Max workers to use. Defaults to number of cores.')
 @click.pass_context
-def singleday(ctx, date, modis_shape, ims_shape):
+def singleday(ctx, date, modis_shape, ims_shape, max_workers):
     """
     Calculate composite albedo for a single day. Date is in YYYYDDD or
     YYYYMMDD format
@@ -129,8 +131,12 @@ def singleday(ctx, date, modis_shape, ims_shape):
     logger.info(f'Calculating single day composite albedo on {date}.')
     logger.debug(f'Click context: {ctx.obj}')
 
-    # Override data shapes, used for testing
     _kwargs = {}
+    if max_workers:
+        _kwargs['max_workers'] = max_workers
+        logger.info(f'Using max of {max_workers} workers')
+
+    # Override data shapes, used for testing
     if modis_shape:
         _kwargs['modis_shape'] = modis_shape
         logger.info(f'Using MODIS data shape of {modis_shape}')

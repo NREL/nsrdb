@@ -47,8 +47,9 @@ def test_gap_fill_date():
         _ = igf._closest_day()
 
 
-def test_early_date():
-    d = dt(2004, 2, 21)
+def test_too_early_date():
+    """ Try a day before data is available """
+    d = dt(1997, 2, 3)
     with pytest.raises(ims.ImsError):
         ims.ImsDay(d, '.')
 
@@ -87,6 +88,10 @@ def test_ims_res():
     d = dt(2006, 1, 1)
     ifa = ims.ImsRealFileAcquisition(d, '.')
     assert ifa.res == '4km'
+
+    d = get_dt(2004, 54)
+    ifa = ims.ImsRealFileAcquisition(d, '.')
+    assert ifa.res == '24km'
 
 
 def test_missing_data():

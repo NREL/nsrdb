@@ -4,7 +4,6 @@ Classes to acquire and load IMS snow data. Entrance via ImsDay.
 Mike Bannister
 2/18/2020
 """
-from datetime import datetime, timedelta
 import ftplib
 import gzip
 import logging
@@ -14,10 +13,20 @@ import os
 import re
 import shutil
 import tarfile
+from time import sleep
+from datetime import datetime, timedelta
 
 from nsrdb.utilities.file_utils import url_download
 
 logger = logging.getLogger(__name__)
+
+# Earliest available date for IMS data
+EARLIEST_AVAILABLE = datetime(1997, 2, 4)  # 035
+
+# Available resolutions
+IMS_RES_1KM = '1km'
+IMS_RES_4KM = '4km'
+IMS_RES_24KM = '24km'
 
 
 class ImsError(Exception):
@@ -30,15 +39,41 @@ class ImsDataNotFound(ImsError):
     """
 
 
+# TODO - get rid of this function
+def fix_date(date):
+    """
+    Fix dates that are earlier than earliest available date and other known
+    issues.
+
+    Parameters
+    ----------
+    date : datetime instance
+        Date to correct if necessary
+
+    Returns
+    ----------
+    date : datetime instance
+        Corrected date
+
+    """
+    if date < EARLIEST_AVAILABLE:
+        msg = f'Requested date of {date} predates earliest IMS availability' +\
+            f' of {EARLIEST_AVAILABLE}'
+        logger.exception(msg)
+        raise ImsError(msg)
+
+    # TODO - fix this
+    if date == get_dt(2004, 317):
+        logger.info(f'There is bad data for {date} on ftp, adjusting one day')
+        date = get_dt(2004, 316)
+
+    return date
+
+
 class ImsDay:
     """ Load IMS data for a single day. Download if necessary """
-    # Available resolutions
-    RES_1KM = '1km'
-    RES_4KM = '4km'
-
     # Number of pixels for width/height for IMS data resolutions
-    pixels = {RES_4KM: 6144,
-              RES_1KM: 24576}
+    pixels = {IMS_RES_24KM: 1024, IMS_RES_4KM: 6144, IMS_RES_1KM: 24576}
 
     def __init__(self, date, ims_path, shape=None):
         """
@@ -54,6 +89,7 @@ class ImsDay:
         """
         self.ims_path = ims_path
 
+        date = fix_date(date)
         self._day = date.timetuple().tm_yday
         self._year = date.year
 
@@ -80,8 +116,11 @@ class ImsDay:
 
     def _load_data(self):
         """
-        Load IMS values from asc file. For format see
-        https://nsidc.org/data/g02156 -> "User Guide" tab
+        Load IMS values from asc file. The file has a text header that should
+        be ignored. Data rows may have spaces between values (unpacked format)
+        or may be a be a continuous string of single digit values (packed
+        format) For more format information see https://nsidc.org/data/g02156
+        -> "User Guide" tab.
 
         Returns
         -------
@@ -91,10 +130,32 @@ class ImsDay:
         raw = []
         with open(self._filename, 'r') as dat:
             lines = dat.readlines()
-            for line in lines:
-                # asc file has text header then rows of [0,1,2,3]
-                if re.search('[a-z]', line.strip()) is None:
-                    raw.extend([int(_l) for _l in list(line.strip())])
+            packed = None
+            for i, line in enumerate(lines):
+                line = line.strip()
+
+                if re.search('[a-z]', line) is not None or line == '':
+                    continue
+                # print(i, line)
+
+                if packed is None:
+                    packed = False if ' ' in line else True
+
+                if packed:
+                    vals = [int(val) for val in list(line)]
+                else:
+                    vals = [int(val) for val in line.split()]
+                raw.extend(vals)
+
+        # unique = set(raw)
+        # counts = {}
+        # for key in unique:
+        #     count = 0
+        #     for val in raw:
+        #         if val == key:
+        #             count += 1
+        #     counts[key] = count
+        # print('counts', counts, np.unique(raw))
 
         # IMS data sanity check
         length = self._shape[0] * self._shape[1]
@@ -104,8 +165,13 @@ class ImsDay:
             logger.error(msg)
             raise ImsError(msg)
 
+        # Changed unpacked snow/ice values to match packed format
+        raw = np.array(raw)
+        raw[raw == 164] = 3  # Sea ice
+        raw[raw == 165] = 4  # Snow
+
         # Reshape data to square, size dependent on resolution, and flip
-        ims_data = np.flipud(np.array(raw).reshape(self._shape))
+        ims_data = np.flipud(raw.reshape(self._shape))
         ims_data = ims_data.astype(np.int8)
 
         logger.debug(f'IMS data shape is {ims_data.shape}')
@@ -125,7 +191,7 @@ class ImsDay:
         """
         length = self._shape[0] * self._shape[1]
         # The 1km and 4km data are stored in different formats
-        if self.res == self.RES_1KM:
+        if self.res == IMS_RES_1KM:
             with open(self._lat_file, 'rb') as f:
                 lat = np.fromfile(f, dtype='<d', count=length)\
                     .astype(np.float32)
@@ -208,20 +274,20 @@ class ImsFileAcquisition:
         Grab data from ftp or disk if it exists. If day is missing, check if
         gap filled data already exists. If not, create it.
         """
-        ifa = ImsRealFileAcquisition(self.date, self.path)
-        self.lat_file = ifa.lat_file
-        self.lon_file = ifa.lon_file
-        self.res = ifa.res
+        irfa = ImsRealFileAcquisition(self.date, self.path)
+        self.lat_file = irfa.lat_file
+        self.lon_file = irfa.lon_file
+        self.res = irfa.res
 
         # See if data for self.date exists on server or disk
         try:
-            ifa.get_files()
-            self.filename = ifa.filename
+            irfa.get_files()
+            self.filename = irfa.filename
         except ImsDataNotFound:
             # Doesn't exist, gap fill
             logger.info(f'Data is missing from server for {self.date}, '
                         f'looking for existing gap-filled file')
-            missing_fname = ifa.filename
+            missing_fname = irfa.filename
             self.filename = missing_fname + '.gf'
 
             # Check if gap fill file was already created
@@ -285,6 +351,7 @@ class ImsGapFill:
         logger.info(f'Looking for IMS data before {self.date}')
         for i in range(1, self._search_range + 1):
             day_before = self.date - timedelta(days=i)
+            day_before = fix_date(day_before)
             logger.debug(f'Trying {i} day before missing date. {day_before}')
             irfa = ImsRealFileAcquisition(day_before, self.path)
             if irfa.check_ftp_for_data():
@@ -347,9 +414,13 @@ class ImsRealFileAcquisition:
     # Example file name: ims2015010_4km_v1.3.asc
     FILE_PATTERN = 'ims{year}{day}_{res}_{ver}.asc'
 
+    FTP_RETRY_DELAY = 60  # seconds
+    FTP_RETRIES = 15  # number of times to retry ftp before giving up
+
+    EARLIEST_4KM = get_dt(2004, 55)
     EARLIEST_1KM = get_dt(2014, 336)
     EARLIEST_VER_1_3 = get_dt(2014, 336)
-    EARLIEST_SUPPORTED = datetime(2004, 2, 22)
+    EARLIEST_VER_1_2 = get_dt(2004, 54)
 
     def __init__(self, date, path):
         """
@@ -371,24 +442,22 @@ class ImsRealFileAcquisition:
         path : str
             Path of/for IMS data on disk
         """
-
-        if date < self.EARLIEST_SUPPORTED:
-            msg = f'Dates before {self.EARLIEST_SUPPORTED} are not' + \
-                  ' currently supported.'
-            logger.error(msg)
-            raise ImsError(msg)
         self.date = date  # data date
         self.path = path
 
-        if self.date >= self.EARLIEST_1KM:
-            self.res = '1km'
+        if self.date < self.EARLIEST_4KM:
+            self.res = IMS_RES_24KM
+        elif self.date < self.EARLIEST_1KM:
+            self.res = IMS_RES_4KM
         else:
-            self.res = '4km'
+            self.res = IMS_RES_1KM
 
-        if self.date >= self.EARLIEST_VER_1_3:
-            self.ver = 'v1.3'
-        else:
+        if self.date < self.EARLIEST_VER_1_2:
+            self.ver = 'v1.1'
+        elif self.date < self.EARLIEST_VER_1_3:
             self.ver = 'v1.2'
+        else:
+            self.ver = 'v1.3'
 
         # For ver == 1.3, date in filename is the day after the data date
         # See https://nsidc.org/data/g02156 -> User Guide
@@ -446,11 +515,24 @@ class ImsRealFileAcquisition:
         """
         ftp_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
 
-        ftp = ftplib.FTP(self.FTP_SERVER)
-        ftp.login()
-        ftp.cwd(ftp_path)
-        rfiles = []
-        ftp.retrlines('LIST', rfiles.append)
+        tries = 0
+        while True:
+            try:
+                ftp = ftplib.FTP(self.FTP_SERVER)
+                ftp.login()
+                ftp.cwd(ftp_path)
+                rfiles = []
+                ftp.retrlines('LIST', rfiles.append)
+                break
+            except ftplib.error_temp as e:
+                if tries >= self.FTP_RETRIES:
+                    msg = f'Error contacting FTP server for IMS data: {e}'
+                    logger.exception(msg)
+                    raise ImsError(msg)
+                logger.info('FTP server busy, waiting and trying again')
+                sleep(self.FTP_RETRY_DELAY)
+                tries += 1
+
         # LIST provides ls -ls style output, simplify to filenames
         rfiles = [x.split()[8] for x in rfiles]
         return f'{self._pfilename}.gz' in rfiles
@@ -498,8 +580,7 @@ class ImsRealFileAcquisition:
                 with open(filename[:-3], 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
-    @staticmethod
-    def __download(url, lfile):
+    def __download(self, url, lfile):
         """
         Download and save file via ftp
 
@@ -511,11 +592,21 @@ class ImsRealFileAcquisition:
             Path and filename to save data as
         """
         logger.info(f'Downloading {url}')
-        fail = url_download(url, lfile)
-        if fail:
-            msg = f'Error while attempting to download {url}'
-            logger.error(msg)
-            raise ImsError(msg)
+
+        tries = 0
+        while True:
+            fail = url_download(url, lfile)
+            if not fail:
+                break
+
+            if tries >= self.FTP_RETRIES:
+                msg = f'Error downloading IMS data after multiple tries '
+                logger.exception(msg)
+                raise ImsError(msg)
+            logger.info('Server busy, waiting and trying to download again')
+            sleep(self.FTP_RETRY_DELAY)
+            tries += 1
+
         logger.info(f'Successfully downloaded {url}')
 
 
@@ -525,9 +616,10 @@ class MetaFiles:
         """
         Parameters
         ----------
-        res : str ['1km', '4km']
+        res : str ['1km', '4km', '24km']
             Desired resolution
         """
+        assert res in [IMS_RES_1KM, IMS_RES_4KM, IMS_RES_24KM]
         self.res = res
 
     @property
@@ -538,7 +630,7 @@ class MetaFiles:
         if self.res == '1km':
             return 'IMS1kmLons.24576x24576x1.tar.gz'
         else:
-            return 'imslon_4km.bin.gz'
+            return f'imslon_{self.res}.bin.gz'
 
     @property
     def lat_remote(self):
@@ -548,7 +640,7 @@ class MetaFiles:
         if self.res == '1km':
             return 'IMS1kmLats.24576x24576x1.tar.gz'
         else:
-            return 'imslat_4km.bin.gz'
+            return f'imslat_{self.res}.bin.gz'
 
     @property
     def lon_file(self):
@@ -558,7 +650,7 @@ class MetaFiles:
         if self.res == '1km':
             return 'IMS1kmLons.24576x24576x1.double'
         else:
-            return 'imslon_4km.bin'
+            return f'imslon_{self.res}.bin'
 
     @property
     def lat_file(self):
@@ -568,4 +660,4 @@ class MetaFiles:
         if self.res == '1km':
             return 'IMS1kmLats.24576x24576x1.double'
         else:
-            return 'imslat_4km.bin'
+            return f'imslat_{self.res}.bin'
