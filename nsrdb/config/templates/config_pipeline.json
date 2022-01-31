@@ -4,7 +4,7 @@
     "log_file": null,
     "log_level": "INFO"
   },
-  "name": "{basename}_{hemi}_{year}",
+  "name": "%basename%_%sat%_%year%",
   "pipeline": [
     {
       "data-model": "./config_nsrdb.json"

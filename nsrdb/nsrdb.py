@@ -104,9 +104,7 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
-    def create_config_files(year, outdir,
-                            basename='surfrad',
-                            freq='5min', hemi='east'):
+    def create_config_files(args):
         """Modify config files with
         specified parameters
 
@@ -115,8 +113,14 @@ class NSRDB:
         args : dict
             Dictionary of parameters
             including year, basename,
-            hemisphere, frequency
+            satellite, region, frequency
         """
+
+        args['basename'] = args.get('basename', "surfrad")
+        args['freq'] = args.get('freq', "5min")
+        args['sat'] = args.get('sat', "east")
+        args['reg'] = args.get('reg', "RadC")
+        args['outdir'] = args.get('outdir', "./")
 
         PRE2018_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
@@ -125,43 +129,45 @@ class NSRDB:
         PIPELINE_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
 
-        run_name = f'{basename}_{hemi}_{year}'
-        outdir = os.path.join(outdir, run_name)
+        run_name = \
+            f"{args['basename']}_{args['sat']}_{args['reg']}_{args['year']}"
+        args['outdir'] = os.path.join(args['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
-        logger.info('Creating NSRDB config files with '
-                    f'year={year}, hemi={hemi}, freq={freq}')
+        logger.info('Creating NSRDB config files with {args}')
 
-        if int(year) < 2018:
-            with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
-                tmp = tmp.read()
+        if int(args['year']) < 2018:
+            with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+                s = s.read()
         else:
-            with open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
-                tmp = tmp.read()
+            with open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+                s = s.read()
 
-        tmp = tmp.replace('"{year}"', f'{year}')
-        tmp = tmp.replace('{basename}', basename)
-        tmp = tmp.replace('{hemi}', hemi)
-        tmp = tmp.replace('{freq}', freq)
+        for k, v in args.items():
+            if k == "year":
+                s = s.replace(f'"%{k}%"', str(v))
+            s = s.replace(f'%{k}%', str(v))
 
-        if not os.path.exists(outdir):
-            os.makedirs(outdir)
+        if not os.path.exists(args['outdir']):
+            os.makedirs(args['outdir'])
 
-        outfile = os.path.join(outdir, 'config_nsrdb.json')
+        outfile = os.path.join(args['outdir'], 'config_nsrdb.json')
         with open(outfile, 'w', encoding='utf-8') as f:
-            f.write(tmp)
+            f.write(s)
 
         logger.info(f'Created file: {outfile}')
 
-        with open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
-            tmp = tmp.read()
+        with open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+            s = s.read()
 
-        tmp = tmp.replace('"{year}"', f'{year}')
-        tmp = tmp.replace('{basename}', basename)
+        for k, v in args.items():
+            if k == "year":
+                s = s.replace(f'"%{k}%"', str(v))
+            s = s.replace(f'%{k}%', str(v))
 
-        outfile = os.path.join(outdir, 'config_pipeline.json')
+        outfile = os.path.join(args['outdir'], 'config_pipeline.json')
         with open(outfile, 'w', encoding='utf-8') as f:
-            f.write(tmp)
+            f.write(s)
 
         logger.info(f'Created file: {outfile}')
 
@@ -746,7 +752,7 @@ class NSRDB:
 
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
-                      var_meta=None, i_fname=None, tmp=False,
+                      var_meta=None, i_fname=None, s=False,
                       log_level='DEBUG', log_file='final_collection.log',
                       job_name=None):
         """Collect chunked files to single final output files.
@@ -775,7 +781,7 @@ class NSRDB:
         i_fname : int | None
             Optional index to collect just a single output file. Indexes the
             sorted OUTS class attribute keys.
-        tmp : bool
+        s : bool
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Doesn't seem to be faster than collecting to normal
             scratch on eagle.
@@ -796,8 +802,8 @@ class NSRDB:
             dsets = cls.OUTS[fname]
             fname = fname.format(y=year)
 
-            if tmp:
-                dir_out = '/tmp/scratch/'
+            if s:
+                dir_out = '/s/scratch/'
             else:
                 dir_out = nsrdb._final_dir
 
@@ -839,7 +845,7 @@ class NSRDB:
                         .format(fname, collect_dir))
                 raise FileNotFoundError(emsg)
 
-            if tmp:
+            if s:
                 logger.info('Moving temp file to final output directory.')
                 shutil.move(f_out, os.path.join(out_dir, fname))
 

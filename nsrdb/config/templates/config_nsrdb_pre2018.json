@@ -14,76 +14,76 @@
     "factory_kwargs": {
       "cld_opd_dcomp": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "cld_press_acha": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "cld_reff_dcomp": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "cloud_fraction": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "cloud_probability": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "cloud_type": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "refl_0_65um_nom": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "refl_0_65um_nom_stddev_3x3": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "refl_3_75um_nom": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "surface_albedo": {
-        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_{year}/"
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/"
       },
       "temp_11_0um_nom": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "temp_11_0um_nom_stddev_3x3": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       },
       "temp_3_75um_nom": {
         "parallax_correct": true,
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5",
         "remap_pc": false,
         "solar_shading": false
       }
@@ -95,11 +95,11 @@
   },
   "direct": {
     "log_level": "INFO",
-    "name": "{basename}_{hemi}_{year}",
-    "nsrdb_freq": "{freq}",
+    "name": "%basename%_%sat%_%year%",
+    "nsrdb_freq": "%freq%",
     "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
     "out_dir": "./",
-    "year": "{year}"
+    "year": "%year%"
   },
   "eagle": {
     "alloc": "pxs",
