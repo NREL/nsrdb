@@ -29,6 +29,8 @@ from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
 from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
+from nsrdb import CONFIGDIR
+
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +102,67 @@ class NSRDB:
 
         if make_out_dirs:
             self.make_out_dirs()
+
+    @staticmethod
+    def create_config_files(year, outdir,
+                            basename='surfrad',
+                            freq='5min', hemi='east'):
+        """Modify config files with
+        specified parameters
+
+        Parameters
+        ----------
+        args : dict
+            Dictionary of parameters
+            including year, basename,
+            hemisphere, frequency
+        """
+
+        PRE2018_CONFIG_TEMPLATE = \
+            os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
+        POST2017_CONFIG_TEMPLATE = \
+            os.path.join(CONFIGDIR, 'templates/config_nsrdb_post2017.json')
+        PIPELINE_CONFIG_TEMPLATE = \
+            os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
+
+        run_name = f'{basename}_{hemi}_{year}'
+        outdir = os.path.join(outdir, run_name)
+
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info('Creating NSRDB config files with '
+                    f'year={year}, hemi={hemi}, freq={freq}')
+
+        if int(year) < 2018:
+            tmp = open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+        else:
+            tmp = open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+
+        tmp = tmp.read()
+        tmp = tmp.replace('"{year}"', f'{year}')
+        tmp = tmp.replace('{basename}', basename)
+        tmp = tmp.replace('{hemi}', hemi)
+        tmp = tmp.replace('{freq}', freq)
+
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
+        outfile = os.path.join(outdir, 'config_nsrdb.json')
+        f = open(outfile, 'w', encoding='utf-8')
+        f.write(tmp)
+
+        logger.info(f'Created file: {outfile}')
+
+        tmp = open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+
+        tmp = tmp.read()
+        tmp = tmp.replace('"{year}"', f'{year}')
+        tmp = tmp.replace('{basename}', basename)
+
+        outfile = os.path.join(outdir, 'config_pipeline.json')
+        f = open(outfile, 'w', encoding='utf-8')
+        f.write(tmp)
+
+        logger.info(f'Created file: {outfile}')
 
     def make_out_dirs(self):
         """Ensure that all output directories exist"""

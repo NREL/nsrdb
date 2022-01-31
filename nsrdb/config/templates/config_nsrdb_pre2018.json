@@ -1,0 +1,112 @@
+{
+  "collect-data-model": {
+    "final": true,
+    "max_workers": 1,
+    "n_chunks": 1
+  },
+  "daily-all-sky": {},
+  "data-model": {
+    "dist_lim": 2.0,
+    "doy_range": [
+      1,
+      365
+    ],
+    "factory_kwargs": {
+      "cld_opd_dcomp": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "cld_press_acha": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "cld_reff_dcomp": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "cloud_fraction": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "cloud_probability": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "cloud_type": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "refl_0_65um_nom": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "refl_0_65um_nom_stddev_3x3": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "refl_3_75um_nom": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "surface_albedo": {
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_{year}/"
+      },
+      "temp_11_0um_nom": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "temp_11_0um_nom_stddev_3x3": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      },
+      "temp_3_75um_nom": {
+        "parallax_correct": true,
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/{hemi}/{year}/{doy}/level2/clavrx_goes13_{year}_*.h5",
+        "remap_pc": false,
+        "solar_shading": false
+      }
+    },
+    "max_workers": null,
+    "max_workers_cloud_io": null,
+    "max_workers_regrid": null,
+    "mlclouds": true
+  },
+  "direct": {
+    "log_level": "INFO",
+    "name": "{basename}_{hemi}_{year}",
+    "nsrdb_freq": "{freq}",
+    "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
+    "out_dir": "./",
+    "year": "{year}"
+  },
+  "eagle": {
+    "alloc": "pxs",
+    "feature": "--qos=high",
+    "walltime": 1
+  },
+  "ml-cloud-fill": {
+    "fill_all": false
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "collect-data-model": {
+    "final": true,
+    "max_workers": 1,
+    "n_chunks": 1
+  },
+  "daily-all-sky": {},
+  "data-model": {
+    "dist_lim": 2.0,
+    "doy_range": [
+      1,
+      366
+    ],
+    "factory_kwargs": {
+      "cld_opd_dcomp": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "cld_press_acha": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "cld_reff_dcomp": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "cloud_fraction": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "cloud_probability": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "cloud_type": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "refl_0_65um_nom": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "refl_0_65um_nom_stddev_3x3": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "refl_3_75um_nom": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "surface_albedo": {
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_{year}/"
+      },
+      "temp_11_0um_nom": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "temp_11_0um_nom_stddev_3x3": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      },
+      "temp_3_75um_nom": {
+        "parallax_correct": true,
+        "pattern": "/projects/pxs/uwisc/{year}_{hemi}/{doy}/level2/clavrx_OR_ABI-L1b-RadC-*.nc",
+        "remap_pc": false,
+        "solar_shading": true
+      }
+    },
+    "max_workers": null,
+    "max_workers_cloud_io": null,
+    "max_workers_regrid": null,
+    "mlclouds": true
+  },
+  "direct": {
+    "log_level": "INFO",
+    "name": "{basename}_{hemi}_{year}",
+    "nsrdb_freq": "{freq}",
+    "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
+    "out_dir": "./",
+    "year": "{year}"
+  },
+  "eagle": {
+    "alloc": "pxs",
+    "walltime": 1
+  },
+  "ml-cloud-fill": {
+    "fill_all": false
+  }
+}

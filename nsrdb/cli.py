@@ -53,6 +53,29 @@ def main(ctx):
 
 
 @main.command()
+@click.option('--year', '-y', required=True,
+              default=None, type=INT,
+              help='Year of analysis.')
+@click.option('--outdir', '-od', type=STR, default='./',
+              help='Run directory. ')
+@click.option('--basename', '-b', type=STR, default='surfrad',
+              help='Basename of run. '
+              'Full name will be <basename>_<hemi>_<year>.')
+@click.option('--nsrdb_freq', '-f', type=STR, default='5min',
+              help='NSRDB frequency (e.g. "5min", "30min").')
+@click.option('--hemi', '-h', type=STR, default='east',
+              help='Analysis hemisphere.')
+@click.pass_context
+def create_configs(ctx, year, outdir, basename,
+                   nsrdb_freq, hemi):
+    """NSRDB config file creation from templates."""
+
+    ctx.ensure_object(dict)
+    NSRDB.create_config_files(year, outdir, basename,
+                              nsrdb_freq, hemi)
+
+
+@main.command()
 @click.option('--config_file', '-c', required=True,
               type=click.Path(exists=True),
               help='NSRDB pipeline configuration json file.')
