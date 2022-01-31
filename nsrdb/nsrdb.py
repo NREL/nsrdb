@@ -133,11 +133,12 @@ class NSRDB:
                     f'year={year}, hemi={hemi}, freq={freq}')
 
         if int(year) < 2018:
-            tmp = open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+            with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
+                tmp = tmp.read()
         else:
-            tmp = open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+            with open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
+                tmp = tmp.read()
 
-        tmp = tmp.read()
         tmp = tmp.replace('"{year}"', f'{year}')
         tmp = tmp.replace('{basename}', basename)
         tmp = tmp.replace('{hemi}', hemi)
@@ -147,20 +148,20 @@ class NSRDB:
             os.makedirs(outdir)
 
         outfile = os.path.join(outdir, 'config_nsrdb.json')
-        f = open(outfile, 'w', encoding='utf-8')
-        f.write(tmp)
+        with open(outfile, 'w', encoding='utf-8') as f:
+            f.write(tmp)
 
         logger.info(f'Created file: {outfile}')
 
-        tmp = open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8')
+        with open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8') as tmp:
+            tmp = tmp.read()
 
-        tmp = tmp.read()
         tmp = tmp.replace('"{year}"', f'{year}')
         tmp = tmp.replace('{basename}', basename)
 
         outfile = os.path.join(outdir, 'config_pipeline.json')
-        f = open(outfile, 'w', encoding='utf-8')
-        f.write(tmp)
+        with open(outfile, 'w', encoding='utf-8') as f:
+            f.write(tmp)
 
         logger.info(f'Created file: {outfile}')
 
