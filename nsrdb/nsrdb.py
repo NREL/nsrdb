@@ -144,7 +144,7 @@ class NSRDB:
                 s = s.read()
 
         for k, v in args.items():
-            if k == "year":
+            if isinstance(v, int):
                 s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
@@ -161,7 +161,7 @@ class NSRDB:
             s = s.read()
 
         for k, v in args.items():
-            if k == "year":
+            if isinstance(v, int):
                 s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
