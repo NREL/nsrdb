@@ -16,6 +16,7 @@ import logging
 import sys
 import shutil
 import time
+import copy
 
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
@@ -104,23 +105,27 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
-    def create_config_files(args):
+    def create_config_files(kwargs):
         """Modify config files with
         specified parameters
 
         Parameters
         ----------
-        args : dict
+        kwargs : dict
             Dictionary of parameters
             including year, basename,
-            satellite, region, frequency
+            sat, reg, freq
         """
 
-        args['basename'] = args.get('basename', "surfrad")
-        args['freq'] = args.get('freq', "5min")
-        args['sat'] = args.get('sat', "east")
-        args['reg'] = args.get('reg', "RadC")
-        args['outdir'] = args.get('outdir', "./")
+        default_kwargs = {
+            "basename": "nsrdb",
+            "freq": "5min",
+            "sat": "east",
+            "reg": "RadC",
+            "outdir": "./"
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
 
         PRE2018_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
@@ -129,29 +134,28 @@ class NSRDB:
         PIPELINE_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
 
-        run_name = \
-            f"{args['basename']}_{args['sat']}_{args['reg']}_{args['year']}"
-        args['outdir'] = os.path.join(args['outdir'], run_name)
+        run_name = f"{user_input['basename']}_{user_input['sat']}"
+        run_name += f"_{user_input['reg']}_{user_input['year']}"
+        user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
-        logger.info('Creating NSRDB config files with {args}')
+        logger.info('Creating NSRDB config files with {user_input}')
 
-        if int(args['year']) < 2018:
+        if int(user_input['year']) < 2018:
             with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
                 s = s.read()
         else:
             with open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
                 s = s.read()
 
-        for k, v in args.items():
-            if isinstance(v, int):
-                s = s.replace(f'"%{k}%"', str(v))
+        for k, v in user_input.items():
+            s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
-        if not os.path.exists(args['outdir']):
-            os.makedirs(args['outdir'])
+        if not os.path.exists(user_input['outdir']):
+            os.makedirs(user_input['outdir'])
 
-        outfile = os.path.join(args['outdir'], 'config_nsrdb.json')
+        outfile = os.path.join(user_input['outdir'], 'config_nsrdb.json')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write(s)
 
@@ -160,12 +164,11 @@ class NSRDB:
         with open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
             s = s.read()
 
-        for k, v in args.items():
-            if isinstance(v, int):
-                s = s.replace(f'"%{k}%"', str(v))
+        for k, v in user_input.items():
+            s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
-        outfile = os.path.join(args['outdir'], 'config_pipeline.json')
+        outfile = os.path.join(user_input['outdir'], 'config_pipeline.json')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write(s)
 

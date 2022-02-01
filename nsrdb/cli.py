@@ -53,15 +53,16 @@ def main(ctx):
 
 
 @main.command()
-@click.option('--args', '-a', required=True, type=DICT,
+@click.option('--kwargs', '-kw', required=True, type=DICT,
               help='Argument dictionary. Needs to include year. '
-              'e.g. {"year":2019, "freq":"5min"} ')
+              'e.g. {"year":2019, "freq":"5min"} . Available keys: '
+              'year, freq, outdir, sat, reg, basename. ')
 @click.pass_context
-def create_configs(ctx, args):
+def create_configs(ctx, kwargs):
     """NSRDB config file creation from templates."""
 
     ctx.ensure_object(dict)
-    NSRDB.create_config_files(args)
+    NSRDB.create_config_files(kwargs)
 
 
 @main.command()
