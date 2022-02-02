@@ -1,0 +1,22 @@
+{
+  "dirout": "./",
+  "logging": {
+    "log_file": null,
+    "log_level": "INFO"
+  },
+  "name": "%basename%_%sat%_%reg%_%year%",
+  "pipeline": [
+    {
+      "data-model": "./config_nsrdb.json"
+    },
+    {
+      "ml-cloud-fill": "./config_nsrdb.json"
+    },
+    {
+      "daily-all-sky": "./config_nsrdb.json"
+    },
+    {
+      "collect-data-model": "./config_nsrdb.json"
+    }
+  ]
+}

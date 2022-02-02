@@ -1,0 +1,75 @@
+{
+  "collect-data-model": {
+    "final": true,
+    "max_workers": 1,
+    "n_chunks": 1
+  },
+  "daily-all-sky": {},
+  "data-model": {
+    "dist_lim": 2.0,
+    "doy_range": [
+      1,
+      366
+    ],
+    "factory_kwargs": {
+      "cld_opd_dcomp": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "cld_press_acha": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "cld_reff_dcomp": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "cloud_fraction": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "cloud_probability": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "cloud_type": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "refl_0_65um_nom": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "refl_0_65um_nom_stddev_3x3": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "refl_3_75um_nom": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "surface_albedo": {
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/{doy}.h5"
+      },
+      "temp_11_0um_nom": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "temp_11_0um_nom_stddev_3x3": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      },
+      "temp_3_75um_nom": {
+        "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
+      }
+    },
+    "max_workers": null,
+    "max_workers_cloud_io": null,
+    "max_workers_regrid": null,
+    "mlclouds": true
+  },
+  "direct": {
+    "log_level": "INFO",
+    "name": "%basename%_%sat%_%reg%_%year%",
+    "nsrdb_freq": "%freq%",
+    "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
+    "out_dir": "./",
+    "year": "%year%"
+  },
+  "eagle": {
+    "alloc": "pxs",
+    "walltime": 1
+  },
+  "ml-cloud-fill": {
+    "fill_all": false
+  }
+}
