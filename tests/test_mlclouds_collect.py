@@ -6,15 +6,14 @@ Created on 12/3/2020
 
 @author: gbuster
 """
-import h5py
-from copy import deepcopy
 import pytest
 import numpy as np
+import tempfile
 import os
 import shutil
 from nsrdb import TESTDATADIR
 from nsrdb.nsrdb import NSRDB
-from farms import CLOUD_TYPES
+from nsrdb.file_handlers.outputs import Outputs
 from rex import MultiFileNSRDB
 
 pytest.importorskip("mlclouds")
@@ -24,80 +23,82 @@ from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
 
 PROJECT_DIR = os.path.join(TESTDATADIR, 'mlclouds_pipeline/')
 ARCHIVE_DIR = os.path.join(PROJECT_DIR, 'daily_files_archive/')
-DAILY_DIR = os.path.join(PROJECT_DIR, 'daily/')
-FINAL_DIR = os.path.join(PROJECT_DIR, 'final/')
 GRID = os.path.join(PROJECT_DIR, 'surfrad_meta.csv')
 
 
-def test_collect(dates=('20190102', '20190103', '20190104')):
+def test_collect(dates=('20190102', '20190103', '20190104'), slim_meta=True):
     """Test the mlclouds gap fill, allsky, and final collection."""
-    if os.path.exists(DAILY_DIR):
-        shutil.rmtree(DAILY_DIR, ignore_errors=True)
-    shutil.copytree(ARCHIVE_DIR, DAILY_DIR)
+    with tempfile.TemporaryDirectory() as td:
+        project_tdir = os.path.join(td, 'mlclouds_pipeline/')
+        final_dir = os.path.join(project_tdir, 'final/')
+        daily_dir = os.path.join(td, 'mlclouds_pipeline/daily/')
+        shutil.copytree(ARCHIVE_DIR, daily_dir)
 
-    for date in dates:
-        h5_source = os.path.join(DAILY_DIR, '{}*.h5'.format(date))
-        MLCloudsFill.run(h5_source)
+        if slim_meta:
+            for fn in os.listdir(daily_dir):
+                fp = os.path.join(daily_dir, fn)
+                with Outputs(fp, mode='a') as res:
+                    meta_gids = res.meta[['gid']]
+                    del res.h5['meta']
+                    res.meta = meta_gids
 
-        NSRDB.run_daily_all_sky(PROJECT_DIR, date[0:4], GRID, date,
-                                freq='5min', max_workers=1)
+        year = int(dates[0][0:4])
 
-    for i_fname in range(len(NSRDB.OUTS)):
-        NSRDB.collect_data_model(PROJECT_DIR, date[0:4], GRID, n_chunks=1,
-                                 i_chunk=0, i_fname=i_fname, freq='5min',
-                                 max_workers=2, job_name='mlclouds_test',
-                                 final=True, final_file_name='mlclouds_test',
-                                 n_writes=2)
+        for date in dates:
+            h5_source = os.path.join(daily_dir, '{}*.h5'.format(date))
+            MLCloudsFill.run(h5_source)
 
-    fns = os.listdir(FINAL_DIR)
-    assert len(fns) == 7
-    assert all([fn.startswith('mlclouds_test_') for fn in fns])
-    all_data = {}
-    all_attrs = {}
-    with MultiFileNSRDB(os.path.join(FINAL_DIR, 'mlclouds_test_*.h5')) as res:
-        dsets = res.dsets
-        meta = res.meta
-        ti = res.time_index
-        assert len(dsets) == 28
-        assert len(meta) == 9
-        assert len(ti) == (288 * 3)
-        dsets = [d for d in dsets if d not in ('time_index', 'meta')]
-        for dset in dsets:
-            data = res[dset]
-            assert (data != 0).sum() > 0
-            all_data[dset] = data
-            all_attrs[dset] = res.get_attrs(dset)
+            NSRDB.run_daily_all_sky(project_tdir, year, GRID, date,
+                                    freq='5min', max_workers=1)
 
-    with MultiFileNSRDB(h5_source) as res:
-        L = len(res.time_index)
-        for dset in dsets:
-            assert np.allclose(res[dset], all_data[dset][-L:, :],
-                               rtol=0.001, atol=0.001)
+        for i_fname in range(len(NSRDB.OUTS)):
+            NSRDB.collect_data_model(project_tdir, year, GRID, n_chunks=1,
+                                     i_chunk=0, i_fname=i_fname, freq='5min',
+                                     max_workers=2, job_name='mlclouds_test',
+                                     final_file_name='mlclouds_test',
+                                     n_writes=2, final=True)
 
-            attrs = res.get_attrs(dset)
-            attrs_final = all_attrs[dset]
+        fns = os.listdir(final_dir)
+        assert len(fns) == 7
+        assert all([fn.startswith('mlclouds_test_') for fn in fns])
+        all_data = {}
+        all_attrs = {}
+        fp_final = os.path.join(final_dir, 'mlclouds_test_*.h5')
+        with MultiFileNSRDB(fp_final) as res:
+            dsets = res.dsets
+            meta = res.meta
+            ti = res.time_index
+            assert len(dsets) == 28
+            assert len(meta) == 9
+            assert len(ti) == (288 * 3)
+            dsets = [d for d in dsets if d not in ('time_index', 'meta')]
+            for dset in dsets:
+                data = res[dset]
+                assert (data != 0).sum() > 0
+                all_data[dset] = data
+                all_attrs[dset] = res.get_attrs(dset)
 
-            assert 'units' in attrs
-            assert 'scale_factor' in attrs
-            assert 'psm_units' in attrs
-            assert 'psm_scale_factor' in attrs
+        with MultiFileNSRDB(h5_source) as res:
+            L = len(res.time_index)
+            for dset in dsets:
+                assert np.allclose(res[dset], all_data[dset][-L:, :],
+                                   rtol=0.001, atol=0.001)
 
-            for k, v in attrs.items():
-                assert k in attrs_final
-                if ('dcomp' not in dset and 'aod' not in dset
-                        and k not in ('physical_max', 'source_dir')):
-                    msg = '{}: {}: {} vs {}'.format(dset, k, v, attrs_final[k])
-                    assert str(v) == str(attrs_final[k]), msg
+                attrs = res.get_attrs(dset)
+                attrs_final = all_attrs[dset]
 
-    p1 = os.path.join(PROJECT_DIR, 'collect/')
-    p2 = os.path.join(PROJECT_DIR, 'logs/')
-    for path in (p1, p2, FINAL_DIR, DAILY_DIR):
-        if os.path.exists(path):
-            shutil.rmtree(path, ignore_errors=True)
+                assert 'units' in attrs
+                assert 'scale_factor' in attrs
+                assert 'psm_units' in attrs
+                assert 'psm_scale_factor' in attrs
 
-    fp = os.path.join(PROJECT_DIR, 'jobstatus_mlclouds_test.json')
-    if os.path.exists(fp):
-        os.remove(fp)
+                for k, v in attrs.items():
+                    assert k in attrs_final
+                    if ('dcomp' not in dset and 'aod' not in dset
+                            and k not in ('physical_max', 'source_dir')):
+                        msg = ('{}: {}: {} vs {}'
+                               .format(dset, k, v, attrs_final[k]))
+                        assert str(v) == str(attrs_final[k]), msg
 
 
 def execute_pytest(capture='all', flags='-rapP'):
