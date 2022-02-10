@@ -755,7 +755,7 @@ class NSRDB:
 
     @classmethod
     def collect_final(cls, collect_dir, out_dir, year, grid, freq='5min',
-                      var_meta=None, i_fname=None, s=False,
+                      var_meta=None, i_fname=None, tmp=False,
                       log_level='DEBUG', log_file='final_collection.log',
                       job_name=None):
         """Collect chunked files to single final output files.
@@ -784,7 +784,7 @@ class NSRDB:
         i_fname : int | None
             Optional index to collect just a single output file. Indexes the
             sorted OUTS class attribute keys.
-        s : bool
+        tmp : bool
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Doesn't seem to be faster than collecting to normal
             scratch on eagle.
@@ -805,8 +805,8 @@ class NSRDB:
             dsets = cls.OUTS[fname]
             fname = fname.format(y=year)
 
-            if s:
-                dir_out = '/s/scratch/'
+            if tmp:
+                dir_out = '/tmp/scratch/'
             else:
                 dir_out = nsrdb._final_dir
 
@@ -848,7 +848,7 @@ class NSRDB:
                         .format(fname, collect_dir))
                 raise FileNotFoundError(emsg)
 
-            if s:
+            if tmp:
                 logger.info('Moving temp file to final output directory.')
                 shutil.move(f_out, os.path.join(out_dir, fname))
 
