@@ -45,6 +45,7 @@ from rex.utilities.execution import SpawnProcessPool
 from nsrdb import DATADIR
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.data_model.base_handler import BaseDerivedVar
+from nsrdb.data_model.clouds import CloudVar
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
@@ -381,13 +382,16 @@ class DataModel:
         return dist, ind
 
     @staticmethod
-    def get_cloud_nn(cloud_obj_single, nsrdb_grid, dist_lim=1.0):
+    def get_cloud_nn(fp_cloud, cloud_kwargs, nsrdb_grid, dist_lim=1.0):
         """Nearest neighbors computation for cloud data regrid.
 
         Parameters
         ----------
-        cloud_obj_single : CloudVarSingleH5 | CloudVarSingleNC
-            Initialized cloud variable handler for a single cloud source file.
+        fp_cloud : str
+            Single cloud source file either .nc or .h5
+        cloud_kwargs : dict
+            Kwargs for the initialization of CloudVarSingleH5 or
+            CloudVarSingleNC along with fp_cloud
         nsrdb_grid : pd.DataFrame
             Reference grid data for NSRDB.
         dist_lim : float
@@ -406,6 +410,8 @@ class DataModel:
             Initialized cloud variable handler for a single cloud source file.
             The .tree property should be initialized with this return obj
         """
+
+        cloud_obj_single = CloudVar.get_handler(fp_cloud, **cloud_kwargs)
 
         # Build NN tree based on the unique cloud grid at single timestep
         try:
@@ -440,6 +446,7 @@ class DataModel:
                 warn(msg)
 
             index = index.astype(np.int32)
+            cloud_obj_single.clean_attrs()
 
             return index, cloud_obj_single
 
@@ -748,15 +755,16 @@ class DataModel:
                         .format(len(cloud_obj_all.flist)))
             regrid_ind = {}
             # make the nearest neighbors regrid index mapping for all timesteps
-            for _, cloud_obj_single in cloud_obj_all:
-                if cloud_obj_single is not None:
-                    fpath = cloud_obj_single.fpath
+            cloud_kwargs = cloud_obj_all.single_handler_kwargs
+            for fp_cloud in cloud_obj_all.file_df['flist'].values:
+                if isinstance(fp_cloud, str):
                     logger.debug('Calculating ReGrid nearest neighbors for: {}'
-                                 .format(fpath))
-                    temp = self.get_cloud_nn(cloud_obj_single,
+                                 .format(fp_cloud))
+                    temp = self.get_cloud_nn(fp_cloud,
+                                             cloud_kwargs,
                                              self.nsrdb_grid,
                                              dist_lim=dist_lim)
-                    regrid_ind[fpath] = temp[0]
+                    regrid_ind[fp_cloud] = temp[0]
                     cloud_obj_all.save_obj(temp[1])
 
         logger.debug('Finished processing ReGrid nearest neighbors. Starting '
@@ -816,22 +824,25 @@ class DataModel:
         futures = {}
         regrid_ind = {}
         loggers = ['nsrdb']
+        cloud_kwargs = cloud_obj_all.single_handler_kwargs
         with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # make the nearest neighbors regrid index mapping for all timesteps
-            for _, cloud_obj_single in cloud_obj_all:
-                if cloud_obj_single is not None:
+            for fp_cloud in cloud_obj_all.file_df['flist'].values:
+                if isinstance(fp_cloud, str):
                     future = exe.submit(self.get_cloud_nn,
-                                        cloud_obj_single,
+                                        fp_cloud,
+                                        cloud_kwargs,
                                         self.nsrdb_grid,
                                         dist_lim=dist_lim)
-                    futures[future] = cloud_obj_single.fpath
+                    futures[future] = fp_cloud
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
             max_mem = 0
             running = len(regrid_ind)
             mem = psutil.virtual_memory()
-            while running > 0:
+            complete = 0
+            while complete < len(futures):
                 mem = psutil.virtual_memory()
                 max_mem = np.max((mem.used / 1e9, max_mem))
                 time.sleep(5)
@@ -843,16 +854,16 @@ class DataModel:
                     elif future.done():
                         complete += 1
 
-                logger.info('{} ReGrid futures are running, {} are complete. '
+                logger.info('{} ReGrid futures are running out of {}, '
+                            '{} are complete. '
                             'Memory usage is {:.3f} GB '
                             'out of {:.3f} GB total.'
-                            .format(running, complete, mem.used / 1e9,
-                                    mem.total / 1e9))
+                            .format(running, len(futures), complete,
+                                    mem.used / 1e9, mem.total / 1e9))
 
-            logger.info('Futures finished, maximum memory usage was '
+            logger.info('ReGrid futures finished, maximum memory usage was '
                         '{0:.3f} GB out of {1:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
-
             mem = psutil.virtual_memory()
             logger.info('Current memory usage is '
                         '{0:.3f} GB out of {1:.3f} GB total.'
