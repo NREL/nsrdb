@@ -715,13 +715,13 @@ class NSRDB:
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
-        if 'gid' not in meta_chunk:
+        if n_chunks > 1 and 'gid' not in meta_chunk:
             meta_chunk['gid'] = meta_chunk.index
 
         logger.info('Running data model collection for chunk {} out of {} '
                     'with meta gid {} to {} and target file: {}'
-                    .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
-                            meta_chunk['gid'].values[-1], f_out))
+                    .format(i_chunk, n_chunks, meta_chunk.index.values[0],
+                            meta_chunk.index.values[-1], f_out))
 
         nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk, force=True)
         Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,

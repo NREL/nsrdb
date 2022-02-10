@@ -1,6 +1,6 @@
 # pylint: skip-file
 """
-PyTest file for PV generation in Rhode Island.
+PyTest file for NSRDB file collection module
 
 Created on Thu Nov 29 09:54:51 2018
 
@@ -13,11 +13,11 @@ import pytest
 import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_index_equal
-import datetime
 import tempfile
 
 from nsrdb import TESTDATADIR
-from nsrdb.data_model import DataModel, VarFactory
+from nsrdb.nsrdb import NSRDB
+from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 
@@ -121,6 +121,85 @@ def test_collect_lowmem():
             msg = 'Dset failed: {}'.format(dset)
             assert np.allclose(data, data_collected,
                                rtol=0.001, atol=0.001), msg
+
+
+def test_final_daily():
+    """Test the final collection of a daily data dir using synthetic
+    test daily files."""
+    with tempfile.TemporaryDirectory() as td:
+        project_tdir = os.path.join(td, 'test_proj/')
+        daily_dir = os.path.join(project_tdir, 'daily/')
+        final_dir = os.path.join(project_tdir, 'final/')
+        os.makedirs(daily_dir)
+        grid_fp = os.path.join(
+            TESTDATADIR, 'reference_grids/east_psm_extent.csv')
+        grid_df = pd.read_csv(grid_fp, index_col=0)
+        grid_gids = pd.DataFrame({'gid': grid_df.index.values})
+        shape = (24 * 12, len(grid_df))
+        year = 2022
+        doys = list(range(1, 42))
+
+        test_data = {}
+        for dsets in NSRDB.OUTS.values():
+            for dset in dsets:
+                test_data[dset] = {}
+
+                for doy in doys:
+                    var_fac = VarFactory.get_base_handler(dset)
+                    low = var_fac.physical_min
+                    high = var_fac.physical_max
+                    dset_data = np.random.uniform(low, high, size=shape)
+                    dset_data = dset_data.astype(np.float32)
+                    test_data[dset][doy] = dset_data
+
+                    date_str0 = NSRDB.doy_to_datestr(year, doy)
+                    date_str1 = NSRDB.doy_to_datestr(year, doy + 1)
+                    ti = pd.date_range(date_str0, date_str1,
+                                       closed='left', freq='5min')
+                    fn_out = '{}_{}_0.h5'.format(date_str0, dset)
+                    fp_out = os.path.join(daily_dir, fn_out)
+                    with Outputs(fp_out, 'w') as out:
+                        out.meta = grid_gids
+                        out.time_index = ti
+                        out.write_dataset(dset, dset_data, dtype=np.float32)
+
+        for i_fname in range(len(NSRDB.OUTS)):
+            NSRDB.collect_data_model(project_tdir, year, grid_fp, n_chunks=1,
+                                     i_chunk=0, i_fname=i_fname, freq='5min',
+                                     max_workers=1, job_name='nsrdb',
+                                     final_file_name='nsrdb',
+                                     n_writes=2, final=True)
+
+        assert len(os.listdir(final_dir)) == 7
+        fps = [os.path.join(final_dir, fn) for fn in os.listdir(final_dir)]
+        for fp in fps:
+            with Outputs(fp) as f:
+                assert 'latitude' in f.meta
+                assert 'longitude' in f.meta
+                assert 'gid' not in f.meta
+                assert len(f.meta) == len(grid_df)
+                assert np.allclose(f.meta['latitude'], grid_df['latitude'])
+                assert np.allclose(f.meta['longitude'], grid_df['longitude'])
+                assert len(f.time_index) == 24 * 12 * len(doys)
+                ti_doys = f.time_index.dayofyear
+                assert np.allclose(sorted(ti_doys), ti_doys)
+                assert all(d in ti_doys for d in doys)
+                assert all(d in doys for d in ti_doys)
+
+                dsets = [d for d in f.dsets if d not in ('time_index', 'meta')]
+                for dset in dsets:
+                    disk_data = f[dset]
+                    for doy in doys:
+                        dset_test_data = test_data[dset][doy]
+                        if np.issubdtype(disk_data.dtype, np.integer):
+                            dset_test_data = np.round(dset_test_data)
+                        mask = ti_doys == doy
+                        disk_data_doy = disk_data[mask, :]
+                        atol = 1 / f.attrs[dset]['scale_factor']
+                        check = np.allclose(disk_data_doy, dset_test_data,
+                                            rtol=0.001, atol=atol)
+                        msg = '{} didnt match for doy {}'.format(dset, doy)
+                        assert check, msg
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):
