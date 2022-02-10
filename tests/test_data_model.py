@@ -36,8 +36,12 @@ def test_data_model_dump(var='asymmetry'):
         data = data_model.run_single(var, date, grid, var_meta=var_meta)
         data = data_model.dump(var, out_file, data, purge=True, mode='w')
 
-        if not os.path.exists(out_file):
-            assert os.path.exists(out_file + '.tmp')
+        assert os.path.exists(out_file)
+        with Resource(out_file) as res:
+            assert len(res.meta) == 1000
+            assert 'gid' in res.meta
+            assert len(res.time_index) == 288
+            assert res['asymmetry'].shape == (288, 1000)
 
 
 def test_asym(var='asymmetry'):

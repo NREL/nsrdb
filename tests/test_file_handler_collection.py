@@ -8,6 +8,7 @@ Created on Thu Nov 29 09:54:51 2018
 """
 
 import os
+import shutil
 import pytest
 import numpy as np
 import pandas as pd
@@ -42,19 +43,30 @@ def retrieve_data(fp, dset='air_temperature'):
     return ti, meta, data, attrs
 
 
-@pytest.mark.parametrize(('sites', 'max_workers', 'n_writes'),
-                         ((None, 1, 1),
-                          (None, 2, 1),
-                          (None, 2, 2),
-                          (np.array([2, 3, 4]), 1, 1)))
-def test_collect_daily(sites, max_workers, n_writes):
+@pytest.mark.parametrize(('sites', 'max_workers', 'n_writes', 'slim_meta'),
+                         ((None, 1, 1, False),
+                          (None, 2, 1, True),
+                          (None, 2, 2, True),
+                          (np.array([2, 3, 4]), 1, 1, True)))
+def test_collect_daily(sites, max_workers, n_writes, slim_meta):
     with tempfile.TemporaryDirectory() as td:
-        collect_dir = os.path.join(TESTDATADIR,
-                                   'data_model_daily_sample_output/')
+        src_dir = os.path.join(TESTDATADIR, 'data_model_daily_sample_output/')
+        col_dir = os.path.join(td, 'collect_dir/')
+        os.makedirs(col_dir)
+        for fn in os.listdir(src_dir):
+            col_fp = os.path.join(col_dir, fn)
+            shutil.copy(os.path.join(src_dir, fn), col_fp)
+
+            if slim_meta:
+                with Outputs(col_fp, mode='a') as res:
+                    meta_gids = res.meta[['gid']]
+                    del res.h5['meta']
+                    res.meta = meta_gids
+
         f_out = os.path.join(td, 'collected.h5')
         dsets = ['air_temperature', 'alpha']
 
-        Collector.collect_daily(collect_dir, f_out, dsets, sites=sites,
+        Collector.collect_daily(col_dir, f_out, dsets, sites=sites,
                                 max_workers=max_workers, n_writes=n_writes)
 
         for dset in dsets:
@@ -67,7 +79,11 @@ def test_collect_daily(sites, max_workers, n_writes):
                 b_data = b_data[:, sites]
 
             assert_index_equal(b_ti, t_ti)
-            assert_frame_equal(b_meta, t_meta)
+            if slim_meta:
+                assert_frame_equal(b_meta[['gid']], t_meta[['gid']])
+            else:
+                assert_frame_equal(b_meta, t_meta)
+
             assert np.allclose(b_data, t_data)
             for k, v in b_attrs.items():
                 # source dirs have changed during re-orgs
