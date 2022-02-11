@@ -56,7 +56,6 @@
       }
     },
     "max_workers": null,
-    "max_workers_cloud_io": null,
     "max_workers_regrid": null,
     "mlclouds": true
   },

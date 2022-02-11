@@ -1145,8 +1145,7 @@ class DataModel:
     def _process_multiple(cls, var_list, date, nsrdb_grid,
                           nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                           max_workers=None, max_workers_regrid=None,
-                          max_workers_cloud_io=None, scale=True,
-                          fpath_out=None, factory_kwargs=None):
+                          scale=True, fpath_out=None, factory_kwargs=None):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -1174,9 +1173,6 @@ class DataModel:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
-        max_workers_cloud_io : None | int
-            Max parallel workers allowed for cloud data io. None uses all
-            available workers. 1 runs io in serial.
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -1271,7 +1267,6 @@ class DataModel:
                 dist_lim=dist_lim,
                 var_meta=var_meta,
                 max_workers_regrid=max_workers_regrid,
-                max_workers_cloud_io=max_workers_cloud_io,
                 fpath_out=fpath_out,
                 scale=scale,
                 factory_kwargs=factory_kwargs)
@@ -1522,8 +1517,8 @@ class DataModel:
     @classmethod
     def run_clouds(cls, cloud_vars, date, nsrdb_grid,
                    nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
-                   max_workers_regrid=None, max_workers_cloud_io=None,
-                   scale=True, fpath_out=None, factory_kwargs=None):
+                   max_workers_regrid=None, scale=True, fpath_out=None,
+                   factory_kwargs=None):
         """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
@@ -1553,9 +1548,6 @@ class DataModel:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
-        max_workers_cloud_io : None | int
-            Max parallel workers allowed for cloud data io. None uses all
-            available workers. 1 runs io in serial.
         scale : bool
             Flag to scale source data to reduced (integer) precision after
             data model processing.
@@ -1632,8 +1624,8 @@ class DataModel:
     def run_multiple(cls, var_list, date, nsrdb_grid,
                      nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
                      max_workers=None, max_workers_regrid=None,
-                     max_workers_cloud_io=None, return_obj=False,
-                     scale=True, fpath_out=None, factory_kwargs=None):
+                     return_obj=False, scale=True, fpath_out=None,
+                     factory_kwargs=None):
         """Run ancillary data processing for multiple variables for single day.
 
         Parameters
@@ -1663,9 +1655,6 @@ class DataModel:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
-        max_workers_cloud_io : None | int
-            Max parallel workers allowed for cloud data io. None uses all
-            available workers. 1 runs io in serial.
         return_obj : bool
             Flag to return full DataModel object instead of just the processed
             data dictionary.
@@ -1718,7 +1707,6 @@ class DataModel:
             var_meta=var_meta,
             max_workers=max_workers,
             max_workers_regrid=max_workers_regrid,
-            max_workers_cloud_io=max_workers_cloud_io,
             fpath_out=fpath_out,
             scale=scale,
             factory_kwargs=factory_kwargs)

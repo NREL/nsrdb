@@ -57,7 +57,6 @@
       }
     },
     "max_workers": 20,
-    "max_workers_cloud_io": 20,
     "max_workers_regrid": 25,
     "memory": 178,
     "mlclouds": true
