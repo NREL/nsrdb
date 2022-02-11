@@ -97,7 +97,8 @@ def test_single_coords(cloud_data, dset):
     assert mi < COORD_RANGES[dset][1], msg
 
 
-def test_regrid():
+@pytest.mark.parametrize('max_workers_regrid', (1, 2))
+def test_regrid(max_workers_regrid):
     """Test the cloud regrid algorithm."""
 
     cloud_vars = DataModel.CLOUD_VARS
@@ -116,8 +117,7 @@ def test_regrid():
     data = DataModel.run_clouds(cloud_vars, date, nsrdb_grid,
                                 nsrdb_freq='1d', var_meta=var_meta,
                                 factory_kwargs=factory_kwargs,
-                                max_workers_regrid=1,
-                                max_workers_cloud_io=1)
+                                max_workers_regrid=max_workers_regrid)
     for k in data.keys():
         data[k] = data[k][0, :].ravel()
 

@@ -455,8 +455,11 @@ class CloudVarSingle:
     def clean_attrs(self):
         """Try to clean unnecessary object attributes to reduce memory usage
         """
-        self._grid = None
+        self._tree = None
         self._raw_grid = None
+        self._raw_cloud_mask = None
+        self._remap_pc_index = None
+        self._remap_pc_index_clouds = None
 
 
 class CloudVarSingleH5(CloudVarSingle):
