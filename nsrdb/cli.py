@@ -125,7 +125,8 @@ def config(ctx, config_file, command):
     init_logger('nsrdb.cli', log_level=direct_args['log_level'], log_file=None)
 
     if command == 'data-model':
-        ConfigRunners.run_data_model_config(ctx, name, cmd_args, eagle_args)
+        ConfigRunners.run_data_model_config(ctx, name, cmd_args, eagle_args,
+                                            direct_args)
     elif command == 'cloud-fill':
         ConfigRunners.run_cloud_fill_config(ctx, name, cmd_args, eagle_args)
     elif command == 'ml-cloud-fill':
@@ -156,7 +157,7 @@ class ConfigRunners:
     nsrdb config objects"""
 
     @staticmethod
-    def run_data_model_config(ctx, name, cmd_args, eagle_args):
+    def run_data_model_config(ctx, name, cmd_args, eagle_args, direct_args):
         """Run the daily data model processing code for each day of year.
 
         Parameters
@@ -170,10 +171,14 @@ class ConfigRunners:
             this command block.
         eagle_args : dict
             Dictionary of kwargs from the nsrdb config to make eagle submission
+        direct_args : dict
+            Dictionary of kwargs from the nsrdb config file under the "direct"
+            key that are common to all command blocks.
         """
         doy_range = cmd_args['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
-            ctx.obj['NAME'] = name + '_{}'.format(doy)
+            date = NSRDB.doy_to_datestr(direct_args['year'], doy)
+            ctx.obj['NAME'] = name + '_data_model_{}_{}'.format(doy, date)
             max_workers_regrid = cmd_args.get('max_workers_regrid', None)
 
             ctx.invoke(data_model, doy=doy,
@@ -203,7 +208,7 @@ class ConfigRunners:
         """
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
-            ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
+            ctx.obj['NAME'] = name + '_cloud_fill_{}'.format(i_chunk)
             ctx.invoke(cloud_fill, i_chunk=i_chunk,
                        col_chunk=cmd_args.get('col_chunk', None))
             ctx.invoke(eagle, **eagle_args)
@@ -237,8 +242,8 @@ class ConfigRunners:
         else:
             doy_range = run_config['data-model']['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
-            ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
+            ctx.obj['NAME'] = name + '_mlclouds_{}_{}'.format(doy, date)
             ctx.invoke(ml_cloud_fill, date=date,
                        fill_all=cmd_args.get('fill_all', False),
                        model_path=cmd_args.get('model_path', None),
@@ -264,7 +269,7 @@ class ConfigRunners:
         """
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
-            ctx.obj['NAME'] = name + '_{}'.format(i_chunk)
+            ctx.obj['NAME'] = name + '_all_sky_{}'.format(i_chunk)
             ctx.invoke(all_sky, i_chunk=i_chunk,
                        col_chunk=cmd_args.get('col_chunk', 10))
             ctx.invoke(eagle, **eagle_args)
@@ -298,9 +303,8 @@ class ConfigRunners:
         else:
             doy_range = run_config['data-model']['doy_range']
         for doy in range(doy_range[0], doy_range[1]):
-            ctx.obj['NAME'] = name + '_{}'.format(doy)
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.obj['NAME'] = name + '_{}'.format(date)
+            ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
             ctx.invoke(daily_all_sky, date=date,
                        col_chunk=cmd_args.get('col_chunk', 500))
             ctx.invoke(eagle, **eagle_args)

@@ -311,7 +311,12 @@ class Collector:
         time_index = time_index.sort_values()
         time_index = time_index.drop_duplicates()
         meta = pd.concat(meta)
-        meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
+
+        if 'gid' in meta:
+            meta = meta.drop_duplicates(subset=['gid'])
+        elif 'latitude' in meta and 'longitude' in meta:
+            meta = meta.drop_duplicates(subset=['latitude', 'longitude'])
+
         if sites is not None:
             meta = meta.iloc[sites, :]
 

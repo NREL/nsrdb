@@ -1,6 +1,6 @@
 # pylint: skip-file
 """
-PyTest file for PV generation in Rhode Island.
+PyTest file for NSRDB file collection module
 
 Created on Thu Nov 29 09:54:51 2018
 
@@ -8,15 +8,16 @@ Created on Thu Nov 29 09:54:51 2018
 """
 
 import os
+import shutil
 import pytest
 import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_index_equal
-import datetime
 import tempfile
 
 from nsrdb import TESTDATADIR
-from nsrdb.data_model import DataModel, VarFactory
+from nsrdb.nsrdb import NSRDB
+from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 
@@ -42,19 +43,30 @@ def retrieve_data(fp, dset='air_temperature'):
     return ti, meta, data, attrs
 
 
-@pytest.mark.parametrize(('sites', 'max_workers', 'n_writes'),
-                         ((None, 1, 1),
-                          (None, 2, 1),
-                          (None, 2, 2),
-                          (np.array([2, 3, 4]), 1, 1)))
-def test_collect_daily(sites, max_workers, n_writes):
+@pytest.mark.parametrize(('sites', 'max_workers', 'n_writes', 'slim_meta'),
+                         ((None, 1, 1, False),
+                          (None, 2, 1, True),
+                          (None, 2, 2, True),
+                          (np.array([2, 3, 4]), 1, 1, True)))
+def test_collect_daily(sites, max_workers, n_writes, slim_meta):
     with tempfile.TemporaryDirectory() as td:
-        collect_dir = os.path.join(TESTDATADIR,
-                                   'data_model_daily_sample_output/')
+        src_dir = os.path.join(TESTDATADIR, 'data_model_daily_sample_output/')
+        col_dir = os.path.join(td, 'collect_dir/')
+        os.makedirs(col_dir)
+        for fn in os.listdir(src_dir):
+            col_fp = os.path.join(col_dir, fn)
+            shutil.copy(os.path.join(src_dir, fn), col_fp)
+
+            if slim_meta:
+                with Outputs(col_fp, mode='a') as res:
+                    meta_gids = res.meta[['gid']]
+                    del res.h5['meta']
+                    res.meta = meta_gids
+
         f_out = os.path.join(td, 'collected.h5')
         dsets = ['air_temperature', 'alpha']
 
-        Collector.collect_daily(collect_dir, f_out, dsets, sites=sites,
+        Collector.collect_daily(col_dir, f_out, dsets, sites=sites,
                                 max_workers=max_workers, n_writes=n_writes)
 
         for dset in dsets:
@@ -67,7 +79,11 @@ def test_collect_daily(sites, max_workers, n_writes):
                 b_data = b_data[:, sites]
 
             assert_index_equal(b_ti, t_ti)
-            assert_frame_equal(b_meta, t_meta)
+            if slim_meta:
+                assert_frame_equal(b_meta[['gid']], t_meta[['gid']])
+            else:
+                assert_frame_equal(b_meta, t_meta)
+
             assert np.allclose(b_data, t_data)
             for k, v in b_attrs.items():
                 # source dirs have changed during re-orgs
@@ -105,6 +121,85 @@ def test_collect_lowmem():
             msg = 'Dset failed: {}'.format(dset)
             assert np.allclose(data, data_collected,
                                rtol=0.001, atol=0.001), msg
+
+
+def test_final_daily():
+    """Test the final collection of a daily data dir using synthetic
+    test daily files."""
+    with tempfile.TemporaryDirectory() as td:
+        project_tdir = os.path.join(td, 'test_proj/')
+        daily_dir = os.path.join(project_tdir, 'daily/')
+        final_dir = os.path.join(project_tdir, 'final/')
+        os.makedirs(daily_dir)
+        grid_fp = os.path.join(
+            TESTDATADIR, 'reference_grids/east_psm_extent.csv')
+        grid_df = pd.read_csv(grid_fp, index_col=0)
+        grid_gids = pd.DataFrame({'gid': grid_df.index.values})
+        shape = (24 * 12, len(grid_df))
+        year = 2022
+        doys = list(range(1, 42))
+
+        test_data = {}
+        for dsets in NSRDB.OUTS.values():
+            for dset in dsets:
+                test_data[dset] = {}
+
+                for doy in doys:
+                    var_fac = VarFactory.get_base_handler(dset)
+                    low = var_fac.physical_min
+                    high = var_fac.physical_max
+                    dset_data = np.random.uniform(low, high, size=shape)
+                    dset_data = dset_data.astype(np.float32)
+                    test_data[dset][doy] = dset_data
+
+                    date_str0 = NSRDB.doy_to_datestr(year, doy)
+                    date_str1 = NSRDB.doy_to_datestr(year, doy + 1)
+                    ti = pd.date_range(date_str0, date_str1,
+                                       closed='left', freq='5min')
+                    fn_out = '{}_{}_0.h5'.format(date_str0, dset)
+                    fp_out = os.path.join(daily_dir, fn_out)
+                    with Outputs(fp_out, 'w') as out:
+                        out.meta = grid_gids
+                        out.time_index = ti
+                        out.write_dataset(dset, dset_data, dtype=np.float32)
+
+        for i_fname in range(len(NSRDB.OUTS)):
+            NSRDB.collect_data_model(project_tdir, year, grid_fp, n_chunks=1,
+                                     i_chunk=0, i_fname=i_fname, freq='5min',
+                                     max_workers=1, job_name='nsrdb',
+                                     final_file_name='nsrdb',
+                                     n_writes=2, final=True)
+
+        assert len(os.listdir(final_dir)) == 7
+        fps = [os.path.join(final_dir, fn) for fn in os.listdir(final_dir)]
+        for fp in fps:
+            with Outputs(fp) as f:
+                assert 'latitude' in f.meta
+                assert 'longitude' in f.meta
+                assert 'gid' not in f.meta
+                assert len(f.meta) == len(grid_df)
+                assert np.allclose(f.meta['latitude'], grid_df['latitude'])
+                assert np.allclose(f.meta['longitude'], grid_df['longitude'])
+                assert len(f.time_index) == 24 * 12 * len(doys)
+                ti_doys = f.time_index.dayofyear
+                assert np.allclose(sorted(ti_doys), ti_doys)
+                assert all(d in ti_doys for d in doys)
+                assert all(d in doys for d in ti_doys)
+
+                dsets = [d for d in f.dsets if d not in ('time_index', 'meta')]
+                for dset in dsets:
+                    disk_data = f[dset]
+                    for doy in doys:
+                        dset_test_data = test_data[dset][doy]
+                        if np.issubdtype(disk_data.dtype, np.integer):
+                            dset_test_data = np.round(dset_test_data)
+                        mask = ti_doys == doy
+                        disk_data_doy = disk_data[mask, :]
+                        atol = 1 / f.attrs[dset]['scale_factor']
+                        check = np.allclose(disk_data_doy, dset_test_data,
+                                            rtol=0.001, atol=atol)
+                        msg = '{} didnt match for doy {}'.format(dset, doy)
+                        assert check, msg
 
 
 def execute_pytest(capture='all', flags='-rapP', purge=True):

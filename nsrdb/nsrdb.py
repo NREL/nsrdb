@@ -407,7 +407,9 @@ class NSRDB:
         if log_version:
             self._log_version()
 
-    def _init_output_h5(self, f_out, dsets, time_index, meta, force=False):
+    @staticmethod
+    def init_output_h5(f_out, dsets, time_index, meta, force=False,
+                       var_meta=None):
         """Initialize a target output h5 file if it does not already exist
         or if Force is True.
 
@@ -424,6 +426,9 @@ class NSRDB:
         force : bool
             Flag to overwrite / force the creation of the f_out even if a
             previous file exists.
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
         """
 
         if force or not os.path.isfile(f_out):
@@ -431,7 +436,7 @@ class NSRDB:
                         .format(f_out, dsets))
 
             attrs, chunks, dtypes = VarFactory.get_dsets_attrs(
-                dsets, var_meta=self._var_meta)
+                dsets, var_meta=var_meta)
 
             mode = 'w' if force else 'w-'
             Outputs.init_h5(f_out, dsets, attrs, chunks, dtypes,
@@ -715,15 +720,20 @@ class NSRDB:
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
-        if 'gid' not in meta_chunk:
+        if n_chunks > 1 and 'gid' not in meta_chunk:
+            # make sure to track gids if collecting in spatial chunks
             meta_chunk['gid'] = meta_chunk.index
+            if not final:
+                # if not the final collection, minimize file size
+                meta_chunk = meta_chunk[['gid']]
 
         logger.info('Running data model collection for chunk {} out of {} '
                     'with meta gid {} to {} and target file: {}'
-                    .format(i_chunk, n_chunks, meta_chunk['gid'].values[0],
-                            meta_chunk['gid'].values[-1], f_out))
+                    .format(i_chunk, n_chunks, meta_chunk.index.values[0],
+                            meta_chunk.index.values[-1], f_out))
 
-        nsrdb._init_output_h5(f_out, dsets, ti, meta_chunk, force=True)
+        nsrdb.init_output_h5(f_out, dsets, ti, meta_chunk, force=True,
+                             var_meta=nsrdb._var_meta)
         Collector.collect_daily(nsrdb._daily_dir, f_out, dsets,
                                 sites=chunk, n_writes=n_writes,
                                 var_meta=nsrdb._var_meta,
@@ -824,7 +834,8 @@ class NSRDB:
                 f_out = os.path.join(dir_out, fname)
 
             if any(flist):
-                nsrdb._init_output_h5(f_out, dsets, ti, nsrdb.meta)
+                nsrdb.init_output_h5(f_out, dsets, ti, nsrdb.meta,
+                                     var_meta=nsrdb._var_meta)
                 logger.info('Collecting {} files in list: {}'
                             .format(len(flist), flist))
 
@@ -1051,8 +1062,10 @@ class NSRDB:
             meta = source.meta
             time_index = source.time_index.tz_convert(None)
 
-        nsrdb._init_output_h5(f_out, irrad_dsets, time_index, meta)
-        nsrdb._init_output_h5(f_out_cs, cs_irrad_dsets, time_index, meta)
+        nsrdb.init_output_h5(f_out, irrad_dsets, time_index, meta,
+                             var_meta=nsrdb._var_meta)
+        nsrdb.init_output_h5(f_out_cs, cs_irrad_dsets, time_index, meta,
+                             var_meta=nsrdb._var_meta)
 
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
@@ -1154,7 +1167,8 @@ class NSRDB:
             fn = '{}_{}_0.h5'.format(date, dset)
             f_out = os.path.join(nsrdb._daily_dir, fn)
             logger.info('Writing {} to: {}'.format(dset, f_out))
-            nsrdb._init_output_h5(f_out, [dset], time_index, meta)
+            nsrdb.init_output_h5(f_out, [dset], time_index, meta,
+                                 var_meta=nsrdb._var_meta)
             with Outputs(f_out, mode='a') as f:
                 f[dset, rows, cols] = arr
 
