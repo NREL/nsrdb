@@ -175,7 +175,6 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             ctx.obj['NAME'] = name + '_{}'.format(doy)
             max_workers_regrid = cmd_args.get('max_workers_regrid', None)
-            max_workers_cloud_io = cmd_args.get('max_workers_cloud_io', None)
 
             ctx.invoke(data_model, doy=doy,
                        var_list=cmd_args.get('var_list', None),
@@ -183,7 +182,6 @@ class ConfigRunners:
                        factory_kwargs=cmd_args.get('factory_kwargs', None),
                        max_workers=cmd_args.get('max_workers', None),
                        max_workers_regrid=max_workers_regrid,
-                       max_workers_cloud_io=max_workers_cloud_io,
                        mlclouds=cmd_args.get('mlclouds', False))
             ctx.invoke(eagle, **eagle_args)
 
@@ -489,15 +487,12 @@ def direct(ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta,
 @click.option('--max_workers_regrid', '-mwr', type=INT, default=None,
               help='Number of workers to use in parallel for the '
                    'cloud regrid algorithm.')
-@click.option('--max_workers_cloud_io', '-mwc', type=INT, default=None,
-              help='Number of workers to use in parallel for the '
-                   'cloud data io.')
 @click.option('-ml', '--mlclouds', is_flag=True,
               help='Flag to process additional variables if mlclouds gap fill'
               'is going to be run after the data_model step.')
 @click.pass_context
 def data_model(ctx, doy, var_list, dist_lim, factory_kwargs, max_workers,
-               max_workers_regrid, max_workers_cloud_io, mlclouds):
+               max_workers_regrid, mlclouds):
     """Run the data model for a single day."""
 
     name = ctx.obj['NAME']
@@ -521,12 +516,11 @@ def data_model(ctx, doy, var_list, dist_lim, factory_kwargs, max_workers,
     fun_str = 'NSRDB.run_data_model'
     arg_str = ('"{}", "{}", "{}", freq="{}", var_list={}, '
                'dist_lim={}, max_workers={}, '
-               'max_workers_regrid={}, max_workers_cloud_io={}, '
+               'max_workers_regrid={}, '
                'log_level="{}", log_file="{}", '
                'job_name="{}", factory_kwargs={}, mlclouds={}'
                .format(out_dir, date, nsrdb_grid, nsrdb_freq,
                        var_list, dist_lim, max_workers, max_workers_regrid,
-                       max_workers_cloud_io,
                        log_level, log_file, name,
                        factory_kwargs, mlclouds))
 

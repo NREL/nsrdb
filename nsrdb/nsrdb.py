@@ -229,7 +229,7 @@ class NSRDB:
     def _exe_daily_data_model(self, month, day, dist_lim=1.0, var_list=None,
                               factory_kwargs=None, fpath_out=None,
                               max_workers=None, max_workers_regrid=None,
-                              max_workers_cloud_io=None, mlclouds=False):
+                              mlclouds=False):
         """Execute the data model for a single day.
 
         Parameters
@@ -263,9 +263,6 @@ class NSRDB:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
-        max_workers_cloud_io : None | int
-            Max parallel workers allowed for cloud data io. None uses all
-            available workers. 1 runs io in serial.
         mlclouds : bool
             Flag to add extra variables to the variable processing list of
             mlclouds gap fill is expected to be run as the next pipeline step.
@@ -294,7 +291,6 @@ class NSRDB:
             var_meta=self._var_meta,
             max_workers=max_workers,
             max_workers_regrid=max_workers_regrid,
-            max_workers_cloud_io=max_workers_cloud_io,
             return_obj=True,
             fpath_out=fpath_out,
             factory_kwargs=factory_kwargs)
@@ -543,7 +539,7 @@ class NSRDB:
     def run_data_model(cls, out_dir, date, grid, dist_lim=1.0, var_list=None,
                        freq='5min', var_meta=None, factory_kwargs=None,
                        mlclouds=False, max_workers=None,
-                       max_workers_regrid=None, max_workers_cloud_io=None,
+                       max_workers_regrid=None,
                        log_level='DEBUG', log_file='data_model.log',
                        job_name=None):
         """Run daily data model, and save output files.
@@ -589,9 +585,6 @@ class NSRDB:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
-        max_workers_cloud_io : None | int
-            Max parallel workers allowed for cloud data io. None uses all
-            available workers. 1 runs io in serial.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
@@ -624,7 +617,6 @@ class NSRDB:
             factory_kwargs=factory_kwargs,
             max_workers=max_workers,
             max_workers_regrid=max_workers_regrid,
-            max_workers_cloud_io=max_workers_cloud_io,
             fpath_out=fpath_out,
             mlclouds=mlclouds)
 
@@ -1262,7 +1254,6 @@ class NSRDB:
             var_meta=var_meta,
             max_workers=max_workers,
             max_workers_regrid=max_workers,
-            max_workers_cloud_io=max_workers,
             return_obj=True,
             fpath_out=None,
             scale=False,

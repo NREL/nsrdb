@@ -370,12 +370,17 @@ class CloudVarSingle:
         # pylint: disable=not-callable
         pc_tree = cKDTree(pc_grid[self.GRID_LABELS])
         self._remap_pc_index = pc_tree.query(self._grid.values)[1]
+        self._remap_pc_index = self._remap_pc_index.astype(np.int32)
 
         # this applies the parallax corrected cloud coordinates on top of the
         # original raw coordinate system overriding any existing clear
         # conditions
         self._remap_pc_index_clouds = self.tree.query(
-            pc_grid.values[self._raw_cloud_mask])[1]
+            pc_grid.values[self._raw_cloud_mask])[1].astype(np.int32)
+
+        # try to reduce memory usage
+        del pc_tree
+        del pc_grid
 
     def remap_pc_data(self, data):
         """Perform remapping of parallax/shading corrected data onto the
@@ -446,6 +451,15 @@ class CloudVarSingle:
             logger.warning(wmsg)
 
         return grid
+
+    def clean_attrs(self):
+        """Try to clean unnecessary object attributes to reduce memory usage
+        """
+        self._tree = None
+        self._raw_grid = None
+        self._raw_cloud_mask = None
+        self._remap_pc_index = None
+        self._remap_pc_index_clouds = None
 
 
 class CloudVarSingleH5(CloudVarSingle):
@@ -1162,19 +1176,7 @@ class CloudVar(AncillaryVarHandler):
 
             else:
                 # initialize a single timestep helper object
-                if fpath.endswith('.h5'):
-                    obj = CloudVarSingleH5(
-                        fpath, dsets=self._dsets,
-                        parallax_correct=self._parallax_correct,
-                        solar_shading=self._solar_shading,
-                        remap_pc=self._remap_pc)
-
-                elif fpath.endswith('.nc'):
-                    obj = CloudVarSingleNC(
-                        fpath, dsets=self._dsets,
-                        parallax_correct=self._parallax_correct,
-                        solar_shading=self._solar_shading,
-                        remap_pc=self._remap_pc)
+                obj = self.get_handler(fpath, **self.single_handler_kwargs)
 
                 mem = psutil.virtual_memory()
                 logger.info('Cloud data timestep {} has source file: {}. '
@@ -1525,6 +1527,49 @@ class CloudVar(AncillaryVarHandler):
         """
 
         return self.file_df.index
+
+    @property
+    def single_handler_kwargs(self):
+        """Get a kwargs dict to initialize a single cloud timestep data handler
+
+        Returns
+        -------
+        dict
+        """
+        kwargs = {'dsets': self._dsets,
+                  'parallax_correct': self._parallax_correct,
+                  'solar_shading': self._solar_shading,
+                  'remap_pc': self._remap_pc,
+                  }
+        return kwargs
+
+    @staticmethod
+    def get_handler(fp_cloud, **kwargs):
+        """Get a single cloud timestep data handler for one cloud file.
+
+        Parameters
+        ----------
+        fp_cloud : str
+            Single cloud source file either .nc or .h5
+        kwargs : dict
+            Kwargs for the initialization of CloudVarSingleH5 or
+            CloudVarSingleNC along with fp_cloud
+
+        Returns
+        -------
+        obj : None | CloudVarSingleNC | CloudVarSingleH5
+            Handler for a single cloud data file.
+        """
+
+        obj = None
+
+        if str(fp_cloud).endswith('.h5'):
+            obj = CloudVarSingleH5(fp_cloud, **kwargs)
+
+        elif str(fp_cloud).endswith('.nc'):
+            obj = CloudVarSingleNC(fp_cloud, **kwargs)
+
+        return obj
 
     def save_obj(self, cloud_var_single):
         """Save a single cloud object to a cache for later use.
