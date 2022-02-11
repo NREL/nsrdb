@@ -788,11 +788,13 @@ class DataModel:
         for i, (index, row) in enumerate(cloud_obj_all.file_df.iterrows()):
             assert index == self.nsrdb_ti[i]
             fp_cloud = row['flist']
+            fp_cloud_msg = (fp_cloud if not isinstance(fp_cloud, str)
+                            else os.path.basename(fp_cloud))
             mem = psutil.virtual_memory()
             logger.info('Cloud data timestep {} has source file: {}. '
                         'Memory usage is {:.3f} GB out of '
                         '{:.3f} GB total.'
-                        .format(index, os.path.basename(fp_cloud),
+                        .format(index, fp_cloud_msg,
                                 mem.used / 1e9, mem.total / 1e9))
             if isinstance(fp_cloud, str):
                 single_data = self.get_single_cloud_data(fp_cloud,
@@ -848,12 +850,10 @@ class DataModel:
             for i, (index, row) in enumerate(cloud_obj_all.file_df.iterrows()):
                 assert index == self.nsrdb_ti[i]
                 fp_cloud = row['flist']
-                mem = psutil.virtual_memory()
-                logger.info('Cloud data timestep {} has source file: {}. '
-                            'Memory usage is {:.3f} GB out of '
-                            '{:.3f} GB total.'
-                            .format(index, os.path.basename(fp_cloud),
-                                    mem.used / 1e9, mem.total / 1e9))
+                fp_cloud_msg = (fp_cloud if not isinstance(fp_cloud, str)
+                                else os.path.basename(fp_cloud))
+                logger.info('Cloud data timestep {} has source file: {}.'
+                            .format(index, fp_cloud_msg))
                 if isinstance(fp_cloud, str):
                     future = exe.submit(self.get_single_cloud_data,
                                         fp_cloud,
@@ -862,8 +862,10 @@ class DataModel:
                                         dist_lim=dist_lim)
                     futures[future] = i
 
-            logger.info('All {} cloud data futures submitted!'
-                        .format(len(futures)))
+            mem = psutil.virtual_memory()
+            logger.info('All {} cloud data futures submitted! '
+                        'Memory usage is {:.3f} GB out of {:.3f} GB total.'
+                        .format(len(futures), mem.used / 1e9, mem.total / 1e9))
 
             completed = 0
             for future in as_completed(futures):
