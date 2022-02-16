@@ -128,10 +128,10 @@ class ImsDay:
             IMS snow values [0, 1, 2, 3, 4] in polar projection
         """
         raw = []
-        with open(self._filename, 'r') as dat:
+        with open(self._filename, 'r', encoding='utf-8') as dat:
             lines = dat.readlines()
             packed = None
-            for i, line in enumerate(lines):
+            for line in lines:
                 line = line.strip()
 
                 if re.search('[a-z]', line) is not None or line == '':
@@ -139,23 +139,13 @@ class ImsDay:
                 # print(i, line)
 
                 if packed is None:
-                    packed = False if ' ' in line else True
+                    packed = ' ' not in line
 
                 if packed:
                     vals = [int(val) for val in list(line)]
                 else:
                     vals = [int(val) for val in line.split()]
                 raw.extend(vals)
-
-        # unique = set(raw)
-        # counts = {}
-        # for key in unique:
-        #     count = 0
-        #     for val in raw:
-        #         if val == key:
-        #             count += 1
-        #     counts[key] = count
-        # print('counts', counts, np.unique(raw))
 
         # IMS data sanity check
         length = self._shape[0] * self._shape[1]
@@ -600,7 +590,7 @@ class ImsRealFileAcquisition:
                 break
 
             if tries >= self.FTP_RETRIES:
-                msg = f'Error downloading IMS data after multiple tries '
+                msg = 'Error downloading IMS data after multiple tries'
                 logger.exception(msg)
                 raise ImsError(msg)
             logger.info('Server busy, waiting and trying to download again')

@@ -18,8 +18,8 @@ from scipy.spatial import cKDTree
 
 from rex.utilities.execution import SpawnProcessPool
 
-import nsrdb.albedo.ims as ims
-import nsrdb.albedo.modis as modis
+from nsrdb.albedo import ims
+from nsrdb.albedo import modis
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -256,7 +256,8 @@ class CompositeAlbedoDay:
         tif.write_image(data)
         tif.close()
 
-        with open(os.path.splitext(filename)[0] + '.tfw', 'wt') as f:
+        with open(os.path.splitext(filename)[0] + '.tfw', 'wt',
+                  encoding='utf-8') as f:
             f.write(WORLD)
 
         logger.debug(f'Write to file {filename} complete')
@@ -433,8 +434,8 @@ class CompositeAlbedoDay:
         ims_bin[ims_bin > 2] = 1  # Snow, sea ice
 
         # Create and buffer edge mask
-        logger.debug('Performing IMS edge detection and dilating edge ' +
-                     f'{buffer} times')
+        logger.debug('Performing IMS edge detection and dilating edge '
+                     '%s times', buffer)
         ims_mask = ims_bin - ndimage.morphology.binary_dilation(ims_bin)
         ims_mask = ndimage.morphology.binary_dilation(ims_mask,
                                                       iterations=buffer)
