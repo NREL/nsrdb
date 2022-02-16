@@ -55,8 +55,15 @@ def main(ctx):
 @main.command()
 @click.option('--kwargs', '-kw', required=True, type=DICT,
               help='Argument dictionary. Needs to include year. '
-              'e.g. {"year":2019, "freq":"5min"} . Available keys: '
-              'year, freq, outdir, sat, reg, basename. ')
+              'e.g. \'{"year":2019, "freq":"5min"}\'. '
+              '\n\nAvailable keys: '
+              'year, freq, outdir (config file directory), '
+              'sat (satellite, e.g. east/west), '
+              'reg (region, e.g. RadC), '
+              'basename (file prefix). '
+              '\n\ndefault_kwargs = {"basename": "nsrdb", '
+              '"freq": "5min", "sat": "east", '
+              '"reg": "RadC", "outdir": "./"}')
 @click.pass_context
 def create_configs(ctx, kwargs):
     """NSRDB config file creation from templates."""

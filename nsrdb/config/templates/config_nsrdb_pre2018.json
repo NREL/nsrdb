@@ -40,7 +40,7 @@
         "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "surface_albedo": {
-        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/{doy}.h5"
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/"
       },
       "temp_11_0um_nom": {
         "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"

@@ -40,7 +40,7 @@
         "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"
       },
       "surface_albedo": {
-        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/{doy}.h5"
+        "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/"
       },
       "temp_11_0um_nom": {
         "pattern": "/projects/pxs/uwisc/%year%_%sat%/{doy}/level2/clavrx_OR_ABI-L1b-%reg%-*.nc"

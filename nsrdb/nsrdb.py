@@ -149,7 +149,6 @@ class NSRDB:
                 s = s.read()
 
         for k, v in user_input.items():
-            s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         if not os.path.exists(user_input['outdir']):
@@ -165,12 +164,17 @@ class NSRDB:
             s = s.read()
 
         for k, v in user_input.items():
-            s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         outfile = os.path.join(user_input['outdir'], 'config_pipeline.json')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write(s)
+
+        logger.info(f'Created file: {outfile}')
+
+        outfile = os.path.join(user_input['outdir'], 'run.sh')
+        with open(outfile, 'w', encoding='utf-8') as f:
+            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
 
         logger.info(f'Created file: {outfile}')
 
