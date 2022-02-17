@@ -18,8 +18,8 @@ from scipy.spatial import cKDTree
 
 from rex.utilities.execution import SpawnProcessPool
 
-import nsrdb.albedo.ims as ims
-import nsrdb.albedo.modis as modis
+from nsrdb.albedo import ims
+from nsrdb.albedo import modis
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -33,6 +33,11 @@ WORLD = '''0.00833333
 -179.99583333
 89.99583333
 '''
+
+# Number of times to dialate (buffer) IMS snow/no-snow boundary. Larger numbers
+# results in a larger KD tree. Smaller number risk "shark's teeth" artifacts
+# at snow edge in composite albedo.
+IMS_EDGE_BUFFFER = 6
 
 # MODIS is clipped to IMS extent before calculating nearest neighbors.
 # CLIP_MARGIN is a small buffer around the IMS extent to prevent the MODIS
@@ -83,7 +88,7 @@ class CompositeAlbedoDay:
 
     @classmethod
     def run(cls, date, modis_path, ims_path, albedo_path, ims_shape=None,
-            modis_shape=None, max_workers=None):
+            modis_shape=None, max_workers=None, ims_buffer=IMS_EDGE_BUFFFER):
         """
         Merge MODIS and IMS data for one day.
 
@@ -107,6 +112,9 @@ class CompositeAlbedoDay:
             MODIS data. Should be None unless testing.
         max_workers : int | None
             Max number of workers for concurrent futures, None is all
+        ims_buffer : int
+            Number of times to buffer points used to define IMS snow/no snow
+            edge in KD tree.
 
         Returns
         -------
@@ -121,7 +129,7 @@ class CompositeAlbedoDay:
         logger.info(f'Loading IMS data {cad.date}')
         cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-        cad.albedo = cad._calc_albedo()
+        cad.albedo = cad._calc_albedo(ims_buffer=ims_buffer)
         return cad
 
     def __init__(self, date, modis_path, ims_path, albedo_path,
@@ -190,15 +198,21 @@ class CompositeAlbedoDay:
             f.create_dataset('longitude', shape=self._modis.lon.shape,
                              dtype=self._modis.lon.dtype, data=self._modis.lon)
 
-    def write_tiff(self):
+    def write_tiff(self, outfilename=None):
         """
         Write albedo data to TIFF and world file. Geo referencing appears to be
         off by 5 meters.
+
+        Parameters
+        ----------
+        outfilename : string | None
+            Path and file name for TIFF and world file. Uses default if None.
         """
-        day = str(self.date.timetuple().tm_yday).zfill(3)
-        year = self.date.year
-        outfilename = os.path.join(self.albedo_path,
-                                   f'nsrdb_albedo_{year}_{day}.tif')
+        if outfilename is None:
+            day = str(self.date.timetuple().tm_yday).zfill(3)
+            year = self.date.year
+            outfilename = os.path.join(self.albedo_path,
+                                       f'nsrdb_albedo_{year}_{day}.tif')
 
         self._create_tiff(self.albedo, outfilename)
 
@@ -242,12 +256,21 @@ class CompositeAlbedoDay:
         tif.write_image(data)
         tif.close()
 
-        with open(os.path.splitext(filename)[0] + '.tfw', 'wt') as f:
+        with open(os.path.splitext(filename)[0] + '.tfw', 'wt',
+                  encoding='utf-8') as f:
             f.write(WORLD)
 
-    def _calc_albedo(self):
+        logger.debug(f'Write to file {filename} complete')
+
+    def _calc_albedo(self, ims_buffer=IMS_EDGE_BUFFFER):
         """
         Calculate composite albedo by merging MODIS and IMS
+
+        Parameters
+        ----------
+        ims_buffer : int
+            Number of times to buffer points used to define IMS snow/no snow
+            edge in KD tree.
 
         Returns
         -------
@@ -265,7 +288,7 @@ class CompositeAlbedoDay:
 
         # Find snow/no snow region boundaries of IMS
         logger.info('Determining IMS snow/no snow region boundaries')
-        ims_bin_mskd, ims_pts = self._get_ims_boundary()
+        ims_bin_mskd, ims_pts = self._get_ims_boundary(buffer=ims_buffer)
 
         # Create cKDTree to map MODIS points onto IMS regions
         logger.info('Creating KD Tree')
@@ -384,13 +407,21 @@ class CompositeAlbedoDay:
             pos += size
         return ind
 
-    def _get_ims_boundary(self):
+    def _get_ims_boundary(self, buffer=5):
         """
         Create IMS boundary layer which represents the pixels that form the
         boundary between snow and no snow.
 
+        Parameters
+        ----------
+        buffer : int
+            Number of times to buffer initial edge detection mask. Greater
+            values result in a "thicker" edge layer and will more reliablely
+            classify locations at higher latitudes as snow or no-snow, at the
+            expense of the boundary using more points.
+
         Returns
-        ------
+        -------
         ims_bin_mskd : 1D numpy array
             IMS data, represented as 0 (no snow) or 1 (snow/sea ice), for
             region boundary pixels.
@@ -403,8 +434,11 @@ class CompositeAlbedoDay:
         ims_bin[ims_bin > 2] = 1  # Snow, sea ice
 
         # Create and buffer edge mask
+        logger.debug('Performing IMS edge detection and dilating edge '
+                     '%s times', buffer)
         ims_mask = ims_bin - ndimage.morphology.binary_dilation(ims_bin)
-        ims_mask = ndimage.morphology.binary_dilation(ims_mask)
+        ims_mask = ndimage.morphology.binary_dilation(ims_mask,
+                                                      iterations=buffer)
         ims_mask = ims_mask.flatten()
 
         # Mask data and lon/lat to boundary edges
@@ -472,11 +506,11 @@ class ModisClipper:
         self._ims = ims
 
         # Ignore IMS Nodata pixels
-        idata = self._ims.data.flatten()
-        mask = idata > 0
+        valid_meta = (~np.isnan(self._ims.lat)) & (~np.isnan(self._ims.lon))
+        valid_ims = (self._ims.data.flatten() > 0) & valid_meta
 
-        ilat_good = self._ims.lat[mask]
-        ilon_good = self._ims.lon[mask]
+        ilat_good = self._ims.lat[valid_ims]
+        ilon_good = self._ims.lon[valid_ims]
 
         # Get MODIS mask from IMS extents
         logger.info(f'Boundaries of valid IMS data: {ilon_good.min()} - '
@@ -493,7 +527,7 @@ class ModisClipper:
         self.mlat_clip = self._modis.lat[mlat_idx]
         self.mlon_clip = self._modis.lon[mlon_idx]
 
-        logger.info(f'Boundaries of clipped MODIS data: '
+        logger.info('Boundaries of clipped MODIS data: '
                     f'{self.mlon_clip.min()} - '
                     f'{self.mlon_clip.max()} long, {self.mlat_clip.min()} - '
                     f'{self.mlat_clip.max()} lat')

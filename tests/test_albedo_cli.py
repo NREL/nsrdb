@@ -8,12 +8,14 @@ Created on Jan 23th 2020
 @author: mbannist
 """
 import os
-import pytest
-import numpy as np
 import h5py
+import pytest
 import tempfile
+import traceback
+import numpy as np
 from click.testing import CliRunner
-import nsrdb.albedo.cli as cli
+
+from nsrdb.albedo import cli
 from rex.utilities.loggers import LOGGERS
 
 pytest.importorskip("pyhdf")
@@ -40,7 +42,11 @@ def test_cli_4km_data(runner):
                                           'singleday', '2013001',
                                           '--modis-shape', '122', '120',
                                           '--ims-shape', '32', '25', ])
-        assert result.exit_code == 0
+        # assert result.exit_code == 0
+        if result.exit_code != 0:
+            msg = ('Failed with error {}'
+                   .format(traceback.print_exception(*result.exc_info)))
+            raise RuntimeError(msg)
 
         # Compare against known output
         fname = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2013_001.h5')
@@ -74,7 +80,11 @@ def test_cli_1km_data(runner):
                                           '--modis-shape', '60', '61',
                                           '--ims-shape', '64', '50',
                                           ])
-        assert result.exit_code == 0
+        # assert result.exit_code == 0
+        if result.exit_code != 0:
+            msg = ('Failed with error {}'
+                   .format(traceback.print_exception(*result.exc_info)))
+            raise RuntimeError(msg)
 
         # Compare against known output
         fname = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2015_001.h5')
