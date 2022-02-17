@@ -86,7 +86,7 @@ def _setup_paths(ctx):
               help='Logging level')
 @click.option('--log-file', type=click.Path(), default='log/nsrdb.albedo.log',
               help='Logging output file.')
-@click.option('--tiff', '-t', is_flag=True, default=True,
+@click.option('--tiff', '-t', is_flag=True, default=False,
               help='Create TIFF and world file in addition to h5 file.')
 @click.pass_context
 def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,

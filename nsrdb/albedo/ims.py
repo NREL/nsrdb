@@ -28,105 +28,12 @@ IMS_RES_1KM = '1km'
 IMS_RES_4KM = '4km'
 IMS_RES_24KM = '24km'
 
+FTP_SERVER = 'sidads.colorado.edu'
+FTP_FOLDER = '/DATASETS/NOAA/G02156/{res}/{year}/'
+FTP_METADATA_FOLDER = '/DATASETS/NOAA/G02156/metadata/'
 
-class ImsError(Exception):
-    """ General exception for IMS processing """
-
-
-class ImsDataNotFound(ImsError):
-    """
-    Raised when IMS data is not available on ftp server. This is typically
-    caused by a missing day that needs to be gap-filled.
-    """
-
-
-class ImsDay:
-    """ Load IMS data for a single day. Download if necessary """
-
-    def __init__(self, date, ims_path, shape=None):
-        """
-        Parameters
-        ----------
-        date : datetime instance
-            Date to grab data for. Time is ignored.
-        ims_path : str
-            Path to IMS data files.
-        shape : (int, int) | None
-            Tuple of data shape in (rows, cols) format. Defaults to standard
-            values for 1-, 4-, and 24-km grid. Used for testing.
-        """
-        if date < EARLIEST_AVAILABLE:
-            msg = f'Requested date of {date} predates earliest IMS ' +\
-                  f'availability of {EARLIEST_AVAILABLE}'
-            logger.exception(msg)
-            raise ImsError(msg)
-
-        self.ims_path = ims_path
-        self._day = date.timetuple().tm_yday
-        self._year = date.year
-
-        ida = ImsDataAcquisition(date, ims_path, shape=shape)
-        ida.get_files()
-        self._lat_file = ida.lat_file
-        self._lon_file = ida.lon_file
-        self.shape = ida.shape
-        self.res = ida.res
-        self.data = ida.data
-
-        logger.info('Loading IMS metadata')
-        self.lon, self.lat = self._load_meta()
-        logger.info('Completed loading IMS data and metadata')
-
-    def _load_meta(self):
-        """
-        Load IMS metadata (lat/lon values) from .double or .bin  file. For
-        format see https://nsidc.org/data/g02156 -> "User Guide" tab
-
-        Returns
-        -------
-        lon, lat : 1D numpy arrays
-            Longitude and latitudes for IMS data. IMS data is stored in a polar
-            projection so lon/lat is specifically defined for each pixel. The
-            lon/lat arrays are the same length as the IMS data.
-        """
-        length = self.shape[0] * self.shape[1]
-        # The 1km and 4km/24km metadata are stored in different formats
-        if self.res == IMS_RES_1KM:
-            with open(self._lat_file, 'rb') as f:
-                lat = np.fromfile(f, dtype='<d', count=length)\
-                    .astype(np.float32)
-            with open(self._lon_file, 'rb') as f:
-                lon = np.fromfile(f, dtype='<d', count=length)\
-                    .astype(np.float32)
-        else:
-            lat = np.fromfile(self._lat_file, dtype='<f4')
-            lon = np.fromfile(self._lon_file, dtype='<f4')
-
-        # Longitude might be stored as 0-360, fix
-        lon = np.where(lon > 180, lon - 360, lon)
-
-        # Meta data sanity checks
-        if lon.shape != (length,):
-            msg = (f'Shape of {self._lon_file} is expected to be ({length},)'
-                   f' but is {lon.shape}.')
-            logger.error(msg)
-            raise ImsError(msg)
-        if lat.shape != (length,):
-            msg = (f'Shape of {self._lat_file} is expected to be ({length},)'
-                   f' but is {lat.shape}.')
-            logger.error(msg)
-            raise ImsError(msg)
-        return lon, lat
-
-    def plot(self):
-        """ Plot values as map. """
-        plt.imshow(self.data)
-        plt.title(f'{self._year} - {self._day}')
-        plt.colorbar()
-        plt.show()
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}(year={self._year}, day={self._day})'
+FTP_RETRY_DELAY = 60  # seconds
+FTP_RETRIES = 15  # number of times to retry ftp before giving up
 
 
 def get_dt(year, day):
@@ -145,6 +52,204 @@ def get_dt(year, day):
     datetime instance
     """
     return datetime(year, 1, 1) + timedelta(days=day - 1)
+
+
+def uncompress(filename):
+    """
+    Ungzip/untar file
+
+    Parameters
+    ----------
+    filename : str
+        File to untar/ungzip
+    """
+    logger.info(f'Uncompressing {filename}')
+    path = os.path.dirname(os.path.realpath(filename))
+
+    if filename.split('.')[-2] == 'tar':
+        with tarfile.open(filename) as tar:
+            tar.extractall(path)
+    else:
+        with gzip.open(filename, 'r') as f_in:
+            with open(filename[:-3], 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+
+def download(url, lfile):
+    """
+    Download and save file via ftp
+
+    Parameters
+    ----------
+    url : str
+        full url to download
+    lfile : str
+        Path and filename to save data as
+    """
+    logger.info(f'Downloading {url}')
+
+    tries = 0
+    while True:
+        fail = url_download(url, lfile)
+        if not fail:
+            break
+
+        if tries >= FTP_RETRIES:
+            msg = 'Error downloading IMS data after multiple tries'
+            logger.exception(msg)
+            raise ImsError(msg)
+        logger.info('Server busy, waiting and trying to download again')
+        sleep(FTP_RETRY_DELAY)
+        tries += 1
+
+    logger.info(f'Successfully downloaded {url}')
+
+
+class ImsError(Exception):
+    """ General exception for IMS processing """
+
+
+class ImsDataNotFound(ImsError):
+    """
+    Raised when IMS data is not available on ftp server. This is typically
+    caused by a missing day that needs to be gap-filled.
+    """
+
+
+class ImsDay:
+    """ Load IMS data for a single day. Download if necessary """
+
+    def __init__(self, date, path, shape=None):
+        """
+        Parameters
+        ----------
+        date : datetime instance
+            Date to grab data for. Time is ignored.
+        path : str
+            Path to/for IMS data files.
+        shape : (int, int) | None
+            Tuple of data shape in (rows, cols) format. Defaults to standard
+            values for 1-, 4-, and 24-km grid. Used for testing.
+        """
+        if date < EARLIEST_AVAILABLE:
+            msg = f'Requested date of {date} predates earliest IMS ' +\
+                  f'availability of {EARLIEST_AVAILABLE}'
+            logger.exception(msg)
+            raise ImsError(msg)
+
+        self.path = path
+        self._day = date.timetuple().tm_yday
+        self._year = date.year
+
+        ida = ImsDataAcquisition(date, path, shape=shape)
+        ida.get_files()
+        self._lat_file = ida.lat_file
+        self._lon_file = ida.lon_file
+        self.shape = ida.shape
+        self.res = ida.res
+        self.data = ida.data
+
+        logger.info('Loading IMS metadata')
+        lon_file, lat_file = self._find_meta()
+        self.lon, self.lat = self._load_meta(lon_file, lat_file)
+        logger.info('Completed loading IMS data and metadata')
+
+    def _find_meta(self):
+        """
+        See if meta data is on disk and download if not
+
+        Returns
+        -------
+        lon_file, lat_file : str
+            Names of metadata files
+        """
+        mf = MetaFiles(self.res)
+        lon_file = os.path.join(self.path, mf.lon_file)
+        lat_file = os.path.join(self.path, mf.lat_file)
+
+        if os.path.isfile(lon_file) and os.path.isfile(lat_file):
+            logger.info('IMS metadata found on disk at '
+                        f'{os.path.realpath(lon_file)} and '
+                        f'{os.path.realpath(lat_file)}.')
+        else:
+            logger.info('IMS metadata not found on disk, attempting to '
+                        'download')
+            self._download_metadata(mf.lon_remote, mf.lat_remote)
+            uncompress(os.path.join(self.path, mf.lon_remote))
+            uncompress(os.path.join(self.path, mf.lat_remote))
+
+        return lon_file, lat_file
+
+    def _download_metadata(self, lon_file, lat_file):
+        """
+        Download IMS meta data
+
+        Parameters
+        ----------
+        lon_file, lat_file : str
+            Names of metadata files
+        """
+        url = f'ftp://{FTP_SERVER}{FTP_METADATA_FOLDER}{lon_file}'
+        download(url, os.path.join(self.path, lon_file))
+
+        url = f'ftp://{FTP_SERVER}{FTP_METADATA_FOLDER}{lat_file}'
+        download(url, os.path.join(self.path, lat_file))
+
+    def _load_meta(self, lon_file, lat_file):
+        """
+        Load IMS metadata (lat/lon values) from .double or .bin  file. For
+        format see https://nsidc.org/data/g02156 -> "User Guide" tab
+
+        Parameters
+        ----------
+        lon_file, lat_file : str
+            Names of metadata files
+
+        Returns
+        -------
+        lon, lat : 1D numpy arrays
+            Longitude and latitudes for IMS data. IMS data is stored in a polar
+            projection so lon/lat is specifically defined for each pixel. The
+            lon/lat arrays are the same length as the IMS data.
+        """
+        length = self.shape[0] * self.shape[1]
+        # The 1km and 4km/24km metadata are stored in different formats
+        if self.res == IMS_RES_1KM:
+            with open(lat_file, 'rb') as f:
+                lat = np.fromfile(f, dtype='<d', count=length)\
+                    .astype(np.float32)
+            with open(lon_file, 'rb') as f:
+                lon = np.fromfile(f, dtype='<d', count=length)\
+                    .astype(np.float32)
+        else:
+            lat = np.fromfile(lat_file, dtype='<f4')
+            lon = np.fromfile(lon_file, dtype='<f4')
+
+        # Longitude might be stored as 0-360, fix
+        lon = np.where(lon > 180, lon - 360, lon)
+
+        # Meta data sanity checks
+        if lon.shape != (length,):
+            msg = (f'Shape of {lon_file} is expected to be ({length},)'
+                   f' but is {lon.shape}.')
+            logger.error(msg)
+            raise ImsError(msg)
+        if lat.shape != (length,):
+            msg = (f'Shape of {lat_file} is expected to be ({length},)'
+                   f' but is {lat.shape}.')
+            logger.error(msg)
+            raise ImsError(msg)
+        return lon, lat
+
+    def plot(self):
+        """ Plot values as map. """
+        plt.imshow(self.data)
+        plt.title(f'{self._year} - {self._day}')
+        plt.colorbar()
+        plt.show()
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(year={self._year}, day={self._day})'
 
 
 class ImsDataAcquisition:
@@ -189,8 +294,6 @@ class ImsDataAcquisition:
             fa = ImsGapFill(self.date, self.path)
             ifa = fa.fill_gap()
 
-        self.lat_file = ifa.lat_file
-        self.lon_file = ifa.lon_file
         self.res = ifa.res
         self.data = ifa.data
         self.shape = ifa.shape
@@ -294,11 +397,8 @@ class ImsGapFill:
         gap_fill_fname : str
             File name to save data in
         """
-        meta_header = f'Temporal gap filled data for {self.date}\n'
-
-        # Write masked IMS data to disk
         with open(gap_fill_fname, 'wt', encoding='utf-8') as f:
-            f.write(meta_header)
+            f.write(f'Temporal gap filled data for {self.date}\n')
             # write each row of data as a string
             for r in data:
                 txt = ''.join(r.astype(str))
@@ -318,14 +418,8 @@ class ImsFileAcquisition:
     It should be noted that for dates on and after 2014, 336, (Ver 1.3) the
     file date is one day after the data date.
     """
-    FTP_SERVER = 'sidads.colorado.edu'
-    FTP_FOLDER = '/DATASETS/NOAA/G02156/{res}/{year}/'
-    FTP_METADATA_FOLDER = '/DATASETS/NOAA/G02156/metadata/'
     # Example file name: ims2015010_4km_v1.3.asc
     FILE_PATTERN = 'ims{year}{day}_{res}_{ver}.asc'
-
-    FTP_RETRY_DELAY = 60  # seconds
-    FTP_RETRIES = 15  # number of times to retry ftp before giving up
 
     EARLIEST_4KM = get_dt(2004, 55)
     EARLIEST_1KM = get_dt(2014, 336)
@@ -341,10 +435,6 @@ class ImsFileAcquisition:
         ----------
         self.filename : str
             Path and filename for IMS data file
-        self.lon_file : str
-            Path and filename for longitude data file
-        self.lat_file : str
-            Path and filename for latitude data file
         self.res : str
             Resolution of data
         self.ver : str
@@ -406,10 +496,6 @@ class ImsFileAcquisition:
             self._pfilename += '.gf'
 
         self.filename = os.path.join(path, self._pfilename)
-
-        self._mf = MetaFiles(self.res)
-        self.lon_file = os.path.join(path, self._mf.lon_file)
-        self.lat_file = os.path.join(path, self._mf.lat_file)
         self._data = None
 
     @property
@@ -430,21 +516,8 @@ class ImsFileAcquisition:
 
     def get_file(self):
         """
-        Check if IMS data and metadata is on disk and download if necessary.
+        Check if IMS data is on disk and download if necessary.
         """
-        # Metadata
-        if os.path.isfile(self.lon_file) and os.path.isfile(self.lat_file):
-            logger.info('IMS metadata found on disk at '
-                        f'{os.path.realpath(self.lon_file)} and '
-                        f'{os.path.realpath(self.lat_file)}.')
-        else:
-            logger.info('IMS metadata not found on disk, attempting to '
-                        'download')
-            self._download_metadata(self._mf.lon_remote, self._mf.lat_remote)
-            self._uncompress(self._mf.lon_remote)
-            self._uncompress(self._mf.lat_remote)
-
-        # Data
         if os.path.isfile(self.filename):
             logger.info(f'{self._pfilename} found on disk at '
                         f'{os.path.abspath(self.path)}.')
@@ -457,9 +530,9 @@ class ImsFileAcquisition:
                         ' download')
             if not self._check_ftp_for_data():
                 raise ImsDataNotFound(f'{self._pfilename}.gz not found on '
-                                      f'{self.FTP_SERVER}')
+                                      f'{FTP_SERVER}')
             self._download_data()
-            self._uncompress(self._pfilename + '.gz')
+            uncompress(os.path.join(self.path, self._pfilename + '.gz'))
 
         self._data = self._load_data()
 
@@ -468,24 +541,24 @@ class ImsFileAcquisition:
         Check for existence of data on ftp server. Returns True if file exists,
         otherwise False.
         """
-        ftp_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
+        ftp_path = FTP_FOLDER.format(year=self._file_year, res=self.res)
 
         tries = 0
         while True:
             try:
-                ftp = ftplib.FTP(self.FTP_SERVER)
+                ftp = ftplib.FTP(FTP_SERVER)
                 ftp.login()
                 ftp.cwd(ftp_path)
                 rfiles = []
                 ftp.retrlines('LIST', rfiles.append)
                 break
             except (ftplib.error_temp, TimeoutError) as e:
-                if tries >= self.FTP_RETRIES:
+                if tries >= FTP_RETRIES:
                     msg = f'Error contacting FTP server for IMS data: {e}'
                     logger.exception(msg)
                     raise ImsError(msg) from e
                 logger.info('FTP server busy, waiting and trying again')
-                sleep(self.FTP_RETRY_DELAY)
+                sleep(FTP_RETRY_DELAY)
                 tries += 1
 
         # ftp LIST provides ls -ls style output, simplify to filenames
@@ -494,26 +567,9 @@ class ImsFileAcquisition:
 
     def _download_data(self):
         """ Download IMS data file and save to disk"""
-        ftp_path = self.FTP_FOLDER.format(year=self._file_year, res=self.res)
-        url = f'ftp://{self.FTP_SERVER}{ftp_path}{self._pfilename}.gz'
-        self.__download(url, os.path.join(self.path, self._pfilename + '.gz'))
-
-    def _download_metadata(self, lon_file, lat_file):
-        """
-        Download IMS meta data
-
-        Parameters
-        ----------
-        lon_file, lat_file : str
-            Names of metadata files
-        """
-        url = f'ftp://{self.FTP_SERVER}{self.FTP_METADATA_FOLDER}' + \
-              f'{lon_file}'
-        self.__download(url, os.path.join(self.path, lon_file))
-
-        url = f'ftp://{self.FTP_SERVER}{self.FTP_METADATA_FOLDER}' + \
-              f'{lat_file}'
-        self.__download(url, os.path.join(self.path, lat_file))
+        ftp_path = FTP_FOLDER.format(year=self._file_year, res=self.res)
+        url = f'ftp://{FTP_SERVER}{ftp_path}{self._pfilename}.gz'
+        download(url, os.path.join(self.path, self._pfilename + '.gz'))
 
     def _load_data(self):
         """
@@ -567,55 +623,6 @@ class ImsFileAcquisition:
 
         logger.debug(f'IMS data shape is {ims_data.shape}')
         return ims_data
-
-    def _uncompress(self, filename):
-        """
-        Ungzip/untar file to self.path
-
-        Parameters
-        ----------
-        filename : str
-            File to untar/ungzip
-        """
-        logger.info(f'Uncompressing {filename}')
-        filename = os.path.join(self.path, filename)
-
-        if filename.split('.')[-2] == 'tar':
-            with tarfile.open(filename) as tar:
-                tar.extractall(self.path)
-        else:
-            with gzip.open(filename, 'r') as f_in:
-                with open(filename[:-3], 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-
-    def __download(self, url, lfile):
-        """
-        Download and save file via ftp
-
-        Parameters
-        ----------
-        url : str
-            full url to download
-        lfile : str
-            Path and filename to save data as
-        """
-        logger.info(f'Downloading {url}')
-
-        tries = 0
-        while True:
-            fail = url_download(url, lfile)
-            if not fail:
-                break
-
-            if tries >= self.FTP_RETRIES:
-                msg = 'Error downloading IMS data after multiple tries'
-                logger.exception(msg)
-                raise ImsError(msg)
-            logger.info('Server busy, waiting and trying to download again')
-            sleep(self.FTP_RETRY_DELAY)
-            tries += 1
-
-        logger.info(f'Successfully downloaded {url}')
 
 
 class MetaFiles:
