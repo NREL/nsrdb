@@ -46,6 +46,28 @@ class TemperatureModel:
         albedo *= 1000
         return albedo
 
+    @staticmethod
+    def get_ice_albedo(T):
+        """Calculate albedo from temperature
+
+        Parameters
+        ----------
+        T : ndarray
+            temperature field to use for albedo calculations
+
+        Returns
+        -------
+        ndarray
+            albedo field computed from temperature field
+        """
+        albedo = np.zeros(T.shape)
+        albedo[T < 0] = 0.65
+        mask = (T >= 0) & (T < 5)
+        albedo[mask] = 0.45 + 0.04 * T[mask]
+        albedo[T >= 5] = 0.45
+        albedo *= 1000
+        return albedo
+
     def get_data(self, date, grid):
         """Get temperature data from MERRA
 
