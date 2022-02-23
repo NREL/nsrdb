@@ -16,15 +16,19 @@ from nsrdb.albedo.albedo import (ModisClipper,
                                  ALBEDO_NODATA)
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
-source_dir = os.path.join(TESTDATADIR, 'merra2_source_files/')
+source_dir = '/projects/pxs/ancillary/merra/'
+nsrdb_grid_file = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
+nsrdb_grid = pd.read_csv(nsrdb_grid_file)[['latitude', 'longitude', 'elevation']]
+
+snow_no_snow_file = '/scratch/bbenton/nsrdb/snow_no_snow.npy'
+
 model = TemperatureModel(source_dir)
 
 
-def calc_albedo(cad, data, td):
+def calc_albedo(cad, data):
     """Calculate albedo using provided data.
     Load or save snow_no_snow mask from/to td"""
 
-    snow_no_snow_file = f'{td}/snow_no_snow.npy'
     # Clip MODIS data to IMS boundary
     mc = ModisClipper(cad._modis, cad._ims)
 
@@ -48,15 +52,19 @@ def calc_albedo(cad, data, td):
         snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
                                                  len(mc.mlon_clip))
 
-        np.save(snow_no_snow_file, snow_no_snow)
+        with open(snow_no_snow_file, 'wb') as f:
+            np.save(f, snow_no_snow)
 
     else:
-
-        snow_no_snow = np.load(snow_no_snow_file)
+        
+        with open(snow_no_snow_file, 'rb') as f:
+            snow_no_snow = np.load(f)
 
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
-    mclip_albedo[snow_no_snow == 1] = model.get_albedo(data)[snow_no_snow == 1]
+    
+    mclip_albedo = model.update_albedo(
+        mclip_albedo, snow_no_snow, data)
 
     # Merge clipped composite albedo with full MODIS data
     albedo = cad._modis.data
@@ -87,12 +95,17 @@ def test_albedo_model():
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
-    grid = pd.DataFrame(
-        {'latitude': cad._modis.lat,
-         'longitude': cad._modis.lon})
+    lats = []
+    lons = []
+    for lat in cad._modis.lat:
+        for lon in cad._modis.lon:
+            lats.append(lat)
+            lons.append(lon)
+
+    grid = pd.DataFrame({'latitude':lats, 'longitude':lons})
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
     data = model.get_data(d, grid)
 
-    cad = calc_albedo(cad, data, td)
+    cad = calc_albedo(cad, data)

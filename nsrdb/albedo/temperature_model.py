@@ -20,8 +20,9 @@ class TemperatureModel:
             source directory for MERRA data
         """
         self.source_dir = source_dir
-        self.var_meta = pd.read_csv(DEFAULT_VAR_META)
-        self.var_meta['source_directory'] = source_dir
+        self.kwargs = {'elevation_correct': False,
+                       'air_temperature': {'elevation_correct': False},
+                       'source_directory': source_dir}
         self.data = None
 
     @staticmethod
@@ -56,28 +57,31 @@ class TemperatureModel:
         self.data = DataModel.run_single(var='air_temperature',
                                          date=date,
                                          nsrdb_grid=grid,
-                                         freq='1hr', scale=False,
-                                         var_meta=self.var_meta)
+                                         nsrdb_freq='60min', scale=False,
+                                         factory_kwargs=self.kwargs)
         return self.data
 
-    def update_albedo(self, albedo, snow_no_snow, date):
-        """Update albedo array using snow_no_snow mask
+    def update_albedo(self, albedo, mask, data):
+        """Update albedo array with calculation results
 
         Parameters
         ----------
         albedo : ndarray
-            albedo array on lat/lon grid
-        snow_no_snow : ndarray
-            mask on lat/lon grid with 1 for snow
-        date : datetime.datetime
-            date for which to get temperature data
-            to use in albedo calculations
+            albedo data array to update
+            (n_lats, n_lons)
 
-        Returns
-        -------
-        albedo : ndarray
-            updated albedo array
+        mask : ndarray
+            mask with 1 at snowy grid cells
+            and 0 at cells without snow
+            (n_lats, n_lons)
+        
+        data : ndarray
+            temperature array used to calculate albedo
+            (temporal, n_lats * n_lons)
+        
         """
-        T = self.get_data(date)
-        albedo[snow_no_snow] = self.get_albedo(T)[snow_no_snow]
-        return albedo
+        updated_albedo = self.get_albedo(data)
+        updated_albedo = updated_albedo.mean(axis=0)
+        updated_albedo = updated_albedo.reshape(mask.shape)
+    
+        albedo[mask == 1] = updated_albedo[mask == 1]

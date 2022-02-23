@@ -156,12 +156,12 @@ class DataModel:
 
         self._nsrdb_data_shape = None
         self._nsrdb_grid_file = None
-        self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_meta = var_meta
 
         self._factory_kwargs = {} if factory_kwargs is None else factory_kwargs
+        self._parse_nsrdb_grid(nsrdb_grid, factory_kwargs=self._factory_kwargs)
         self._scale = scale
         self._var_factory = VarFactory()
         self._processed = {}
@@ -184,8 +184,10 @@ class DataModel:
     def __contains__(self, dset):
         return dset in self._processed
 
-    def _parse_nsrdb_grid(self, inp, req=('latitude', 'longitude',
-                                          'elevation')):
+    def _parse_nsrdb_grid(self, inp,
+                          req=('latitude', 'longitude', 'elevation'),
+                          factory_kwargs={}):
+        
         """Set the NSRDB reference grid from a csv file.
 
         Parameters
@@ -209,8 +211,11 @@ class DataModel:
         # check requirements
         for r in req:
             if r not in self._nsrdb_grid:
-                raise KeyError('Could not find "{}" in nsrdb grid labels: "{}"'
-                               .format(r, self._nsrdb_grid.columns.values))
+                if r == 'elevation' and not factory_kwargs.get('elevation_correct', True):
+                    pass
+                else:
+                    raise KeyError('Could not find "{}" in nsrdb grid labels: "{}"'
+                                   .format(r, self._nsrdb_grid.columns.values))
 
         # copy index to gid data column that will be saved in output files
         # used in the case that the grid is chunked into subsets of sites
@@ -1088,12 +1093,12 @@ class DataModel:
         data : np.ndarray
             NSRDB-resolution data for the given var and the current day.
         """
-
+        
         var_kwargs = self._factory_kwargs.get(var, {})
         var_obj = self._var_factory.get_instance(var, var_meta=self._var_meta,
                                                  name=var, date=self.date,
                                                  **var_kwargs)
-
+        
         if 'albedo' in var:
             # special exclusions for large-extent albedo
             var_obj.exclusions_from_nsrdb(self.nsrdb_grid)
