@@ -4,7 +4,6 @@ for calculations"""
 import pandas as pd
 
 from nsrdb.data_model import DataModel
-from nsrdb import DEFAULT_VAR_META
 
 
 class TemperatureModel:
@@ -20,8 +19,7 @@ class TemperatureModel:
             source directory for MERRA data
         """
         self.source_dir = source_dir
-        self.kwargs = {'elevation_correct': False,
-                       'air_temperature': {'elevation_correct': False},
+        self.kwargs = {'air_temperature': {'elevation_correct': False},
                        'source_directory': source_dir}
         self.data = None
 
@@ -61,6 +59,30 @@ class TemperatureModel:
                                          factory_kwargs=self.kwargs)
         return self.data
 
+    @staticmethod
+    def get_grid(cad):
+        """Get grid from composite albedo day instance
+
+        Parameters
+        ----------
+        cad : CompositeAlbedoDay
+            CompositeAlbedoDay class instance
+            containing albedo calculation methods
+            and grid information
+
+        Returns
+        -------
+        pd.DataFrame
+            dataframe with latitudes and longitudes for grid
+        """
+        lats = []
+        lons = []
+        for lat in cad._modis.lat:
+            for lon in cad._modis.lon:
+                lats.append(lat)
+                lons.append(lon)
+        return pd.DataFrame({'latitude': lats, 'longitude': lons})
+
     def update_albedo(self, albedo, mask, data):
         """Update albedo array with calculation results
 
@@ -74,14 +96,16 @@ class TemperatureModel:
             mask with 1 at snowy grid cells
             and 0 at cells without snow
             (n_lats, n_lons)
-        
+
         data : ndarray
             temperature array used to calculate albedo
             (temporal, n_lats * n_lons)
-        
+
         """
         updated_albedo = self.get_albedo(data)
         updated_albedo = updated_albedo.mean(axis=0)
         updated_albedo = updated_albedo.reshape(mask.shape)
-    
+
         albedo[mask == 1] = updated_albedo[mask == 1]
+
+        return albedo

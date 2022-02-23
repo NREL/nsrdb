@@ -5,7 +5,6 @@ from datetime import datetime as dt
 import tempfile
 import numpy as np
 from scipy.spatial import cKDTree
-import pandas as pd
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo.temperature_model import TemperatureModel
@@ -17,12 +16,10 @@ from nsrdb.albedo.albedo import (ModisClipper,
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 source_dir = '/projects/pxs/ancillary/merra/'
-nsrdb_grid_file = os.path.join(TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv')
-nsrdb_grid = pd.read_csv(nsrdb_grid_file)[['latitude', 'longitude', 'elevation']]
-
-snow_no_snow_file = '/scratch/bbenton/nsrdb/snow_no_snow.npy'
-
 model = TemperatureModel(source_dir)
+
+with tempfile.TemporaryDirectory as td:
+    snow_no_snow_file = f'{td}/snow_no_snow.py'
 
 
 def calc_albedo(cad, data):
@@ -56,13 +53,13 @@ def calc_albedo(cad, data):
             np.save(f, snow_no_snow)
 
     else:
-        
+
         with open(snow_no_snow_file, 'rb') as f:
             snow_no_snow = np.load(f)
 
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
-    
+
     mclip_albedo = model.update_albedo(
         mclip_albedo, snow_no_snow, data)
 
@@ -95,14 +92,7 @@ def test_albedo_model():
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
-    lats = []
-    lons = []
-    for lat in cad._modis.lat:
-        for lon in cad._modis.lon:
-            lats.append(lat)
-            lons.append(lon)
-
-    grid = pd.DataFrame({'latitude':lats, 'longitude':lons})
+    grid = model.get_grid(cad)
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
