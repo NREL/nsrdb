@@ -60,7 +60,7 @@ def calc_albedo(cad, data):
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
 
-    mclip_albedo = model.update_albedo(
+    mclip_albedo = model.update_snow_albedo(
         mclip_albedo, snow_no_snow, data)
 
     # Merge clipped composite albedo with full MODIS data

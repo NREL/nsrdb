@@ -2,6 +2,7 @@
 for calculations"""
 
 import pandas as pd
+import numpy as np
 
 from nsrdb.data_model import DataModel
 
@@ -24,20 +25,26 @@ class TemperatureModel:
         self.data = None
 
     @staticmethod
-    def get_albedo(T):
+    def get_snow_albedo(T):
         """Calculate albedo from temperature
 
         Parameters
         ----------
-        T : float | ndarray
+        T : ndarray
             temperature field to use for albedo calculations
 
         Returns
         -------
-        float | ndarray
+        ndarray
             albedo field computed from temperature field
         """
-        return 1000 * (0.4 + 0.7 * (T - 272.15))
+        albedo = np.zeros(T.shape)
+        albedo[T < -5] = 0.8
+        mask = (-5 <= T) & (T < 0)
+        albedo[mask] = 0.65 - 0.03 * T[mask]
+        albedo[T == 0] = 0.65
+        albedo *= 1000
+        return albedo
 
     def get_data(self, date, grid):
         """Get temperature data from MERRA
@@ -83,7 +90,7 @@ class TemperatureModel:
                 lons.append(lon)
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
-    def update_albedo(self, albedo, mask, data):
+    def update_snow_albedo(self, albedo, mask, data):
         """Update albedo array with calculation results
 
         Parameters
@@ -102,7 +109,7 @@ class TemperatureModel:
             (temporal, n_lats * n_lons)
 
         """
-        updated_albedo = self.get_albedo(data)
+        updated_albedo = self.get_snow_albedo(data)
         updated_albedo = updated_albedo.mean(axis=0)
         updated_albedo = updated_albedo.reshape(mask.shape)
 
