@@ -40,7 +40,7 @@ class TemperatureModel:
         """
         return 1000 * (0.4 + 0.7 * (T - 272.15))
 
-    def get_data(self, date):
+    def get_data(self, date, grid):
         """Get temperature data from MERRA
 
         Parameters
@@ -55,7 +55,7 @@ class TemperatureModel:
         """
         self.data = DataModel.run_single(var='air_temperature',
                                          date=date,
-                                         nsrdb_grid='albedo_snowy_latlonelev',
+                                         nsrdb_grid=grid,
                                          freq='1hr', scale=False,
                                          var_meta=self.var_meta)
         return self.data

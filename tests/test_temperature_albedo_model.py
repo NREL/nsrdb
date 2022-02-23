@@ -5,6 +5,7 @@ from datetime import datetime as dt
 import tempfile
 import numpy as np
 from scipy.spatial import cKDTree
+import pandas as pd
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo.temperature_model import TemperatureModel
@@ -86,8 +87,12 @@ def test_albedo_model():
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
+    grid = pd.DataFrame(
+        {'latitude': cad._modis.lat,
+         'longitude': cad._modis.lon})
+
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-    data = model.get_data(d)
+    data = model.get_data(d, grid)
 
     cad = calc_albedo(cad, data, td)
