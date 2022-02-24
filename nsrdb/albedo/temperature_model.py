@@ -12,19 +12,6 @@ class DataHandler:
     """DataHandler for MERRA data used in albedo
     computations
     """
-    def __init__(self, source_dir):
-        """Initialize DataHandler class with
-        source_dir for MERRA data
-
-        Parameters
-        ----------
-        source_dir : str
-            source directory for MERRA data
-        """
-        self.kwargs = {'source_directory': source_dir,
-                       'air_temperature': {'elevation_correct': False}}
-        self.var_meta = pd.read_csv(DEFAULT_VAR_META)
-        self.var_meta['source_directory'] = source_dir
 
     @staticmethod
     def get_grid(lat, lon):
@@ -49,36 +36,46 @@ class DataHandler:
 
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
-    @classmethod
-    def get_data(cls, date, merra_path, lat, lon):
+    @staticmethod
+    def get_data(date, merra_path, mask, lat, lon):
         """Get temperature data from MERRA
 
         Parameters
         ----------
         date : datetime.datetime
             date for which to get temperature data
+        merra_path : str
+            path to merra temperature data
+        mask : ndarray
+            snow_no_snow mask with 1 for snowy cells
+            and 0 for clear cells
+        lat : ndarray
+            array of latitudes for modis grid
+        lon : ndarray
+            array of longitudes for modis grid
 
         Returns
         -------
         ndarray (lat, lon)
             temperature data array on lat/lon grid
         """
-        handler = cls(merra_path)
-        grid = handler.get_grid(lat, lon)
+        kwargs = {'source_directory': merra_path,
+                  'air_temperature': {'elevation_correct': False}}
+        var_meta = pd.read_csv(DEFAULT_VAR_META)
+        var_meta['source_directory'] = merra_path
+        grid = DataHandler.get_grid(lat, lon)
+        grid = grid.loc[mask.reshape(-1) == 1]
         data = DataModel.run_single(var='air_temperature',
                                     date=date,
                                     nsrdb_grid=grid,
-                                    var_meta=handler.var_meta,
+                                    var_meta=var_meta,
                                     nsrdb_freq='60min', scale=False,
-                                    factory_kwargs=handler.kwargs)
+                                    factory_kwargs=kwargs)
         return data
 
 
 class TemperatureModel:
     """Class to handle MERRA data and compute albedo"""
-
-    def __init__(self):
-        """Initialize TemperatureModel class"""
 
     @staticmethod
     def get_snow_albedo(T):
@@ -144,10 +141,12 @@ class TemperatureModel:
             (temporal, n_lats * n_lons)
 
         """
-        updated_albedo = cls.get_snow_albedo(data)
-        updated_albedo = updated_albedo.mean(axis=0)
-        updated_albedo = updated_albedo.reshape(mask.shape)
+        updated_albedo = np.zeros((mask.shape[0] * mask.shape[1]))
+        tmp_mask = mask.reshape(-1) == 1
+        tmp_albedo = cls.get_snow_albedo(data)
+        updated_albedo[tmp_mask] = tmp_albedo.mean(axis=0)
 
+        updated_albedo = updated_albedo.reshape(mask.shape)
         albedo[mask == 1] = updated_albedo[mask == 1]
 
         return albedo

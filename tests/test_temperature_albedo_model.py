@@ -59,6 +59,10 @@ def calc_albedo(cad):
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
 
+    cad._merra_data = tm.DataHandler.get_data(
+        cad.date, cad._merra_path, snow_no_snow,
+        cad._modis.lat, cad._modis.lon)
+
     mclip_albedo = tm.TemperatureModel.update_snow_albedo(
         mclip_albedo, snow_no_snow, cad._merra_data)
 
@@ -93,8 +97,5 @@ def test_albedo_model():
                                 shape=modis_shape)
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
-
-    cad._merra_data = tm.DataHandler.get_data(cad.date, cad._merra_path,
-                                              cad._modis.lat, cad._modis.lon)
 
     cad = calc_albedo(cad)
