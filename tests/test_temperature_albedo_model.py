@@ -94,6 +94,7 @@ def test_albedo_model():
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-    cad._merra_data = tm.DataHandler.get_data(cad)
+    cad._merra_data = tm.DataHandler.get_data(cad.date, cad._merra_path,
+                                              cad._modis.lat, cad._modis.lon)
 
     cad = calc_albedo(cad)

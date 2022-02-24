@@ -44,7 +44,7 @@ def test_merra_grid_mapping():
                                             MERRATESTDATADIR,
                                             ims_shape=(32, 25),
                                             modis_shape=(122, 120))
-    grid = handler.get_grid(cad)
+    grid = handler.get_grid(cad._modis.lat, cad._modis.lon)
 
     cad_grid = np.zeros((len(cad._modis.lat), len(cad._modis.lon), 2))
 

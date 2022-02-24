@@ -27,30 +27,30 @@ class DataHandler:
         self.var_meta['source_directory'] = source_dir
 
     @staticmethod
-    def get_grid(cad):
+    def get_grid(lat, lon):
         """Get grid from composite albedo day instance
 
         Parameters
         ----------
-        cad : CompositeAlbedoDay
-            CompositeAlbedoDay class instance
-            containing albedo calculation methods
-            and grid information
+        lat : ndarray
+            array of latitudes for modis grid
+        lon : ndarray
+            array of longitudes for modis grid
 
         Returns
         -------
         pd.DataFrame
             dataframe with latitudes and longitudes for grid
         """
-        lats = [[lat] * len(cad._modis.lon) for lat in cad._modis.lat]
-        lons = [cad._modis.lon] * len(cad._modis.lat)
+        lats = [[latitude] * len(lon) for latitude in lat]
+        lons = [lon] * len(lat)
         lats = np.array(lats).flatten()
         lons = np.array(lons).flatten()
 
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
     @classmethod
-    def get_data(cls, cad):
+    def get_data(cls, date, merra_path, lat, lon):
         """Get temperature data from MERRA
 
         Parameters
@@ -63,10 +63,10 @@ class DataHandler:
         ndarray (lat, lon)
             temperature data array on lat/lon grid
         """
-        handler = cls(cad._merra_path)
-        grid = handler.get_grid(cad)
+        handler = cls(merra_path)
+        grid = handler.get_grid(lat, lon)
         data = DataModel.run_single(var='air_temperature',
-                                    date=cad.date,
+                                    date=date,
                                     nsrdb_grid=grid,
                                     var_meta=handler.var_meta,
                                     nsrdb_freq='60min', scale=False,

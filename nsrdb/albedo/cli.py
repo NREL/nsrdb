@@ -49,9 +49,8 @@ def _setup_paths(ctx):
     # Verify path is set
     if ctx.obj['path'] is None and (ctx.obj['mpath'] is None
                                     or ctx.obj['ipath'] is None
-                                    or ctx.obj['apath'] is None
-                                    or ctx.obj['mepath'] is None):
-        msg = ('Paths for MODIS, IMS, MERRA, and composite albedo data '
+                                    or ctx.obj['apath'] is None):
+        msg = ('Paths for MODIS, IMS and composite albedo data '
                'must be set together using --path, or '
                'individually using --modis-path, --ims-path, and '
                '--albedo-path.')
@@ -67,8 +66,6 @@ def _setup_paths(ctx):
             ctx.obj['ipath'] = ctx.obj['path']
         if ctx.obj['apath'] is None:
             ctx.obj['apath'] = ctx.obj['path']
-        if ctx.obj['mepath'] is None:
-            ctx.obj['mepath'] = ctx.obj['path']
 
 
 @click.group()
