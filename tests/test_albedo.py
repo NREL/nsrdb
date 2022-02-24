@@ -17,7 +17,7 @@ import logging
 
 pytest.importorskip("pyhdf")
 
-import nsrdb.albedo.albedo as albedo
+from nsrdb.albedo import albedo
 
 from nsrdb import TESTDATADIR
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
@@ -42,7 +42,11 @@ def test_4km_data_with_temp_model():
                                             ims_shape=(32, 25),
                                             modis_shape=(122, 120))
 
-        assert np.array_equal(data[cad._mask == 0], cad.albedo[cad._mask == 0])
+        assert np.array_equal(
+            data[cad._mask == 0], cad.albedo[cad._mask == 0])
+
+        assert not np.array_equal(
+            data[cad._mask == 1], cad.albedo[cad._mask == 1])
 
         cad.write_albedo()
         new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
