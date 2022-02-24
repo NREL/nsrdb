@@ -49,8 +49,9 @@ def _setup_paths(ctx):
     # Verify path is set
     if ctx.obj['path'] is None and (ctx.obj['mpath'] is None
                                     or ctx.obj['ipath'] is None
-                                    or ctx.obj['apath'] is None):
-        msg = ('Paths for MODIS, IMS, and composite albedo data '
+                                    or ctx.obj['apath'] is None
+                                    or ctx.obj['mepath'] is None):
+        msg = ('Paths for MODIS, IMS, MERRA, and composite albedo data '
                'must be set together using --path, or '
                'individually using --modis-path, --ims-path, and '
                '--albedo-path.')
@@ -66,6 +67,8 @@ def _setup_paths(ctx):
             ctx.obj['ipath'] = ctx.obj['path']
         if ctx.obj['apath'] is None:
             ctx.obj['apath'] = ctx.obj['path']
+        if ctx.obj['mepath'] is None:
+            ctx.obj['mepath'] = ctx.obj['path']
 
 
 @click.group()
@@ -78,6 +81,8 @@ def _setup_paths(ctx):
               help='Path of/for IMS data/metadata files')
 @click.option('--albedo-path', '-a', type=click.Path(exists=True),
               help='Path to save composite albedo data files')
+@click.option('--merra-path', '-me', type=click.Path(exists=True),
+              help='Path to MERRA temperature data files')
 @click.option('--log-level',
               type=click.Choice(['DEBUG', 'INFO', 'WARNING',
                                  'ERROR', 'CRITICAL'],
@@ -89,8 +94,8 @@ def _setup_paths(ctx):
 @click.option('--tiff', '-t', is_flag=True, default=False,
               help='Create TIFF and world file in addition to h5 file.')
 @click.pass_context
-def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
-         tiff):
+def main(ctx, path, modis_path, ims_path, albedo_path, merra_path,
+         log_level, log_file, tiff):
     """
     Create composite albedo data for one day using MODIS and IMS data sets or
     convert existing albedo h5 file to TIFF with world file.
@@ -100,6 +105,7 @@ def main(ctx, path, modis_path, ims_path, albedo_path, log_level, log_file,
     ctx.obj['mpath'] = modis_path
     ctx.obj['ipath'] = ims_path
     ctx.obj['apath'] = albedo_path
+    ctx.obj['mepath'] = merra_path
 
     log_level = log_level.upper()
     ctx.obj['log_level'] = log_level
@@ -145,7 +151,8 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
         logger.info(f'Using IMS data shape of {ims_shape}')
 
     cad = CompositeAlbedoDay.run(date, ctx.obj['mpath'], ctx.obj['ipath'],
-                                 ctx.obj['apath'], **_kwargs)
+                                 ctx.obj['apath'], ctx.obj['mepath'],
+                                 **_kwargs)
     cad.write_albedo()
     if ctx.obj['tiff']:
         cad.write_tiff()
@@ -189,7 +196,8 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
                 log_file = log_file.replace('.log', f'_{sdate}.log')
 
         cmd = get_node_cmd(date, ctx.obj['ipath'], ctx.obj['mpath'],
-                           ctx.obj['apath'], ctx.obj['tiff'], log_file)
+                           ctx.obj['apath'], ctx.obj['mepath'],
+                           ctx.obj['tiff'], log_file)
 
         logger.debug(f'command for slurm: {cmd}')
 
@@ -221,10 +229,11 @@ def h5totiff(albedo_file):
     CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
 
 
-def get_node_cmd(date, ipath, mpath, apath, tiff, log_file):
+def get_node_cmd(date, ipath, mpath, apath, mepath, tiff, log_file):
     """ Create shell command for single day CLI call """
     sdate = date.strftime('%Y%m%d')
-    args = f'-i {ipath} -m {mpath} -a {apath} --log-file {log_file}'
+    args = f'-i {ipath} -m {mpath} -a {apath} '
+    args += f'-me {mepath} --log-file {log_file}'
     if tiff:
         args += ' --tiff'
     args += f' singleday {sdate}'
