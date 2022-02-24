@@ -5,9 +5,10 @@ from datetime import datetime as dt
 import tempfile
 import numpy as np
 from scipy.spatial import cKDTree
+import pandas as pd
 
-from nsrdb import TESTDATADIR
-from nsrdb.albedo.temperature_model import TemperatureModel
+from nsrdb import TESTDATADIR, DEFAULT_VAR_META
+from nsrdb.albedo.temperature_model import TemperatureModel, DataHandler
 from nsrdb.albedo import albedo
 from nsrdb.albedo import modis, ims
 from nsrdb.albedo.albedo import (ModisClipper,
@@ -16,10 +17,12 @@ from nsrdb.albedo.albedo import (ModisClipper,
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 source_dir = os.path.join(TESTDATADIR, 'merra2_source_files')
-model = TemperatureModel(source_dir)
+var_meta = pd.read_csv(DEFAULT_VAR_META)
+var_meta['source_directory'] = source_dir
+data_handler = DataHandler(source_dir, var_meta)
 
-with tempfile.TemporaryDirectory() as td:
-    snow_no_snow_file = f'{td}/snow_no_snow.py'
+td = tempfile.gettempdir()
+snow_no_snow_file = os.path.join(td, 'snow_no_snow.py')
 
 
 def calc_albedo(cad, data):
@@ -60,7 +63,7 @@ def calc_albedo(cad, data):
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
 
-    mclip_albedo = model.update_snow_albedo(
+    mclip_albedo = TemperatureModel.update_snow_albedo(
         mclip_albedo, snow_no_snow, data)
 
     # Merge clipped composite albedo with full MODIS data
@@ -92,10 +95,10 @@ def test_albedo_model():
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
-    grid = model.get_grid(cad)
+    grid = data_handler.get_grid(cad)
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-    data = model.get_data(d, grid)
+    data = data_handler.get_data(d, grid)
 
     cad = calc_albedo(cad, data)

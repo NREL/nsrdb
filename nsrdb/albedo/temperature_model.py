@@ -7,22 +7,78 @@ import numpy as np
 from nsrdb.data_model import DataModel
 
 
-class TemperatureModel:
-    """Class to handle MERRA data and compute albedo"""
-
-    def __init__(self, source_dir):
-        """Initialize TemperatureModel class with
+class DataHandler:
+    """DataHandler for MERRA data used in albedo
+    computations
+    """
+    def __init__(self, source_dir, var_meta):
+        """Initialize DataHandler class with
         source_dir for MERRA data
 
         Parameters
         ----------
-        source_dir : str
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.var_meta : str
             source directory for MERRA data
         """
-        self.source_dir = source_dir
-        self.kwargs = {'air_temperature': {'elevation_correct': False},
-                       'source_directory': source_dir}
+        self.kwargs = {'source_directory': source_dir,
+                       'air_temperature': {'elevation_correct': False}}
+        self.var_meta = var_meta
         self.data = None
+
+    @staticmethod
+    def get_grid(cad):
+        """Get grid from composite albedo day instance
+
+        Parameters
+        ----------
+        cad : CompositeAlbedoDay
+            CompositeAlbedoDay class instance
+            containing albedo calculation methods
+            and grid information
+
+        Returns
+        -------
+        pd.DataFrame
+            dataframe with latitudes and longitudes for grid
+        """
+
+        # Is this ordering correct?
+        lats = [[lat] * len(cad._modis.lon) for lat in cad._modis.lat]
+        lons = [cad._modis.lon] * len(cad._modis.lat)
+        lats = np.array(lats).flatten()
+        lons = np.array(lons).flatten()
+
+        return pd.DataFrame({'latitude': lats, 'longitude': lons})
+
+    def get_data(self, date, grid):
+        """Get temperature data from MERRA
+
+        Parameters
+        ----------
+        date : datetime.datetime
+            date for which to get temperature data
+
+        Returns
+        -------
+        ndarray (lat, lon)
+            temperature data array on lat/lon grid
+        """
+        self.data = DataModel.run_single(var='air_temperature',
+                                         date=date,
+                                         nsrdb_grid=grid,
+                                         var_meta=self.var_meta,
+                                         nsrdb_freq='60min', scale=False,
+                                         factory_kwargs=self.kwargs)
+        return self.data
+
+
+class TemperatureModel:
+    """Class to handle MERRA data and compute albedo"""
+
+    def __init__(self):
+        """Initialize TemperatureModel class"""
 
     @staticmethod
     def get_snow_albedo(T):
@@ -68,51 +124,8 @@ class TemperatureModel:
         albedo *= 1000
         return albedo
 
-    def get_data(self, date, grid):
-        """Get temperature data from MERRA
-
-        Parameters
-        ----------
-        date : datetime.datetime
-            date for which to get temperature data
-
-        Returns
-        -------
-        ndarray (lat, lon)
-            temperature data array on lat/lon grid
-        """
-        self.data = DataModel.run_single(var='air_temperature',
-                                         date=date,
-                                         nsrdb_grid=grid,
-                                         nsrdb_freq='60min', scale=False,
-                                         factory_kwargs=self.kwargs)
-        return self.data
-
-    @staticmethod
-    def get_grid(cad):
-        """Get grid from composite albedo day instance
-
-        Parameters
-        ----------
-        cad : CompositeAlbedoDay
-            CompositeAlbedoDay class instance
-            containing albedo calculation methods
-            and grid information
-
-        Returns
-        -------
-        pd.DataFrame
-            dataframe with latitudes and longitudes for grid
-        """
-        lats = []
-        lons = []
-        for lat in cad._modis.lat:
-            for lon in cad._modis.lon:
-                lats.append(lat)
-                lons.append(lon)
-        return pd.DataFrame({'latitude': lats, 'longitude': lons})
-
-    def update_snow_albedo(self, albedo, mask, data):
+    @classmethod
+    def update_snow_albedo(cls, albedo, mask, data):
         """Update albedo array with calculation results
 
         Parameters
@@ -131,7 +144,7 @@ class TemperatureModel:
             (temporal, n_lats * n_lons)
 
         """
-        updated_albedo = self.get_snow_albedo(data)
+        updated_albedo = cls.get_snow_albedo(data)
         updated_albedo = updated_albedo.mean(axis=0)
         updated_albedo = updated_albedo.reshape(mask.shape)
 
