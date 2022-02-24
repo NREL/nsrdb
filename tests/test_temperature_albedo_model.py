@@ -15,10 +15,10 @@ from nsrdb.albedo.albedo import (ModisClipper,
                                  ALBEDO_NODATA)
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
-source_dir = '/projects/pxs/ancillary/merra/'
+source_dir = os.path.join(TESTDATADIR, 'merra2_source_files')
 model = TemperatureModel(source_dir)
 
-with tempfile.TemporaryDirectory as td:
+with tempfile.TemporaryDirectory() as td:
     snow_no_snow_file = f'{td}/snow_no_snow.py'
 
 
