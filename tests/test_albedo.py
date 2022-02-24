@@ -15,8 +15,10 @@ import h5py
 import tempfile
 import logging
 
+
 pytest.importorskip("pyhdf")
 
+from nsrdb.albedo import temperature_model as tm
 from nsrdb.albedo import albedo
 
 from nsrdb import TESTDATADIR
@@ -25,6 +27,37 @@ MERRATESTDATADIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 
 
 logger = logging.getLogger()
+
+
+def test_merra_grid_mapping():
+    """Make sure lat/lon correspond to the correct
+    mask grid cell in the merra data used for albedo
+    calculations
+    """
+    handler = tm.DataHandler(MERRATESTDATADIR)
+
+    d = dt(2013, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            MERRATESTDATADIR,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120))
+    grid = handler.get_grid(cad)
+
+    cad_grid = np.zeros((len(cad._modis.lat), len(cad._modis.lon), 2))
+
+    for i, lat in enumerate(cad._modis.lat):
+        for j, lon in enumerate(cad._modis.lon):
+            cad_grid[i, j, 0] = lat
+            cad_grid[i, j, 1] = lon
+
+    lats = cad_grid[:, :, 0].reshape(-1)
+    lons = cad_grid[:, :, 1].reshape(-1)
+
+    assert np.array_equal(lats, np.array(grid['latitude']))
+    assert np.array_equal(lons, np.array(grid['longitude']))
 
 
 def test_4km_data_with_temp_model():
