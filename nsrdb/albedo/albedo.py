@@ -329,10 +329,14 @@ class CompositeAlbedoDay:
         mclip_albedo = mc.modis_clip
 
         if self._merra_path is not None:
+            logger.info(f'Loading Merra data for {self.date}')
             self._merra_data = tm.DataHandler.get_data(
                 self.date, self._merra_path, self._mask,
                 self._modis.lat, self._modis.lon)
 
+            msg = 'Calculating temperature dependent '
+            msg += f'snowy albedo for {self.date}'
+            logger.info(msg)
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
                 mclip_albedo, self._mask, self._merra_data)
         else:

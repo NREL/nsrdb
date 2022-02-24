@@ -3,12 +3,9 @@ for calculations"""
 
 import pandas as pd
 import numpy as np
-import logging
 
 from nsrdb.data_model import DataModel
 from nsrdb import DEFAULT_VAR_META
-
-logger = logging.getLogger(__name__)
 
 
 class DataHandler:
@@ -62,8 +59,6 @@ class DataHandler:
         ndarray (lat, lon)
             temperature data array on lat/lon grid
         """
-
-        logger.info(f'Loading MERRA data for {date}')
 
         kwargs = {'source_directory': merra_path,
                   'air_temperature': {'elevation_correct': False}}
