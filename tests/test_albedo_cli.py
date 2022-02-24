@@ -59,14 +59,9 @@ def test_cli_4km_data_with_temp_model(runner):
         with h5py.File(fname, 'r') as f:
             new_data = np.array(f['surface_albedo'])
 
-        assert np.array_equal(known_data, new_data)
+        # compare with non temperature model output
+        assert not np.array_equal(known_data, new_data)
 
-        # Compare against wrong output
-        fname = os.path.join(TEST_DATA_DIR, 'nsrdb_albedo_2015_001.h5')
-        with h5py.File(fname, 'r') as f:
-            wrong_data = np.array(f['surface_albedo'])
-
-        assert not np.array_equal(wrong_data, new_data)
         LOGGERS.clear()
 
 

@@ -27,6 +27,30 @@ MERRATESTDATADIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 logger = logging.getLogger()
 
 
+def test_4km_data_with_temp_model():
+    """ Create composite albedo data using 4km IMS """
+    test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
+    with h5py.File(test_file, 'r') as f:
+        data = np.array(f['surface_albedo'])
+
+    d = dt(2013, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            MERRATESTDATADIR,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120))
+
+        assert np.array_equal(data[cad._mask == 0], cad.albedo[cad._mask == 0])
+
+        cad.write_albedo()
+        new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
+        with h5py.File(new_albedo_file, 'r') as f:
+            new_data = np.array(f['surface_albedo'])
+        assert np.array_equal(data[cad._mask == 0], new_data[cad._mask == 0])
+
+
 def test_4km_data():
     """ Create composite albedo data using 4km IMS """
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')

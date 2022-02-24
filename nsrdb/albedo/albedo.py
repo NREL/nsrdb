@@ -173,6 +173,7 @@ class CompositeAlbedoDay:
         self._ims = None  # ImsDay object
         self.albedo = None  # numpy array of albedo data, same shape as MODIS
         self._merra_data = None  # temperature data for albedo calculation
+        self._mask = None  # snow_no_snow mask
 
     def write_albedo(self):
         """
@@ -324,6 +325,7 @@ class CompositeAlbedoDay:
         # clipped MODIS, but has snow/no snow values from binary IMS.
         snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
                                                  len(mc.mlon_clip))
+        self._mask = snow_no_snow
         logger.info(f'Shape of snow/no snow grid is {snow_no_snow.shape}.')
 
         # Update MODIS albedo for cells w/ snow
@@ -331,7 +333,7 @@ class CompositeAlbedoDay:
 
         if self._merra_data is not None:
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-                mclip_albedo, snow_no_snow, self._merra_data)
+                mclip_albedo, self._mask, self._merra_data)
         else:
             mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
