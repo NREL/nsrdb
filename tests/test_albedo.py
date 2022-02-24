@@ -43,7 +43,8 @@ def test_merra_grid_mapping():
                                             MERRATESTDATADIR,
                                             ims_shape=(32, 25),
                                             modis_shape=(122, 120))
-    grid = tm.DataHandler.get_grid(cad._modis.lat, cad._modis.lon)
+    grid = tm.DataHandler.get_grid(
+        cad._modis.lat, cad._modis.lon, cad._mask)
 
     cad_grid = np.zeros((len(cad._modis.lat), len(cad._modis.lon), 2))
 
@@ -52,8 +53,8 @@ def test_merra_grid_mapping():
             cad_grid[i, j, 0] = lat
             cad_grid[i, j, 1] = lon
 
-    lats = cad_grid[:, :, 0].reshape(-1)
-    lons = cad_grid[:, :, 1].reshape(-1)
+    lats = cad_grid[:, :, 0][cad._mask == 1].reshape(-1)
+    lons = cad_grid[:, :, 1][cad._mask == 1].reshape(-1)
 
     assert np.array_equal(lats, np.array(grid['latitude']))
     assert np.array_equal(lons, np.array(grid['longitude']))

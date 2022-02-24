@@ -14,7 +14,7 @@ class DataHandler:
     """
 
     @staticmethod
-    def get_grid(lat, lon):
+    def get_grid(lat, lon, mask):
         """Get grid from composite albedo day instance
 
         Parameters
@@ -23,6 +23,9 @@ class DataHandler:
             array of latitudes for modis grid
         lon : ndarray
             array of longitudes for modis grid
+        mask : ndarray
+            snow_no_snow mask with 1 for snowy
+            cells and 0 for clear cells
 
         Returns
         -------
@@ -33,6 +36,9 @@ class DataHandler:
         lons = [lon] * len(lat)
         lats = np.array(lats).flatten()
         lons = np.array(lons).flatten()
+        tmp_mask = mask.reshape(-1) == 1
+        lats = lats[tmp_mask]
+        lons = lons[tmp_mask]
 
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
@@ -64,8 +70,7 @@ class DataHandler:
                   'air_temperature': {'elevation_correct': False}}
         var_meta = pd.read_csv(DEFAULT_VAR_META)
         var_meta['source_directory'] = merra_path
-        grid = DataHandler.get_grid(lat, lon)
-        grid = grid.loc[mask.reshape(-1) == 1]
+        grid = DataHandler.get_grid(lat, lon, mask)
         data = DataModel.run_single(var='air_temperature',
                                     date=date,
                                     nsrdb_grid=grid,
