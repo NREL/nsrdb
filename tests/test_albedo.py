@@ -21,6 +21,7 @@ import nsrdb.albedo.albedo as albedo
 
 from nsrdb import TESTDATADIR
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
+MERRATESTDATADIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 
 
 logger = logging.getLogger()

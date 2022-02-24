@@ -5,10 +5,9 @@ from datetime import datetime as dt
 import tempfile
 import numpy as np
 from scipy.spatial import cKDTree
-import pandas as pd
 
-from nsrdb import TESTDATADIR, DEFAULT_VAR_META
-from nsrdb.albedo.temperature_model import TemperatureModel, DataHandler
+from nsrdb import TESTDATADIR
+from nsrdb.albedo import temperature_model as tm
 from nsrdb.albedo import albedo
 from nsrdb.albedo import modis, ims
 from nsrdb.albedo.albedo import (ModisClipper,
@@ -17,15 +16,12 @@ from nsrdb.albedo.albedo import (ModisClipper,
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 source_dir = os.path.join(TESTDATADIR, 'merra2_source_files')
-var_meta = pd.read_csv(DEFAULT_VAR_META)
-var_meta['source_directory'] = source_dir
-data_handler = DataHandler(source_dir, var_meta)
 
 td = tempfile.gettempdir()
 snow_no_snow_file = os.path.join(td, 'snow_no_snow.py')
 
 
-def calc_albedo(cad, data):
+def calc_albedo(cad):
     """Calculate albedo using provided data.
     Load or save snow_no_snow mask from/to td"""
 
@@ -63,8 +59,8 @@ def calc_albedo(cad, data):
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
 
-    mclip_albedo = TemperatureModel.update_snow_albedo(
-        mclip_albedo, snow_no_snow, data)
+    mclip_albedo = tm.TemperatureModel.update_snow_albedo(
+        mclip_albedo, snow_no_snow, cad._merra_data)
 
     # Merge clipped composite albedo with full MODIS data
     albedo = cad._modis.data
@@ -90,15 +86,14 @@ def test_albedo_model():
 
     with tempfile.TemporaryDirectory() as td:
         cad = albedo.CompositeAlbedoDay(d, ALBEDOTESTDATADIR,
-                                        ALBEDOTESTDATADIR, td)
+                                        ALBEDOTESTDATADIR, td,
+                                        source_dir)
 
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
-    grid = data_handler.get_grid(cad)
-
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-    data = data_handler.get_data(d, grid)
+    cad._merra_data = tm.DataHandler.get_data(cad)
 
-    cad = calc_albedo(cad, data)
+    cad = calc_albedo(cad)

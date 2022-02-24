@@ -18,6 +18,7 @@ from scipy.spatial import cKDTree
 
 from rex.utilities.execution import SpawnProcessPool
 
+from nsrdb.albedo import temperature_model as tm
 from nsrdb.albedo import ims
 from nsrdb.albedo import modis
 
@@ -87,8 +88,9 @@ class CompositeAlbedoDay:
     CHUNKS = (2000, 1000)
 
     @classmethod
-    def run(cls, date, modis_path, ims_path, albedo_path, ims_shape=None,
-            modis_shape=None, max_workers=None, ims_buffer=IMS_EDGE_BUFFFER):
+    def run(cls, date, modis_path, ims_path, albedo_path, merra_path=None,
+            ims_shape=None, modis_shape=None, max_workers=None,
+            ims_buffer=IMS_EDGE_BUFFFER):
         """
         Merge MODIS and IMS data for one day.
 
@@ -104,6 +106,9 @@ class CompositeAlbedoDay:
             stored at this location if not present.
         albedo_path : str
             Path for composite albedo data files (output)
+        merra_path : str | None
+            Path for merra data to use in albedo calculation. If None albedo
+            with use constant value.
         ims_shape : (int, int)
             Shape of IMS data (rows, cols). Defaults to typical shape of IMS
             data. Should be None unless testing.
@@ -120,7 +125,8 @@ class CompositeAlbedoDay:
         -------
             Class instance
         """
-        cad = cls(date, modis_path, ims_path, albedo_path, max_workers)
+        cad = cls(date, modis_path, ims_path, albedo_path,
+                  merra_path, max_workers)
 
         logger.info(f'Loading MODIS data for {cad.date}')
         cad._modis = modis.ModisDay(cad.date, cad._modis_path,
@@ -129,11 +135,14 @@ class CompositeAlbedoDay:
         logger.info(f'Loading IMS data {cad.date}')
         cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
+        if merra_path is not None:
+            cad._merra_data = tm.DataHandler.get_data(cad)
+
         cad.albedo = cad._calc_albedo(ims_buffer=ims_buffer)
         return cad
 
     def __init__(self, date, modis_path, ims_path, albedo_path,
-                 max_workers=None):
+                 merra_path=None, max_workers=None):
         """
         Parameters
         ----------
@@ -147,6 +156,9 @@ class CompositeAlbedoDay:
             stored at this location if it not present.
         albedo_path : str
             Path for composite albedo data files (output)
+        merra_path : str | None
+            Path for merra data to use in albedo calculation. If None albedo
+            with use constant value.
         max_workers : int | None
             Max number of workers for concurrent futures, None is all
         """
@@ -154,11 +166,13 @@ class CompositeAlbedoDay:
         self._modis_path = modis_path
         self._ims_path = ims_path
         self.albedo_path = albedo_path
+        self._merra_path = merra_path
         self._max_workers = max_workers
 
         self._modis = None  # ModisDay object
         self._ims = None  # ImsDay object
         self.albedo = None  # numpy array of albedo data, same shape as MODIS
+        self._merra_data = None  # temperature data for albedo calculation
 
     def write_albedo(self):
         """
@@ -314,7 +328,12 @@ class CompositeAlbedoDay:
 
         # Update MODIS albedo for cells w/ snow
         mclip_albedo = mc.modis_clip
-        mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
+
+        if self._merra_data is not None:
+            mclip_albedo = tm.TemperatureModel.update_snow_albedo(
+                mclip_albedo, snow_no_snow, self._merra_data)
+        else:
+            mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
         # Merge clipped composite albedo with full MODIS data
         albedo = self._modis.data

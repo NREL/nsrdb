@@ -5,27 +5,26 @@ import pandas as pd
 import numpy as np
 
 from nsrdb.data_model import DataModel
+from nsrdb import DEFAULT_VAR_META
 
 
 class DataHandler:
     """DataHandler for MERRA data used in albedo
     computations
     """
-    def __init__(self, source_dir, var_meta):
+    def __init__(self, source_dir):
         """Initialize DataHandler class with
         source_dir for MERRA data
 
         Parameters
         ----------
-        var_meta : str | pd.DataFrame | None
-            CSV file or dataframe containing meta data for all NSRDB variables.
-            Defaults to the NSRDB var meta csv in git repo.var_meta : str
+        source_dir : str
             source directory for MERRA data
         """
         self.kwargs = {'source_directory': source_dir,
                        'air_temperature': {'elevation_correct': False}}
-        self.var_meta = var_meta
-        self.data = None
+        self.var_meta = pd.read_csv(DEFAULT_VAR_META)
+        self.var_meta['source_directory'] = source_dir
 
     @staticmethod
     def get_grid(cad):
@@ -52,7 +51,8 @@ class DataHandler:
 
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
-    def get_data(self, date, grid):
+    @classmethod
+    def get_data(cls, cad):
         """Get temperature data from MERRA
 
         Parameters
@@ -65,13 +65,15 @@ class DataHandler:
         ndarray (lat, lon)
             temperature data array on lat/lon grid
         """
-        self.data = DataModel.run_single(var='air_temperature',
-                                         date=date,
-                                         nsrdb_grid=grid,
-                                         var_meta=self.var_meta,
-                                         nsrdb_freq='60min', scale=False,
-                                         factory_kwargs=self.kwargs)
-        return self.data
+        handler = cls(cad._merra_path)
+        grid = handler.get_grid(cad)
+        data = DataModel.run_single(var='air_temperature',
+                                    date=cad.date,
+                                    nsrdb_grid=grid,
+                                    var_meta=handler.var_meta,
+                                    nsrdb_freq='60min', scale=False,
+                                    factory_kwargs=handler.kwargs)
+        return data
 
 
 class TemperatureModel:
