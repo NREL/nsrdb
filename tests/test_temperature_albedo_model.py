@@ -61,7 +61,7 @@ def calc_albedo(cad):
 
     cad._merra_data = tm.DataHandler.get_data(
         cad.date, cad._merra_path, snow_no_snow,
-        cad._modis.lat, cad._modis.lon)
+        mc.mlat_clip, mc.mlon_clip)
 
     mclip_albedo = tm.TemperatureModel.update_snow_albedo(
         mclip_albedo, snow_no_snow, cad._merra_data)

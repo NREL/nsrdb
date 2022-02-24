@@ -349,7 +349,7 @@ class CompositeAlbedoDay:
             logger.info(f'Loading Merra data for {self.date}')
             self._merra_data = tm.DataHandler.get_data(
                 self.date, self._merra_path, self._mask,
-                self._modis.lat, self._modis.lon)
+                mc.mlat_clip, mc.mlon_clip)
 
             msg = 'Calculating temperature dependent '
             msg += f'snowy albedo for {self.date}'
