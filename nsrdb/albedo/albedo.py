@@ -108,7 +108,7 @@ class CompositeAlbedoDay:
             Path for composite albedo data files (output)
         merra_path : str | None
             Path for merra data to use in albedo calculation. If None albedo
-            with use constant value.
+            will use constant value instead of calculating.
         ims_shape : (int, int)
             Shape of IMS data (rows, cols). Defaults to typical shape of IMS
             data. Should be None unless testing.
@@ -158,7 +158,7 @@ class CompositeAlbedoDay:
             Path for composite albedo data files (output)
         merra_path : str | None
             Path for merra data to use in albedo calculation. If None albedo
-            with use constant value.
+            will use constant value instead of calculating.
         max_workers : int | None
             Max number of workers for concurrent futures, None is all
         """
