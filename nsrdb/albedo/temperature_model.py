@@ -42,8 +42,6 @@ class DataHandler:
         pd.DataFrame
             dataframe with latitudes and longitudes for grid
         """
-
-        # Is this ordering correct?
         lats = [[lat] * len(cad._modis.lon) for lat in cad._modis.lat]
         lons = [cad._modis.lon] * len(cad._modis.lat)
         lats = np.array(lats).flatten()
