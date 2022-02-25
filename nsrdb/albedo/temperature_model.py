@@ -150,7 +150,12 @@ class DataHandler:
 
 
 class TemperatureModel:
-    """Class to handle MERRA data and compute albedo"""
+    """Class to handle MERRA data and compute albedo. Uses
+    equations 1 and 2 from Journal of Geophysical Research
+    article, A comparison of simulated and observed fluctuations
+    in summertime Arctic surface albedo, by Becky Ross and
+    John E. Walsh
+    """
 
     @staticmethod
     def get_snow_albedo(T):
