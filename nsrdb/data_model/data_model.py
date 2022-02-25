@@ -156,10 +156,10 @@ class DataModel:
 
         self._nsrdb_data_shape = None
         self._nsrdb_grid_file = None
-        self._parse_nsrdb_grid(nsrdb_grid)
         self._date = date
         self._nsrdb_freq = nsrdb_freq
         self._var_meta = var_meta
+        self._parse_nsrdb_grid(nsrdb_grid)
 
         self._factory_kwargs = {} if factory_kwargs is None else factory_kwargs
         self._scale = scale
@@ -184,8 +184,9 @@ class DataModel:
     def __contains__(self, dset):
         return dset in self._processed
 
-    def _parse_nsrdb_grid(self, inp, req=('latitude', 'longitude',
-                                          'elevation')):
+    def _parse_nsrdb_grid(self, inp,
+                          req=('latitude', 'longitude', 'elevation')):
+
         """Set the NSRDB reference grid from a csv file.
 
         Parameters
@@ -207,10 +208,10 @@ class DataModel:
                             'received: {}'.format(inp))
 
         # check requirements
-        for r in req:
-            if r not in self._nsrdb_grid:
-                raise KeyError('Could not find "{}" in nsrdb grid labels: "{}"'
-                               .format(r, self._nsrdb_grid.columns.values))
+        missing = [r for r in req if r not in self._nsrdb_grid]
+        if any(missing):
+            msg = ''
+            logger.warning(msg)
 
         # copy index to gid data column that will be saved in output files
         # used in the case that the grid is chunked into subsets of sites
