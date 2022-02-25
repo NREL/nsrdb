@@ -12,7 +12,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime as dt
 import logging
-import matplotlib.pyplot as plt
 
 from nsrdb.data_model import DataModel
 from nsrdb import DEFAULT_VAR_META
@@ -77,6 +76,12 @@ class DataHandler:
             array of latitudes for modis grid
         lon : ndarray
             array of longitudes for modis grid
+        max_workers : int | None
+            maximum number of workers for loading
+            MERRA data
+        n_chunks : int
+            number of chunks to split full grid into
+            for parallel data loading
 
         Returns
         -------
@@ -192,8 +197,7 @@ class TemperatureModel:
         return albedo
 
     @classmethod
-    def update_snow_albedo(cls, albedo, mask, T,
-                           plot=False, fp_out=None):
+    def update_snow_albedo(cls, albedo, mask, T):
         """Update albedo array with calculation results
 
         Parameters
@@ -217,12 +221,5 @@ class TemperatureModel:
         updated_albedo[snow_mask] = cls.get_snow_albedo(T)
         updated_albedo = updated_albedo.reshape(mask.shape)
         albedo[mask == 1] = updated_albedo[mask == 1]
-
-        if plot:
-            fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
-            im = ax.imshow(albedo, interpolation='none')
-            plt.title('Albedo')
-            fig.colorbar(im, ax=ax)
-            plt.savefig(fp_out)
 
         return albedo

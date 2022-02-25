@@ -16,6 +16,7 @@ import os
 from scipy import ndimage
 from scipy.spatial import cKDTree
 import tempfile
+import matplotlib.pyplot as plt
 
 from rex.utilities.execution import SpawnProcessPool
 
@@ -94,7 +95,7 @@ class CompositeAlbedoDay:
     @classmethod
     def run(cls, date, modis_path, ims_path, albedo_path, merra_path=None,
             ims_shape=None, modis_shape=None, max_workers=None,
-            ims_buffer=IMS_EDGE_BUFFFER, save_mask=False):
+            ims_buffer=IMS_EDGE_BUFFFER):
         """
         Merge MODIS and IMS data for one day.
 
@@ -140,8 +141,7 @@ class CompositeAlbedoDay:
         logger.info(f'Loading IMS data {cad.date}')
         cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-        cad.albedo = cad._calc_albedo(ims_buffer=ims_buffer,
-                                      save_mask=save_mask)
+        cad.albedo = cad._calc_albedo(ims_buffer=ims_buffer)
         return cad
 
     def __init__(self, date, modis_path, ims_path, albedo_path,
@@ -280,8 +280,7 @@ class CompositeAlbedoDay:
 
         logger.debug(f'Write to file {filename} complete')
 
-    def _calc_albedo(self, ims_buffer=IMS_EDGE_BUFFFER,
-                     save_mask=False):
+    def _calc_albedo(self, ims_buffer=IMS_EDGE_BUFFFER):
         """
         Calculate composite albedo by merging MODIS and IMS
 
@@ -305,6 +304,7 @@ class CompositeAlbedoDay:
         # Clip MODIS data to IMS boundary
         mc = ModisClipper(self._modis, self._ims)
 
+        save_mask = True
         if save_mask and os.path.exists(snow_no_snow_file):
             with open(snow_no_snow_file, 'rb') as f:
                 snow_no_snow = np.load(f)
@@ -365,7 +365,7 @@ class CompositeAlbedoDay:
             logger.info(msg)
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
                 mclip_albedo, self._mask, self._merra_data,
-                plot=True, fp_out=f'{self.albedo_path}/albedo.png')
+                plot=True, fp_out=f'{self.albedo_path}/albedo_{self.date}.png')
         else:
             mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
@@ -386,6 +386,17 @@ class CompositeAlbedoDay:
         albedo /= 10
         albedo = np.round(albedo)
         albedo = albedo.astype(np.uint8)
+
+        plot_albedo = True
+        if plot_albedo:
+            fp_out = f'{self.albedo_path}/albedo_{self.date}.png'
+            fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
+            im = ax.imshow(albedo, interpolation='none')
+            plt.title('Albedo')
+            fig.colorbar(im, ax=ax)
+            plt.savefig(fp_out)
+
+            logger.info(f'Saved albedo plot: {fp_out}')
 
         return albedo
 
