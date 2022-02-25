@@ -15,7 +15,6 @@ import numpy as np
 import os
 from scipy import ndimage
 from scipy.spatial import cKDTree
-import tempfile
 
 from rex.utilities.execution import SpawnProcessPool
 
@@ -23,8 +22,6 @@ from nsrdb.albedo import temperature_model as tm
 from nsrdb.albedo import ims
 from nsrdb.albedo import modis
 
-td = tempfile.gettempdir()
-snow_no_snow_file = os.path.join(td, 'snow_no_snow.npy')
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -303,41 +300,32 @@ class CompositeAlbedoDay:
         # Clip MODIS data to IMS boundary
         mc = ModisClipper(self._modis, self._ims)
 
-        save_mask = True
-        if save_mask and os.path.exists(snow_no_snow_file):
-            with open(snow_no_snow_file, 'rb') as f:
-                snow_no_snow = np.load(f)
+        # Find snow/no snow region boundaries of IMS
+        logger.info('Determining IMS snow/no snow region boundaries')
+        ims_bin_mskd, ims_pts = self._get_ims_boundary(buffer=ims_buffer)
+
+        # Create cKDTree to map MODIS points onto IMS regions
+        logger.info('Creating KD Tree')
+        ims_tree = cKDTree(ims_pts)
+
+        # Map MODIS pixels to IMS data
+        logger.info('Mapping MODIS to IMS data. This might take a while.')
+        modis_pts = self._get_modis_pts(mc.mlon_clip, mc.mlat_clip)
+        if self._max_workers != 1:
+            if self._max_workers is not None:
+                logging.warning(
+                    f'Processing albedo with {self._max_workers}'
+                    ' workers')
+            ind = self._run_futures(ims_tree, modis_pts)
         else:
-            # Find snow/no snow region boundaries of IMS
-            logger.info('Determining IMS snow/no snow region boundaries')
-            ims_bin_mskd, ims_pts = self._get_ims_boundary(buffer=ims_buffer)
+            logging.warning('Processing albedo with a single worker')
+            ind = self._run_single_tree(ims_tree, modis_pts)
 
-            # Create cKDTree to map MODIS points onto IMS regions
-            logger.info('Creating KD Tree')
-            ims_tree = cKDTree(ims_pts)
-
-            # Map MODIS pixels to IMS data
-            logger.info('Mapping MODIS to IMS data. This might take a while.')
-            modis_pts = self._get_modis_pts(mc.mlon_clip, mc.mlat_clip)
-            if self._max_workers != 1:
-                if self._max_workers is not None:
-                    logging.warning(
-                        f'Processing albedo with {self._max_workers}'
-                        ' workers')
-                ind = self._run_futures(ims_tree, modis_pts)
-            else:
-                logging.warning('Processing albedo with a single worker')
-                ind = self._run_single_tree(ims_tree, modis_pts)
-
-            # Project nearest neighbors from IMS to MODIS.
-            # Array is on same grid as clipped MODIS,
-            # but has snow/no snow values from binary IMS.
-            snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
-                                                     len(mc.mlon_clip))
-            if save_mask:
-                with open(snow_no_snow_file, 'wb') as f:
-                    np.save(f, snow_no_snow)
-
+        # Project nearest neighbors from IMS to MODIS.
+        # Array is on same grid as clipped MODIS,
+        # but has snow/no snow values from binary IMS.
+        snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
+                                                 len(mc.mlon_clip))
         self._mask = snow_no_snow
         logger.info(f'Shape of snow/no snow grid is {snow_no_snow.shape}.')
 
