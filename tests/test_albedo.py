@@ -61,7 +61,8 @@ def test_merra_grid_mapping():
 
 
 def test_4km_data_with_temp_model():
-    """ Create composite albedo data using 4km IMS """
+    """ Create composite albedo data with temperature dependent
+    albedo model using 4km IMS """
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
@@ -86,6 +87,15 @@ def test_4km_data_with_temp_model():
         with h5py.File(new_albedo_file, 'r') as f:
             new_data = np.array(f['surface_albedo'])
         assert np.array_equal(data[cad._mask == 0], new_data[cad._mask == 0])
+
+        # make sure albedo increases with lower temperature
+        T = cad._merra_data
+        T.sort()
+        albedo_array = tm.TemperatureModel.get_snow_albedo(T)
+        albedo_array_sorted = albedo_array.copy()
+        albedo_array_sorted.sort()
+        albedo_array_sorted = albedo_array_sorted[::-1]
+        assert np.array_equal(albedo_array, albedo_array_sorted)
 
 
 def test_4km_data():
