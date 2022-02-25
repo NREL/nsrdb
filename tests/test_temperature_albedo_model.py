@@ -5,6 +5,8 @@ from datetime import datetime as dt
 import tempfile
 import numpy as np
 from scipy.spatial import cKDTree
+import matplotlib.pyplot as plt
+
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import temperature_model as tm
@@ -56,16 +58,21 @@ def calc_albedo(cad):
         with open(snow_no_snow_file, 'rb') as f:
             snow_no_snow = np.load(f)
 
+    cad._mask = snow_no_snow
+
     # Update MODIS albedo for cells w/ snow
     mclip_albedo = mc.modis_clip
 
-    cad._merra_data = tm.DataHandler.get_data(
-        cad.date, cad._merra_path, snow_no_snow,
-        mc.mlat_clip, mc.mlon_clip)
+    if cad._merra_path is not None:
+        cad._merra_data = tm.DataHandler.get_data(
+            cad.date, cad._merra_path, snow_no_snow,
+            mc.mlat_clip, mc.mlon_clip, avg=False,
+            fp_out=f'{td}/merra_data.csv')
 
-    mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-        mclip_albedo, snow_no_snow, cad._merra_data)
-
+        mclip_albedo = tm.TemperatureModel.update_snow_albedo(
+            mclip_albedo, snow_no_snow, cad._merra_data)
+    else:
+        mclip_albedo[snow_no_snow == 1] = 867
     # Merge clipped composite albedo with full MODIS data
     albedo = cad._modis.data
     albedo[mc.modis_idx] = mclip_albedo
@@ -81,21 +88,43 @@ def calc_albedo(cad):
     return albedo
 
 
-def test_albedo_model():
+def test_albedo_model(with_temp_model=False, plot=True):
     """ Test temperature based albedo model """
 
     d = dt(2013, 1, 1)
     modis_shape = (122, 120)
     ims_shape = (32, 25)
 
-    with tempfile.TemporaryDirectory() as td:
+    if with_temp_model:
         cad = albedo.CompositeAlbedoDay(d, ALBEDOTESTDATADIR,
                                         ALBEDOTESTDATADIR, td,
                                         source_dir)
+    else:
+        cad = albedo.CompositeAlbedoDay(d, ALBEDOTESTDATADIR,
+                                        ALBEDOTESTDATADIR, td)
 
     cad._modis = modis.ModisDay(cad.date, cad._modis_path,
                                 shape=modis_shape)
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 
-    cad = calc_albedo(cad)
+    cad.albedo = calc_albedo(cad)
+
+    if plot:
+        fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
+        im = ax.imshow(cad.albedo, interpolation='none')
+        plt.title('Albedo')
+        fig.colorbar(im, ax=ax)
+
+        plt.show()
+        cad.write_tiff()
+
+        if with_temp_model:
+            fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
+            T = np.zeros(cad._mask.shape).flatten()
+            T[cad._mask.flatten() == 1] = cad._merra_data
+            T = T.reshape(cad._mask.shape)
+            im = ax.imshow(T, interpolation='none')
+            plt.title('Merra Temperature')
+            fig.colorbar(im, ax=ax)
+            plt.show()

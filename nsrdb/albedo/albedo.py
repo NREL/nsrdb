@@ -305,10 +305,9 @@ class CompositeAlbedoDay:
         # Clip MODIS data to IMS boundary
         mc = ModisClipper(self._modis, self._ims)
 
-        if save_mask:
-            if os.path.exists(snow_no_snow_file):
-                with open(snow_no_snow_file, 'rb') as f:
-                    snow_no_snow = np.load(f)
+        if save_mask and os.path.exists(snow_no_snow_file):
+            with open(snow_no_snow_file, 'rb') as f:
+                snow_no_snow = np.load(f)
         else:
             # Find snow/no snow region boundaries of IMS
             logger.info('Determining IMS snow/no snow region boundaries')
@@ -349,7 +348,8 @@ class CompositeAlbedoDay:
             logger.info(f'Loading Merra data for {self.date}')
             self._merra_data = tm.DataHandler.get_data(
                 self.date, self._merra_path, self._mask,
-                mc.mlat_clip, mc.mlon_clip)
+                mc.mlat_clip, mc.mlon_clip,
+                fp_out=f'{self.albedo_path}/merra_data.csv')
 
             msg = 'Calculating temperature dependent '
             msg += f'snowy albedo for {self.date}'
