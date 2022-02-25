@@ -88,7 +88,7 @@ def calc_albedo(cad):
     return albedo
 
 
-def test_albedo_model(with_temp_model=True, plot=True):
+def test_albedo_model(with_temp_model=True, plot=False):
     """ Test temperature based albedo model """
 
     d = dt(2013, 1, 1)
@@ -117,7 +117,6 @@ def test_albedo_model(with_temp_model=True, plot=True):
         fig.colorbar(im, ax=ax)
 
         plt.show()
-        cad.write_tiff()
 
         if with_temp_model:
             fig, ax = plt.subplots(figsize=(8, 4), ncols=1)

@@ -335,8 +335,9 @@ class CompositeAlbedoDay:
             # but has snow/no snow values from binary IMS.
             snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
                                                      len(mc.mlon_clip))
-            with open(snow_no_snow_file, 'wb') as f:
-                np.save(f, snow_no_snow)
+            if save_mask:
+                with open(snow_no_snow_file, 'wb') as f:
+                    np.save(f, snow_no_snow)
 
         self._mask = snow_no_snow
         logger.info(f'Shape of snow/no snow grid is {snow_no_snow.shape}.')
@@ -357,7 +358,6 @@ class CompositeAlbedoDay:
             self._merra_data = tm.DataHandler.get_data(
                 self.date, self._merra_path, self._mask,
                 mc.mlat_clip, mc.mlon_clip,
-                fp_out=f'{self.albedo_path}/merra_data.csv',
                 max_workers=self._max_workers)
 
             msg = 'Calculating temperature dependent '
