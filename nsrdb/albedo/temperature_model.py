@@ -7,11 +7,22 @@ Created pn Feb 23 2022
 @author : bnb32
 """
 
+from concurrent.futures import as_completed
 import pandas as pd
 import numpy as np
+from multiprocessing import cpu_count
+from datetime import datetime as dt
+import logging
 
 from nsrdb.data_model import DataModel
 from nsrdb import DEFAULT_VAR_META
+
+from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
+
+logger = logging.getLogger(__name__)
+
+init_logger('nsrdb')
 
 
 class DataHandler:
@@ -49,7 +60,8 @@ class DataHandler:
 
     @staticmethod
     def get_data(date, merra_path, mask, lat, lon,
-                 avg=True, fp_out=None):
+                 avg=True, fp_out=None,
+                 max_workers=None):
         """Get temperature data from MERRA
 
         Parameters
@@ -77,17 +89,51 @@ class DataHandler:
         var_meta = pd.read_csv(DEFAULT_VAR_META)
         var_meta['source_directory'] = merra_path
         grid = DataHandler.get_grid(lat, lon, mask)
-        T = DataModel.run_single(var='air_temperature',
-                                 date=date,
-                                 nsrdb_grid=grid,
-                                 var_meta=var_meta,
-                                 nsrdb_freq='60min', scale=False,
-                                 factory_kwargs=kwargs)
 
-        if avg:
-            T = T.mean(axis=0)
-        else:
-            T = T.max(axis=0)
+        futures = {}
+        grid_chunks = np.array_split(grid, cpu_count())
+        now = dt.now()
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers,
+                              max_workers=max_workers) as exe:
+            for i, chunk in enumerate(grid_chunks):
+                future = exe.submit(DataModel.run_single,
+                                    var='air_temperature',
+                                    date=date,
+                                    nsrdb_grid=chunk,
+                                    var_meta=var_meta,
+                                    nsrdb_freq='60min',
+                                    scale=False,
+                                    factory_kwargs=kwargs)
+                meta = {'id': i}
+                ct = chunk
+                meta['lon_min'] = ct['longitude'].min()
+                meta['lon_max'] = ct['longitude'].max()
+                meta['lat_min'] = ct['longitude'].min()
+                meta['lat_max'] = ct['longitude'].max()
+                meta['size'] = ct.size
+                futures[future] = meta
+
+            logger.info(
+                f'Started fetching all merra data chunks in {dt.now() - now}')
+
+            for i, future in enumerate(as_completed(futures)):
+                logger.info(f'Future {futures[future]} completed in '
+                            f'{dt.now() - now}.')
+                logger.info(f'{i+1} out of {len(futures)} futures '
+                            'completed')
+        logger.info('done processing')
+
+        T = np.empty(len(grid), dtype=float)
+        pos = 0
+        for key in futures:
+            if avg:
+                res = key.result().mean(axis=0)
+            else:
+                res = key.result().max(axis=0)
+            size = len(res)
+            T[pos:pos + size] = res
+            pos += size
 
         if fp_out is not None:
             df = grid

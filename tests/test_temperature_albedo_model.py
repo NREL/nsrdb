@@ -88,7 +88,7 @@ def calc_albedo(cad):
     return albedo
 
 
-def test_albedo_model(with_temp_model=False, plot=True):
+def test_albedo_model(with_temp_model=True, plot=True):
     """ Test temperature based albedo model """
 
     d = dt(2013, 1, 1)
