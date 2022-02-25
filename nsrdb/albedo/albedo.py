@@ -16,7 +16,6 @@ import os
 from scipy import ndimage
 from scipy.spatial import cKDTree
 import tempfile
-import matplotlib.pyplot as plt
 
 from rex.utilities.execution import SpawnProcessPool
 
@@ -364,8 +363,7 @@ class CompositeAlbedoDay:
             msg += f'snowy albedo for {self.date}'
             logger.info(msg)
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-                mclip_albedo, self._mask, self._merra_data,
-                plot=True, fp_out=f'{self.albedo_path}/albedo_{self.date}.png')
+                mclip_albedo, self._mask, self._merra_data)
         else:
             mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
@@ -386,17 +384,6 @@ class CompositeAlbedoDay:
         albedo /= 10
         albedo = np.round(albedo)
         albedo = albedo.astype(np.uint8)
-
-        plot_albedo = True
-        if plot_albedo:
-            fp_out = f'{self.albedo_path}/albedo_{self.date}.png'
-            fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
-            im = ax.imshow(albedo, interpolation='none')
-            plt.title('Albedo')
-            fig.colorbar(im, ax=ax)
-            plt.savefig(fp_out)
-
-            logger.info(f'Saved albedo plot: {fp_out}')
 
         return albedo
 
