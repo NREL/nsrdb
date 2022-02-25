@@ -345,11 +345,20 @@ class CompositeAlbedoDay:
         mclip_albedo = mc.modis_clip
 
         if self._merra_path is not None:
-            logger.info(f'Loading Merra data for {self.date}')
+            logger.info(f'Loading Merra data for {self.date}. '
+                        'This might take a while')
+            if self._max_workers != 1:
+                if self._max_workers is not None:
+                    logging.warning(
+                        f'Loading MERRA data with {self._max_workers}'
+                        ' workers')
+                else:
+                    logging.warning('Loading MERRA data with a single worker')
             self._merra_data = tm.DataHandler.get_data(
                 self.date, self._merra_path, self._mask,
                 mc.mlat_clip, mc.mlon_clip,
-                fp_out=f'{self.albedo_path}/merra_data.csv')
+                fp_out=f'{self.albedo_path}/merra_data.csv',
+                max_workers=self._max_workers)
 
             msg = 'Calculating temperature dependent '
             msg += f'snowy albedo for {self.date}'

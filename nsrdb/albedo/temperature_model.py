@@ -18,11 +18,8 @@ from nsrdb.data_model import DataModel
 from nsrdb import DEFAULT_VAR_META
 
 from rex.utilities.execution import SpawnProcessPool
-from rex.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
-
-init_logger('nsrdb')
 
 
 class DataHandler:
