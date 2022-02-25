@@ -10,7 +10,6 @@ Created pn Feb 23 2022
 from concurrent.futures import as_completed
 import pandas as pd
 import numpy as np
-from multiprocessing import cpu_count
 from datetime import datetime as dt
 import logging
 
@@ -58,7 +57,7 @@ class DataHandler:
     @staticmethod
     def get_data(date, merra_path, mask, lat, lon,
                  avg=True, fp_out=None,
-                 max_workers=None):
+                 max_workers=None, n_chunks=64):
         """Get temperature data from MERRA
 
         Parameters
@@ -88,7 +87,7 @@ class DataHandler:
         grid = DataHandler.get_grid(lat, lon, mask)
 
         futures = {}
-        grid_chunks = np.array_split(grid, cpu_count())
+        grid_chunks = np.array_split(grid, n_chunks)
         now = dt.now()
         loggers = ['nsrdb']
         with SpawnProcessPool(loggers=loggers,
