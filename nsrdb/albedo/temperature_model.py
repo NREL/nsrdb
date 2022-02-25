@@ -12,13 +12,17 @@ import pandas as pd
 import numpy as np
 from datetime import datetime as dt
 import logging
+import matplotlib.pyplot as plt
 
 from nsrdb.data_model import DataModel
 from nsrdb import DEFAULT_VAR_META
 
 from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
+
+init_logger('nsrdb')
 
 
 class DataHandler:
@@ -120,6 +124,7 @@ class DataHandler:
                             'completed')
         logger.info('done processing')
 
+        logger.info('Combining chunks into full temperature array')
         T = np.empty(len(grid), dtype=float)
         pos = 0
         for key in futures:
@@ -187,7 +192,8 @@ class TemperatureModel:
         return albedo
 
     @classmethod
-    def update_snow_albedo(cls, albedo, mask, T):
+    def update_snow_albedo(cls, albedo, mask, T,
+                           plot=False, fp_out=None):
         """Update albedo array with calculation results
 
         Parameters
@@ -211,5 +217,12 @@ class TemperatureModel:
         updated_albedo[snow_mask] = cls.get_snow_albedo(T)
         updated_albedo = updated_albedo.reshape(mask.shape)
         albedo[mask == 1] = updated_albedo[mask == 1]
+
+        if plot:
+            fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
+            im = ax.imshow(albedo, interpolation='none')
+            plt.title('Albedo')
+            fig.colorbar(im, ax=ax)
+            plt.savefig(fp_out)
 
         return albedo

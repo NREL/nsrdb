@@ -364,7 +364,8 @@ class CompositeAlbedoDay:
             msg += f'snowy albedo for {self.date}'
             logger.info(msg)
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-                mclip_albedo, self._mask, self._merra_data)
+                mclip_albedo, self._mask, self._merra_data,
+                plot=True, fp_out=f'{self.albedo_path}/albedo.png')
         else:
             mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
