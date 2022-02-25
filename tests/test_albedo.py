@@ -60,6 +60,28 @@ def test_merra_grid_mapping():
     assert np.array_equal(lons, np.array(grid['longitude']))
 
 
+def test_increasing_temp_decreasing_albedo():
+    """Check that albedo increases with
+    decreasing temp"""
+
+    d = dt(2013, 1, 1)
+    with tempfile.TemporaryDirectory() as td:
+        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
+                                            ALBEDOTESTDATADIR,
+                                            td,
+                                            MERRATESTDATADIR,
+                                            ims_shape=(32, 25),
+                                            modis_shape=(122, 120))
+
+        T = cad._merra_data
+        T.sort()
+        albedo_array = tm.TemperatureModel.get_snow_albedo(T)
+        albedo_array_sorted = albedo_array.copy()
+        albedo_array_sorted.sort()
+        albedo_array_sorted = albedo_array_sorted[::-1]
+        assert np.array_equal(albedo_array, albedo_array_sorted)
+
+
 def test_4km_data_with_temp_model():
     """ Create composite albedo data with temperature dependent
     albedo model using 4km IMS """
@@ -87,15 +109,6 @@ def test_4km_data_with_temp_model():
         with h5py.File(new_albedo_file, 'r') as f:
             new_data = np.array(f['surface_albedo'])
         assert np.array_equal(data[cad._mask == 0], new_data[cad._mask == 0])
-
-        # make sure albedo increases with lower temperature
-        T = cad._merra_data
-        T.sort()
-        albedo_array = tm.TemperatureModel.get_snow_albedo(T)
-        albedo_array_sorted = albedo_array.copy()
-        albedo_array_sorted.sort()
-        albedo_array_sorted = albedo_array_sorted[::-1]
-        assert np.array_equal(albedo_array, albedo_array_sorted)
 
 
 def test_4km_data():
