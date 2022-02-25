@@ -120,7 +120,7 @@ def test_albedo_model(with_temp_model=True, plot=False):
 
         if with_temp_model:
             fig, ax = plt.subplots(figsize=(8, 4), ncols=1)
-            T = np.zeros(cad._mask.shape).flatten()
+            T = np.zeros(cad._mask.shape, dtype=np.float32).flatten()
             T[cad._mask.flatten() == 1] = cad._merra_data
             T = T.reshape(cad._mask.shape)
             im = ax.imshow(T, interpolation='none')

@@ -193,7 +193,7 @@ class TemperatureModel:
         ndarray
             albedo field computed from temperature field
         """
-        albedo = np.zeros(T.shape)
+        albedo = np.zeros(T.shape, dtype=np.float32)
         albedo[T < 0] = 0.65
         mask = (T >= 0) & (T < 5)
         albedo[mask] = 0.45 + 0.04 * T[mask]
