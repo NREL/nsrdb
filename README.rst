@@ -153,6 +153,13 @@ NSRDB Versions
         issue of PC cloud coordinates conflicting with clearsky coordinates.
         This also fixes the strange pattern that was found in the long term
         means generated from PC data.
+    * - 3.2.2
+      - 2/25/2022
+      - 2022
+      - Implemented a model for snowy albedo as a function of temperature from
+        MERRA2 based on the paper "A comparison of simulated and observed
+        fluctuations in summertime Arctic surface albedo" by Becky Ross and
+        John E. Walsh
 
 *Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the
