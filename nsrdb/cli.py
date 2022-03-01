@@ -10,10 +10,11 @@ import json
 import logging
 import os
 
+from reV.config.base_config import BaseConfig
 from rex.utilities.cli_dtypes import STR, INT, FLOAT, STRLIST
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
-from rex.utilities.utilities import safe_json_load
+from rex.utilities.utilities import safe_json_load, unstupify_path
 
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
@@ -102,7 +103,12 @@ def pipeline(ctx, config_file, cancel, monitor):
 def config(ctx, config_file, command):
     """NSRDB processing CLI from config json file."""
 
+    config_dir = os.path.dirname(unstupify_path(config_file))
+    config_dir += '/'
+    config_dir = config_dir.replace('\\', '/')
+    str_rep = {'./': config_dir}
     run_config = safe_json_load(config_file)
+    run_config = BaseConfig.str_replace(run_config, str_rep)
 
     direct_args = run_config.pop('direct')
     eagle_args = run_config.pop('eagle')
