@@ -115,16 +115,16 @@ class NSRDB:
         kwargs : dict
             Dictionary of parameters
             including year, basename,
-            sat, reg, freq, spatial,
-            meta_file, doy_range
+            satellite, extent, freq,
+            spatial, meta_file, doy_range
         """
 
         default_kwargs = {
             "basename": "nsrdb",
             "freq": "5min",
-            "spatial": 4,
-            "sat": "east",
-            "reg": "RadC",
+            "spatial": "4km",
+            "satellite": "east",
+            "extent": "conus",
             "outdir": "./",
             "meta_file": None,
             "doy_range": None
@@ -132,24 +132,23 @@ class NSRDB:
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
 
+        if user_input['extent'] == 'full':
+            user_input['extent_tag'] = 'RadF'
+        if user_input['extent'] == 'conus':
+            user_input['extent_tag'] = 'RadC'
+
         if user_input['meta_file'] is None:
-
             if user_input['year'] > 2017:
-                if user_input['reg'] == 'RadC':
-                    extent = 'conus'
-                elif user_input['reg'] == 'RadF':
-                    extent = 'full'
-                if extent == 'conus':
+                if user_input['extent'] == 'conus':
                     lon = -113
-                elif extent == 'full':
+                elif user_input['extent'] == 'full':
                     lon = -105
-
-                meta_file = f'nsrdb_meta_{user_input["spatial"]}km'
-                meta_file += f'_{user_input["sat"]}_{lon}.csv'
+                meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+                meta_file += f'_{user_input["satellite"]}_{lon}.csv'
 
             else:
-
-                meta_file = f'nsrdb_meta_4km_{user_input["sat"]}_-105.csv'
+                meta_file = 'nsrdb_meta_4km'
+                meta_file += f'_{user_input["satellite"]}_-105.csv'
 
             user_input['meta_file'] = meta_file
 
@@ -160,6 +159,8 @@ class NSRDB:
             else:
                 user_input['start_doy'] = 1
                 user_input['end_doy'] = 366
+            user_input['doy_range'] = [user_input['start_doy'],
+                                       user_input['end_doy']]
         else:
             user_input['start_doy'] = user_input['doy_range'][0]
             user_input['end_doy'] = user_input['doy_range'][1]
@@ -171,8 +172,14 @@ class NSRDB:
         PIPELINE_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
 
-        run_name = f"{user_input['basename']}_{user_input['sat']}"
-        run_name += f"_{user_input['reg']}_{user_input['year']}"
+        run_name = f"{user_input['basename']}_{user_input['satellite']}"
+        if user_input['year'] > 2017:
+            run_name += f"_{user_input['extent']}_{user_input['year']}"
+        else:
+            user_input.pop('extent')
+            user_input.pop('extent_tag')
+            run_name += f"_{user_input['year']}"
+
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
