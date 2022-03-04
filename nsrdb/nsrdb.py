@@ -143,33 +143,26 @@ class NSRDB:
             meta_lon = -105
 
         if user_input['meta_file'] is None:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+
             if user_input['year'] > 2017:
                 if user_input['extent'] == 'conus':
                     meta_lon = -113
                 elif user_input['extent'] == 'full':
                     meta_lon = -105
-                meta_file = f'nsrdb_meta_{user_input["spatial"]}'
                 meta_file += f'_{user_input["extent"]}'
-                meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
 
-            else:
-                meta_file = f'nsrdb_meta_{user_input["spatial"]}'
-                meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
-
+            meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
             user_input['meta_file'] = meta_file
 
         if user_input['doy_range'] is None:
             if calendar.isleap(user_input["year"]):
-                user_input['start_doy'] = 1
-                user_input['end_doy'] = 367
+                user_input['doy_range'] = [1, 367]
             else:
-                user_input['start_doy'] = 1
-                user_input['end_doy'] = 366
-            user_input['doy_range'] = [user_input['start_doy'],
-                                       user_input['end_doy']]
-        else:
-            user_input['start_doy'] = user_input['doy_range'][0]
-            user_input['end_doy'] = user_input['doy_range'][1]
+                user_input['doy_range'] = [1, 366]
+
+        user_input['start_doy'] = user_input['doy_range'][0]
+        user_input['end_doy'] = user_input['doy_range'][1]
 
         PRE2018_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
