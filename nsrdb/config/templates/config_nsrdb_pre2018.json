@@ -58,7 +58,7 @@
   },
   "direct": {
     "log_level": "INFO",
-    "name": "%basename%_%satellite%_%year%",
+    "name": "%basename%_%satellite%_%extent%_%year%",
     "nsrdb_freq": "%freq%",
     "nsrdb_grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",

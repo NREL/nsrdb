@@ -172,13 +172,11 @@ class NSRDB:
         PIPELINE_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
 
+        if user_input['year'] < 2018:
+            user_input['extent'] = 'full'
+
         run_name = f"{user_input['basename']}_{user_input['satellite']}"
-        if user_input['year'] > 2017:
-            run_name += f"_{user_input['extent']}_{user_input['year']}"
-        else:
-            user_input.pop('extent')
-            user_input.pop('extent_tag')
-            run_name += f"_{user_input['year']}"
+        run_name += f"_{user_input['extent']}_{user_input['year']}"
 
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
