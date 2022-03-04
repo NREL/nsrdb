@@ -137,9 +137,8 @@ class NSRDB:
             user_input['spatial'] = '4km'
 
         extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
-        user_input['extent_tag'] = extent_tag_map[user_input['extent']]
-
         meta_lon_map = {'full': -105, 'conus': -113}
+        user_input['extent_tag'] = extent_tag_map[user_input['extent']]
         meta_lon = meta_lon_map[user_input['extent']]
 
         if user_input['meta_file'] is None:
