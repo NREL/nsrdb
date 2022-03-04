@@ -164,12 +164,12 @@ class NSRDB:
         user_input['start_doy'] = user_input['doy_range'][0]
         user_input['end_doy'] = user_input['doy_range'][1]
 
-        PRE2018_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
-        POST2017_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_nsrdb_post2017.json')
-        PIPELINE_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
+        PRE2018_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
+        POST2017_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_nsrdb_post2017.json')
+        PIPELINE_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_pipeline.json')
 
         run_name = f"{user_input['basename']}_{user_input['satellite']}"
         run_name += f"_{user_input['extent']}_{user_input['year']}"
