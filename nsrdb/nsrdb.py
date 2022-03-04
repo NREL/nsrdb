@@ -137,18 +137,24 @@ class NSRDB:
         if user_input['extent'] == 'conus':
             user_input['extent_tag'] = 'RadC'
 
+        if user_input['year'] < 2018:
+            user_input['extent'] = 'full'
+            user_input['spatial'] = '4km'
+            meta_lon = -105
+
         if user_input['meta_file'] is None:
             if user_input['year'] > 2017:
                 if user_input['extent'] == 'conus':
-                    lon = -113
+                    meta_lon = -113
                 elif user_input['extent'] == 'full':
-                    lon = -105
+                    meta_lon = -105
                 meta_file = f'nsrdb_meta_{user_input["spatial"]}'
-                meta_file += f'_{user_input["satellite"]}_{lon}.csv'
+                meta_file += f'_{user_input["extent"]}'
+                meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
 
             else:
-                meta_file = 'nsrdb_meta_4km'
-                meta_file += f'_{user_input["satellite"]}_-105.csv'
+                meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+                meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
 
             user_input['meta_file'] = meta_file
 
@@ -172,11 +178,9 @@ class NSRDB:
         PIPELINE_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
 
-        if user_input['year'] < 2018:
-            user_input['extent'] = 'full'
-
         run_name = f"{user_input['basename']}_{user_input['satellite']}"
         run_name += f"_{user_input['extent']}_{user_input['year']}"
+        run_name += f"_{user_input['spatial']}"
 
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
