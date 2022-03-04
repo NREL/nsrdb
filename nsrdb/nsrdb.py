@@ -17,6 +17,7 @@ import sys
 import shutil
 import time
 import copy
+import calendar
 
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
@@ -114,18 +115,54 @@ class NSRDB:
         kwargs : dict
             Dictionary of parameters
             including year, basename,
-            sat, reg, freq
+            sat, reg, freq, spatial,
+            meta_file, doy_range
         """
 
         default_kwargs = {
             "basename": "nsrdb",
             "freq": "5min",
+            "spatial": 4,
             "sat": "east",
             "reg": "RadC",
-            "outdir": "./"
+            "outdir": "./",
+            "meta_file": None,
+            "doy_range": None
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
+
+        if user_input['meta_file'] is None:
+
+            if user_input['year'] > 2017:
+                if user_input['reg'] == 'RadC':
+                    extent = 'conus'
+                elif user_input['reg'] == 'RadF':
+                    extent = 'full'
+                if extent == 'conus':
+                    lon = -113
+                elif extent == 'full':
+                    lon = -105
+
+                meta_file = f'nsrdb_meta_{user_input["spatial"]}km'
+                meta_file += f'_{user_input["sat"]}_{lon}.csv'
+
+            else:
+
+                meta_file = f'nsrdb_meta_4km_{user_input["sat"]}_-105.csv'
+
+            user_input['meta_file'] = meta_file
+
+        if user_input['doy_range'] is None:
+            if calendar.isleap(user_input["year"]):
+                user_input['start_doy'] = 1
+                user_input['end_doy'] = 367
+            else:
+                user_input['start_doy'] = 1
+                user_input['end_doy'] = 366
+        else:
+            user_input['start_doy'] = user_input['doy_range'][0]
+            user_input['end_doy'] = user_input['doy_range'][1]
 
         PRE2018_CONFIG_TEMPLATE = \
             os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
@@ -139,7 +176,7 @@ class NSRDB:
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
-        logger.info('Creating NSRDB config files with {user_input}')
+        logger.info(f'Creating NSRDB config files with {user_input}')
 
         if int(user_input['year']) < 2018:
             with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
@@ -149,6 +186,8 @@ class NSRDB:
                 s = s.read()
 
         for k, v in user_input.items():
+            if isinstance(v, int):
+                s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         if not os.path.exists(user_input['outdir']):
@@ -164,6 +203,8 @@ class NSRDB:
             s = s.read()
 
         for k, v in user_input.items():
+            if isinstance(v, int):
+                s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         outfile = os.path.join(user_input['outdir'], 'config_pipeline.json')

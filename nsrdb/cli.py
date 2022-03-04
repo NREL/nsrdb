@@ -60,11 +60,16 @@ def main(ctx):
               '\n\nAvailable keys: '
               'year, freq, outdir (config file directory), '
               'sat (satellite, e.g. east/west), '
+              'spatial (meta file resolution in km), '
               'reg (region, e.g. RadC), '
-              'basename (file prefix). '
+              'basename (file prefix), '
+              'meta_file. (auto populated if None), '
+              'doy_range (all days of year if None).'
               '\n\ndefault_kwargs = {"basename": "nsrdb", '
               '"freq": "5min", "sat": "east", '
-              '"reg": "RadC", "outdir": "./"}')
+              '"reg": "RadC", "outdir": "./", '
+              '"spatial": 4, "meta_file" : None, '
+              '"doy_range": None}')
 @click.pass_context
 def create_configs(ctx, kwargs):
     """NSRDB config file creation from templates."""

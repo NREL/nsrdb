@@ -8,8 +8,8 @@
   "data-model": {
     "dist_lim": 2.0,
     "doy_range": [
-      1,
-      366
+      "%start_doy%",
+      "%end_doy%"
     ],
     "factory_kwargs": {
       "cld_opd_dcomp": {
@@ -60,7 +60,7 @@
     "log_level": "INFO",
     "name": "%basename%_%sat%_%reg%_%year%",
     "nsrdb_freq": "%freq%",
-    "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
+    "nsrdb_grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",
     "year": "%year%"
   },
