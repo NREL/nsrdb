@@ -4,7 +4,7 @@
     "log_file": null,
     "log_level": "INFO"
   },
-  "name": "%basename%_%sat%_%reg%_%year%",
+  "name": "%basename%_%satellite%_%extent%_%year%_%spatial%",
   "pipeline": [
     {
       "data-model": "./config_nsrdb.json"

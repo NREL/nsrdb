@@ -8,48 +8,48 @@
   "data-model": {
     "dist_lim": 2.0,
     "doy_range": [
-      1,
-      365
+      "%start_doy%",
+      "%end_doy%"
     ],
     "factory_kwargs": {
       "cld_opd_dcomp": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "cld_press_acha": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "cld_reff_dcomp": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "cloud_fraction": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "cloud_probability": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "cloud_type": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "refl_0_65um_nom": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "refl_0_65um_nom_stddev_3x3": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "refl_3_75um_nom": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "surface_albedo": {
         "source_dir": "/projects/pxs/ancillary/albedo/nsrdb_%year%/"
       },
       "temp_11_0um_nom": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "temp_11_0um_nom_stddev_3x3": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       },
       "temp_3_75um_nom": {
-        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%sat%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
+        "pattern": "/lustre/eaglefs/projects/pxs/HDF/%satellite%/%year%/{doy}/level2/clavrx_goes13_%year%_*.h5"
       }
     },
     "max_workers": null,
@@ -58,16 +58,16 @@
   },
   "direct": {
     "log_level": "INFO",
-    "name": "%basename%_%sat%_%year%",
+    "name": "%basename%_%satellite%_%extent%_%year%_%spatial%",
     "nsrdb_freq": "%freq%",
-    "nsrdb_grid": "/projects/pxs/reference_grids/surfrad_meta_extended.csv",
+    "nsrdb_grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",
     "year": "%year%"
   },
   "eagle": {
     "alloc": "pxs",
-    "feature": "--qos=high",
-    "walltime": 1
+    "feature": "--qos=normal",
+    "walltime": 4
   },
   "ml-cloud-fill": {
     "fill_all": false

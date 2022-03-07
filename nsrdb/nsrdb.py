@@ -17,6 +17,7 @@ import sys
 import shutil
 import time
 import copy
+import calendar
 
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
@@ -114,32 +115,65 @@ class NSRDB:
         kwargs : dict
             Dictionary of parameters
             including year, basename,
-            sat, reg, freq
+            satellite, extent, freq,
+            spatial, meta_file, doy_range
         """
 
         default_kwargs = {
             "basename": "nsrdb",
             "freq": "5min",
-            "sat": "east",
-            "reg": "RadC",
-            "outdir": "./"
+            "spatial": "4km",
+            "satellite": "east",
+            "extent": "conus",
+            "outdir": "./",
+            "meta_file": None,
+            "doy_range": None
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
 
-        PRE2018_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
-        POST2017_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_nsrdb_post2017.json')
-        PIPELINE_CONFIG_TEMPLATE = \
-            os.path.join(CONFIGDIR, 'templates/config_pipeline.json')
+        if user_input['year'] < 2018:
+            user_input['extent'] = 'full'
+            user_input['spatial'] = '4km'
 
-        run_name = f"{user_input['basename']}_{user_input['sat']}"
-        run_name += f"_{user_input['reg']}_{user_input['year']}"
+        extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
+        meta_lon_map = {'full': -105, 'conus': -113}
+        user_input['extent_tag'] = extent_tag_map[user_input['extent']]
+        meta_lon = meta_lon_map[user_input['extent']]
+
+        if user_input['meta_file'] is None:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+
+            if user_input['year'] > 2017:
+                meta_file += f'_{user_input["extent"]}'
+
+            meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
+            user_input['meta_file'] = meta_file
+
+        if user_input['doy_range'] is None:
+            if calendar.isleap(user_input["year"]):
+                user_input['doy_range'] = [1, 367]
+            else:
+                user_input['doy_range'] = [1, 366]
+
+        user_input['start_doy'] = user_input['doy_range'][0]
+        user_input['end_doy'] = user_input['doy_range'][1]
+
+        PRE2018_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_nsrdb_pre2018.json')
+        POST2017_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_nsrdb_post2017.json')
+        PIPELINE_CONFIG_TEMPLATE = os.path.join(
+            CONFIGDIR, 'templates/config_pipeline.json')
+
+        run_name = f"{user_input['basename']}_{user_input['satellite']}"
+        run_name += f"_{user_input['extent']}_{user_input['year']}"
+        run_name += f"_{user_input['spatial']}"
+
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
-        logger.info('Creating NSRDB config files with {user_input}')
+        logger.info(f'Creating NSRDB config files with {user_input}')
 
         if int(user_input['year']) < 2018:
             with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
@@ -149,6 +183,8 @@ class NSRDB:
                 s = s.read()
 
         for k, v in user_input.items():
+            if isinstance(v, int):
+                s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         if not os.path.exists(user_input['outdir']):
@@ -164,6 +200,8 @@ class NSRDB:
             s = s.read()
 
         for k, v in user_input.items():
+            if isinstance(v, int):
+                s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
         outfile = os.path.join(user_input['outdir'], 'config_pipeline.json')
