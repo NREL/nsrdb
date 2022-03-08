@@ -67,7 +67,7 @@
   "eagle": {
     "alloc": "pxs",
     "feature": "--qos=normal",
-    "walltime": 4
+    "walltime": 6
   },
   "ml-cloud-fill": {
     "fill_all": false
