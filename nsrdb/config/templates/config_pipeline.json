@@ -1,5 +1,4 @@
 {
-  "dirout": "./",
   "logging": {
     "log_file": null,
     "log_level": "INFO"

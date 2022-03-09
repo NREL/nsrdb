@@ -4,7 +4,6 @@
     "log_level": "INFO"
   },
   "name": "east",
-  "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/east/",
   "pipeline": [
     {
       "data-model": "/lustre/eaglefs/projects/pxs/processing/2019/east/config_nsrdb_east.json"

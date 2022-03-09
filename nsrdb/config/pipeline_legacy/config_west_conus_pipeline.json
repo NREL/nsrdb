@@ -4,7 +4,6 @@
     "log_level": "INFO"
   },
   "name": "west_conus",
-  "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/west_conus/",
   "pipeline": [
     {
       "data-model": "/lustre/eaglefs/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
