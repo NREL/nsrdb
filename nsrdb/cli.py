@@ -232,19 +232,16 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_data_model_{}_{}'.format(doy, date)
             max_workers_regrid = cmd_args.get('max_workers_regrid', None)
 
-            dummy_run = check_if_dummy_run(
+            ctx.invoke(data_model, doy=doy,
+                       var_list=cmd_args.get('var_list', None),
+                       dist_lim=cmd_args.get('dist_lim', 1.0),
+                       factory_kwargs=cmd_args.get('factory_kwargs', None),
+                       max_workers=cmd_args.get('max_workers', None),
+                       max_workers_regrid=max_workers_regrid,
+                       mlclouds=cmd_args.get('mlclouds', False))
+
+            eagle_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            eagle_args['dummy_run'] = dummy_run
-
-            if not dummy_run:
-                ctx.invoke(data_model, doy=doy,
-                           var_list=cmd_args.get('var_list', None),
-                           dist_lim=cmd_args.get('dist_lim', 1.0),
-                           factory_kwargs=cmd_args.get('factory_kwargs', None),
-                           max_workers=cmd_args.get('max_workers', None),
-                           max_workers_regrid=max_workers_regrid,
-                           mlclouds=cmd_args.get('mlclouds', False))
-
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -301,17 +298,14 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_mlclouds_{}_{}'.format(doy, date)
+            ctx.invoke(ml_cloud_fill, date=date,
+                       fill_all=cmd_args.get('fill_all', False),
+                       model_path=cmd_args.get('model_path', None),
+                       col_chunk=cmd_args.get('col_chunk', None),
+                       max_workers=cmd_args.get('max_workers', None))
 
-            dummy_run = check_if_dummy_run(
+            eagle_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            eagle_args['dummy_run'] = dummy_run
-
-            if not dummy_run:
-                ctx.invoke(ml_cloud_fill, date=date,
-                           fill_all=cmd_args.get('fill_all', False),
-                           model_path=cmd_args.get('model_path', None),
-                           col_chunk=cmd_args.get('col_chunk', None),
-                           max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -368,14 +362,11 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
+            ctx.invoke(daily_all_sky, date=date,
+                       col_chunk=cmd_args.get('col_chunk', 500))
 
-            dummy_run = check_if_dummy_run(
+            eagle_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            eagle_args['dummy_run'] = dummy_run
-
-            if not dummy_run:
-                ctx.invoke(daily_all_sky, date=date,
-                           col_chunk=cmd_args.get('col_chunk', 500))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
