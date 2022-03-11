@@ -993,11 +993,15 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
                        .format(name, slurm_id))
 
+        job_attrs = {'job_id': slurm_id,
+                     'hardware': 'eagle',
+                     'out_dir': out_dir}
+        if dummy_run:
+            job_attrs['job_status'] = None
+
         Status.add_job(
             out_dir, command, name, replace=True,
-            job_attrs={'job_id': slurm_id,
-                       'hardware': 'eagle',
-                       'out_dir': out_dir})
+            job_attrs=job_attrs)
 
     click.echo(msg)
     logger.info(msg)
