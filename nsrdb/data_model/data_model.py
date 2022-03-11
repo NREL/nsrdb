@@ -744,9 +744,24 @@ class DataModel:
             single_data = {}
             out_of_bounds = regrid_ind < 0
             for dset, array in cloud_obj_single.source_data.items():
-                # write single timestep with NSRDB sites to appropriate row
-                # map the regridded single_data using the regrid NN indices
-                single_data[dset] = array[regrid_ind]
+                if array.size:
+                    # write single timestep with NSRDB sites to appropriate row
+                    # map the regridded single_data using the regrid NN indices
+                    single_data[dset] = array[regrid_ind]
+
+                else:
+                    # if cloud data array has zero size, something about the
+                    # cloud file was corrupted and returned no data
+                    msg = ('Cloud dataset "{}" had no valid data for source '
+                           'file: {}'.format(dset, os.path.basename(fp_cloud)))
+                    logger.warning(msg)
+                    warn(msg)
+                    if dset == 'cloud_type':
+                        single_data[dset] = np.full(len(regrid_ind), -15,
+                                                    dtype=np.int16)
+                    else:
+                        single_data[dset] = np.full(len(regrid_ind), np.nan,
+                                                    dtype=np.float32)
 
                 if any(out_of_bounds):
                     if dset == 'cloud_type':
