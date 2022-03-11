@@ -24,6 +24,35 @@ from nsrdb.utilities.file_utils import ts_freq_check
 logger = logging.getLogger(__name__)
 
 
+def check_if_dummy_run(debug_day, doy):
+    """Check if debug day is the same as
+    run day. If debug day is not None and not
+    the same as run day then we do a dummy run
+    which does not run anything but includes the job
+    in the status file
+
+    Parameters
+    ----------
+    debug_day : int | None
+        Integer day of year to run for debugging
+    doy : int
+        Integer day of year for current run
+
+    Returns
+    -------
+    dummy_run : bool
+        Returns True if we want to skip running
+        but include job in status file. False if we
+        want to run normally
+    """
+    if debug_day is None:
+        return False
+    elif debug_day == doy:
+        return False
+    else:
+        return True
+
+
 class DictType(click.ParamType):
     """Dict click input argument type."""
 
@@ -107,7 +136,7 @@ def pipeline(ctx, config_file, cancel, monitor):
 @click.option('--debug_day', '-doy', type=int, default=None,
               help='Integer day-of-year to run data model for.')
 @click.pass_context
-def config(ctx, config_file, command, debug_day):
+def config(ctx, config_file, command):
     """NSRDB processing CLI from config json file."""
 
     config_dir = os.path.dirname(unstupify_path(config_file))
@@ -124,8 +153,7 @@ def config(ctx, config_file, command, debug_day):
     if cmd_args is None:
         cmd_args = {}
 
-    if debug_day is not None:
-        cmd_args['doy_range'] = [debug_day, debug_day + 1]
+    cmd_args['debug_day'] = run_config.pop('debug_day')
 
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
@@ -204,13 +232,19 @@ class ConfigRunners:
             ctx.obj['NAME'] = name + '_data_model_{}_{}'.format(doy, date)
             max_workers_regrid = cmd_args.get('max_workers_regrid', None)
 
-            ctx.invoke(data_model, doy=doy,
-                       var_list=cmd_args.get('var_list', None),
-                       dist_lim=cmd_args.get('dist_lim', 1.0),
-                       factory_kwargs=cmd_args.get('factory_kwargs', None),
-                       max_workers=cmd_args.get('max_workers', None),
-                       max_workers_regrid=max_workers_regrid,
-                       mlclouds=cmd_args.get('mlclouds', False))
+            dummy_run = check_if_dummy_run(
+                cmd_args.get('debug_day', None), doy)
+            eagle_args['dummy_run'] = dummy_run
+
+            if not dummy_run:
+                ctx.invoke(data_model, doy=doy,
+                           var_list=cmd_args.get('var_list', None),
+                           dist_lim=cmd_args.get('dist_lim', 1.0),
+                           factory_kwargs=cmd_args.get('factory_kwargs', None),
+                           max_workers=cmd_args.get('max_workers', None),
+                           max_workers_regrid=max_workers_regrid,
+                           mlclouds=cmd_args.get('mlclouds', False))
+
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -267,11 +301,17 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_mlclouds_{}_{}'.format(doy, date)
-            ctx.invoke(ml_cloud_fill, date=date,
-                       fill_all=cmd_args.get('fill_all', False),
-                       model_path=cmd_args.get('model_path', None),
-                       col_chunk=cmd_args.get('col_chunk', None),
-                       max_workers=cmd_args.get('max_workers', None))
+
+            dummy_run = check_if_dummy_run(
+                cmd_args.get('debug_day', None), doy)
+            eagle_args['dummy_run'] = dummy_run
+
+            if not dummy_run:
+                ctx.invoke(ml_cloud_fill, date=date,
+                           fill_all=cmd_args.get('fill_all', False),
+                           model_path=cmd_args.get('model_path', None),
+                           col_chunk=cmd_args.get('col_chunk', None),
+                           max_workers=cmd_args.get('max_workers', None))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -328,8 +368,14 @@ class ConfigRunners:
         for doy in range(doy_range[0], doy_range[1]):
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
-            ctx.invoke(daily_all_sky, date=date,
-                       col_chunk=cmd_args.get('col_chunk', 500))
+
+            dummy_run = check_if_dummy_run(
+                cmd_args.get('debug_day', None), doy)
+            eagle_args['dummy_run'] = dummy_run
+
+            if not dummy_run:
+                ctx.invoke(daily_all_sky, date=date,
+                           col_chunk=cmd_args.get('col_chunk', 500))
             ctx.invoke(eagle, **eagle_args)
 
     @staticmethod
@@ -909,7 +955,8 @@ def collect_final(ctx, collect_dir, i_fname):
 @click.option('--stdout_path', '-sout', default=None, type=STR,
               help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
-def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
+def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
+          dummy_run=False):
     """Eagle submission tool for the NSRDB cli."""
 
     name = ctx.obj['NAME']
@@ -942,18 +989,20 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path):
         cmd = ("python -c '{import_str};{f}({a})'"
                .format(import_str=import_str, f=fun_str, a=arg_str))
         slurm_id = None
-        out = slurm_manager.sbatch(cmd,
-                                   alloc=alloc,
-                                   memory=memory,
-                                   walltime=walltime,
-                                   feature=feature,
-                                   name=name,
-                                   stdout_path=stdout_path)[0]
 
-        if out:
-            slurm_id = out
-            msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
-                   .format(name, slurm_id))
+        if not dummy_run:
+            out = slurm_manager.sbatch(cmd,
+                                       alloc=alloc,
+                                       memory=memory,
+                                       walltime=walltime,
+                                       feature=feature,
+                                       name=name,
+                                       stdout_path=stdout_path)[0]
+
+            if out:
+                slurm_id = out
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
+                       .format(name, slurm_id))
 
         Status.add_job(
             out_dir, command, name, replace=True,
