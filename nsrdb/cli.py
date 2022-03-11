@@ -104,8 +104,10 @@ def pipeline(ctx, config_file, cancel, monitor):
               help='Filepath to config file.')
 @click.option('--command', '-cmd', type=str, required=True,
               help='NSRDB CLI command string.')
+@click.option('--debug_day', '-doy', type=int, default=None,
+              help='Integer day-of-year to run data model for.')
 @click.pass_context
-def config(ctx, config_file, command):
+def config(ctx, config_file, command, debug_day):
     """NSRDB processing CLI from config json file."""
 
     config_dir = os.path.dirname(unstupify_path(config_file))
@@ -121,6 +123,9 @@ def config(ctx, config_file, command):
 
     if cmd_args is None:
         cmd_args = {}
+
+    if debug_day is not None:
+        cmd_args['doy_range'] = [debug_day, debug_day + 1]
 
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
