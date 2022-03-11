@@ -151,7 +151,7 @@ def config(ctx, config_file, command):
     if cmd_args is None:
         cmd_args = {}
 
-    cmd_args['debug_day'] = run_config.pop('debug_day')
+    cmd_args['debug_day'] = run_config.pop('debug_day', None)
 
     # replace any args with higher priority entries in command dict
     for k in eagle_args.keys():
