@@ -133,8 +133,6 @@ def pipeline(ctx, config_file, cancel, monitor):
               help='Filepath to config file.')
 @click.option('--command', '-cmd', type=str, required=True,
               help='NSRDB CLI command string.')
-@click.option('--debug_day', '-doy', type=int, default=None,
-              help='Integer day-of-year to run data model for.')
 @click.pass_context
 def config(ctx, config_file, command):
     """NSRDB processing CLI from config json file."""
