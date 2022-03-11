@@ -70,6 +70,8 @@
     "walltime": 4
   },
   "ml-cloud-fill": {
-    "fill_all": false
+    "col_chunk": 10000,
+    "fill_all": false,
+    "max_workers": null
   }
 }

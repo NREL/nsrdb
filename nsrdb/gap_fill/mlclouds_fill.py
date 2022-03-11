@@ -1008,6 +1008,8 @@ class MLCloudsFill:
                     .format(h5_source))
         logger.info('Running MLCloudsFill with model: {}'
                     .format(model_path))
+        logger.info('Running MLCloudsFill with col_chunk: {}'
+                    .format(col_chunk))
         obj = cls(h5_source, fill_all=fill_all, model_path=model_path,
                   var_meta=var_meta)
         obj.archive_cld_properties()
@@ -1015,14 +1017,19 @@ class MLCloudsFill:
 
         if col_chunk is None:
             slices = [slice(None)]
+            logger.info('MLClouds gap fill is being run without col_chunk for '
+                        'full data shape {} all on one process. If you see '
+                        'memory errors, try setting the col_chunk input to '
+                        'distribute the problem across multiple small workers.'
+                        .format(obj._res_shape))
         else:
             columns = np.arange(obj._res_shape[1])
             N = np.ceil(len(columns) / col_chunk)
             arrays = np.array_split(columns, N)
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.info('Gap fill will be run across the full data column '
-                        'shape {} in {} column chunks with approximately {} '
-                        'sites per chunk'
+            logger.info('MLClouds gap fill will be run across the full data '
+                        'column shape {} in {} column chunks with '
+                        'approximately {} sites per chunk'
                         .format(len(columns), len(slices), col_chunk))
 
         if max_workers == 1:
