@@ -56,6 +56,7 @@
     "max_workers_regrid": null,
     "mlclouds": true
   },
+  "debug_day": null,
   "direct": {
     "log_level": "INFO",
     "name": "%basename%_%satellite%_%extent%_%year%_%spatial%",
