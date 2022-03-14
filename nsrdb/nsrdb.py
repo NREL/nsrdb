@@ -754,9 +754,9 @@ class NSRDB:
             fname = fname.format(y=year)
 
         if final:
-            f_out = os.path.join(nsrdb._final_dir, fname)
             if final_file_name is not None:
-                f_out = f_out.replace('nsrdb_', '{}_'.format(final_file_name))
+                fname = fname.replace('nsrdb_', '{}_'.format(final_file_name))
+            f_out = os.path.join(nsrdb._final_dir, fname)
         else:
             f_out = os.path.join(nsrdb._collect_dir, fname)
             f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
