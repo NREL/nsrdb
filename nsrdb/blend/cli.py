@@ -60,6 +60,27 @@ def main(ctx, name, meta, out_dir, east_dir, west_dir, out_fn, east_fn,
      - All filenames
      - Only file_tag
      - No filenames and no file_tag (for all file tags on Eagle)
+
+    Examples
+    --------
+    Here is an example shell script that calls the blend cli for 2020 full disc
+    east (the largest dataset we have currently).
+
+    ```
+    #!/bin/bash
+    META="/projects/pxs/reference_grids/nsrdb_meta_2km_full.csv"
+    EDIR="/scratch/gbuster/nsrdb/nsrdb_full_east_2020/final/"
+    WDIR="/scratch/gbuster/nsrdb/nsrdb_full_west_2020/final/"
+    MAPCOL="gid_full"
+
+    python -m nsrdb.blend.cli -n "blend0" -m $META -od "./" -ed $EDIR -wd $WDIR -t "ancillary_a" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend1" -m $META -od "./" -ed $EDIR -wd $WDIR -t "ancillary_b" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend2" -m $META -od "./" -ed $EDIR -wd $WDIR -t "clearsky" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend3" -m $META -od "./" -ed $EDIR -wd $WDIR -t "clouds" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend4" -m $META -od "./" -ed $EDIR -wd $WDIR -t "csp" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend5" -m $META -od "./" -ed $EDIR -wd $WDIR -t "irradiance" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    python -m nsrdb.blend.cli -n "blend6" -m $META -od "./" -ed $EDIR -wd $WDIR -t "pv" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
+    ```
     """
 
     if log_dir is None:
