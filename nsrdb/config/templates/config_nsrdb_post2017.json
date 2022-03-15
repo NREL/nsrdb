@@ -2,7 +2,9 @@
   "collect-data-model": {
     "final": true,
     "max_workers": 1,
-    "n_chunks": 1
+    "memory": 178,
+    "n_writes": 10,
+    "walltime": 48
   },
   "daily-all-sky": {},
   "data-model": {
