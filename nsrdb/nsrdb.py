@@ -243,6 +243,10 @@ class NSRDB:
         name = user_input['name']
         out_dir = user_input['outdir'] = os.path.join(
             user_input['outdir'], name)
+        log_dir = os.path.join(out_dir, 'logs/')
+
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
 
         logger = init_logger('nsrdb.cli', stream=True)
         logger.info(f'Blending NSRDB data files with {user_input}')
@@ -257,7 +261,7 @@ class NSRDB:
         cmd += ' -t "{tag}"'
         cmd += f' -mc {map_col} -ls {meta_lon}'
         cmd += f' -cs {user_input["chunk_size"]}'
-        cmd += f' -ld "{out_dir}/logs"'
+        cmd += f' -ld "{log_dir}"'
         cmd += f' slurm -a {user_input["alloc"]}'
         cmd += f' -wt {user_input["walltime"]}'
         cmd += f' -mem {user_input["memory"]}'
