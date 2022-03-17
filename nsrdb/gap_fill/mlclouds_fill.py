@@ -730,17 +730,31 @@ class MLCloudsFill:
         logger.info('Writing cloud_fill_flag to: {}'
                     .format(os.path.basename(fpath)))
 
-        if not os.path.exists(fpath):
-            with Outputs(fpath, mode='w') as fout:
-                fout.time_index = ti
-                fout.meta = meta
-                init_data = np.zeros((len(ti), len(meta)))
-                fout._add_dset(dset_name='cloud_fill_flag',
-                               dtype=var_obj.final_dtype, data=init_data,
-                               chunks=var_obj.chunks, attrs=var_obj.attrs)
+        init_dset = False
+        if os.path.exists(fpath):
+            with Outputs(fpath, mode='r') as fout:
+                if 'cloud_fill_flag' not in fout:
+                    init_dset = True
+        else:
+            init_dset = True
 
-        with Outputs(fpath, mode='a') as fout:
-            fout['cloud_fill_flag', :, col_slice] = fill_flag
+        try:
+            if init_dset:
+                with Outputs(fpath, mode='w') as fout:
+                    fout.time_index = ti
+                    fout.meta = meta
+                    init_data = np.zeros((len(ti), len(meta)))
+                    fout._add_dset(dset_name='cloud_fill_flag',
+                                   dtype=var_obj.final_dtype, data=init_data,
+                                   chunks=var_obj.chunks, attrs=var_obj.attrs)
+
+            with Outputs(fpath, mode='a') as fout:
+                fout['cloud_fill_flag', :, col_slice] = fill_flag
+        except Exception as e:
+            msg = ('Could not write col_slice {} to file: "{}"'
+                   .format(col_slice, fpath))
+            logger.exception(msg)
+            raise IOError from e
 
         logger.debug('Write complete')
         logger.info('Final cloud_fill_flag counts:')
