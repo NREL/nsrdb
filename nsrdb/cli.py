@@ -108,6 +108,27 @@ def create_configs(ctx, kwargs):
 
 
 @main.command()
+@click.option('--kwargs', '-kw', required=True, type=DICT,
+              help='Argument dictionary. Needs to include year. '
+              'e.g. \'{"year":2019}\'. '
+              '\n\nAvailable keys: '
+              'year, outdir (config file directory), '
+              'spatial (meta file resolution), '
+              'extent (full/conus), '
+              'basename (file prefix), '
+              'meta_file. (auto populated if None), '
+              '\n\ndefault_kwargs = {"basename": "nsrdb", '
+              '"extent": "conus", "outdir": "./", '
+              '"spatial": "4km", "meta_file" : None')
+@click.pass_context
+def blend(ctx, kwargs):
+    """NSRDB data blend."""
+
+    ctx.ensure_object(dict)
+    NSRDB.blend_files(kwargs)
+
+
+@main.command()
 @click.option('--config_file', '-c', required=True,
               type=click.Path(exists=True),
               help='NSRDB pipeline configuration json file.')

@@ -106,6 +106,77 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
+    def blend_files(kwargs):
+        """Blend all data files
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the
+            case for which to blend data files
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "spatial": "4km",
+            "extent": "conus",
+            "outdir": "./",
+            "meta_file": None,
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        if user_input['year'] < 2018:
+            user_input['extent'] = 'full'
+            user_input['spatial'] = '4km'
+
+        map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
+        map_col = user_input['map_col'] = map_col_map[user_input['extent']]
+
+        meta_lon_map = {'full': -105, 'conus': -113}
+        meta_lon = meta_lon_map[user_input['extent']]
+
+        if user_input['meta_file'] is None:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+
+            if user_input['year'] > 2017:
+                meta_file += f'_{user_input["extent"]}'
+
+            meta_file += '.csv'
+            user_input['meta_file'] = meta_file
+
+        src_dir = f"{user_input['basename']}"
+        src_dir += "_{satellite}"
+        src_dir += f"_{user_input['extent']}_{user_input['year']}"
+        src_dir += f"_{user_input['spatial']}"
+
+        east_dir = user_input['east_dir'] = src_dir.format(satellite="east")
+        west_dir = user_input['west_dir'] = src_dir.format(satellite="west")
+
+        name = f'{user_input["basename"]}_{user_input["year"]}'
+        user_input['name'] = name
+        out_dir = user_input['outdir'] = os.path.join(
+            user_input['outdir'], name)
+
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info(f'Blending NSRDB data files with {user_input}')
+
+        all_tags = ['ancillary_a', 'ancillary_b', 'clearsky',
+                    'clouds', 'csp', 'irradiance', 'pv']
+
+        cmd = f'python -m nsrdb.blend.cli -n {name}'
+        cmd += '_{tag}'
+        cmd += f' -m {meta_file} -od {out_dir}'
+        cmd += f' -ed {east_dir} -wd {west_dir}'
+        cmd += ' -t "{tag}"'
+        cmd += f' -mc {map_col} -ls {meta_lon} -cs 100000'
+        cmd += f' -ld "{out_dir}/logs"'
+        cmd += ' slurm -a "pxs" -wt 48.0 -l "--qos=normal"'
+        cmd += f' -mem "83" -sout "{out_dir}/stdout"'
+
+        for tag in all_tags:
+            os.system(cmd.format(tag=tag))
+
+    @staticmethod
     def create_config_files(kwargs):
         """Modify config files with
         specified parameters
