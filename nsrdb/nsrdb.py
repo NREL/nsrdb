@@ -236,7 +236,7 @@ class NSRDB:
             user_input['west_dir'] = src_dir.format(satellite="west")
 
         west_dir = user_input['west_dir']
-        east_dir = user_input['eat_dir']
+        east_dir = user_input['east_dir']
 
         user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
         user_input['name'] += f'_{user_input["extent"]}_blend'
