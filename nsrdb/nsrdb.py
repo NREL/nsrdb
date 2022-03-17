@@ -196,6 +196,8 @@ class NSRDB:
             "chunk_size": 100000,
             "memory": 83,
             "meta_file": None,
+            "east_dir": None,
+            "west_dir": None
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)

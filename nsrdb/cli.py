@@ -130,6 +130,7 @@ def create_configs(ctx, kwargs):
               '"basedir": "./", "east_dir": None, "west_dir": None, '
               '"metadir": "/projects/pxs/reference_grids", '
               '"spatial": "2km", "meta_file" : None, '
+              '"east_dir": None, "west_dir": None, '
               '"alloc": "pxs", "walltime": 48, '
               '"chunk_size": 100000, "memory": 83}')
 @click.pass_context
