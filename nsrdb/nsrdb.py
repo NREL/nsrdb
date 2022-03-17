@@ -227,7 +227,7 @@ class NSRDB:
         src_dir = f"{user_input['basename']}"
         src_dir += "_{satellite}"
         src_dir += f"_{user_input['extent']}_{user_input['year']}"
-        src_dir += f"_{user_input['spatial']}"
+        src_dir += f"_{user_input['spatial']}/final"
         src_dir = os.path.join(user_input['basedir'], src_dir)
 
         if user_input['east_dir'] is None:
@@ -265,6 +265,7 @@ class NSRDB:
         cmd += ' -l "--qos=normal"'
 
         for tag in all_tags:
+            logger.debug(f'Running command: {cmd.format(tag=tag)}')
             os.system(cmd.format(tag=tag))
 
     @staticmethod
