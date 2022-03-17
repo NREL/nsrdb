@@ -135,6 +135,34 @@ def blend(ctx, kwargs):
 
 
 @main.command()
+@click.option('--kwargs', '-kw', required=True, type=DICT,
+              help='Argument dictionary. Needs to include year. '
+              'e.g. \'{"year":2019}\'. '
+              '\n\nAvailable keys: '
+              'year, outdir (config file directory), '
+              'basename (file prefix), '
+              'basedir (parent directory of data directories), '
+              'metadir (directory with meta file), '
+              'full_spatial, conus_spatial, final_spatial '
+              '(spatial resolution for each domain), '
+              'full_freq, conus_freq, final_freq '
+              '(temporal resolution for each domain)'
+              '\n\ndefault_kwargs = {"basename": "nsrdb", '
+              '"basename": "nsrdb", "basedir": "./", '
+              '"metadir": "/projects/pxs/reference_grids", '
+              '"full_spatial": "2km", "conus_spatial": "2km", '
+              '"final_spatial": "4km", "outdir": "./", '
+              '"full_freq": "10min", "conus_freq": "5min", '
+              '"final_freq": "30min"}')
+@click.pass_context
+def aggregate(ctx, kwargs):
+    """NSRDB data aggregation."""
+
+    ctx.ensure_object(dict)
+    NSRDB.aggregate_files(kwargs)
+
+
+@main.command()
 @click.option('--config_file', '-c', required=True,
               type=click.Path(exists=True),
               help='NSRDB pipeline configuration json file.')

@@ -31,6 +31,7 @@ from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
 from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
+from nsrdb.aggregation.aggregation import Manager
 from nsrdb import CONFIGDIR
 
 
@@ -106,6 +107,70 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
+    def aggregate_files(kwargs):
+        """Aggregate conus and full disk blends
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the
+            case for which to aggregate files
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "basedir": "./",
+            "metadir": "/projects/pxs/reference_grids",
+            "full_spatial": "2km",
+            "conus_spatial": "2km",
+            "final_spatial": "4km",
+            "outdir": "./",
+            "full_freq": "10min",
+            "conus_freq": "5min",
+            "final_freq": "30min"
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        full_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
+        full_sub_dir += '_full_blend'
+        conus_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
+        conus_sub_dir += '_conus_blend'
+        final_sub_dir = f'nsrdb_{user_input["final_spatial"]}'
+        final_sub_dir += f'_{user_input["final_freq"]}'
+
+        meta_file = 'nsrdb_meta_{res}.csv'
+        tree_file = 'kdtree_nsrdb_meta_{res}.pkl'
+
+        NSRDB = {
+            'full_disk':
+            {'data_sub_dir': full_sub_dir,
+             'tree_file': tree_file.format(res=user_input["full_spatial"]),
+             'meta_file': meta_file.format(res=user_input["full_spatial"]),
+             'spatial': f'{user_input["full_spatial"]}',
+             'temporal': f'{user_input["full_freq"]}'},
+            'conus':
+            {'data_sub_dir': conus_sub_dir,
+             'tree_file': tree_file.format(res=user_input["conus_spatial"]),
+             'meta_file': meta_file.format(res=user_input["conus_spatial"]),
+             'spatial': f'{user_input["conus_spatial"]}',
+             'temporal': f'{user_input["conus_freq"]}'},
+            'final':
+            {'data_sub_dir': final_sub_dir,
+             'fout': 'nsrdb.h5',
+             'tree_file': tree_file.format(res=user_input["full_spatial"]),
+             'meta_file': meta_file.format(res=user_input["full_spatial"]),
+             'spatial': f'{user_input["final_spatial"]}',
+             'temporal': f'{user_input["final_freq"]}',
+             'source_priority': ['conus', 'full_disk']}}
+
+        n_chunks = 32
+        Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
+                      user_input['year'], n_chunks, alloc='pxs', memory=90,
+                      walltime=40, feature='--qos=normal', node_name='agg',
+                      stdout_path=os.path.join(
+                          user_input['outdir'], f'{final_sub_dir}/stdout/'))
+
+    @staticmethod
     def blend_files(kwargs):
         """Blend all data files
 
@@ -164,6 +229,7 @@ class NSRDB:
         east_dir = user_input['eat_dir']
 
         user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
+        user_input['name'] += f'_{user_input["extent"]}_blend'
         name = user_input['name']
         out_dir = user_input['outdir'] = os.path.join(
             user_input['outdir'], name)
