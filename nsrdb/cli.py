@@ -121,11 +121,17 @@ def create_configs(ctx, kwargs):
               'basedir (parent directory of data directories), '
               'metadir (directory with meta file), '
               'meta_file. (auto populated if None), '
+              'alloc (project allocation code), '
+              'memory (node memory), '
+              'chunk_size (number of sites to read/write at a time), '
+              'walltime (time for job).'
               '\n\ndefault_kwargs = {"basename": "nsrdb", '
               '"extent": "conus", "outdir": "./", '
               '"basedir": "./", "east_dir": None, "west_dir": None, '
               '"metadir": "/projects/pxs/reference_grids", '
-              '"spatial": "2km", "meta_file" : None')
+              '"spatial": "2km", "meta_file" : None, '
+              '"alloc": "pxs", "walltime": 48, '
+              '"chunk_size": 100000, "memory": 83}')
 @click.pass_context
 def blend(ctx, kwargs):
     """NSRDB data blend."""
@@ -146,14 +152,20 @@ def blend(ctx, kwargs):
               'full_spatial, conus_spatial, final_spatial '
               '(spatial resolution for each domain), '
               'full_freq, conus_freq, final_freq '
-              '(temporal resolution for each domain)'
+              '(temporal resolution for each domain), '
+              'n_chunks (number of chunks to process the meta data in), '
+              'alloc (project allocation code), '
+              'memory (node memory), '
+              'walltime (time for job).'
               '\n\ndefault_kwargs = {"basename": "nsrdb", '
               '"basename": "nsrdb", "basedir": "./", '
               '"metadir": "/projects/pxs/reference_grids", '
               '"full_spatial": "2km", "conus_spatial": "2km", '
               '"final_spatial": "4km", "outdir": "./", '
               '"full_freq": "10min", "conus_freq": "5min", '
-              '"final_freq": "30min"}')
+              '"final_freq": "30min", "n_chunks": 32, '
+              '"alloc": "pxs", "memory": 90, '
+              '"walltime": 40}')
 @click.pass_context
 def aggregate(ctx, kwargs):
     """NSRDB data aggregation."""

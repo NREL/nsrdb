@@ -126,7 +126,11 @@ class NSRDB:
             "outdir": "./",
             "full_freq": "10min",
             "conus_freq": "5min",
-            "final_freq": "30min"
+            "final_freq": "30min",
+            "n_chunks": 32,
+            "alloc": "pxs",
+            "memory": 90,
+            "walltime": 40
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
@@ -163,11 +167,11 @@ class NSRDB:
              'temporal': f'{user_input["final_freq"]}',
              'source_priority': ['conus', 'full_disk']}}
 
-        n_chunks = 32
         Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
-                      user_input['year'], n_chunks, alloc='pxs', memory=90,
-                      walltime=40, feature='--qos=normal', node_name='agg',
-                      stdout_path=os.path.join(
+                      user_input['year'], user_input['n_chunks'],
+                      alloc=user_input['alloc'], memory=user_input['memory'],
+                      walltime=user_input['walltime'], feature='--qos=normal',
+                      node_name='agg', stdout_path=os.path.join(
                           user_input['outdir'], f'{final_sub_dir}/stdout/'))
 
     @staticmethod
@@ -187,6 +191,10 @@ class NSRDB:
             "spatial": "2km",
             "extent": "conus",
             "outdir": "./",
+            "alloc": "pxs",
+            "walltime": 48,
+            "chunk_size": 100000,
+            "memory": 83,
             "meta_file": None,
         }
         user_input = copy.deepcopy(default_kwargs)
@@ -245,10 +253,14 @@ class NSRDB:
         cmd += f' -m {meta_file} -od {out_dir}'
         cmd += f' -ed {east_dir} -wd {west_dir}'
         cmd += ' -t "{tag}"'
-        cmd += f' -mc {map_col} -ls {meta_lon} -cs 100000'
+        cmd += f' -mc {map_col} -ls {meta_lon}'
+        cmd += f' -cs {user_input["chunk_size"]}'
         cmd += f' -ld "{out_dir}/logs"'
-        cmd += ' slurm -a "pxs" -wt 48.0 -l "--qos=normal"'
-        cmd += f' -mem "83" -sout "{out_dir}/stdout"'
+        cmd += f' slurm -a {user_input["alloc"]}'
+        cmd += f' -wt {user_input["walltime"]}'
+        cmd += f' -mem {user_input["memory"]}'
+        cmd += f' -sout "{out_dir}/stdout"'
+        cmd += ' -l "--qos=normal"'
 
         for tag in all_tags:
             os.system(cmd.format(tag=tag))
