@@ -175,7 +175,7 @@ class MLCloudsFill:
         dsets = ('cloud_type', 'cld_press_acha', 'cld_opd_dcomp',
                  'cld_reff_dcomp')
         clean_arrays = {d: arr.copy() for d in dsets}
-        fill_flag_array = arr.copy()
+        fill_flag_array = arr.copy().astype(np.uint8)
         return clean_arrays, fill_flag_array
 
     @staticmethod
@@ -743,7 +743,8 @@ class MLCloudsFill:
                 with Outputs(fpath, mode='w') as fout:
                     fout.time_index = ti
                     fout.meta = meta
-                    init_data = np.zeros((len(ti), len(meta)))
+                    init_data = np.zeros((len(ti), len(meta)),
+                                         dtype=var_obj.final_dtype)
                     fout._add_dset(dset_name='cloud_fill_flag',
                                    dtype=var_obj.final_dtype, data=init_data,
                                    chunks=var_obj.chunks, attrs=var_obj.attrs)
