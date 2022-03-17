@@ -185,6 +185,7 @@ class NSRDB:
             case for which to blend data files
         """
         default_kwargs = {
+            "file_tag": "all",
             "basename": "nsrdb",
             "basedir": "./",
             "metadir": "/projects/pxs/reference_grids",
@@ -268,7 +269,12 @@ class NSRDB:
         cmd += f' -sout "{out_dir}/stdout"'
         cmd += ' -l "--qos=normal"'
 
-        for tag in all_tags:
+        if user_input['file_tag'] == 'all':
+            for tag in all_tags:
+                logger.debug(f'Running command: {cmd.format(tag=tag)}')
+                os.system(cmd.format(tag=tag))
+        else:
+            tag = user_input['file_tag']
             logger.debug(f'Running command: {cmd.format(tag=tag)}')
             os.system(cmd.format(tag=tag))
 
