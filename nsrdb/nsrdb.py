@@ -117,7 +117,9 @@ class NSRDB:
         """
         default_kwargs = {
             "basename": "nsrdb",
-            "spatial": "4km",
+            "basedir": "./",
+            "metadir": "/projects/pxs/reference_grids",
+            "spatial": "2km",
             "extent": "conus",
             "outdir": "./",
             "meta_file": None,
@@ -134,6 +136,7 @@ class NSRDB:
 
         meta_lon_map = {'full': -105, 'conus': -113}
         meta_lon = meta_lon_map[user_input['extent']]
+        user_input['lon_seam'] = meta_lon
 
         if user_input['meta_file'] is None:
             meta_file = f'nsrdb_meta_{user_input["spatial"]}'
@@ -142,18 +145,26 @@ class NSRDB:
                 meta_file += f'_{user_input["extent"]}'
 
             meta_file += '.csv'
-            user_input['meta_file'] = meta_file
+            user_input['meta_file'] = os.path.join(
+                user_input['metadir'], meta_file)
+            meta_file = user_input['meta_file']
 
         src_dir = f"{user_input['basename']}"
         src_dir += "_{satellite}"
         src_dir += f"_{user_input['extent']}_{user_input['year']}"
         src_dir += f"_{user_input['spatial']}"
+        src_dir = os.path.join(user_input['basedir'], src_dir)
 
-        east_dir = user_input['east_dir'] = src_dir.format(satellite="east")
-        west_dir = user_input['west_dir'] = src_dir.format(satellite="west")
+        if user_input['east_dir'] is None:
+            user_input['east_dir'] = src_dir.format(satellite="east")
+        if user_input['west_dir'] is None:
+            user_input['west_dir'] = src_dir.format(satellite="west")
 
-        name = f'{user_input["basename"]}_{user_input["year"]}'
-        user_input['name'] = name
+        west_dir = user_input['west_dir']
+        east_dir = user_input['eat_dir']
+
+        user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
+        name = user_input['name']
         out_dir = user_input['outdir'] = os.path.join(
             user_input['outdir'], name)
 

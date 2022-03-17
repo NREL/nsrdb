@@ -110,16 +110,22 @@ def create_configs(ctx, kwargs):
 @main.command()
 @click.option('--kwargs', '-kw', required=True, type=DICT,
               help='Argument dictionary. Needs to include year. '
-              'e.g. \'{"year":2019}\'. '
+              'e.g. \'{"year":2019, "extent": "full"}\'. '
               '\n\nAvailable keys: '
               'year, outdir (config file directory), '
               'spatial (meta file resolution), '
               'extent (full/conus), '
               'basename (file prefix), '
+              'east_dir (directory with east data, auto populated if None), '
+              'west_dir (directory with west data, auto populated if None), '
+              'basedir (parent directory of data directories), '
+              'metadir (directory with meta file), '
               'meta_file. (auto populated if None), '
               '\n\ndefault_kwargs = {"basename": "nsrdb", '
               '"extent": "conus", "outdir": "./", '
-              '"spatial": "4km", "meta_file" : None')
+              '"basedir": "./", "east_dir": None, "west_dir": None, '
+              '"metadir": "/projects/pxs/reference_grids", '
+              '"spatial": "2km", "meta_file" : None')
 @click.pass_context
 def blend(ctx, kwargs):
     """NSRDB data blend."""
