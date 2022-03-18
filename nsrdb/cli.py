@@ -103,7 +103,7 @@ def main(ctx):
               help='Flag to generate config files for all '
               'domains. If True config files for east/west and '
               'conus/full will be generated. (just full if year '
-              'is < 2018. satellite, extent, spatial, freq, and '
+              'is < 2018). satellite, extent, spatial, freq, and '
               'meta_file will be auto populated. ')
 @click.pass_context
 def create_configs(ctx, kwargs, all_domains):
