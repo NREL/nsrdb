@@ -279,6 +279,53 @@ class NSRDB:
             os.system(cmd.format(tag=tag))
 
     @staticmethod
+    def create_configs_all_domains(kwargs):
+        """Modify config files for all domains with
+        specified parameters
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of parameters
+            including year, basename,
+            satellite, extent, freq,
+            spatial, meta_file, doy_range
+        """
+
+        if kwargs['year'] < 2018:
+            kwargs['spatial'] = '4km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '4km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+        else:
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '10min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '10min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'conus'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '5min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'conus'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '5min'
+            NSRDB.create_config_files(kwargs)
+
+    @staticmethod
     def create_config_files(kwargs):
         """Modify config files with
         specified parameters
@@ -304,10 +351,6 @@ class NSRDB:
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
-
-        if user_input['year'] < 2018:
-            user_input['extent'] = 'full'
-            user_input['spatial'] = '4km'
 
         extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
         meta_lon_map = {'full': -105, 'conus': -113}

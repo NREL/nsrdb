@@ -99,12 +99,21 @@ def main(ctx):
               '"extent": "conus", "outdir": "./", '
               '"spatial": "4km", "meta_file" : None, '
               '"doy_range": None}')
+@click.option('-all_domains', '-ad', is_flag=True,
+              help='Flag to generate config files for all '
+              'domains. If True config files for east/west and '
+              'conus/full will be generated. (just full if year '
+              'is < 2018. satellite, extent, spatial, freq, and '
+              'meta_file will be auto populated. ')
 @click.pass_context
-def create_configs(ctx, kwargs):
+def create_configs(ctx, kwargs, all_domains):
     """NSRDB config file creation from templates."""
 
     ctx.ensure_object(dict)
-    NSRDB.create_config_files(kwargs)
+    if all_domains:
+        NSRDB.create_configs_all_domains(kwargs)
+    else:
+        NSRDB.create_config_files(kwargs)
 
 
 @main.command()
