@@ -118,7 +118,6 @@ class NSRDB:
         """
         default_kwargs = {
             "basename": "nsrdb",
-            "basedir": "./",
             "metadir": "/projects/pxs/reference_grids",
             "full_spatial": "2km",
             "conus_spatial": "2km",
@@ -187,7 +186,6 @@ class NSRDB:
         default_kwargs = {
             "file_tag": "all",
             "basename": "nsrdb",
-            "basedir": "./",
             "metadir": "/projects/pxs/reference_grids",
             "spatial": "2km",
             "extent": "conus",
@@ -229,7 +227,7 @@ class NSRDB:
         src_dir += "_{satellite}"
         src_dir += f"_{user_input['extent']}_{user_input['year']}"
         src_dir += f"_{user_input['spatial']}/final"
-        src_dir = os.path.join(user_input['basedir'], src_dir)
+        src_dir = os.path.join(user_input['outdir'], src_dir)
 
         if user_input['east_dir'] is None:
             user_input['east_dir'] = src_dir.format(satellite="east")
