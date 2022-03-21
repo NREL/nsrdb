@@ -160,8 +160,8 @@ class NSRDB:
             'final':
             {'data_sub_dir': final_sub_dir,
              'fout': 'nsrdb.h5',
-             'tree_file': tree_file.format(res=user_input["full_spatial"]),
-             'meta_file': meta_file.format(res=user_input["full_spatial"]),
+             'tree_file': tree_file.format(res=user_input["final_spatial"]),
+             'meta_file': meta_file.format(res=user_input["final_spatial"]),
              'spatial': f'{user_input["final_spatial"]}',
              'temporal': f'{user_input["final_freq"]}',
              'source_priority': ['conus', 'full_disk']}}
