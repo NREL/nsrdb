@@ -180,12 +180,17 @@ def blend(ctx, kwargs):
               '"final_freq": "30min", "n_chunks": 32, '
               '"alloc": "pxs", "memory": 90, '
               '"walltime": 40}')
+@click.option('--collect', is_flag=True,
+              help='Flag to collect aggregation chunks')
 @click.pass_context
-def aggregate(ctx, kwargs):
+def aggregate(ctx, kwargs, collect):
     """NSRDB data aggregation."""
 
     ctx.ensure_object(dict)
-    NSRDB.aggregate_files(kwargs)
+    if collect:
+        NSRDB.collect_aggregation(kwargs)
+    else:
+        NSRDB.aggregate_files(kwargs)
 
 
 @main.command()

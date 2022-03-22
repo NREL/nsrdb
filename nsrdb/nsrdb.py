@@ -107,6 +107,39 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
+    def collect_aggregation(kwargs):
+        """Collect aggregation chunks
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying
+            the case for aggregation collection
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "metadir": "/projects/pxs/reference_grids",
+            "final_spatial": "4km",
+            "final_freq": "30min",
+            "outdir": "./",
+        }
+
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
+        meta_file = os.path.join(user_input['metadir'], meta_file)
+        collect_dir = f'nsrdb_{user_input["final_spatial"]}'
+        collect_dir += f'_{user_input["final_freq"]}'
+        collect_tag = f'{user_input["basename"]}_{user_input["year"]}_agg'
+        fout = os.path.join(
+            f'{user_input["outdir"]}',
+            f'{user_input["basename"]}_{user_input["year"]}.h5')
+
+        Manager.collect(
+            meta_file, collect_dir, collect_tag, fout, max_workers=1)
+
+    @staticmethod
     def aggregate_files(kwargs):
         """Aggregate conus and full disk blends
 
