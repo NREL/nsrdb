@@ -1564,10 +1564,15 @@ class CloudVar(AncillaryVarHandler):
         obj = None
 
         if str(fp_cloud).endswith('.h5'):
-            obj = CloudVarSingleH5(fp_cloud, **kwargs)
-
+            try:
+                obj = CloudVarSingleH5(fp_cloud, **kwargs)
+            except ValueError:
+                logger.error(f'Error reading file: {fp_cloud}')
         elif str(fp_cloud).endswith('.nc'):
-            obj = CloudVarSingleNC(fp_cloud, **kwargs)
+            try:
+                obj = CloudVarSingleNC(fp_cloud, **kwargs)
+            except ValueError:
+                logger.error(f'Error reading file: {fp_cloud}')
 
         return obj
 
