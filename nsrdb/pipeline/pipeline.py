@@ -25,9 +25,7 @@ class NsrdbPipeline(Pipeline):
                 'collect-data-model',
                 'collect-daily',
                 'collect-flist',
-                'collect-final',
-                'blend',
-                'aggregation'
+                'collect-final'
                 )
 
     def __init__(self, pipeline, monitor=True, verbose=False):
