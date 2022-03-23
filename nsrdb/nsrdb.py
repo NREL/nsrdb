@@ -131,7 +131,7 @@ class NSRDB:
         meta_file = os.path.join(user_input['metadir'], meta_file)
         collect_dir = f'nsrdb_{user_input["final_spatial"]}'
         collect_dir += f'_{user_input["final_freq"]}'
-        collect_tag = f'{user_input["basename"]}_{user_input["year"]}_agg'
+        collect_tag = f'{user_input["basename"]}_'
         fout = os.path.join(
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
