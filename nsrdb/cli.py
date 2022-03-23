@@ -292,7 +292,35 @@ class ConfigRunners:
     nsrdb config objects"""
 
     @staticmethod
-    def run_data_model_config(ctx, name, cmd_args, eagle_args, direct_args):
+    def get_doys(cmd_args):
+        """Get the doy iterable from either the "doy_list" (prioritized)
+        or "doy_range" input
+
+        Parameters
+        ----------
+        cmd_args : dict
+            Dictionary of kwargs from the nsrdb config file specifically for
+            this command block.
+
+        Returns
+        -------
+        doys : list | None
+            List of day-of-year integers to iterate through. None if neither
+            doy_list nor doy_range are found.
+        """
+        doy_list = cmd_args.get('doy_list', None)
+        doy_range = cmd_args.get('doy_range', None)
+        if doy_list is None and doy_range is None:
+            return None
+
+        elif doy_list is None and doy_range is not None:
+            doy_list = list(range(doy_range[0], doy_range[1]))
+
+        return doy_list
+
+    @classmethod
+    def run_data_model_config(cls, ctx, name, cmd_args, eagle_args,
+                              direct_args):
         """Run the daily data model processing code for each day of year.
 
         Parameters
@@ -310,8 +338,14 @@ class ConfigRunners:
             Dictionary of kwargs from the nsrdb config file under the "direct"
             key that are common to all command blocks.
         """
-        doy_range = cmd_args['doy_range']
-        for doy in range(doy_range[0], doy_range[1]):
+        doys = cls.get_doys(cmd_args)
+        if doys is None:
+            msg = ('NSRDB data model config needs either the '
+                   '"doy_list" or "doy_range" input.')
+            logger.error(msg)
+            raise KeyError(msg)
+
+        for doy in doys:
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_data_model_{}_{}'.format(doy, date)
             max_workers_regrid = cmd_args.get('max_workers_regrid', None)
@@ -351,9 +385,9 @@ class ConfigRunners:
                        col_chunk=cmd_args.get('col_chunk', None))
             ctx.invoke(eagle, **eagle_args)
 
-    @staticmethod
-    def run_ml_cloud_fill_config(ctx, name, cmd_args, eagle_args, direct_args,
-                                 run_config):
+    @classmethod
+    def run_ml_cloud_fill_config(cls, ctx, name, cmd_args, eagle_args,
+                                 direct_args, run_config):
         """Run the cloud gap fill using machine learning methods (phygnn).
 
         Parameters
@@ -374,12 +408,16 @@ class ConfigRunners:
             Dictionary of the full nsrdb config file. Used here to extract
             inputs from the data-model input block.
         """
+        doys = cls.get_doys(cmd_args)
+        if doys is None:
+            doys = cls.get_doys(run_config['data-model'])
+        if doys is None:
+            msg = ('NSRDB data model config needs either the '
+                   '"doy_list" or "doy_range" input.')
+            logger.error(msg)
+            raise KeyError(msg)
 
-        if 'doy_range' in cmd_args:
-            doy_range = cmd_args['doy_range']
-        else:
-            doy_range = run_config['data-model']['doy_range']
-        for doy in range(doy_range[0], doy_range[1]):
+        for doy in doys:
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_mlclouds_{}_{}'.format(doy, date)
             ctx.invoke(ml_cloud_fill, date=date,
@@ -415,8 +453,8 @@ class ConfigRunners:
                        col_chunk=cmd_args.get('col_chunk', 10))
             ctx.invoke(eagle, **eagle_args)
 
-    @staticmethod
-    def run_daily_all_sky_config(ctx, name, cmd_args, eagle_args,
+    @classmethod
+    def run_daily_all_sky_config(cls, ctx, name, cmd_args, eagle_args,
                                  direct_args, run_config):
         """Run the all sky module to produce irradiance outputs using daily
         data model outputs as source.
@@ -439,11 +477,16 @@ class ConfigRunners:
             Dictionary of the full nsrdb config file. Used here to extract
             inputs from the data-model input block.
         """
-        if 'doy_range' in cmd_args:
-            doy_range = cmd_args['doy_range']
-        else:
-            doy_range = run_config['data-model']['doy_range']
-        for doy in range(doy_range[0], doy_range[1]):
+        doys = cls.get_doys(cmd_args)
+        if doys is None:
+            doys = cls.get_doys(run_config['data-model'])
+        if doys is None:
+            msg = ('NSRDB data model config needs either the '
+                   '"doy_list" or "doy_range" input.')
+            logger.error(msg)
+            raise KeyError(msg)
+
+        for doy in doys:
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
             ctx.invoke(daily_all_sky, date=date,
