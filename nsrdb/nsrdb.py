@@ -136,6 +136,10 @@ class NSRDB:
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
 
+        logger.info('Running collect_aggregation with '
+                    f'meta_file={meta_file}, collect_dir={collect_dir}, '
+                    f'collect_tag={collect_tag}, fout={fout}')
+
         Manager.collect(
             meta_file, collect_dir, collect_tag, fout, max_workers=1)
 
