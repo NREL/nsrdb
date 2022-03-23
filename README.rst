@@ -155,7 +155,7 @@ NSRDB Versions
         means generated from PC data.
     * - 3.2.2
       - 2/25/2022
-      - 2022
+      - 1998-2022
       - Implemented a model for snowy albedo as a function of temperature from
         MERRA2 based on the paper "A comparison of simulated and observed
         fluctuations in summertime Arctic surface albedo" by Becky Ross and
