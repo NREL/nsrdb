@@ -1376,6 +1376,7 @@ class DataModel:
         temp = cls.check_merra_cloud_source(var_list, cloud_vars, date,
                                             var_meta, factory_kwargs)
         var_list, cloud_vars, factory_kwargs = temp
+        factory_kwargs = {} if factory_kwargs is None else factory_kwargs
         data_model._factory_kwargs = factory_kwargs
 
         # run pre-flight checks
