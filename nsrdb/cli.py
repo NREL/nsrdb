@@ -87,7 +87,7 @@ def main(ctx):
               help='Argument dictionary. Needs to include year. '
               'e.g. \'{"year":2019, "freq":"5min"}\'. '
               '\n\nAvailable keys: '
-              'year, freq, outdir (config file directory), '
+              'year, freq, outdir (parent directory for run directory), '
               'satellite (east/west), '
               'spatial (meta file resolution), '
               'extent (full/conus), '
@@ -99,12 +99,98 @@ def main(ctx):
               '"extent": "conus", "outdir": "./", '
               '"spatial": "4km", "meta_file" : None, '
               '"doy_range": None}')
+@click.option('-all_domains', '-ad', is_flag=True,
+              help='Flag to generate config files for all '
+              'domains. If True config files for east/west and '
+              'conus/full will be generated. (just full if year '
+              'is < 2018). satellite, extent, spatial, freq, and '
+              'meta_file will be auto populated. ')
 @click.pass_context
-def create_configs(ctx, kwargs):
+def create_configs(ctx, kwargs, all_domains):
     """NSRDB config file creation from templates."""
 
     ctx.ensure_object(dict)
-    NSRDB.create_config_files(kwargs)
+    if all_domains:
+        NSRDB.create_configs_all_domains(kwargs)
+    else:
+        NSRDB.create_config_files(kwargs)
+
+
+@main.command()
+@click.option('--kwargs', '-kw', required=True, type=DICT,
+              help='Argument dictionary. Needs to include year. '
+              'e.g. \'{"year":2019, "extent": "full"}\'. '
+              '\n\nAvailable keys: '
+              'year, '
+              'outdir (parent directory of data directories), '
+              'file_tag ("ancillary_a", "ancillary_", "clearsky", '
+              '"clouds", "csp", "irradiance", "pv", "all") - If file_tag '
+              'is all then all other tags will be run, '
+              'spatial (meta file resolution), '
+              'extent (full/conus), '
+              'basename (file prefix), '
+              'east_dir (directory with east data, auto populated if None), '
+              'west_dir (directory with west data, auto populated if None), '
+              'metadir (directory with meta file), '
+              'meta_file. (auto populated if None), '
+              'alloc (project allocation code), '
+              'memory (node memory), '
+              'chunk_size (number of sites to read/write at a time), '
+              'walltime (time for job).'
+              '\n\ndefault_kwargs = {"file_tag": "all", '
+              '"basename": "nsrdb", '
+              '"extent": "conus", "outdir": "./", '
+              '"east_dir": None, "west_dir": None, '
+              '"metadir": "/projects/pxs/reference_grids", '
+              '"spatial": "2km", "meta_file" : None, '
+              '"east_dir": None, "west_dir": None, '
+              '"alloc": "pxs", "walltime": 48, '
+              '"chunk_size": 100000, "memory": 83}')
+@click.pass_context
+def blend(ctx, kwargs):
+    """NSRDB data blend."""
+
+    ctx.ensure_object(dict)
+    NSRDB.blend_files(kwargs)
+
+
+@main.command()
+@click.option('--kwargs', '-kw', required=True, type=DICT,
+              help='Argument dictionary. Needs to include year. '
+              'e.g. \'{"year":2019}\'. '
+              '\n\nAvailable keys: '
+              'year, '
+              'basename (file prefix), '
+              'outdir (parent directory of data directories), '
+              'metadir (directory with meta file), '
+              'full_spatial, conus_spatial, final_spatial '
+              '(spatial resolution for each domain), '
+              'full_freq, conus_freq, final_freq '
+              '(temporal resolution for each domain), '
+              'n_chunks (number of chunks to process the meta data in), '
+              'alloc (project allocation code), '
+              'memory (node memory), '
+              'walltime (time for job).'
+              '\n\ndefault_kwargs = {"basename": "nsrdb", '
+              '"basename": "nsrdb", '
+              '"metadir": "/projects/pxs/reference_grids", '
+              '"full_spatial": "2km", "conus_spatial": "2km", '
+              '"final_spatial": "4km", "outdir": "./", '
+              '"full_freq": "10min", "conus_freq": "5min", '
+              '"final_freq": "30min", "n_chunks": 32, '
+              '"alloc": "pxs", "memory": 90, '
+              '"walltime": 40}')
+@click.option('--collect', is_flag=True,
+              help='Flag to collect aggregation chunks')
+@click.pass_context
+def aggregate(ctx, kwargs, collect):
+    """NSRDB data aggregation."""
+
+    ctx.ensure_object(dict)
+    if collect:
+        NSRDB.collect_aggregation(kwargs)
+    else:
+        NSRDB.aggregate_files(kwargs)
 
 
 @main.command()

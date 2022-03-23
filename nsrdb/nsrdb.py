@@ -31,6 +31,7 @@ from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
 from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
+from nsrdb.aggregation.aggregation import Manager
 from nsrdb import CONFIGDIR
 
 
@@ -106,6 +107,266 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
+    def collect_aggregation(kwargs):
+        """Collect aggregation chunks
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying
+            the case for aggregation collection
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "metadir": "/projects/pxs/reference_grids",
+            "final_spatial": "4km",
+            "final_freq": "30min",
+            "outdir": "./",
+        }
+
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
+        meta_file = os.path.join(user_input['metadir'], meta_file)
+        collect_dir = f'nsrdb_{user_input["final_spatial"]}'
+        collect_dir += f'_{user_input["final_freq"]}'
+        collect_tag = f'{user_input["basename"]}_'
+        fout = os.path.join(
+            f'{user_input["outdir"]}',
+            f'{user_input["basename"]}_{user_input["year"]}.h5')
+
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info('Running collect_aggregation with '
+                    f'meta_file={meta_file}, collect_dir={collect_dir}, '
+                    f'collect_tag={collect_tag}, fout={fout}')
+
+        Manager.collect(
+            meta_file, collect_dir, collect_tag, fout, max_workers=1)
+
+    @staticmethod
+    def aggregate_files(kwargs):
+        """Aggregate conus and full disk blends
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the
+            case for which to aggregate files
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "metadir": "/projects/pxs/reference_grids",
+            "full_spatial": "2km",
+            "conus_spatial": "2km",
+            "final_spatial": "4km",
+            "outdir": "./",
+            "full_freq": "10min",
+            "conus_freq": "5min",
+            "final_freq": "30min",
+            "n_chunks": 32,
+            "alloc": "pxs",
+            "memory": 90,
+            "walltime": 40
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        full_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
+        full_sub_dir += '_full_blend'
+        conus_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
+        conus_sub_dir += '_conus_blend'
+        final_sub_dir = f'nsrdb_{user_input["final_spatial"]}'
+        final_sub_dir += f'_{user_input["final_freq"]}'
+
+        meta_file = 'nsrdb_meta_{res}.csv'
+        tree_file = 'kdtree_nsrdb_meta_{res}.pkl'
+
+        conus_meta_file = f'nsrdb_meta_{user_input["conus_spatial"]}_conus.csv'
+        conus_tree_file = 'kdtree_nsrdb_meta_'
+        conus_tree_file += f'{user_input["conus_spatial"]}_conus.pkl'
+
+        NSRDB = {
+            'full_disk':
+            {'data_sub_dir': full_sub_dir,
+             'tree_file': tree_file.format(res=user_input["full_spatial"]),
+             'meta_file': meta_file.format(res=user_input["full_spatial"]),
+             'spatial': f'{user_input["full_spatial"]}',
+             'temporal': f'{user_input["full_freq"]}'},
+            'conus':
+            {'data_sub_dir': conus_sub_dir,
+             'tree_file': conus_tree_file,
+             'meta_file': conus_meta_file,
+             'spatial': f'{user_input["conus_spatial"]}',
+             'temporal': f'{user_input["conus_freq"]}'},
+            'final':
+            {'data_sub_dir': final_sub_dir,
+             'fout': 'nsrdb.h5',
+             'tree_file': tree_file.format(res=user_input["final_spatial"]),
+             'meta_file': meta_file.format(res=user_input["final_spatial"]),
+             'spatial': f'{user_input["final_spatial"]}',
+             'temporal': f'{user_input["final_freq"]}',
+             'source_priority': ['conus', 'full_disk']}}
+
+        run_name = f'{user_input["basename"]}_{user_input["year"]}_agg'
+        Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
+                      user_input['year'], user_input['n_chunks'],
+                      alloc=user_input['alloc'], memory=user_input['memory'],
+                      walltime=user_input['walltime'], feature='--qos=normal',
+                      node_name=run_name, stdout_path=os.path.join(
+                          user_input['outdir'], f'{final_sub_dir}/stdout/'))
+
+    @staticmethod
+    def blend_files(kwargs):
+        """Blend all data files
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the
+            case for which to blend data files
+        """
+        default_kwargs = {
+            "file_tag": "all",
+            "basename": "nsrdb",
+            "metadir": "/projects/pxs/reference_grids",
+            "spatial": "2km",
+            "extent": "conus",
+            "outdir": "./",
+            "alloc": "pxs",
+            "walltime": 48,
+            "chunk_size": 100000,
+            "memory": 83,
+            "meta_file": None,
+            "east_dir": None,
+            "west_dir": None
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        if user_input['year'] < 2018:
+            user_input['extent'] = 'full'
+            user_input['spatial'] = '4km'
+
+        map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
+        map_col = user_input['map_col'] = map_col_map[user_input['extent']]
+
+        meta_lon_map = {'full': -105, 'conus': -113}
+        meta_lon = meta_lon_map[user_input['extent']]
+        user_input['lon_seam'] = meta_lon
+
+        if user_input['meta_file'] is None:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+
+            if user_input['year'] > 2017:
+                meta_file += f'_{user_input["extent"]}'
+
+            meta_file += '.csv'
+            user_input['meta_file'] = os.path.join(
+                user_input['metadir'], meta_file)
+            meta_file = user_input['meta_file']
+
+        src_dir = f"{user_input['basename']}"
+        src_dir += "_{satellite}"
+        src_dir += f"_{user_input['extent']}_{user_input['year']}"
+        src_dir += f"_{user_input['spatial']}/final"
+        src_dir = os.path.join(user_input['outdir'], src_dir)
+
+        if user_input['east_dir'] is None:
+            user_input['east_dir'] = src_dir.format(satellite="east")
+        if user_input['west_dir'] is None:
+            user_input['west_dir'] = src_dir.format(satellite="west")
+
+        west_dir = user_input['west_dir']
+        east_dir = user_input['east_dir']
+
+        user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
+        user_input['name'] += f'_{user_input["extent"]}_blend'
+        name = user_input['name']
+        out_dir = user_input['outdir'] = os.path.join(
+            user_input['outdir'], name)
+        log_dir = os.path.join(out_dir, 'logs/')
+
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info(f'Blending NSRDB data files with {user_input}')
+
+        all_tags = ['ancillary_a', 'ancillary_b', 'clearsky',
+                    'clouds', 'csp', 'irradiance', 'pv']
+
+        cmd = f'python -m nsrdb.blend.cli -n {name}'
+        cmd += '_{tag}'
+        cmd += f' -m {meta_file} -od {out_dir}'
+        cmd += f' -ed {east_dir} -wd {west_dir}'
+        cmd += ' -t "{tag}"'
+        cmd += f' -mc {map_col} -ls {meta_lon}'
+        cmd += f' -cs {user_input["chunk_size"]}'
+        cmd += f' -ld "{log_dir}"'
+        cmd += f' slurm -a {user_input["alloc"]}'
+        cmd += f' -wt {user_input["walltime"]}'
+        cmd += f' -mem {user_input["memory"]}'
+        cmd += f' -sout "{out_dir}/stdout"'
+        cmd += ' -l "--qos=normal"'
+
+        if user_input['file_tag'] == 'all':
+            for tag in all_tags:
+                logger.debug(f'Running command: {cmd.format(tag=tag)}')
+                os.system(cmd.format(tag=tag))
+        else:
+            tag = user_input['file_tag']
+            logger.debug(f'Running command: {cmd.format(tag=tag)}')
+            os.system(cmd.format(tag=tag))
+
+    @staticmethod
+    def create_configs_all_domains(kwargs):
+        """Modify config files for all domains with
+        specified parameters
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of parameters
+            including year, basename,
+            satellite, extent, freq,
+            spatial, meta_file, doy_range
+        """
+
+        if kwargs['year'] < 2018:
+            kwargs['spatial'] = '4km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '4km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+        else:
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '10min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '10min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'conus'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '5min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'conus'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '5min'
+            NSRDB.create_config_files(kwargs)
+
+    @staticmethod
     def create_config_files(kwargs):
         """Modify config files with
         specified parameters
@@ -131,10 +392,6 @@ class NSRDB:
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
-
-        if user_input['year'] < 2018:
-            user_input['extent'] = 'full'
-            user_input['spatial'] = '4km'
 
         extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
         meta_lon_map = {'full': -105, 'conus': -113}
