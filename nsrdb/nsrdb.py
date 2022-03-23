@@ -1278,9 +1278,16 @@ class NSRDB:
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        MLCloudsFill.run(h5_source, fill_all=fill_all, model_path=model_path,
-                         var_meta=var_meta, col_chunk=col_chunk,
-                         max_workers=max_workers)
+        is_merra = MLCloudsFill.merra_clouds(h5_source, var_meta=var_meta)
+
+        if not is_merra:
+            MLCloudsFill.run(h5_source,
+                             fill_all=fill_all,
+                             model_path=model_path,
+                             var_meta=var_meta,
+                             col_chunk=col_chunk,
+                             max_workers=max_workers)
+
         logger.info('Finished mlclouds gap fill.')
 
         if job_name is not None:

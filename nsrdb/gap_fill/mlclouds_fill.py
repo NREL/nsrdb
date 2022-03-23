@@ -76,17 +76,20 @@ class MLCloudsFill:
                 self._dset_map = res.h5._dset_map
                 self._res_shape = res.shape
 
-            missing = []
-            for dset in self._phygnn_model.feature_names:
-                ignore = ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
-                if (dset not in ignore and dset not in self._dset_map):
-                    missing.append(dset)
+    def preflight(self):
+        """Run preflight checks and raise error if datasets are missing"""
 
-            if any(missing):
-                msg = ('The following datasets were missing in the h5_source '
-                       'directory: {}'.format(missing))
-                logger.error(msg)
-                raise FileNotFoundError(msg)
+        missing = []
+        for dset in self._phygnn_model.feature_names:
+            ignore = ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
+            if (dset not in ignore and dset not in self._dset_map):
+                missing.append(dset)
+
+        if any(missing):
+            msg = ('The following datasets were missing in the h5_source '
+                   'directory: {}'.format(missing))
+            logger.error(msg)
+            raise FileNotFoundError(msg)
 
     @property
     def phygnn_model(self):
@@ -168,9 +171,8 @@ class MLCloudsFill:
 
         return feature_data
 
-    def _init_clean_arrays(self):
-        """Initialize a dict of numpy arrays for clean data.
-        """
+    def init_clean_arrays(self):
+        """Initialize a dict of numpy arrays for clean data. """
         arr = np.zeros(self._res_shape, dtype=np.float32)
         dsets = ('cloud_type', 'cld_press_acha', 'cld_opd_dcomp',
                  'cld_reff_dcomp')
@@ -179,7 +181,7 @@ class MLCloudsFill:
         return clean_arrays, fill_flag_array
 
     @staticmethod
-    def _clean_array(dset, array):
+    def clean_array(dset, array):
         """Clean a dataset array using temporal nearest neighbor interpolation.
 
         Parameters
@@ -349,7 +351,7 @@ class MLCloudsFill:
         if max_workers == 1:
             for c, d in feature_data.items():
                 if c not in self.phygnn_model.label_names:
-                    feature_data[c] = self._clean_array(c, d)
+                    feature_data[c] = self.clean_array(c, d)
         else:
             logger.info('Interpolating feature data with {} max workers'
                         .format(max_workers))
@@ -359,7 +361,7 @@ class MLCloudsFill:
                                   max_workers=max_workers) as exe:
                 for c, d in feature_data.items():
                     if c not in self.phygnn_model.label_names:
-                        future = exe.submit(self._clean_array, c, d)
+                        future = exe.submit(self.clean_array, c, d)
                         futures[future] = c
 
                 for future in as_completed(futures):
@@ -766,8 +768,8 @@ class MLCloudsFill:
                         .format(n, count, ntot, 100 * count / ntot))
 
     @classmethod
-    def _prep_chunk(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
-                    col_slice=slice(None)):
+    def prep_chunk(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
+                   col_slice=slice(None)):
         """Prepare a column chunk (slice) of data for phygnn prediction.
 
         Parameters
@@ -827,8 +829,8 @@ class MLCloudsFill:
 
         return feature_data, clean_data, fill_flag
 
-    def _process_chunk(self, i_features, i_clean, i_flag, col_slice,
-                       clean_data, fill_flag, low_mem=False):
+    def process_chunk(self, i_features, i_clean, i_flag, col_slice,
+                      clean_data, fill_flag, low_mem=False):
         """Use cleaned and prepared data to run phygnn predictions and create
         final filled data for a single column chunk.
 
@@ -978,6 +980,47 @@ class MLCloudsFill:
         return data_model
 
     @classmethod
+    def merra_clouds(cls, h5_source, var_meta=None, merra_fill_flag=8):
+        """Quick check to see if cloud data is from a merra source in which
+        case it should be gap-free and cloud_fill_flag will be written with all
+        8's
+
+        Parameters
+        ----------
+        h5_source : str
+            Path to directory containing multi-file resource file sets.
+            Available formats:
+                /h5_dir/
+                /h5_dir/prefix*suffix
+        var_meta : str | pd.DataFrame | None
+            CSV file or dataframe containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        merra_fill_flag : int
+            Integer fill flag representing where merra data was used as source
+            cloud data.
+
+        Returns
+        -------
+        is_merra : bool
+            Flag that is True if cloud data is from merra
+        """
+
+        mlclouds = cls(h5_source, var_meta=var_meta)
+
+        with MultiFileNSRDB(h5_source) as res:
+            attrs = res.attrs.get('cld_opd_dcomp', {})
+
+        if 'merra' in attrs.get('data_source', '').lower():
+            logger.info('Found cloud data from MERRA2 for source: {}'
+                        .format(h5_source))
+            fill_flag_arr = mlclouds.init_clean_arrays()[1]
+            fill_flag_arr[:] = merra_fill_flag
+            mlclouds.write_fill_flag(fill_flag_arr)
+            return True
+
+        return False
+
+    @classmethod
     def run(cls, h5_source, fill_all=False, model_path=None, var_meta=None,
             sza_lim=90, col_chunk=None, max_workers=None, low_mem=False):
         """
@@ -1027,8 +1070,9 @@ class MLCloudsFill:
                     .format(col_chunk))
         obj = cls(h5_source, fill_all=fill_all, model_path=model_path,
                   var_meta=var_meta)
+        obj.preflight()
         obj.archive_cld_properties()
-        clean_data, fill_flag = obj._init_clean_arrays()
+        clean_data, fill_flag = obj.init_clean_arrays()
 
         if col_chunk is None:
             slices = [slice(None)]
@@ -1049,13 +1093,13 @@ class MLCloudsFill:
 
         if max_workers == 1:
             for col_slice in slices:
-                out = obj._prep_chunk(h5_source, model_path=model_path,
-                                      var_meta=var_meta, sza_lim=sza_lim,
-                                      col_slice=col_slice)
+                out = obj.prep_chunk(h5_source, model_path=model_path,
+                                     var_meta=var_meta, sza_lim=sza_lim,
+                                     col_slice=col_slice)
                 i_features, i_clean, i_flag = out
-                out = obj._process_chunk(i_features, i_clean, i_flag,
-                                         col_slice, clean_data, fill_flag,
-                                         low_mem=low_mem)
+                out = obj.process_chunk(i_features, i_clean, i_flag,
+                                        col_slice, clean_data, fill_flag,
+                                        low_mem=low_mem)
                 clean_data, fill_flag = out
                 del i_features, i_clean, i_flag
 
@@ -1067,7 +1111,7 @@ class MLCloudsFill:
             with SpawnProcessPool(loggers=loggers,
                                   max_workers=max_workers) as exe:
                 for col_slice in slices:
-                    future = exe.submit(obj._prep_chunk, h5_source,
+                    future = exe.submit(obj.prep_chunk, h5_source,
                                         model_path=model_path,
                                         var_meta=var_meta,
                                         sza_lim=sza_lim,
@@ -1078,9 +1122,9 @@ class MLCloudsFill:
                 for i, future in enumerate(as_completed(futures)):
                     col_slice = futures[future]
                     i_features, i_clean, i_flag = future.result()
-                    out = obj._process_chunk(i_features, i_clean, i_flag,
-                                             col_slice, clean_data, fill_flag,
-                                             low_mem=low_mem)
+                    out = obj.process_chunk(i_features, i_clean, i_flag,
+                                            col_slice, clean_data, fill_flag,
+                                            low_mem=low_mem)
                     clean_data, fill_flag = out
                     del i_features, i_clean, i_flag, future
 
