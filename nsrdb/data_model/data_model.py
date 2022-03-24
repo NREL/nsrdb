@@ -31,6 +31,7 @@ class variables in Ancillary() below.
      'wind_speed',
      'dew_point')
 """
+import copy
 from concurrent.futures import as_completed
 import logging
 import numpy as np
@@ -266,6 +267,16 @@ class DataModel:
             self._nsrdb_data_shape = (len(self.nsrdb_ti), len(self.nsrdb_grid))
 
         return self._nsrdb_data_shape
+
+    @property
+    def var_meta(self):
+        """Get the nsrdb variables meta data table.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return self._var_meta
 
     @property
     def processed_data(self):
@@ -608,6 +619,128 @@ class DataModel:
             data *= 0.1
 
         return data
+
+    @classmethod
+    def check_merra_cloud_source(cls, var_list, cloud_vars, date, var_meta,
+                                 factory_kwargs):
+        """Check if the cloud data source is a merra file and adjust variable
+        lists and factory kwargs accordingly.
+
+        Parameters
+        ----------
+        var_list : list
+            List of variables being processed without the GOES cloud data
+            handler
+        cloud_vars : list
+            List of cloud data variables from GOES being processed with the
+            cloud data handler
+        date : datetime.date
+            Date of target processing
+        var_meta : pd.DataFrame | None | str
+            CSV file or dataframe containing meta data for all NSRDB variables.
+        factory_kwargs : dict
+            Optional namespace of kwargs to use to initialize variable data
+            handlers from the data model's variable factory. Keyed by
+            variable name. Values can be "source_dir", "handler", etc...
+            source_dir for cloud variables can be a normal directory
+            path or /directory/prefix*suffix where /directory/ can have
+            more sub dirs
+
+        Returns
+        -------
+        var_list : list
+            List of variables being processed without the GOES cloud data
+            handler - cloud variables have been added to this list if merra is
+            source
+        cloud_vars : list
+            List of variables being processed with the GOES cloud data handler.
+            This is empty if the data source is merra.
+        factory_kwargs : dict
+            Optional namespace of kwargs to initialize variable data. If cloud
+            variables are being sourced from merra, appropriate kwargs are
+            added to this dict.
+        """
+        merra_c_vars = ('cld_opd_dcomp', 'cld_reff_dcomp', 'cloud_type',
+                        'cld_press_acha')
+
+        if any(cv in cloud_vars for cv in merra_c_vars):
+            var_kwargs = factory_kwargs.get('cloud_type', {})
+            handler = VarFactory.get_base_handler('cloud_type',
+                                                  var_meta=var_meta,
+                                                  date=date, **var_kwargs)
+            is_merra, new_kwargs = cls.is_merra_cloud(handler)
+
+            if is_merra:
+                for var in merra_c_vars:
+                    factory_kwargs[var].update(copy.deepcopy(new_kwargs))
+
+                factory_kwargs['cld_opd_dcomp']['merra_name'] = 'TAUTOT'
+                factory_kwargs['cld_opd_dcomp']['spatial_interp'] = 'IDW2'
+                factory_kwargs['cld_opd_dcomp']['temporal_interp'] = 'linear'
+
+                keep_cloud_vars = [v for v in cloud_vars if v in merra_c_vars]
+                var_list += keep_cloud_vars
+                cloud_vars = []
+
+                logger.info('Updated factory kwargs for cloud data from '
+                            'MERRA: {}'.format(factory_kwargs))
+
+        return var_list, cloud_vars, factory_kwargs
+
+    @staticmethod
+    def is_merra_cloud(handler):
+        """Check to see if cloud variables have merra2 source files for the
+        current day
+
+        Parameters
+        ----------
+        handler : AncillaryVarHandler
+            Base data model variable handler
+
+        Returns
+        -------
+        check : bool
+            True if the source is merra, False if not
+        out : dict
+            New factory kwargs for the variable if source is merra
+        """
+
+        pattern = handler.pattern
+        if pattern is None:
+            return False, {}
+
+        if '{doy}' in pattern:
+            pattern = pattern.format(doy=handler.doy)
+
+        source_dir = os.path.dirname(pattern)
+        if not os.path.exists(source_dir):
+            return False, {}
+
+        fns = os.listdir(source_dir)
+        if not fns:
+            return False, {}
+
+        fns = [fn for fn in fns if fn.lower().startswith('merra')]
+
+        if len(fns) != 1:
+            return False, {}
+
+        fn = fns[0]
+        kwargs = {'handler': 'MerraVar',
+                  'pattern': os.path.join(source_dir, fn),
+                  'merra_dset': 'tavg1_2d_rad_Nx_clouds',
+                  'data_source': 'MERRA2',
+                  'elevation_correct': False,
+                  'spatial_interp': 'NN',
+                  'temporal_interp': 'nearest',
+                  'source_directory': source_dir}
+
+        if handler.name == 'cld_opd_dcomp':
+            kwargs['merra_name'] = 'TAUTOT'
+            kwargs['spatial_interp'] = 'IDW2'
+            kwargs['temporal_interp'] = 'linear'
+
+        return True, kwargs
 
     def is_cloud_var(self, var):
         """Determine whether or not the variable is a cloud variable from the
@@ -1218,9 +1351,6 @@ class DataModel:
                          var_meta=var_meta, factory_kwargs=factory_kwargs,
                          scale=scale, max_workers=max_workers)
 
-        # run pre-flight checks
-        data_model.run_pre_flight(var_list)
-
         # default multiple compute
         if var_list is None:
             var_list = cls.ALL_VARS
@@ -1242,6 +1372,17 @@ class DataModel:
         # last (most efficient to process depdencies first, dependents last)
         derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
         var_list = [v for v in var_list if v not in derived_vars]
+
+        temp = cls.check_merra_cloud_source(var_list, cloud_vars, date,
+                                            var_meta, factory_kwargs)
+        var_list, cloud_vars, factory_kwargs = temp
+        factory_kwargs = {} if factory_kwargs is None else factory_kwargs
+        data_model._factory_kwargs = factory_kwargs
+
+        # run pre-flight checks
+        data_model.run_pre_flight(var_list)
+        data_model.run_pre_flight(cloud_vars)
+        data_model.run_pre_flight(derived_vars)
 
         logger.info('First processing data for variable list: {}'
                     .format(var_list))
@@ -1424,8 +1565,11 @@ class DataModel:
                     meta_gids = self.nsrdb_grid[['gid']]
                     fout.meta = meta_gids
 
-                var_obj = VarFactory.get_base_handler(
-                    var, var_meta=self._var_meta, date=self.date)
+                var_kwargs = self._factory_kwargs.get(var, {})
+                var_obj = VarFactory.get_base_handler(var,
+                                                      var_meta=self._var_meta,
+                                                      date=self.date,
+                                                      **var_kwargs)
                 attrs = var_obj.attrs
 
                 fout._add_dset(dset_name=var, data=data,

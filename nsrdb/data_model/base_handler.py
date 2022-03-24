@@ -198,6 +198,26 @@ class AncillaryVarHandler:
         return float(self.var_meta.loc[self.mask, 'scale_factor'].values[0])
 
     @property
+    def date(self):
+        """Get the date for this handler
+
+        Returns
+        -------
+        datetime.date
+        """
+        return self._date
+
+    @property
+    def doy(self):
+        """Get the day of year for this handler
+
+        Returns
+        -------
+        int
+        """
+        return self.date.timetuple().tm_yday
+
+    @property
     def dtype(self):
         """Get the data type attribute.
 
