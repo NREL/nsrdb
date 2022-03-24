@@ -425,16 +425,22 @@ class MLCloudsFill:
                 os.makedirs(dst_dir)
 
             dst_fpath = os.path.join(dst_dir, f_name)
+            dst_fpath_tmp = dst_fpath + '.tmp'
+            logger.debug('Archiving {} to {}'
+                         .format(src_fpath, dst_fpath_tmp))
             if os.path.exists(dst_fpath):
                 msg = ("A raw cloud file already exists, this suggests "
                        "MLClouds gap fill has already been run: {}"
                        .format(dst_fpath))
                 logger.error(msg)
                 raise RuntimeError(msg)
+            elif os.path.exists(dst_fpath_tmp):
+                # don't overwrite the tmp file, the original may have been
+                # manipulated by a failed mlclouds job.
+                logger.debug('Archive file exists, not overwriting: {}'
+                             .format(dst_fpath_tmp))
             else:
-                logger.debug('Archiving {} to {}'
-                             .format(src_fpath, dst_fpath + '.tmp'))
-                shutil.copy(src_fpath, dst_fpath + '.tmp')
+                shutil.copy(src_fpath, dst_fpath_tmp)
 
     def mark_complete_archived_files(self):
         """Remove the .tmp marker from the archived files once MLCloudsFill
