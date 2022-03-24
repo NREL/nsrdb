@@ -18,6 +18,7 @@ import shutil
 import time
 import copy
 import calendar
+import psutil
 
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
@@ -107,6 +108,114 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
+    def collect_blend(kwargs):
+        """Collect blended data into single file
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying
+            the case for blend collection
+        """
+        default_kwargs = {
+            "basename": "nsrdb",
+            "metadir": "/projects/pxs/reference_grids",
+            "final_spatial": "4km",
+            "extent": "full",
+            "outdir": "./",
+            "sites": None
+        }
+
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
+        meta_file = os.path.join(user_input['metadir'], meta_file)
+
+        user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
+        user_input['name'] += f'_{user_input["extent"]}_blend'
+        name = user_input['name']
+        collect_dir = user_input['collect_dir'] = os.path.join(
+            user_input['outdir'], name)
+        collect_tag = f'{user_input["basename"]}_'
+        fout = os.path.join(
+            f'{user_input["outdir"]}',
+            f'{user_input["basename"]}_{user_input["year"]}.h5')
+        sites = user_input['sites']
+
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info('Running collect_blend with '
+                    f'meta_file={meta_file}, collect_dir={collect_dir}, '
+                    f'collect_tag={collect_tag}, fout={fout}')
+
+        fns = os.listdir(collect_dir)
+        flist = [fn for fn in fns if fn.endswith('.h5')
+                 and collect_tag in fn
+                 and os.path.join(collect_dir, fn) != fout]
+        flist = sorted(
+            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1]))
+
+        logger.info(f'Collecting files: {flist}')
+
+        temp = Manager.get_dset_attrs(collect_dir)
+        dsets_all, attrs, chunks, dtypes, ti = temp
+        Outputs.init_h5(fout, dsets_all, attrs, chunks, dtypes, ti, meta_file)
+
+        for fname in flist:
+            flist_temp = [fname]
+            fpath = os.path.join(collect_dir, fname)
+            f = Outputs(fpath, unscale=False, mode='r')
+            dsets = [d for d in f.dsets if d in dsets_all]
+            logger.info(f'Collecting {dsets} from {fname}')
+            for dset in dsets:
+
+                time_index, meta, shape, _ = \
+                    Collector._get_collection_attrs(
+                        flist_temp, collect_dir, dset)
+
+                attrs, _, final_dtype = VarFactory.get_dset_attrs(dset)
+
+                logger.debug('Collecting file list of shape {}: {}'
+                             .format(shape, flist_temp))
+
+                data = np.zeros(shape, dtype=final_dtype)
+                mem = psutil.virtual_memory()
+                logger.debug(
+                    'Initializing output dataset "{0}" in-memory with shape '
+                    '{1} and dtype {2}. Current memory usage is '
+                    '{3:.3f} GB out of {4:.3f} GB total.'
+                    .format(dset, shape, final_dtype,
+                            mem.used / 1e9, mem.total / 1e9))
+
+                logger.debug(f'Collecting {dset} data from file {fname}.')
+
+                if sites is None:
+                    f_data = f[dset][...]
+                else:
+                    f_data = f[dset][:, sites]
+
+                if np.issubdtype(final_dtype, np.integer):
+                    f_data = np.round(f_data)
+
+                f_data = f_data.astype(final_dtype)
+
+                data[:, :] = f_data
+
+                logger.info(f'Writing {dset} to {fout} from {fpath}')
+
+                if not os.path.exists(fout):
+                    Collector._init_collected_h5(fout, time_index, meta)
+
+                Collector._ensure_dset_in_output(
+                    fout, dset)
+                with Outputs(fout, mode='a') as f:
+                    f[dset, :, :] = data
+                    del data
+                logger.debug(
+                    'Finished writing "{}" to: {}'
+                    .format(dset, os.path.basename(fout)))
+
+    @staticmethod
     def collect_aggregation(kwargs):
         """Collect aggregation chunks
 
@@ -167,7 +276,8 @@ class NSRDB:
             "n_chunks": 32,
             "alloc": "pxs",
             "memory": 90,
-            "walltime": 40
+            "walltime": 40,
+            "source_priority": ['conus', 'full_disk']
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
@@ -185,6 +295,8 @@ class NSRDB:
         conus_meta_file = f'nsrdb_meta_{user_input["conus_spatial"]}_conus.csv'
         conus_tree_file = 'kdtree_nsrdb_meta_'
         conus_tree_file += f'{user_input["conus_spatial"]}_conus.pkl'
+
+        source_priority = user_input['source_priority']
 
         NSRDB = {
             'full_disk':
@@ -206,7 +318,7 @@ class NSRDB:
              'meta_file': meta_file.format(res=user_input["final_spatial"]),
              'spatial': f'{user_input["final_spatial"]}',
              'temporal': f'{user_input["final_freq"]}',
-             'source_priority': ['conus', 'full_disk']}}
+             'source_priority': source_priority}}
 
         run_name = f'{user_input["basename"]}_{user_input["year"]}_agg'
         Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
