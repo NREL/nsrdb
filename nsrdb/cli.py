@@ -146,12 +146,17 @@ def create_configs(ctx, kwargs, all_domains):
               '"east_dir": None, "west_dir": None, '
               '"alloc": "pxs", "walltime": 48, '
               '"chunk_size": 100000, "memory": 83}')
+@click.option('--collect', is_flag=True,
+              help='Flag to collect blended data files')
 @click.pass_context
-def blend(ctx, kwargs):
+def blend(ctx, kwargs, collect):
     """NSRDB data blend."""
 
     ctx.ensure_object(dict)
-    NSRDB.blend_files(kwargs)
+    if collect:
+        NSRDB.collect_blended(kwargs)
+    else:
+        NSRDB.blend_files(kwargs)
 
 
 @main.command()

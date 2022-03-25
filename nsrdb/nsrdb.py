@@ -18,7 +18,6 @@ import shutil
 import time
 import copy
 import calendar
-import psutil
 
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
@@ -108,7 +107,7 @@ class NSRDB:
             self.make_out_dirs()
 
     @staticmethod
-    def collect_blend(kwargs):
+    def collect_blended(kwargs):
         """Collect blended data into single file
 
         Parameters
@@ -117,103 +116,65 @@ class NSRDB:
             Dictionary with keys specifying
             the case for blend collection
         """
+
         default_kwargs = {
             "basename": "nsrdb",
             "metadir": "/projects/pxs/reference_grids",
-            "final_spatial": "4km",
-            "extent": "full",
+            "spatial": "4km",
             "outdir": "./",
-            "sites": None
+            "freq": "30min",
+            "n_chunks": 1,
+            "alloc": "pxs",
+            "memory": 90,
+            "walltime": 40,
+            "extent": "full"
         }
-
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
 
-        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
-        meta_file = os.path.join(user_input['metadir'], meta_file)
+        in_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
+        in_sub_dir += f'_{user_input["extent"]}_blend'
+        out_sub_dir = f'nsrdb_{user_input["spatial"]}'
+        out_sub_dir += f'_{user_input["freq"]}'
 
-        user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
-        user_input['name'] += f'_{user_input["extent"]}_blend'
-        name = user_input['name']
-        collect_dir = user_input['collect_dir'] = os.path.join(
-            user_input['outdir'], name)
-        collect_tag = f'{user_input["basename"]}_'
-        fout = os.path.join(
-            f'{user_input["outdir"]}',
-            f'{user_input["basename"]}_{user_input["year"]}.h5')
-        sites = user_input['sites']
+        meta_file = 'nsrdb_meta_{res}.csv'
+        tree_file = 'kdtree_nsrdb_meta_{res}.pkl'
 
-        logger = init_logger('nsrdb.cli', stream=True)
-        logger.info('Running collect_blend with '
-                    f'meta_file={meta_file}, collect_dir={collect_dir}, '
-                    f'collect_tag={collect_tag}, fout={fout}')
+        if user_input['extent'] == 'conus':
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}_conus.csv'
+            tree_file = 'kdtree_nsrdb_meta_'
+            tree_file += f'{user_input["spatial"]}_conus.pkl'
+        else:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}.csv'
+            tree_file = 'kdtree_nsrdb_meta_'
+            tree_file += f'{user_input["spatial"]}.pkl'
 
-        fns = os.listdir(collect_dir)
-        flist = [fn for fn in fns if fn.endswith('.h5')
-                 and collect_tag in fn
-                 and os.path.join(collect_dir, fn) != fout]
-        flist = sorted(
-            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1]))
+        source_priority = [user_input['extent']]
 
-        logger.info(f'Collecting files: {flist}')
+        NSRDB = {
+            f'{user_input["extent"]}':
+            {'data_sub_dir': in_sub_dir,
+             'tree_file': tree_file,
+             'meta_file': meta_file,
+             'spatial': f'{user_input["spatial"]}',
+             'temporal': f'{user_input["freq"]}'},
+            'final':
+            {'data_sub_dir': out_sub_dir,
+             'fout': f'nsrdb_{user_input["year"]}.h5',
+             'tree_file': tree_file,
+             'meta_file': meta_file,
+             'spatial': f'{user_input["spatial"]}',
+             'temporal': f'{user_input["freq"]}',
+             'source_priority': source_priority}}
 
-        temp = Manager.get_dset_attrs(collect_dir)
-        dsets_all, attrs, chunks, dtypes, ti = temp
-        Outputs.init_h5(fout, dsets_all, attrs, chunks, dtypes, ti, meta_file)
-
-        for fname in flist:
-            flist_temp = [fname]
-            fpath = os.path.join(collect_dir, fname)
-            f = Outputs(fpath, unscale=False, mode='r')
-            dsets = [d for d in f.dsets if d in dsets_all]
-            logger.info(f'Collecting {dsets} from {fname}')
-            for dset in dsets:
-
-                time_index, meta, shape, _ = \
-                    Collector._get_collection_attrs(
-                        flist_temp, collect_dir, dset)
-
-                attrs, _, final_dtype = VarFactory.get_dset_attrs(dset)
-
-                logger.debug('Collecting file list of shape {}: {}'
-                             .format(shape, flist_temp))
-
-                data = np.zeros(shape, dtype=final_dtype)
-                mem = psutil.virtual_memory()
-                logger.debug(
-                    'Initializing output dataset "{0}" in-memory with shape '
-                    '{1} and dtype {2}. Current memory usage is '
-                    '{3:.3f} GB out of {4:.3f} GB total.'
-                    .format(dset, shape, final_dtype,
-                            mem.used / 1e9, mem.total / 1e9))
-
-                logger.debug(f'Collecting {dset} data from file {fname}.')
-
-                if sites is None:
-                    f_data = f[dset][...]
-                else:
-                    f_data = f[dset][:, sites]
-
-                if np.issubdtype(final_dtype, np.integer):
-                    f_data = np.round(f_data)
-
-                f_data = f_data.astype(final_dtype)
-
-                data[:, :] = f_data
-
-                logger.info(f'Writing {dset} to {fout} from {fpath}')
-
-                if not os.path.exists(fout):
-                    Collector._init_collected_h5(fout, time_index, meta)
-
-                Collector._ensure_dset_in_output(
-                    fout, dset)
-                with Outputs(fout, mode='a') as f:
-                    f[dset, :, :] = data
-                    del data
-                logger.debug(
-                    'Finished writing "{}" to: {}'
-                    .format(dset, os.path.basename(fout)))
+        run_name = f'{user_input["basename"]}_{user_input["year"]}'
+        run_name += '_blend_collect'
+        Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
+                      user_input['year'], user_input['n_chunks'],
+                      alloc=user_input['alloc'], memory=user_input['memory'],
+                      walltime=user_input['walltime'], feature='--qos=normal',
+                      node_name=run_name, stdout_path=os.path.join(
+                          user_input['outdir'], f'{out_sub_dir}/stdout/'))
 
     @staticmethod
     def collect_aggregation(kwargs):
@@ -280,13 +241,6 @@ class NSRDB:
             "source_priority": ['conus', 'full_disk']
         }
         user_input = copy.deepcopy(default_kwargs)
-
-        if kwargs['year'] < 2018:
-            user_input['full_spatial'] = '4km'
-            user_input['full_freq'] = '30min'
-            user_input['source_priority'] = ['full_disk']
-            user_input['n_chunks'] = 1
-
         user_input.update(kwargs)
 
         full_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
