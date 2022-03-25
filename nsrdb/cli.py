@@ -157,10 +157,10 @@ def blend(ctx, kwargs, collect):
     ctx.ensure_object(dict)
     if collect:
 
-        default_kwargs = {'alloc': 'pxs',
-                          'memory': 83,
-                          'walltime': 40,
-                          'basename': 'nsrdb'}
+        default_kwargs = {"alloc": 'pxs',
+                          "memory": 83,
+                          "walltime": 40,
+                          "basename": 'nsrdb'}
 
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
@@ -231,22 +231,22 @@ def aggregate(ctx, kwargs, collect):
 
     ctx.ensure_object(dict)
     if collect:
-        default_kwargs = {'alloc': 'pxs',
-                          'memory': 83,
-                          'walltime': 40,
-                          'basename': 'nsrdb'}
+        default_kwargs = {"alloc": 'pxs',
+                          "memory": 83,
+                          "walltime": 40,
+                          "basename": 'nsrdb'}
 
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
         stdout_path = user_input.get('stdout', './')
 
         cmd = ("python -c \'from nsrdb.nsrdb import NSRDB;"
-               f"NSRDB.collect_blended({user_input})\'")
+               f"NSRDB.collect_aggregation({user_input})\'")
 
         slurm_manager = SLURM()
 
         node_name = f'{user_input["basename"]}_'
-        node_name += f'{user_input["year"]}_collect_blend'
+        node_name += f'{user_input["year"]}_collect_agg'
 
         out = slurm_manager.sbatch(cmd,
                                    alloc=user_input["alloc"],
