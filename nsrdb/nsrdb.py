@@ -124,6 +124,7 @@ class NSRDB:
             "spatial": "4km",
             "outdir": "./",
             "freq": "30min",
+            "extent": "full"
         }
 
         user_input = copy.deepcopy(default_kwargs)
@@ -131,8 +132,8 @@ class NSRDB:
 
         meta_file = f'nsrdb_meta_{user_input["spatial"]}.csv'
         meta_file = os.path.join(user_input['metadir'], meta_file)
-        collect_dir = f'nsrdb_{user_input["spatial"]}'
-        collect_dir += f'_{user_input["freq"]}'
+        collect_dir = f'nsrdb_{user_input["year"]}'
+        collect_dir += f'_{user_input["extent"]}_blend'
         collect_tag = f'{user_input["basename"]}_'
         fout = os.path.join(
             f'{user_input["outdir"]}',
