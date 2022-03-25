@@ -281,7 +281,7 @@ class NSRDB:
         }
         user_input = copy.deepcopy(default_kwargs)
 
-        if user_input['year'] < 2018:
+        if kwargs['year'] < 2018:
             user_input['full_spatial'] = '4km'
             user_input['full_freq'] = '30min'
             user_input['source_priority'] = ['full_disk']
