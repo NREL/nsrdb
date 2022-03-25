@@ -175,7 +175,6 @@ class NSRDB:
 
                 attrs, _, final_dtype = VarFactory.get_dset_attrs(dset)
 
-                data = np.zeros(shape, dtype=final_dtype)
                 mem = psutil.virtual_memory()
                 logger.debug(
                     'Initializing output dataset "{0}" in-memory with shape '
@@ -184,14 +183,11 @@ class NSRDB:
                     .format(dset, shape, final_dtype, mem.used / 1e9,
                             mem.total / 1e9))
 
-                data[:, :] = f[dset][...]
-
                 logger.info(f'Writing {dset} to {fout} from {fpath}')
 
                 Collector._ensure_dset_in_output(fout, dset)
                 with Outputs(fout, mode='a') as f_combined:
-                    f_combined[dset, :, :] = data
-                    del data
+                    f_combined[dset, :, :] = f[dset][...]
                 logger.debug(
                     'Finished writing "{}" to: {}'
                     .format(dset, os.path.basename(fout)))
