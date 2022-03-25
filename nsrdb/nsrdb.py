@@ -139,6 +139,11 @@ class NSRDB:
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
 
+        logger = init_logger('nsrdb.cli', stream=True)
+        logger.info('Running collect_blended with '
+                    f'meta_file={meta_file}, collect_dir={collect_dir}, '
+                    f'collect_tag={collect_tag}, fout={fout}')
+
         meta_file = pd.read_csv(meta_file, index_col=0)
 
         fns = os.listdir(collect_dir)
