@@ -140,7 +140,12 @@ class NSRDB:
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
 
-        logger = init_logger('nsrdb.cli', stream=True)
+        user_input['log_file'] = f'{user_input["basename"]}_'
+        user_input['log_file'] += f'{user_input["year"]}_collect_blend.log'
+
+        log_file = os.path.join(user_input['outdir'], user_input['log_file'])
+        logger = init_logger(
+            __name__, log_file=log_file, log_level='DEBUG')
         logger.info('Running collect_blended with '
                     f'meta_file={meta_file}, collect_dir={collect_dir}, '
                     f'collect_tag={collect_tag}, fout={fout}')
@@ -221,7 +226,11 @@ class NSRDB:
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
 
-        logger = init_logger('nsrdb.cli', stream=True)
+        user_input['log_file'] = f'{user_input["basename"]}_'
+        user_input['log_file'] += f'{user_input["year"]}_collect_agg.log'
+
+        log_file = os.path.join(user_input['outdir'], user_input['log_file'])
+        logger = init_logger(__name__, log_file=log_file, log_level='DEBUG')
         logger.info('Running collect_aggregation with '
                     f'meta_file={meta_file}, collect_dir={collect_dir}, '
                     f'collect_tag={collect_tag}, fout={fout}')
