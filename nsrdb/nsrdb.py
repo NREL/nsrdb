@@ -280,12 +280,14 @@ class NSRDB:
             "source_priority": ['conus', 'full_disk']
         }
         user_input = copy.deepcopy(default_kwargs)
-        user_input.update(kwargs)
 
         if user_input['year'] < 2018:
             user_input['full_spatial'] = '4km'
             user_input['full_freq'] = '30min'
             user_input['source_priority'] = ['full_disk']
+            user_input['n_chunks'] = 1
+
+        user_input.update(kwargs)
 
         full_sub_dir = f'{user_input["basename"]}_{user_input["year"]}'
         full_sub_dir += '_full_blend'
