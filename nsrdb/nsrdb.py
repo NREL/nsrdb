@@ -135,6 +135,7 @@ class NSRDB:
         collect_dir = f'nsrdb_{user_input["year"]}'
         collect_dir += f'_{user_input["extent"]}_blend'
         collect_tag = f'{user_input["basename"]}_'
+        collect_tag += f'{user_input["extent"]}_{user_input["year"]}_'
         fout = os.path.join(
             f'{user_input["outdir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5')
