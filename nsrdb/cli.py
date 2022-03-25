@@ -156,18 +156,18 @@ def blend(ctx, kwargs, collect):
 
     ctx.ensure_object(dict)
     if collect:
-
         default_kwargs = {"alloc": 'pxs',
                           "memory": 83,
                           "walltime": 40,
-                          "basename": 'nsrdb'}
+                          "basename": 'nsrdb',
+                          "feature": '--qos=normal'}
 
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
         stdout_path = user_input.get('stdout', './')
 
         cmd = ("python -c \'from nsrdb.nsrdb import NSRDB;"
-               f"NSRDB.collect_blended({user_input})\'")
+               f"NSRDB.collect_blended({kwargs})\'")
 
         slurm_manager = SLURM()
 
@@ -178,6 +178,7 @@ def blend(ctx, kwargs, collect):
                                    alloc=user_input["alloc"],
                                    memory=user_input["memory"],
                                    walltime=user_input["walltime"],
+                                   feature=user_input["feature"],
                                    name=node_name,
                                    stdout_path=stdout_path)[0]
 
@@ -234,14 +235,15 @@ def aggregate(ctx, kwargs, collect):
         default_kwargs = {"alloc": 'pxs',
                           "memory": 83,
                           "walltime": 40,
-                          "basename": 'nsrdb'}
+                          "basename": 'nsrdb',
+                          "feature": '--qos=normal'}
 
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
         stdout_path = user_input.get('stdout', './')
 
         cmd = ("python -c \'from nsrdb.nsrdb import NSRDB;"
-               f"NSRDB.collect_aggregation({user_input})\'")
+               f"NSRDB.collect_aggregation({kwargs})\'")
 
         slurm_manager = SLURM()
 
@@ -252,6 +254,7 @@ def aggregate(ctx, kwargs, collect):
                                    alloc=user_input["alloc"],
                                    memory=user_input["memory"],
                                    walltime=user_input["walltime"],
+                                   feature=user_input["feature"],
                                    name=node_name,
                                    stdout_path=stdout_path)[0]
 
