@@ -147,7 +147,8 @@ def create_configs(ctx, kwargs, all_domains):
               '"alloc": "pxs", "walltime": 48, '
               '"chunk_size": 100000, "memory": 83}')
 @click.option('--collect', is_flag=True,
-              help='Flag to collect blended data files')
+              help='Flag to collect blended data files. '
+              'This should be run on a compute node.')
 @click.pass_context
 def blend(ctx, kwargs, collect):
     """NSRDB data blend."""
@@ -186,7 +187,8 @@ def blend(ctx, kwargs, collect):
               '"alloc": "pxs", "memory": 90, '
               '"walltime": 40}')
 @click.option('--collect', is_flag=True,
-              help='Flag to collect aggregation chunks')
+              help='Flag to collect aggregation chunks. '
+              'This should be run from a compute node.')
 @click.pass_context
 def aggregate(ctx, kwargs, collect):
     """NSRDB data aggregation."""

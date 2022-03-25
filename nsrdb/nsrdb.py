@@ -124,12 +124,8 @@ class NSRDB:
             "spatial": "4km",
             "outdir": "./",
             "freq": "30min",
-            "n_chunks": 1,
-            "alloc": "pxs",
-            "memory": 90,
-            "walltime": 40,
-            "extent": "full"
         }
+
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
 
