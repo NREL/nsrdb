@@ -280,13 +280,17 @@ class NSRDB:
         conus_tree_file = 'kdtree_nsrdb_meta_'
         conus_tree_file += f'{user_input["conus_spatial"]}_conus.pkl'
 
+        full_meta_file = f'nsrdb_meta_{user_input["full_spatial"]}_full.csv'
+        full_tree_file = 'kdtree_nsrdb_meta_'
+        full_tree_file += f'{user_input["full_spatial"]}_full.pkl'
+
         source_priority = user_input['source_priority']
 
         NSRDB = {
             'full_disk':
             {'data_sub_dir': full_sub_dir,
-             'tree_file': tree_file.format(res=user_input["full_spatial"]),
-             'meta_file': meta_file.format(res=user_input["full_spatial"]),
+             'tree_file': full_tree_file,
+             'meta_file': full_meta_file,
              'spatial': f'{user_input["full_spatial"]}',
              'temporal': f'{user_input["full_freq"]}'},
             'conus':
