@@ -172,7 +172,7 @@ def blend(ctx, kwargs, collect, eagle):
             stdout_path = user_input.get('stdout', './')
 
             cmd = ("python -c \'from nsrdb.nsrdb import NSRDB;"
-                   f"NSRDB.collect_blended({kwargs})\'")
+                   f"NSRDB.collect_blended(\'{kwargs}\')\'")
 
             slurm_manager = SLURM()
 
@@ -252,7 +252,7 @@ def aggregate(ctx, kwargs, collect, eagle):
             stdout_path = user_input.get('stdout', './')
 
             cmd = ("python -c \'from nsrdb.nsrdb import NSRDB;"
-                   f"NSRDB.collect_aggregation({kwargs})\'")
+                   f"NSRDB.collect_aggregation(\'{kwargs}\')\'")
 
             slurm_manager = SLURM()
 
