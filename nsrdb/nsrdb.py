@@ -191,6 +191,7 @@ class NSRDB:
                 logger.debug(
                     'Finished writing "{}" to: {}'
                     .format(dset, os.path.basename(fout)))
+        logger.info(f'Finished blend collection: {fout}')
 
     @staticmethod
     def collect_aggregation(kwargs):
@@ -233,6 +234,8 @@ class NSRDB:
 
         Manager.collect(
             meta_file, collect_dir, collect_tag, fout, max_workers=1)
+
+        logger.info(f'Finished aggregation collection: {fout}')
 
     @staticmethod
     def aggregate_files(kwargs):
