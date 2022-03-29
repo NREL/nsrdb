@@ -9,6 +9,7 @@ import click
 import json
 import logging
 import os
+import copy
 
 from reV.config.base_config import BaseConfig
 from rex.utilities.cli_dtypes import STR, INT, FLOAT, STRLIST
@@ -145,13 +146,59 @@ def create_configs(ctx, kwargs, all_domains):
               '"spatial": "2km", "meta_file" : None, '
               '"east_dir": None, "west_dir": None, '
               '"alloc": "pxs", "walltime": 48, '
-              '"chunk_size": 100000, "memory": 83}')
+              '"chunk_size": 100000, "memory": 83, '
+              '"stdout": "./"}')
+@click.option('--collect', is_flag=True,
+              help='Flag to collect blended data files. ')
+@click.option('--eagle', is_flag=True,
+              help='Flag to run collection on eagle. ')
 @click.pass_context
-def blend(ctx, kwargs):
+def blend(ctx, kwargs, collect, eagle):
     """NSRDB data blend."""
 
     ctx.ensure_object(dict)
-    NSRDB.blend_files(kwargs)
+    if collect:
+        if not eagle:
+            NSRDB.collect_blended(kwargs)
+        else:
+            default_kwargs = {"alloc": 'pxs',
+                              "memory": 83,
+                              "walltime": 40,
+                              "basename": 'nsrdb',
+                              "feature": '--qos=normal'}
+
+            user_input = copy.deepcopy(default_kwargs)
+            user_input.update(kwargs)
+            stdout_path = user_input.get('stdout', './')
+
+            cmd = ("python -c \"from nsrdb.nsrdb import NSRDB;"
+                   f"NSRDB.collect_blended({kwargs})\"")
+
+            slurm_manager = SLURM()
+
+            node_name = f'{user_input["basename"]}_'
+            node_name += f'{user_input["year"]}_collect_blend'
+
+            out = slurm_manager.sbatch(cmd,
+                                       alloc=user_input["alloc"],
+                                       memory=user_input["memory"],
+                                       walltime=user_input["walltime"],
+                                       feature=user_input["feature"],
+                                       name=node_name,
+                                       stdout_path=stdout_path)[0]
+
+            print('\ncmd:\n{}\n'.format(cmd))
+
+            if out:
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                       'Eagle.'.format(node_name, out))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(node_name))
+            print(msg)
+    else:
+        NSRDB.blend_files(kwargs)
 
 
 @main.command()
@@ -179,16 +226,58 @@ def blend(ctx, kwargs):
               '"full_freq": "10min", "conus_freq": "5min", '
               '"final_freq": "30min", "n_chunks": 32, '
               '"alloc": "pxs", "memory": 90, '
-              '"walltime": 40}')
+              '"walltime": 40, '
+              '"stdout": "./"}')
 @click.option('--collect', is_flag=True,
-              help='Flag to collect aggregation chunks')
+              help='Flag to collect aggregation chunks. ')
+@click.option('--eagle', is_flag=True,
+              help='Flag to run collection on eagle. ')
 @click.pass_context
-def aggregate(ctx, kwargs, collect):
+def aggregate(ctx, kwargs, collect, eagle):
     """NSRDB data aggregation."""
 
     ctx.ensure_object(dict)
     if collect:
-        NSRDB.collect_aggregation(kwargs)
+        if not eagle:
+            NSRDB.collect_aggregation(kwargs)
+        else:
+            default_kwargs = {"alloc": 'pxs',
+                              "memory": 83,
+                              "walltime": 40,
+                              "basename": 'nsrdb',
+                              "feature": '--qos=normal'}
+
+            user_input = copy.deepcopy(default_kwargs)
+            user_input.update(kwargs)
+            stdout_path = user_input.get('stdout', './')
+
+            cmd = ("python -c \"from nsrdb.nsrdb import NSRDB;"
+                   f"NSRDB.collect_aggregation({kwargs})\"")
+
+            slurm_manager = SLURM()
+
+            node_name = f'{user_input["basename"]}_'
+            node_name += f'{user_input["year"]}_collect_agg'
+
+            out = slurm_manager.sbatch(cmd,
+                                       alloc=user_input["alloc"],
+                                       memory=user_input["memory"],
+                                       walltime=user_input["walltime"],
+                                       feature=user_input["feature"],
+                                       name=node_name,
+                                       stdout_path=stdout_path)[0]
+
+            print('\ncmd:\n{}\n'.format(cmd))
+
+            if out:
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
+                       'Eagle.'.format(node_name, out))
+            else:
+                msg = ('Was unable to kick off job "{}". '
+                       'Please see the stdout error messages'
+                       .format(node_name))
+            print(msg)
+
     else:
         NSRDB.aggregate_files(kwargs)
 
