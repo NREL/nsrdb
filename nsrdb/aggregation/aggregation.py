@@ -988,7 +988,7 @@ class Manager:
                     p = os.path.join(self.meta_dir, attrs['tree_file'])
                     source_tree_fpaths[source_name] = p
 
-            if os.path.basename(self.fout) == 'nsrdb_2018.h5':
+            if 'nsrdb_2018' in os.path.basename(self.fout):
                 self._meta = MetaManager.meta_sources_2018(final_meta_path)
 
             elif len(source_tree_fpaths) == 1:
