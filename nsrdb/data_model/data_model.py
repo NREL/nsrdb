@@ -710,7 +710,7 @@ class DataModel:
             return False, {}
 
         if '{doy}' in pattern:
-            pattern = pattern.format(doy=handler.doy)
+            pattern = pattern.format(doy=str(handler.doy).zfill(3))
 
         source_dir = os.path.dirname(pattern)
         if not os.path.exists(source_dir):
