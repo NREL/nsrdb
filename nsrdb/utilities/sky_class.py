@@ -34,9 +34,9 @@ class SkyClass:
                'w')
 
     def __init__(self, fp_surf, fp_nsrdb, nsrdb_gid,
-                 clearsky_ratio=0.95, clear_time_frac=0.8,
+                 clearsky_ratio=0.9, clear_time_frac=0.8,
                  cloudy_time_frac=0.2, window_minutes=61,
-                 min_irradiance=50, sza_lim=80):
+                 min_irradiance=0, sza_lim=89):
         """
         Parameters
         ----------
@@ -202,12 +202,28 @@ class SkyClass:
         df['ghi_rest'] = self.run_rest(df)
         df['ghi_ground'] = self.surf_ghi
         df = df[['solar_zenith_angle', 'ghi_rest', 'ghi_ground']]
-        df['clear'] = df['ghi_ground'] >= self._cs_ratio * df['ghi_rest']
+
+        df['clearsky_ratio_ground'] = df['ghi_ground'] / df['ghi_rest']
+        df['clear'] = df['clearsky_ratio_ground'] >= self._cs_ratio
         df['clear'] = df['clear'].astype(np.float32)
+
         df.loc[(np.isnan(df['ghi_ground'])), 'clear'] = np.nan
         df.loc[(df.solar_zenith_angle > SZA_LIM), 'ghi_rest'] = 0
         df.loc[(df.solar_zenith_angle > SZA_LIM), 'ghi_ground'] = 0
         df.loc[(df.solar_zenith_angle > SZA_LIM), 'clear'] = 0
+
+        n = self.surfrad.get_window_size(df, window_minutes=self._window_min)
+        time_frac = df['clear'].rolling(n, center=True, min_periods=1).mean()
+        time_frac = np.minimum(time_frac, 1)
+        time_frac = np.maximum(time_frac, 0)
+        df['clear_time_frac'] = time_frac
+
+        csr_ground = df['clearsky_ratio_ground']
+        csr_ground = csr_ground.rolling(n, center=True, min_periods=1).mean()
+        csr_ground = np.minimum(csr_ground, 2)
+        csr_ground = np.maximum(csr_ground, 0)
+        df['clearsky_ratio_ground'] = csr_ground
+
         return df
 
     def calculate_sky_class(self, df):
@@ -235,16 +251,15 @@ class SkyClass:
             performed with those timesteps.
         """
 
-        n = self.surfrad.get_window_size(df, window_minutes=self._window_min)
-        time_frac = df['clear'].rolling(n, center=True, min_periods=1).mean()
-        time_frac.name = 'clear_time_frac'
         df['sky_class'] = 'missing'
-        mask1 = time_frac >= self._clear_frac
-        mask2 = time_frac < self._cloud_frac
+
+        mask1 = df['clear_time_frac'] >= self._clear_frac
+        mask2 = df['clear_time_frac'] < self._cloud_frac
+
         df.loc[mask1, 'sky_class'] = 'clear'
         df.loc[mask2, 'sky_class'] = 'cloudy'
         df.loc[(~mask1 & ~mask2), 'sky_class'] = 'broken'
-        df.loc[np.isnan(time_frac), 'sky_class'] = 'missing'
+        df.loc[np.isnan(df['clear_time_frac']), 'sky_class'] = 'missing'
         df.loc[df.solar_zenith_angle > SZA_LIM, 'sky_class'] = 'missing'
 
         return df
@@ -279,9 +294,9 @@ class SkyClass:
 
     @classmethod
     def run(cls, fp_surf, fp_nsrdb, nsrdb_gid,
-            clearsky_ratio=0.95, clear_time_frac=0.8,
+            clearsky_ratio=0.9, clear_time_frac=0.8,
             cloudy_time_frac=0.2, window_minutes=61,
-            min_irradiance=50, sza_lim=80):
+            min_irradiance=0, sza_lim=89):
         """
         Parameters
         ----------
