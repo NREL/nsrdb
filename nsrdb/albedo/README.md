@@ -11,7 +11,7 @@ The MODIS Dataset is paired with the IMS daily snow cover, resulting in a daily 
 
 The processing of surface albedo was updated in February 2020 . The new process is detailed in the following steps:
 
-1. The MODIS data must currently be downloaded manually, as described below. As of 2/20, the MCD43GF MODIS dataset is only available up to 2017. The 2017 dataset is used for the all NSRDB datasets newer than 2017. 
+1. The MODIS data must currently be downloaded manually, as described below. As of 2/22, the MCD43GF MODIS dataset is only available up to 2022. The 2022 dataset is used for the all NSRDB datasets newer than 2022. 
 2. The IMS snow data is automatically retrieved. 
 3. The IMS data has four categories: dry land, open water, snow, sea ice. These categories are simplified to snow (snow and sea ice) or no-snow (dry land and open water).
 4. The IMS data is filtered to only contain pixels that act as a boundary between regions of snow and no-snow. This greatly reduces memory needs and computation time.
