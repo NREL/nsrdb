@@ -85,8 +85,8 @@ def main(ctx):
 
 @main.command()
 @click.option('--kwargs', '-kw', required=True, type=DICT,
-              help='Argument dictionary. Needs to include year. '
-              'e.g. \'{"year":2019, "freq":"5min"}\'. '
+              help='Argument dictionary. Needs to include year. Needs to be '
+              'in a string format. e.g. \'{"year":2019, "freq":"5min"}\'. '
               '\n\nAvailable keys: '
               'year, freq, outdir (parent directory for run directory), '
               'satellite (east/west), '
@@ -317,7 +317,7 @@ def config(ctx, config_file, command):
     config_dir = config_dir.replace('\\', '/')
     str_rep = {'./': config_dir}
     run_config = safe_json_load(config_file)
-    run_config = BaseConfig.str_replace(run_config, str_rep)
+    run_config = BaseConfig.str_replace_and_resolve(run_config, str_rep)
 
     direct_args = run_config.pop('direct')
     eagle_args = run_config.pop('eagle')
