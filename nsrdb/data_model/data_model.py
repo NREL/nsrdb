@@ -53,6 +53,8 @@ from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn, knn
 from nsrdb.utilities.file_utils import clean_meta
+import sys
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -1012,6 +1014,7 @@ class DataModel:
                     futures[future] = i
 
             mem = psutil.virtual_memory()
+
             logger.info('All {} cloud data futures submitted! '
                         'Memory usage is {:.3f} GB out of {:.3f} GB total.'
                         .format(len(futures), mem.used / 1e9, mem.total / 1e9))
@@ -1020,6 +1023,7 @@ class DataModel:
             for future in as_completed(futures):
                 i = futures[future]
                 single_data = future.result()
+
                 for dset, array in single_data.items():
                     # write single timestep with NSRDB sites to row
                     cloud_data[dset][i, :] = array
@@ -1098,6 +1102,7 @@ class DataModel:
             logger.info('Starting cloud data Regrid and IO with {} futures '
                         '(cloud timesteps) with {} parallel workers.'
                         .format(len(cloud_obj_all.flist), max_workers))
+
             cloud_data = self._cloud_regrid_parallel(cloud_obj_all,
                                                      dist_lim=dist_lim,
                                                      max_workers=max_workers)
@@ -1362,6 +1367,7 @@ class DataModel:
         var_list += deps
         var_list = tuple(set(var_list))
 
+
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
@@ -1376,6 +1382,7 @@ class DataModel:
         temp = cls.check_merra_cloud_source(var_list, cloud_vars, date,
                                             var_meta, factory_kwargs)
         var_list, cloud_vars, factory_kwargs = temp
+
         factory_kwargs = {} if factory_kwargs is None else factory_kwargs
         data_model._factory_kwargs = factory_kwargs
 
@@ -1730,6 +1737,7 @@ class DataModel:
         data : dict
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
+
 
         logger.info('Processing data for multiple cloud variables: {}'
                     .format(cloud_vars))
