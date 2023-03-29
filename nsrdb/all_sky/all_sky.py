@@ -51,6 +51,15 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             time_index, total_precipitable_water, cloud_fill_flag=None,
             variability_kwargs=None, scale_outputs=True):
     """Calculate the all-sky irradiance.
+    Updated by Yu Xie on 3/29/2023 to compute DNI by FARMS-DNI.
+
+    Variables
+    ---------
+    dni_farmsdni: np.ndarray
+        DNI computed by FARMS-DNI (Wm-2).
+    dni0: np.ndarray
+        DNI computed by the Lambert law (Wm-2). It only includes the narrow
+         beam in the circumsolar region.
 
     Parameters
     ----------
@@ -179,11 +188,12 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                pressure=surface_pressure)
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
-################
-#    dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
-#    dni = merge_rest_farms(rest_data.dni, dni0, cloud_type)
+
+    # Use the DNI computed by FARMS-DNI. Updated by Yu Xie on 3/29/203. 
+    #    dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
+    #    dni = merge_rest_farms(rest_data.dni, dni0, cloud_type)
     dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
-################
+
     # make a fill flag where bad data exists in the GHI irradiance
     fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,
                                cloud_fill_flag=cloud_fill_flag)
