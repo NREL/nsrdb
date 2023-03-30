@@ -163,7 +163,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     rest_data.ghi = dark_night(rest_data.ghi, solar_zenith_angle, lim=SZA_LIM)
 
     # use FARMS to calculate cloudy GHI
-    ghi, dni_farmsdni, dni0 = farms(tau=cld_opd_dcomp,
+    ghi, dni_farmsdni, dni0 =
+          farms(tau=cld_opd_dcomp,
                 cloud_type=cloud_type,
                 cloud_effective_radius=cld_reff_dcomp,
                 solar_zenith_angle=solar_zenith_angle,
@@ -188,7 +189,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
                pressure=surface_pressure)
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
-
+    #
     # Use the DNI computed by FARMS-DNI. Updated by Yu Xie on 3/29/203. 
     #    dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
     #    dni = merge_rest_farms(rest_data.dni, dni0, cloud_type)
