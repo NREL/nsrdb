@@ -163,7 +163,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     rest_data.ghi = dark_night(rest_data.ghi, solar_zenith_angle, lim=SZA_LIM)
 
     # use FARMS to calculate cloudy GHI
-    ghi, dni_farmsdni, dni0 =
+    ghi, dni_farmsdni, dni0 = \
           farms(tau=cld_opd_dcomp,
                 cloud_type=cloud_type,
                 cloud_effective_radius=cld_reff_dcomp,
