@@ -189,7 +189,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     #
-    # Use the DNI computed by FARMS-DNI. Updated by Yu Xie on 3/29/203. 
+    # Use the DNI computed by FARMS-DNI. Updated by Yu Xie on 3/29/203.
     #    dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
     #    dni = merge_rest_farms(rest_data.dni, dni0, cloud_type)
     dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
