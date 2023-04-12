@@ -50,9 +50,11 @@ def temporal_lin(array, ti_native, ti_new):
     ti_native = remove_tz(ti_native)
     ti_new = remove_tz(ti_new)
 
-    array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
-        .interpolate(method='linear', axis=0).values
-
+    array = pd.DataFrame(array, index=ti_native)
+    array = pd.DataFrame(index=ti_new)\
+        .merge(array, left_index=True, right_index=True, how='outer')\
+        .interpolate(method='linear', axis=0).ffill().bfill()\
+        .reindex(ti_new).values
     return array
 
 
@@ -77,13 +79,17 @@ def temporal_step(array, ti_native, ti_new):
     ti_new = remove_tz(ti_new)
 
     if array.shape[0] > 1:
-        array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
-            .interpolate(method='nearest', axis=0)\
-            .fillna(method='ffill').fillna(method='bfill').values
+        array = pd.DataFrame(array, index=ti_native)
+        array = pd.DataFrame(index=ti_new)\
+            .merge(array, left_index=True, right_index=True, how='outer')\
+            .interpolate(method='nearest', axis=0).ffill().bfill()\
+            .reindex(ti_new).values
     else:
         # single entry arrays cannot be interpolated but must be filled
-        array = pd.DataFrame(array, index=ti_native).reindex(ti_new)\
-            .fillna(method='ffill').fillna(method='bfill').values
+        array = pd.DataFrame(array, index=ti_native)
+        array = pd.DataFrame(index=ti_new)\
+            .merge(array, left_index=True, right_index=True, how='outer')\
+            .ffill().bfill().reindex(ti_new).values
 
     return array
 

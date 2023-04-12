@@ -26,6 +26,7 @@ from rex.utilities.execution import SpawnProcessPool
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.resource import Resource, MultiFileResource
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.utilities.file_utils import pd_date_range
 
 
 logger = logging.getLogger(__name__)
@@ -692,7 +693,7 @@ class Tmy:
         if self._my_time_index is None:
             start = '1-1-{}'.format(self.years[0])
             end = '1-1-{}'.format(self.years[-1] + 1)
-            self._my_time_index = pd.date_range(start=start, end=end,
+            self._my_time_index = pd_date_range(start=start, end=end,
                                                 freq=self.source_freq,
                                                 closed='left')
         return self._my_time_index
@@ -725,7 +726,7 @@ class Tmy:
         if self._time_index is None:
             start = '1-1-{}'.format(self.years[-1])
             end = '1-1-{}'.format(self.years[-1] + 1)
-            self._time_index = pd.date_range(start=start, end=end,
+            self._time_index = pd_date_range(start=start, end=end,
                                              freq='1h', closed='left')
             self._time_index += datetime.timedelta(minutes=30)
             if len(self._time_index) != 8760:

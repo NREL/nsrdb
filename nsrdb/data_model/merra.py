@@ -50,19 +50,65 @@ class MerraVar(AncillaryVarHandler):
         return pat
 
     @property
-    def date_stamp(self):
+    def next_pattern(self):
+        """Get the source file pattern for the next date, which is sent to
+        glob().
+
+        Returns
+        -------
+        str
+        """
+        pat = super().pattern
+        if pat is None:
+            pat = os.path.join(self.source_dir, self.file_set,
+                               '*{}*'.format(self.next_date_stamp))
+
+        return pat
+
+    def _get_date_stamp(self, key):
         """Get the MERRA datestamp corresponding to the specified datetime date
+
+        Parameters
+        ----------
+        key : str
+            Used to specify whether to get the date stamp for the current date
+            (e.g. 'date') or the next date (e.g. 'next_date')
 
         Returns
         -------
         date : str
             Date stamp that should be in the MERRA file, format is YYYYMMDD
         """
-        date = '{y}{m:02d}{d:02d}'.format(y=self._date.year,
-                                          m=self._date.month,
-                                          d=self._date.day)
+        date_attr = getattr(self, key)
+        date = '{y}{m:02d}{d:02d}'.format(y=date_attr.year,
+                                          m=date_attr.month,
+                                          d=date_attr.day)
 
         return date
+
+    @property
+    def date_stamp(self):
+        """Get the MERRA datestamp corresponding to the current datetime date
+
+        Returns
+        -------
+        date : str
+            Date stamp that should be in the MERRA file, format is YYYYMMDD
+        """
+        return self._get_date_stamp('date')
+
+    @property
+    def next_date_stamp(self):
+        """Get the MERRA datestamp corresponding to the next datetime date.
+        This is used to get the file for the next date for temporal
+        interpolation
+
+        Returns
+        -------
+        date : str
+            Date stamp that should be in the MERRA file, format is YYYYMMDD
+        """
+        return self._get_date_stamp('next_date')
 
     def pre_flight(self):
         """Perform pre-flight checks - source file check.
@@ -90,7 +136,11 @@ class MerraVar(AncillaryVarHandler):
             Pandas datetime index for the current day at the MERRA2 resolution
             (1-hour).
         """
-        return self._get_time_index(self._date, freq='1h')
+        time_index = self._get_time_index(self.date, freq='1h')
+        if self.next_file_exists:
+            next_time_index = self._get_time_index(self.next_date, freq='1h')
+            time_index = time_index.union(next_time_index)
+        return time_index
 
     @staticmethod
     def _format_2d(data):
@@ -118,22 +168,20 @@ class MerraVar(AncillaryVarHandler):
 
         return flat_data
 
-    @property
-    def source_data(self):
-        """Get single variable data from the MERRA source file.
+    def _get_data(self, file):
+        """Get single variable data from the given MERRA source file
 
         Returns
         -------
         data : np.ndarray
             2D numpy array (time X space) of MERRA data for the specified var.
         """
-
         # cloud variables when satellite data is not available
         cld_vars = ['cloud_type', 'cld_press_acha', 'cloud_press_acha',
                     'cld_opd_dcomp', 'cld_reff_dcomp']
 
         # open NetCDF file
-        with NFS(self.file) as f:
+        with NFS(file) as f:
             # depending on variable, might need extra logic
             if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
@@ -179,6 +227,22 @@ class MerraVar(AncillaryVarHandler):
         # make the data a flat 2d array
         data = self._format_2d(data)
 
+        return data
+
+    @property
+    def source_data(self):
+        """Get single variable data from the MERRA source file for the current
+        date and the next day if available.
+
+        Returns
+        -------
+        data : np.ndarray
+            2D numpy array (time X space) of MERRA data for the specified var.
+        """
+        data = self._get_data(self.file)
+        if self.next_file_exists:
+            data = np.concatenate([data, self._get_data(self.next_file)],
+                                  axis=0)
         return data
 
     @property

@@ -20,6 +20,7 @@ from nsrdb.nsrdb import NSRDB
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
+from nsrdb.utilities.file_utils import pd_date_range
 
 
 RTOL = 0.05
@@ -154,7 +155,7 @@ def test_final_daily():
 
                     date_str0 = NSRDB.doy_to_datestr(year, doy)
                     date_str1 = NSRDB.doy_to_datestr(year, doy + 1)
-                    ti = pd.date_range(date_str0, date_str1,
+                    ti = pd_date_range(date_str0, date_str1,
                                        closed='left', freq='5min')
                     fn_out = '{}_{}_0.h5'.format(date_str0, dset)
                     fp_out = os.path.join(daily_dir, fn_out)

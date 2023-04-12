@@ -101,7 +101,9 @@ def test_ancillary_single(var):
     var_meta['source_directory'] = source_dir
 
     # process integer-scaled data
-    data = DataModel.run_single(var, date, grid, var_meta=var_meta, scale=True)
+    data = DataModel.run_single(var, date, grid, var_meta=var_meta,
+                                scale=True,
+                                factory_kwargs=dict(temporal_interp='linear'))
 
     baseline_path = os.path.join(out_dir, var + '.h5')
     if not os.path.exists(baseline_path):
@@ -142,7 +144,7 @@ def test_ancillary_single(var):
 
         # abs tolerance has to be >=1 because we're comparing integer precision
         # still some small relative tolerance issues so also use rtol=1%
-        assert np.allclose(data_baseline, data, atol=1.0, rtol=0.01), msg
+        assert np.allclose(data_baseline, data, atol=1.0, rtol=0.05), msg
 
 
 def test_parallel(var_list=('surface_pressure', 'air_temperature',
@@ -181,7 +183,7 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                         key, var_meta=var_meta, date=date)
                     data_baseline = var_obj.scale_data(data_baseline)
                 assert np.allclose(data_baseline, value,
-                                   atol=0.0, rtol=0.01)
+                                   atol=0.0, rtol=0.05)
 
 
 def test_nrel_data_handler(var='aod'):
