@@ -8,12 +8,14 @@ You can read more about the NSRDB `here <https://nsrdb.nrel.gov/>`_ and
 For details on NSRDB variable units, datatypes, and attributes, see the
 `NSRDB variable meta data <https://github.com/NREL/nsrdb/blob/master/config/nsrdb_vars.csv>`_.
 
-## The PXS All-Sky Irradiance Model
+The PXS All-Sky Irradiance Model
+================================
 The PXS All-Sky Irradiance Model is the main physics package that calculates
 surface irradiance variables. The code base and additional documentation can
 be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/all_sky>`_.
 
-## The NSRDB Data Model
+The NSRDB Data Model
+====================
 The NSRDB Data Model is the data aggregation framework that sources, processes,
 and prepares data for input to All-Sky. The code base and additional
 documentation can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/data_model>`_.
@@ -155,7 +157,7 @@ NSRDB Versions
         means generated from PC data.
     * - 3.2.2
       - 2/25/2022
-      - 1998-2022
+      - 1998-2021
       - Implemented a model for snowy albedo as a function of temperature from
         MERRA2 based on the paper "A comparison of simulated and observed
         fluctuations in summertime Arctic surface albedo" by Becky Ross and

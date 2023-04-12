@@ -192,11 +192,11 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     #
     # Use the DNI computed by FARMS-DNI. Updated by Yu Xie on 3/29/203.
-    #dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
-    #    dni = merge_rest_farms(rest_data.dni, dni0, cloud_type)
     dni0 = dni0 * 1.0
     if farmsdni == True:
         dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
+    else:
+        dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
     fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,

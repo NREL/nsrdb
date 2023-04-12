@@ -11,7 +11,6 @@ import logging
 import os
 import copy
 
-from reV.config.base_config import BaseConfig
 from rex.utilities.cli_dtypes import STR, INT, FLOAT, STRLIST
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
@@ -54,6 +53,43 @@ def check_if_dummy_run(debug_day, doy):
         return True
 
 
+def str_replace(d, str_rep):
+    """Perform a deep string replacement in d.
+
+    Parameters
+    ----------
+    d : dict
+        Config dictionary potentially containing strings to replace.
+    str_rep : dict
+        Replacement mapping where keys are strings to search for and values
+        are the new values.
+
+    Returns
+    -------
+    d : dict
+        Config dictionary with replaced strings.
+    """
+
+    if isinstance(d, dict):
+        # go through dict keys and values
+        for key, val in d.items():
+            d[key] = str_replace(val, str_rep)
+
+    elif isinstance(d, list):
+        # if the value is also a list, iterate through
+        for i, entry in enumerate(d):
+            d[i] = str_replace(entry, str_rep)
+
+    elif isinstance(d, str):
+        # if val is a str, check to see if str replacements apply
+        for old_str, new in str_rep.items():
+            # old_str is in the value, replace with new value
+            d = d.replace(old_str, new)
+
+    # return updated
+    return d
+
+
 class DictType(click.ParamType):
     """Dict click input argument type."""
 
@@ -85,8 +121,8 @@ def main(ctx):
 
 @main.command()
 @click.option('--kwargs', '-kw', required=True, type=DICT,
-              help='Argument dictionary. Needs to include year. '
-              'e.g. \'{"year":2019, "freq":"5min"}\'. '
+              help='Argument dictionary. Needs to include year. Needs to be '
+              'in a string format. e.g. \'{"year":2019, "freq":"5min"}\'. '
               '\n\nAvailable keys: '
               'year, freq, outdir (parent directory for run directory), '
               'satellite (east/west), '
@@ -317,8 +353,7 @@ def config(ctx, config_file, command):
     config_dir = config_dir.replace('\\', '/')
     str_rep = {'./': config_dir}
     run_config = safe_json_load(config_file)
-    run_config = BaseConfig.str_replace(run_config, str_rep)
-
+    run_config = str_replace(d=run_config, str_rep=str_rep)
     direct_args = run_config.pop('direct')
     eagle_args = run_config.pop('eagle')
     cmd_args = run_config.pop(command)

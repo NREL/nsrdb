@@ -9,7 +9,7 @@ import numpy as np
 import os
 import pandas as pd
 
-from nsrdb.all_sky import SZA_LIM
+from farms import SZA_LIM
 
 
 DAT_COLS = ('year',
