@@ -191,7 +191,6 @@ class GfsFiles:
 
         if files:
             files = pd.concat(files, axis=1).T
-
         return files
 
     def _get_files(self, source_dir):
@@ -213,9 +212,11 @@ class GfsFiles:
 
         start_time = self.time_index[0] - pd.Timedelta('1D')
         files2 = self._search_files(source_dir, start_time)
-        if isinstance(files, pd.DataFrame):
-            files = files.append(files2)
-        else:
+        both_df_check = (isinstance(files, pd.DataFrame)
+                         and isinstance(files2, pd.DataFrame))
+        if both_df_check:
+            files = pd.concat([files, files2])
+        elif isinstance(files2, pd.DataFrame):
             files = files2
 
         if isinstance(files, list):

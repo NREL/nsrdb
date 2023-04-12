@@ -24,7 +24,7 @@ Installation
 ============
 
 #. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
-   environment: ``conda create --name nsrdb python=3.7``
+   environment: ``conda create --name nsrdb python=3.9``
 #. Activate your new conda env: ``conda activate nsrdb``
 #. There is a known dependency issue between h5py and netCDF4. it is
    recommended that you install ``conda install netCDF4`` before pip installing

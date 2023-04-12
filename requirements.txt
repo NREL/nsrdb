@@ -5,4 +5,3 @@ NREL-farms>=1.0.4
 NREL-reV>=0.5.16
 NREL-rest2>=1.0.1
 scikit-learn>=1.0
-pandas<=1.5.3 # pinned until we upgrade mlclouds models

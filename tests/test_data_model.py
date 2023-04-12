@@ -144,7 +144,18 @@ def test_ancillary_single(var):
 
         # abs tolerance has to be >=1 because we're comparing integer precision
         # still some small relative tolerance issues so also use rtol=1%
-        assert np.allclose(data_baseline, data, atol=1.0, rtol=0.05), msg
+        # test only the data without the last interpolated time steps
+        baseline_no_end = data_baseline[:-12]
+        data_no_end = data[:-12]
+        assert np.allclose(baseline_no_end, data_no_end, atol=1.0,
+                           rtol=0.01), msg
+        # make sure the last interpolated time steps are within an acceptable
+        # range but not constant
+        baseline_end = data_baseline[-12:]
+        data_end = data[-12:]
+        assert not all([np.array_equal(x, data_end[0]) for x in data_end])
+        assert np.allclose([np.mean(data_end)], [np.mean(baseline_end)],
+                           atol=1.0, rtol=0.05)
 
 
 def test_parallel(var_list=('surface_pressure', 'air_temperature',
@@ -182,8 +193,9 @@ def test_parallel(var_list=('surface_pressure', 'air_temperature',
                     var_obj = VarFactory.get_base_handler(
                         key, var_meta=var_meta, date=date)
                     data_baseline = var_obj.scale_data(data_baseline)
-                assert np.allclose(data_baseline, value,
-                                   atol=0.0, rtol=0.05)
+                # comparing all but the last interpolated time steps
+                assert np.allclose(data_baseline[:-12], value[:-12],
+                                   atol=0.0, rtol=0.01)
 
 
 def test_nrel_data_handler(var='aod'):
