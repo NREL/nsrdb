@@ -57,9 +57,6 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ---------
     dni_farmsdni: np.ndarray
         DNI computed by FARMS-DNI (Wm-2).
-    dni0: np.ndarray
-        DNI computed by the Lambert law (Wm-2). It only includes the narrow
-         beam in the circumsolar region.
 
     Parameters
     ----------
@@ -165,7 +162,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     rest_data.ghi = dark_night(rest_data.ghi, solar_zenith_angle, lim=SZA_LIM)
 
     # use FARMS to calculate cloudy GHI
-    ghi, dni_farmsdni, dni0 = farms(tau=cld_opd_dcomp,
+    ghi, dni_farmsdni, _ = farms(tau=cld_opd_dcomp,
                                     cloud_type=cloud_type,
                                     cloud_effective_radius=cld_reff_dcomp,
                                     solar_zenith_angle=solar_zenith_angle,
@@ -191,7 +188,6 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     #
-    dni0 = dni0 * 1.0
     if farmsdni:
         dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
     else:
