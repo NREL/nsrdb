@@ -17,8 +17,6 @@ from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
-import pickle
-import sys
 
 class CloudCoords:
     """Class to correct cloud coordinates based on parallax correction and
