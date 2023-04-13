@@ -257,7 +257,7 @@ class AncillaryVarHandler:
         Parameters
         ----------
         key : str
-            The should be either 'pattern' or 'next pattern', corresponding to
+            This should be either 'pattern' or 'next_pattern', corresponding to
             the current date pattern or the next date pattern
 
         Returns
@@ -320,7 +320,7 @@ class AncillaryVarHandler:
         Parameters
         ----------
         key : str
-            The should be either 'pattern' or 'next pattern', corresponding to
+            The should be either 'pattern' or 'next_pattern', corresponding to
             the current date pattern or the next date pattern
 
         Returns
