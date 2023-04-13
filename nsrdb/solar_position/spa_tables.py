@@ -177,7 +177,7 @@ class DeltaTable:
         """
         delta_t = None
         for i, row in self.DELTA_T.iterrows():
-            if not date > i:
+            if not pd.Timestamp(date) > i:
                 delta_t = row['delta_t_tt-utc1']
                 break
         return delta_t

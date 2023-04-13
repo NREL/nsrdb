@@ -23,20 +23,13 @@ documentation can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrd
 Installation
 ============
 
-#. Use conda (anaconda or miniconda with python 3.7) to create an nsrdb
-   environment: ``conda create --name nsrdb python=3.7``
+#. Use conda (anaconda or miniconda with python 3.9) to create an nsrdb
+   environment: ``conda create --name nsrdb python=3.9``
 #. Activate your new conda env: ``conda activate nsrdb``
-#. There is a known dependency issue between h5py and netCDF4. it is
-   recommended that you install ``conda install netCDF4`` before pip installing
-   the nsrdb code base.
-#. You will have to install the REST2 code base (the private NREL-REST2 repo is
-   `here <https://github.com/NREL/rest2>`_) BEFORE installing the nsrdb code
-   base.
-#. Navigate to the nsrdb directory that contains setup.py and run:
-   ``pip install -e .``
-#. If running with the MLClouds model, you will have to install this code base
-   (the private MLClouds repo is `here <https://github.com/NREL/mlclouds>`_)
-   AFTER installing the nsrdb code base.
+#. Follow the steps used in the pytest actions, described `here <https://github.com/NREL/nsrdb/blob/main/.github/workflows/pull_request_tests.yml>`_.
+
+    - These actions refer to the required repositories needed to run all tests and the commands which should be run from the local location of those repositories
+    - If you plan to run without MLClouds the step associated with this repository can be skipped.
 #. Test your installation:
 
     a. Start ipython and test the following import:
@@ -46,11 +39,6 @@ Installation
 #. If you are a developer, also run `pre-commit install` in the directory
    containing .pre-commit-config.yaml.
 
-NOTE: If you are trying to run the ``albedo`` sub-module you will need to
-install the following additional packages:
-
-    a. ``conda install hdf4``
-    b. ``conda install -c conda-forge pyhdf``
 
 NSRDB Versions
 ==============

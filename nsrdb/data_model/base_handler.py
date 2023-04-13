@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import pandas as pd
 from warnings import warn
+import datetime as dt
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
@@ -208,6 +209,17 @@ class AncillaryVarHandler:
         return self._date
 
     @property
+    def next_date(self):
+        """Get the date after the date for this handler. This is used to get
+        the data for the next date for temporal interpolation
+
+        Returns
+        -------
+        datetime.date
+        """
+        return self._date + dt.timedelta(days=1)
+
+    @property
     def doy(self):
         """Get the day of year for this handler
 
@@ -239,17 +251,22 @@ class AncillaryVarHandler:
         """
         return str(self.var_meta.loc[self.mask, 'units'].values[0])
 
-    @property
-    def pattern(self):
-        """Get the source file pattern which is sent to glob().
+    def _get_pattern(self, key):
+        """Get the source file pattern which is sent to glob()
+
+        Parameters
+        ----------
+        key : str
+            This should be either 'pattern' or 'next_pattern', corresponding to
+            the current date pattern or the next date pattern
 
         Returns
         -------
         str | None
         """
         pat = None
-        if 'pattern' in self._var_meta:
-            pat = self.var_meta.loc[self.mask, 'pattern'].values[0]
+        if key in self._var_meta:
+            pat = self.var_meta.loc[self.mask, key].values[0]
 
         if isinstance(pat, (int, float)):
             pat = None
@@ -258,6 +275,26 @@ class AncillaryVarHandler:
         assert isinstance(pat, (type(None), str)), msg
 
         return pat
+
+    @property
+    def pattern(self):
+        """Get the source file pattern which is sent to glob().
+
+        Returns
+        -------
+        str | None
+        """
+        return self._get_pattern('pattern')
+
+    @property
+    def next_pattern(self):
+        """Get the next date source file pattern which is sent to glob().
+
+        Returns
+        -------
+        str | None
+        """
+        return self._get_pattern('next_pattern')
 
     @property
     def source_dir(self):
@@ -276,6 +313,32 @@ class AncillaryVarHandler:
 
         return str(sd)
 
+    def _get_file(self, key):
+        """Get the file path for the target NSRDB variable name based on
+        the glob self.pattern or self.next_pattern.
+
+        Parameters
+        ----------
+        key : str
+            The should be either 'pattern' or 'next_pattern', corresponding to
+            the current date pattern or the next date pattern
+
+        Returns
+        -------
+        str
+        """
+        pat = getattr(self, key)
+        fps = NFS(pat).glob()
+        if not any(fps) or len(fps) > 1:
+            emsg = ('Could not find or found too many source files '
+                    'for dataset "{}" with glob pattern: "{}". '
+                    'Found {} files: {}'
+                    .format(self.name, pat, len(fps), fps))
+            logger.error(emsg)
+            raise FileNotFoundError(emsg)
+
+        return fps[0]
+
     @property
     def file(self):
         """Get the file path for the target NSRDB variable name based on
@@ -285,17 +348,25 @@ class AncillaryVarHandler:
         -------
         str
         """
+        return self._get_file(key='pattern')
 
-        fps = NFS(self.pattern).glob()
-        if not any(fps) or len(fps) > 1:
-            emsg = ('Could not find or found too many source files '
-                    'for dataset "{}" with glob pattern: "{}". '
-                    'Found {} files: {}'
-                    .format(self.name, self.pattern, len(fps), fps))
-            logger.error(emsg)
-            raise FileNotFoundError(emsg)
+    @property
+    def next_file(self):
+        """Get the file path for the date for the target NSRDB variable
+        name based on the glob self.next_pattern. The file is used to get the
+        data for the next date for temporal interpolation
 
-        return fps[0]
+        Returns
+        -------
+        str
+        """
+        return self._get_file(key='next_pattern')
+
+    @property
+    def next_file_exists(self):
+        """Check if file for next date exists"""
+        fps = NFS(self.next_pattern).glob()
+        return any(fps) or len(fps) > 1
 
     @property
     def temporal_method(self):

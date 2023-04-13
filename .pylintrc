@@ -55,22 +55,16 @@ confidence=
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 disable=
-        consider-using-f-string,
         # Defaults
         print-statement,
         parameter-unpacking,
         unpacking-in-except,
         old-raise-syntax,
         backtick,
-        long-suffix,
-        old-ne-operator,
-        old-octal-literal,
         import-star-module-level,
-        non-ascii-bytes-literal,
         raw-checker-failed,
         bad-inline-option,
         locally-disabled,
-        locally-enabled,
         file-ignored,
         suppressed-message,
         useless-suppression,
@@ -114,7 +108,6 @@ disable=
         range-builtin-not-iterating,
         filter-builtin-not-iterating,
         using-cmp-argument,
-        eq-without-hash,
         div-method,
         idiv-method,
         rdiv-method,
@@ -130,6 +123,8 @@ disable=
         dict-items-not-iterating,
         dict-keys-not-iterating,
         dict-values-not-iterating,
+        consider-using-f-string,
+        unspecified-encoding,
         # Custom
         protected-access,
         fixme,
@@ -167,9 +162,7 @@ disable=
         too-many-function-args,
         redundant-keyword-arg,
         c-extension-no-member,
-        redefined-argument-from-local,
-        W1203, # Prohibit f-strings in logging
-        W1202  # Prohibit f-strings in logging
+        redefined-argument-from-local
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -336,13 +329,6 @@ max-line-length=79
 # Maximum number of lines in a module
 max-module-lines=1000
 
-# List of optional constructs for which whitespace checking is disabled. `dict-
-# separator` is used to allow tabulation in dicts, etc.: {1  : 1,\n222: 2}.
-# `trailing-comma` allows a space between comma and closing bracket: (a, ).
-# `empty-line` allows space-only lines.
-no-space-check=trailing-comma,
-               dict-separator
-
 # Allow the body of a class to be on the same line as the declaration if body
 # contains single statement.
 single-line-class-stmt=no
@@ -379,7 +365,7 @@ ignore-docstrings=yes
 ignore-imports=yes
 
 # Minimum lines number of a similarity.
-min-similarity-lines=10
+min-similarity-lines=20
 
 
 [SPELLING]

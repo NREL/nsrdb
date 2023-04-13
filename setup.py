@@ -57,7 +57,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     keywords="nsrdb",
-    python_requires='>=3.7',
+    python_requires='>=3.9',
     classifiers=[
         "Development Status :: Beta",
         "Intended Audience :: Modelers",

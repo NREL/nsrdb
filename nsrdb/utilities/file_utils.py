@@ -14,6 +14,9 @@ from subprocess import Popen, PIPE, run
 import time
 from urllib.request import urlopen
 from urllib.error import URLError
+import pandas as pd
+from packaging import version
+
 
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.loggers import init_logger
@@ -25,6 +28,21 @@ logger = logging.getLogger(__name__)
 DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
                     'bin', 'h4toh5')
+
+
+def pd_date_range(*args, **kwargs):
+    """A simple wrapper on the pd.date_range() method that handles the closed
+    vs. inclusive kwarg change in pd 1.4.0"""
+    incl = version.parse(pd.__version__) >= version.parse('1.4.0')
+
+    if incl and 'closed' in kwargs:
+        kwargs['inclusive'] = kwargs.pop('closed')
+    elif not incl and 'inclusive' in kwargs:
+        kwargs['closed'] = kwargs.pop('inclusive')
+        if kwargs['closed'] == 'both':
+            kwargs['closed'] = None
+
+    return pd.date_range(*args, **kwargs)
 
 
 def ts_freq_check(freq):

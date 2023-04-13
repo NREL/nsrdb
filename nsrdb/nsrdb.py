@@ -31,7 +31,7 @@ from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
-from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
+from nsrdb.utilities.file_utils import clean_meta, ts_freq_check, pd_date_range
 from nsrdb.aggregation.aggregation import Manager
 from nsrdb import CONFIGDIR
 
@@ -866,7 +866,7 @@ class NSRDB:
         start = cls.to_datetime(date_list[0])
         end = cls.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
 
-        ti = pd.date_range(start=start, end=end, freq=nsrdb_freq,
+        ti = pd_date_range(start=start, end=end, freq=nsrdb_freq,
                            closed='left')
         return ti
 
