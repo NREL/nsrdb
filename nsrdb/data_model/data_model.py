@@ -53,8 +53,6 @@ from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
                                            temporal_step, parse_method)
 from nsrdb.utilities.nearest_neighbor import geo_nn, knn
 from nsrdb.utilities.file_utils import clean_meta
-import sys
-import pickle
 
 logger = logging.getLogger(__name__)
 
