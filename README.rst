@@ -150,6 +150,10 @@ NSRDB Versions
         MERRA2 based on the paper "A comparison of simulated and observed
         fluctuations in summertime Arctic surface albedo" by Becky Ross and
         John E. Walsh
+    * - 3.2.3
+      - 4/13/23
+      - Fixed MERRA interpolation issue #51 and deprecated python 3.7/3.8.
+        Added changes to accommodate pandas v2.0.0.
 
 *Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the
