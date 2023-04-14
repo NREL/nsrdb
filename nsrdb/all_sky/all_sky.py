@@ -49,7 +49,7 @@ ALL_SKY_ARGS = ('alpha',
 def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
             ozone, solar_zenith_angle, ssa, surface_albedo, surface_pressure,
             time_index, total_precipitable_water, cloud_fill_flag=None,
-            variability_kwargs=None, scale_outputs=True, farmsdni=True):
+            variability_kwargs=None, scale_outputs=True, disc_on=False):
     """Calculate the all-sky irradiance.
     Updated by Yu Xie on 3/29/2023 to compute DNI by FARMS-DNI.
 
@@ -109,8 +109,8 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         nsrdb.all_sky.utilities.cloud_variability for kwarg definitions.
     scale_outputs : bool
         Flag to safely scale and dtype convert output arrays.
-    farmsdni : bool
-        Compute cloudy-sky DNI using FARMS-DNI (True) or DISC (False).
+    disc_on : bool
+        Compute cloudy-sky DNI using FARMS-DNI (False) or DISC (True).
 
     Returns
     -------
@@ -163,16 +163,15 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
 
     # use FARMS to calculate cloudy GHI
     ghi, dni_farmsdni, _ = farms(tau=cld_opd_dcomp,
-                                    cloud_type=cloud_type,
-                                    cloud_effective_radius=cld_reff_dcomp,
-                                    solar_zenith_angle=solar_zenith_angle,
-                                    radius=radius,
-                                    Tuuclr=Tuuclr,
-                                    Ruuclr=rest_data.Ruuclr,
-                                    Tddclr=rest_data.Tddclr,
-                                    Tduclr=rest_data.Tduclr,
-                                    albedo=surface_albedo,
-                                    )
+                                 cloud_type=cloud_type,
+                                 cloud_effective_radius=cld_reff_dcomp,
+                                 solar_zenith_angle=solar_zenith_angle,
+                                 radius=radius,
+                                 Tuuclr=Tuuclr,
+                                 Ruuclr=rest_data.Ruuclr,
+                                 Tddclr=rest_data.Tddclr,
+                                 Tduclr=rest_data.Tduclr,
+                                 albedo=surface_albedo)
 
     # merge the clearsky and cloudy irradiance into all-sky irradiance
     ghi = merge_rest_farms(rest_data.ghi, ghi, cloud_type)
@@ -182,16 +181,13 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
         ghi = cloud_variability(ghi, rest_data.ghi, cloud_type,
                                 **variability_kwargs)
 
-    # calculate the DNI using the DISC model
-    dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,
-               pressure=surface_pressure)
-
     # merge the clearsky and cloudy irradiance into all-sky irradiance
-    #
-    if farmsdni:
-        dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
-    else:
+    if disc_on:
+        dni = disc(ghi, solar_zenith_angle, doy=time_index.dayofyear.values,
+                   pressure=surface_pressure)
         dni = merge_rest_farms(rest_data.dni, dni, cloud_type)
+    else:
+        dni = merge_rest_farms(rest_data.dni, dni_farmsdni, cloud_type)
 
     # make a fill flag where bad data exists in the GHI irradiance
     fill_flag = make_fill_flag(ghi, rest_data.ghi, cloud_type, missing_props,
@@ -239,7 +235,7 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     return output
 
 
-def all_sky_h5(f_source, rows=slice(None), cols=slice(None)):
+def all_sky_h5(f_source, rows=slice(None), cols=slice(None), disc_on=False):
     """Run all-sky from .h5 files.
 
     Parameters
@@ -251,6 +247,8 @@ def all_sky_h5(f_source, rows=slice(None), cols=slice(None)):
         Subset of rows to run.
     cols : slice
         Subset of columns to run.
+    disc_on : bool
+        Compute cloudy sky dni with disc model or farms-dni model.
 
     Returns
     -------
@@ -275,6 +273,7 @@ def all_sky_h5(f_source, rows=slice(None), cols=slice(None)):
         all_sky_input = {dset: source[dset, rows, cols]
                          for dset in ALL_SKY_ARGS}
         all_sky_input['time_index'] = source.time_index[rows].tz_convert(None)
+        all_sky_input['disc_on'] = disc_on
 
     try:
         out = all_sky(**all_sky_input)
@@ -286,7 +285,7 @@ def all_sky_h5(f_source, rows=slice(None), cols=slice(None)):
 
 
 def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
-                        col_chunk=10, max_workers=None):
+                        col_chunk=10, max_workers=None, disc_on=False):
     """Run all-sky from .h5 files.
 
     Parameters
@@ -304,6 +303,8 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
         significantly faster.
     max_workers : int | None
         Number of workers to run in parallel.
+    disc_on : bool
+        Compute cloudy sky dni with disc model or farms-dni model.
 
     Returns
     -------
@@ -361,7 +362,7 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
 
     loggers = ['farms', 'nsrdb', 'rest2', 'rex']
     with SpawnProcessPool(max_workers=max_workers, loggers=loggers) as exe:
-        futures = {exe.submit(all_sky_h5, f_source, rows=rows,
+        futures = {exe.submit(all_sky_h5, f_source, rows=rows, disc_on=disc_on,
                               cols=c_slices_all[c]): c for c in c_range}
 
         for future in as_completed(futures):

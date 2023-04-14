@@ -930,8 +930,11 @@ def ml_cloud_fill(ctx, date, fill_all, model_path, col_chunk, max_workers):
               help='Chunking method to run all sky one column chunk at a time '
               'to reduce memory requirements. This is an integer specifying '
               'how many columns to work on at one time.')
+@click.option('--disc_on', '-do', type=bool, required=False, default=False,
+              help='Whether to run compute cloudy sky dni with the disc model '
+              '(True) or the farms-dni model (False).')
 @click.pass_context
-def all_sky(ctx, i_chunk, col_chunk):
+def all_sky(ctx, i_chunk, col_chunk, disc_on):
     """Run allsky for a single chunked file"""
 
     name = ctx.obj['NAME']
@@ -945,9 +948,9 @@ def all_sky(ctx, i_chunk, col_chunk):
     log_file = 'all_sky/all_sky_{}.log'.format(i_chunk)
     fun_str = 'NSRDB.run_all_sky'
     arg_str = ('"{}", {}, "{}", freq="{}", i_chunk={}, col_chunk={}, '
-               'log_file="{}", log_level="{}", job_name="{}"'
+               'disc_on={}, log_file="{}", log_level="{}", job_name="{}"'
                .format(out_dir, year, nsrdb_grid, nsrdb_freq, i_chunk,
-                       col_chunk, log_file, log_level, name))
+                       col_chunk, disc_on, log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
@@ -964,8 +967,11 @@ def all_sky(ctx, i_chunk, col_chunk):
               help='Chunking method to run all sky one column chunk at a time '
               'to reduce memory requirements. This is an integer specifying '
               'how many columns to work on at one time.')
+@click.option('--disc_on', '-do', type=bool, required=False, default=False,
+              help='Whether to run compute cloudy sky dni with the disc model '
+              '(True) or the farms-dni model (False).')
 @click.pass_context
-def daily_all_sky(ctx, date, col_chunk):
+def daily_all_sky(ctx, date, col_chunk, disc_on):
     """Run allsky for a single day using daily data model output files as
     source data"""
 
@@ -979,10 +985,10 @@ def daily_all_sky(ctx, date, col_chunk):
 
     log_file = 'all_sky/all_sky_{}.log'.format(date)
     fun_str = 'NSRDB.run_daily_all_sky'
-    arg_str = ('"{}", {}, "{}", "{}", freq="{}", col_chunk={}, '
+    arg_str = ('"{}", {}, "{}", "{}", freq="{}", col_chunk={}, disc_on={}, '
                'log_file="{}", log_level="{}", job_name="{}"'
                .format(out_dir, year, nsrdb_grid, date, nsrdb_freq, col_chunk,
-                       log_file, log_level, name))
+                       disc_on, log_file, log_level, name))
     if var_meta is not None:
         arg_str += ', var_meta="{}"'.format(var_meta)
     ctx.obj['IMPORT_STR'] = 'from nsrdb.nsrdb import NSRDB'
