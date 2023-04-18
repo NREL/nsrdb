@@ -398,7 +398,7 @@ class NSRDB:
 
         cmd = f'python -m nsrdb.blend.cli -n {name}'
         cmd += '_{tag}'
-        cmd += f' -m {meta_file} -od {out_dir}'
+        cmd += f' -m {user_input["meta_file"]} -od {out_dir}'
         cmd += f' -ed {east_dir} -wd {west_dir}'
         cmd += ' -t "{tag}"'
         cmd += f' -mc {map_col} -ls {meta_lon}'
