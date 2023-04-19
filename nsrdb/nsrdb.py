@@ -349,7 +349,8 @@ class NSRDB:
             user_input['spatial'] = '4km'
 
         map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
-        map_col = user_input['map_col'] = map_col_map[user_input['extent']]
+        map_col = (user_input.get('map_col', None)
+                   or map_col_map[user_input['extent']])
 
         meta_lon_map = {'full': -105, 'conus': -113}
         meta_lon = meta_lon_map[user_input['extent']]
@@ -364,7 +365,6 @@ class NSRDB:
             meta_file += '.csv'
             user_input['meta_file'] = os.path.join(
                 user_input['metadir'], meta_file)
-            meta_file = user_input['meta_file']
 
         src_dir = f"{user_input['basename']}"
         src_dir += "_{satellite}"
