@@ -139,7 +139,6 @@ class Blender:
         east_gid_full = self._meta_east[self._map_col].values.tolist()
         gid_full_all = list(set(west_gid_full + east_gid_full))
 
-        '''
         self._check_sequential(self._meta_west.index.values,
                                'West source gids')
         self._check_sequential(self._meta_east.index.values,
@@ -148,7 +147,6 @@ class Blender:
                                'West destination gids')
         self._check_sequential(self._meta_east[self._map_col].values,
                                'East destination gids')
-        '''
 
         if len(gid_full_all) != len(west_gid_full) + len(east_gid_full):
             e = ('Western full-extent gids and eastern full-extent gids have '
@@ -281,18 +279,15 @@ class Blender:
                     for i, (i_source, i_destination) in enumerate(zipped):
                         logger.debug('\t Blending gid chunk {} out of {}'
                                      .format(i + 1, len(source_chunks)))
-                        '''
                         self._check_sequential(
                             i_source, 'Source chunk {}'.format(i),
                             raise_flag=True)
                         self._check_sequential(
                             i_destination, 'Destination chunk {}'.format(i),
                             raise_flag=True)
-                        '''
                         s = slice(i_source.min(), i_source.max() + 1)
                         d = slice(i_destination.min(), i_destination.max() + 1)
-                        #out[dset, :, d] = source[dset, :, s]
-                        out[dset, :] = source[dset, :]
+                        out[dset, :, d] = source[dset, :, s]
         logger.info('Finished blend from source file: {}'.format(source_fpath))
 
     @classmethod
