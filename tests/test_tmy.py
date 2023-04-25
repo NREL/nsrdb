@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from nsrdb import TESTDATADIR
 from nsrdb.tmy.tmy import Cdf, Tmy
+from nsrdb.utilities.file_utils import pd_date_range
 
 
 RTOL = 0.001
@@ -37,7 +38,7 @@ def test_cdf_best_year(mults, best_year):
     my_arr = [(mults[i] * np.arange(365, dtype=np.float32)).tolist()
               for i in range(3)]
     my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
-    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
+    time_index = pd_date_range(start='1-1-2013', end='1-1-2016',
                                freq='1D', closed='left')
     cdf = Cdf(my_arr, time_index)
     years, _ = cdf._best_fs_year()
@@ -58,7 +59,7 @@ def test_cdf_fs():
     my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
               for i in range(3)]
     my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
-    time_index = pd.date_range(start='1-1-2013', end='1-1-2016',
+    time_index = pd_date_range(start='1-1-2013', end='1-1-2016',
                                freq='30min', closed='left')
     cdf = Cdf(my_arr, time_index)
     fs_all = cdf._fs_all

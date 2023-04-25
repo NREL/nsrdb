@@ -57,6 +57,18 @@ def all_sky(alpha, aod, asymmetry, cloud_type, cld_opd_dcomp, cld_reff_dcomp,
     ---------
     dni_farmsdni: np.ndarray
         DNI computed by FARMS-DNI (Wm-2).
+<<<<<<< HEAD
+=======
+    dni0: np.ndarray
+        DNI computed by the Lambert law (Wm-2). It only includes the narrow
+         beam in the circumsolar region.
+    Updated by Yu Xie on 3/29/2023 to compute DNI by FARMS-DNI.
+
+    Variables
+    ---------
+    dni_farmsdni: np.ndarray
+        DNI computed by FARMS-DNI (Wm-2).
+>>>>>>> 2723ff1645104e367a8372e9e58a7f0ccece45b6
 
     Parameters
     ----------

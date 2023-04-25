@@ -574,6 +574,7 @@ class ConfigRunners:
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_all_sky_{}'.format(i_chunk)
             ctx.invoke(all_sky, i_chunk=i_chunk,
+                       disc_on=cmd_args.get('disc_on', False),
                        col_chunk=cmd_args.get('col_chunk', 10))
             ctx.invoke(eagle, **eagle_args)
 
@@ -614,6 +615,7 @@ class ConfigRunners:
             date = NSRDB.doy_to_datestr(direct_args['year'], doy)
             ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
             ctx.invoke(daily_all_sky, date=date,
+                       disc_on=cmd_args.get('disc_on', False),
                        col_chunk=cmd_args.get('col_chunk', 500))
 
             eagle_args['dummy_run'] = check_if_dummy_run(

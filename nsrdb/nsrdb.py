@@ -31,7 +31,7 @@ from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
-from nsrdb.utilities.file_utils import clean_meta, ts_freq_check
+from nsrdb.utilities.file_utils import clean_meta, ts_freq_check, pd_date_range
 from nsrdb.aggregation.aggregation import Manager
 from nsrdb import CONFIGDIR
 
@@ -349,7 +349,8 @@ class NSRDB:
             user_input['spatial'] = '4km'
 
         map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
-        map_col = user_input['map_col'] = map_col_map[user_input['extent']]
+        map_col = (user_input.get('map_col', None)
+                   or map_col_map[user_input['extent']])
 
         meta_lon_map = {'full': -105, 'conus': -113}
         meta_lon = meta_lon_map[user_input['extent']]
@@ -364,7 +365,6 @@ class NSRDB:
             meta_file += '.csv'
             user_input['meta_file'] = os.path.join(
                 user_input['metadir'], meta_file)
-            meta_file = user_input['meta_file']
 
         src_dir = f"{user_input['basename']}"
         src_dir += "_{satellite}"
@@ -398,7 +398,7 @@ class NSRDB:
 
         cmd = f'python -m nsrdb.blend.cli -n {name}'
         cmd += '_{tag}'
-        cmd += f' -m {meta_file} -od {out_dir}'
+        cmd += f' -m {user_input["meta_file"]} -od {out_dir}'
         cmd += f' -ed {east_dir} -wd {west_dir}'
         cmd += ' -t "{tag}"'
         cmd += f' -mc {map_col} -ls {meta_lon}'
@@ -866,7 +866,7 @@ class NSRDB:
         start = cls.to_datetime(date_list[0])
         end = cls.to_datetime(date_list[-1]) + datetime.timedelta(days=1)
 
-        ti = pd.date_range(start=start, end=end, freq=nsrdb_freq,
+        ti = pd_date_range(start=start, end=end, freq=nsrdb_freq,
                            closed='left')
         return ti
 

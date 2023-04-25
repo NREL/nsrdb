@@ -17,6 +17,7 @@ from rex.utilities.loggers import init_logger
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.pipeline import Status
+from nsrdb.utilities.file_utils import pd_date_range
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class Collector:
             raise ValueError('Could not parse date: {}'.format(date_str_start))
 
         date_end += datetime.timedelta(days=1)
-        ti = pd.date_range(start=date_start, end=date_end,
+        ti = pd_date_range(start=date_start, end=date_end,
                            freq='1D', closed='left')
 
         missing = []

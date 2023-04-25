@@ -11,6 +11,7 @@ import tempfile
 
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.blend.blend import Blender
+from nsrdb.utilities.file_utils import pd_date_range
 
 
 def test_blend(lon_seam=0.25):
@@ -21,7 +22,7 @@ def test_blend(lon_seam=0.25):
     meta_west = meta_out.copy()
     meta_east['gid_full_map'] = np.arange(len(meta_out))
     meta_west['gid_full_map'] = np.arange(len(meta_out))
-    time_index = pd.date_range('20190101', '20200101', freq='1h',
+    time_index = pd_date_range('20190101', '20200101', freq='1h',
                                closed='left')
 
     with tempfile.TemporaryDirectory() as td:

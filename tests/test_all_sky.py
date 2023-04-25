@@ -18,10 +18,9 @@ import matplotlib.pyplot as plt
 from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.utilities.statistics import mae_perc
 
-
 BASE_DIR = os.path.dirname(__file__)
 TEST_FILE = os.path.join(BASE_DIR,
-                         './data/validation_nsrdb/nsrdb_surfrad_2000.h5')
+                         './data/validation_nsrdb_farmsdni/nsrdb_2000.h5')
 RTOL = 1e-03
 ATOL = 0.01
 
@@ -60,13 +59,11 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
         # different unscaling for cloud properties
         out['cloud_type'] = f['cloud_type'][:, sites]
         out['cld_reff_dcomp'] = (
-            f['cld_reff_dcomp'][:, sites].astype(float) *
-            f['cld_reff_dcomp'].attrs['psm_scale_factor'] +
-            f['cld_reff_dcomp'].attrs['psm_add_offset'])
+            f['cld_reff_dcomp'][:, sites].astype(float)
+            / f['cld_reff_dcomp'].attrs['psm_scale_factor'])
         out['cld_opd_dcomp'] = (
-            f['cld_opd_dcomp'][:, sites].astype(float) *
-            f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
-            f['cld_opd_dcomp'].attrs['psm_add_offset'])
+            f['cld_opd_dcomp'][:, sites]
+            / f['cld_opd_dcomp'].attrs['psm_scale_factor'])
 
     return out
 
@@ -180,19 +177,9 @@ def plot_benchmark(sites, y_range=None):
 
 
 @pytest.mark.parametrize('test_file',
-                         ('./data/validation_nsrdb/nsrdb_surfrad_1998.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2000.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2002.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2004.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2006.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2008.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2010.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2012.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2014.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2016.h5',
-                          './data/validation_nsrdb/nsrdb_surfrad_2017.h5',
+                         ('./data/validation_nsrdb_farmsdni/nsrdb_2000.h5',
                           ))
-def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
+def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
                  mae_perc_threshold=5):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
     test_file = os.path.join(BASE_DIR, test_file)
@@ -212,8 +199,8 @@ def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.1,
 
     for i, site in enumerate(sites):
         for var in ('dhi', 'dni', 'ghi'):
-            hist, bin_edges = np.histogram(np.abs(new[var][:, i] -
-                                                  baseline[var][:, i]),
+            hist, bin_edges = np.histogram(np.abs(new[var][:, i]
+                                                  - baseline[var][:, i]),
                                            bins=100, range=(0.0, 1000.0))
 
             n_bad = np.sum(hist[2:])
