@@ -349,11 +349,12 @@ class NSRDB:
             user_input['spatial'] = '4km'
 
         map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
-        map_col = user_input['map_col'] = map_col_map[user_input['extent']]
+        map_col = (user_input.get('map_col', None)
+                   or map_col_map[user_input['extent']])
 
         meta_lon_map = {'full': -105, 'conus': -113}
-        meta_lon = meta_lon_map[user_input['extent']]
-        user_input['lon_seam'] = meta_lon
+        meta_lon = (user_input.get('lon_seam', None)
+                    or meta_lon_map[user_input['extent']])
 
         if user_input['meta_file'] is None:
             meta_file = f'nsrdb_meta_{user_input["spatial"]}'
@@ -364,7 +365,6 @@ class NSRDB:
             meta_file += '.csv'
             user_input['meta_file'] = os.path.join(
                 user_input['metadir'], meta_file)
-            meta_file = user_input['meta_file']
 
         src_dir = f"{user_input['basename']}"
         src_dir += "_{satellite}"
@@ -398,7 +398,7 @@ class NSRDB:
 
         cmd = f'python -m nsrdb.blend.cli -n {name}'
         cmd += '_{tag}'
-        cmd += f' -m {meta_file} -od {out_dir}'
+        cmd += f' -m {user_input["meta_file"]} -od {out_dir}'
         cmd += f' -ed {east_dir} -wd {west_dir}'
         cmd += ' -t "{tag}"'
         cmd += f' -mc {map_col} -ls {meta_lon}'
@@ -1405,7 +1405,8 @@ class NSRDB:
     def run_all_sky(cls, out_dir, year, grid, freq='5min', var_meta=None,
                     col_chunk=10, rows=slice(None), cols=slice(None),
                     max_workers=None, log_level='DEBUG',
-                    log_file='all_sky.log', i_chunk=None, job_name=None):
+                    log_file='all_sky.log', i_chunk=None, job_name=None,
+                    disc_on=False):
         """Run the all-sky physics model from collected .h5 files
 
         Parameters
@@ -1442,6 +1443,9 @@ class NSRDB:
             Enumerated file index if running on site chunk.
         job_name : str
             Optional name for pipeline and status identification.
+        disc_on : bool
+            Compute cloudy sky dni with the disc model (True) or the farms-dni
+            model (False)
         """
         t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
@@ -1476,10 +1480,10 @@ class NSRDB:
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
                                       max_workers=max_workers,
-                                      col_chunk=col_chunk)
+                                      col_chunk=col_chunk, disc_on=disc_on)
         else:
             out = all_sky_h5(f_source, rows=rows, cols=cols,
-                             col_chunk=col_chunk)
+                             col_chunk=col_chunk, disc_on=disc_on)
 
         logger.info('Finished all-sky. Writing to: {}'.format(f_out))
         with Outputs(f_out, mode='a') as f:
@@ -1511,7 +1515,8 @@ class NSRDB:
                           var_meta=None, col_chunk=500,
                           rows=slice(None), cols=slice(None),
                           max_workers=None, log_level='DEBUG',
-                          log_file='all_sky.log', job_name=None):
+                          log_file='all_sky.log', job_name=None,
+                          disc_on=False):
         """Run the all-sky physics model from daily data model output files.
 
         Parameters
@@ -1549,6 +1554,9 @@ class NSRDB:
             File to log to. Will be put in output directory.
         job_name : str
             Optional name for pipeline and status identification.
+        disc_on : bool
+            Compute cloudy sky dni with the disc model (True) or the farms-dni
+            model (False)
         """
         t0 = time.time()
         assert len(str(date)) == 8
@@ -1564,9 +1572,9 @@ class NSRDB:
         if max_workers != 1:
             out = all_sky_h5_parallel(f_source, rows=rows, cols=cols,
                                       max_workers=max_workers,
-                                      col_chunk=col_chunk)
+                                      col_chunk=col_chunk, disc_on=disc_on)
         else:
-            out = all_sky_h5(f_source, rows=rows, cols=cols)
+            out = all_sky_h5(f_source, rows=rows, cols=cols, disc_on=disc_on)
 
         logger.info('Finished all-sky compute.')
         for dset, arr in out.items():
@@ -1597,7 +1605,7 @@ class NSRDB:
     def run_full(cls, date, grid, freq, var_meta=None, factory_kwargs=None,
                  fill_all=False, model_path=None, dist_lim=1.0,
                  max_workers=None, low_mem=False,
-                 log_file=None, log_level='INFO'):
+                 log_file=None, log_level='INFO', disc_on=False):
         """Run the full nsrdb pipeline in-memory using serial compute.
 
         Parameters
@@ -1648,6 +1656,9 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
+        disc_on : bool
+            Compute cloudy sky dni with the disc model (True) or the farms-dni
+            model (False)
 
         Returns
         -------
@@ -1693,6 +1704,7 @@ class NSRDB:
                           if k in ALL_SKY_ARGS}
         all_sky_inputs['time_index'] = data_model.nsrdb_ti
         all_sky_inputs['scale_outputs'] = False
+        all_sky_inputs['disc_on'] = disc_on
         logger.info('Running NSRDB All-Sky.')
         all_sky_out = all_sky(**all_sky_inputs)
         for k, v in all_sky_out.items():

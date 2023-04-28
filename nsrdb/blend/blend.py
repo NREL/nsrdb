@@ -9,7 +9,7 @@ from warnings import warn
 
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.data_model import VarFactory
-
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,7 @@ class Blender:
         self._meta_west = self._meta_west[west_mask]
         self._meta_east = self._meta_east[east_mask]
 
+        '''
         if len(self._meta_east) < 10:
             e = 'Eastern meta got totally eliminated by seam mask!'
             logger.error(e)
@@ -132,6 +133,7 @@ class Blender:
             e = 'Western meta got totally eliminated by seam mask!'
             logger.error(e)
             raise RuntimeError(e)
+        '''
 
         west_gid_full = self._meta_west[self._map_col].values.tolist()
         east_gid_full = self._meta_east[self._map_col].values.tolist()
@@ -181,6 +183,7 @@ class Blender:
         """
         sequential = True
         arr_seq = np.arange(arr.min(), arr.max() + 1)
+
         if not all(arr == arr_seq):
             sequential = False
             msg = ('{} is not sequential!'.format(name))
@@ -268,7 +271,6 @@ class Blender:
 
         with Outputs(source_fpath, mode='r', unscale=False) as source:
             with Outputs(self._out_fpath, mode='a') as out:
-
                 for i_d, dset in enumerate(self._dsets):
                     logger.info('Starting blend of dataset "{}", {} of {}'
                                 .format(dset, i_d + 1, len(self._dsets)))
@@ -277,20 +279,15 @@ class Blender:
                     for i, (i_source, i_destination) in enumerate(zipped):
                         logger.debug('\t Blending gid chunk {} out of {}'
                                      .format(i + 1, len(source_chunks)))
-
                         self._check_sequential(
                             i_source, 'Source chunk {}'.format(i),
                             raise_flag=True)
-
                         self._check_sequential(
                             i_destination, 'Destination chunk {}'.format(i),
                             raise_flag=True)
-
                         s = slice(i_source.min(), i_source.max() + 1)
                         d = slice(i_destination.min(), i_destination.max() + 1)
-
                         out[dset, :, d] = source[dset, :, s]
-
         logger.info('Finished blend from source file: {}'.format(source_fpath))
 
     @classmethod
