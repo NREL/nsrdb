@@ -74,13 +74,13 @@ def get_source_data(test_file, sites=list(range(9))):
         # different unscaling for cloud properties
         out['cloud_type'] = f['cloud_type'][:, sites]
         out['cld_reff_dcomp'] = (
-            f['cld_reff_dcomp'][:, sites].astype(float) *
-            f['cld_reff_dcomp'].attrs['psm_scale_factor'] +
-            f['cld_reff_dcomp'].attrs['psm_add_offset'])
+            f['cld_reff_dcomp'][:, sites].astype(float)
+            * f['cld_reff_dcomp'].attrs['psm_scale_factor']
+            + f['cld_reff_dcomp'].attrs['psm_add_offset'])
         out['cld_opd_dcomp'] = (
-            f['cld_opd_dcomp'][:, sites].astype(float) *
-            f['cld_opd_dcomp'].attrs['psm_scale_factor'] +
-            f['cld_opd_dcomp'].attrs['psm_add_offset'])
+            f['cld_opd_dcomp'][:, sites].astype(float)
+            * f['cld_opd_dcomp'].attrs['psm_scale_factor']
+            + f['cld_opd_dcomp'].attrs['psm_add_offset'])
 
     out['solar_zenith_angle'] = SolPos(
         out['time_index'], meta[['latitude', 'longitude']].values).zenith
@@ -204,12 +204,12 @@ def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
                 mask = (nsrdb['sza'] < 80) & (nsrdb[var] > 0)
 
             elif flag == 'cloudy':
-                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0) &
-                        (nsrdb['cloud_type'].isin(CLOUD_TYPES)))
+                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0)
+                        & (nsrdb['cloud_type'].isin(CLOUD_TYPES)))
 
             elif flag == 'clear':
-                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0) &
-                        (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
+                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0)
+                        & (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
 
             nsrdb_vals = nsrdb[var][mask].values
             measu_vals = measurement[var][mask].values

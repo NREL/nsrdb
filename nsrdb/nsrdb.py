@@ -353,8 +353,8 @@ class NSRDB:
                    or map_col_map[user_input['extent']])
 
         meta_lon_map = {'full': -105, 'conus': -113}
-        meta_lon = meta_lon_map[user_input['extent']]
-        user_input['lon_seam'] = meta_lon
+        meta_lon = (user_input.get('lon_seam', None)
+                    or meta_lon_map[user_input['extent']])
 
         if user_input['meta_file'] is None:
             meta_file = f'nsrdb_meta_{user_input["spatial"]}'
