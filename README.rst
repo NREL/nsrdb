@@ -155,6 +155,10 @@ NSRDB Versions
       - None
       - Fixed MERRA interpolation issue #51 and deprecated python 3.7/3.8.
         Added changes to accommodate pandas v2.0.0.
+    * - 3.2.4
+      - 5/1/23
+      - 2022
+      - Integrated new FARMS-DNI model.
 
 *Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the
