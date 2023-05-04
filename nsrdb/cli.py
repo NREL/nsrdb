@@ -160,7 +160,7 @@ def create_configs(ctx, kwargs, all_domains):
               '\n\nAvailable keys: '
               'year, '
               'outdir (parent directory of data directories), '
-              'file_tag ("ancillary_a", "ancillary_", "clearsky", '
+              'file_tag ("ancillary_a", "ancillary_b", "clearsky", '
               '"clouds", "csp", "irradiance", "pv", "all") - If file_tag '
               'is all then all other tags will be run, '
               'spatial (meta file resolution), '
@@ -180,7 +180,6 @@ def create_configs(ctx, kwargs, all_domains):
               '"east_dir": None, "west_dir": None, '
               '"metadir": "/projects/pxs/reference_grids", '
               '"spatial": "2km", "meta_file" : None, '
-              '"east_dir": None, "west_dir": None, '
               '"alloc": "pxs", "walltime": 48, '
               '"chunk_size": 100000, "memory": 83, '
               '"stdout": "./"}')
