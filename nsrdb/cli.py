@@ -25,11 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 def check_if_dummy_run(debug_day, doy):
-    """Check if debug day is the same as
-    doy. If debug day is not None and not
-    the same as doy then we do a dummy run
-    which only includes the job
-    in the status file
+    """Check if debug day is the same as doy. If debug day is not None and not
+    the same as doy then we do a dummy run which only includes the job in the
+    status file
 
     Parameters
     ----------
@@ -41,9 +39,8 @@ def check_if_dummy_run(debug_day, doy):
     Returns
     -------
     dummy_run : bool
-        Returns True if we want to skip running
-        but include job in status file. False if we
-        want to run normally
+        Returns True if we want to skip running but include job in status file.
+        False if we want to run normally
     """
     if debug_day is None:
         return False

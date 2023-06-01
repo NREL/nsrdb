@@ -5,29 +5,28 @@ Created on Wed Oct 23 10:55:23 2019
 
 @author: gbuster
 """
-from concurrent.futures import as_completed
-from copy import deepcopy
 import datetime
-import h5py
-from itertools import groupby
 import json
 import logging
-import numpy as np
 import os
-import pandas as pd
 import shutil
+from concurrent.futures import as_completed
+from copy import deepcopy
+from inspect import signature
+from itertools import groupby
 
+import h5py
+import numpy as np
+import pandas as pd
 from cloud_fs import FileSystem as FS
-
 from rex import init_logger
-from rex.utilities.hpc import SLURM
 from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.hpc import SLURM
 
 from nsrdb.data_model.variable_factory import VarFactory
-from nsrdb.file_handlers.resource import Resource, MultiFileResource
 from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.file_handlers.resource import MultiFileResource, Resource
 from nsrdb.utilities.file_utils import pd_date_range
-
 
 logger = logging.getLogger(__name__)
 
@@ -188,12 +187,14 @@ class Cdf:
     @staticmethod
     def _resample_daily_max(arr, time_index):
         """Convert a timeseries array to daily maximum data points.
+
         Parameters
         ----------
         arr : np.ndarray
             Timeseries array (time, sites) for one variable.
         time_index : pd.datetimeindex
             Datetime index corresponding to the rows in arr.
+
         Returns
         -------
         arr : np.ndarray
@@ -361,8 +362,8 @@ class Cdf:
         ax.plot(self.cdf[mask, site], self._interp_frac[mask, site], 'rx')
         ax.plot(self.cdf[mask, site], self._cdf_frac[mask, site], 'r-x')
 
-        legend = plot_years + ['Long Term CDF', 'Interpolated',
-                               'Best FS ({})'.format(tmy_year)]
+        legend = [*plot_years, 'Long Term CDF', 'Interpolated', 'Best FS ({})'
+                  .format(tmy_year)]
         plt.legend(legend)
         ax.set_title('TMY CDFs for Month {} and Site {}'.format(month, site))
         ax.set_xlabel(xlabel)
@@ -1518,7 +1519,7 @@ class TmyRunner:
 
         status = []
         if os.path.exists(status_file):
-            with open(status_file, 'r') as f:
+            with open(status_file) as f:
                 status = f.readlines()
                 status = [s.strip('\n') for s in status]
         return status
@@ -1771,7 +1772,36 @@ class TmyRunner:
     def collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
                 site_slice=None, supplemental_fp=None, var_meta=None,
                 log=True, log_level='INFO', log_file=None):
-        """Run TMY collection."""
+        """Run TMY collection.
+
+        Parameters
+        ----------
+        nsrdb_base_fp : str
+            Base nsrdb filepath to retrieve annual files from. Must include
+            a single {} format option for the year. Can include * for an
+            NSRDB multi file source.
+        years : iterable
+            Iterable of years to include in the TMY calculation.
+        out_dir : str
+            Directory to dump temporary output files.
+        fn_out : str
+            Final output filename.
+        site_slice : slice
+            Sites to consider in this TMY.
+        supplemental_fp : None | dict
+            Supplemental data base filepaths including {} for year for
+            uncommon dataset inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
+        var_meta : str
+            CSV filepath containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        log : bool
+            Whether to write to logger
+        log_level : str
+            Log level for log output
+        log_file : str | None
+            Optional log file to write log output
+        """
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
@@ -1866,6 +1896,10 @@ class TmyRunner:
                                      site_slice=site_slice,
                                      sfps=supplemental_fp,
                                      var_meta=var_meta)
+            sig = signature(getattr(cls, fun_str))
+            for k in sig.parameters:
+                if k in kwargs:
+                    arg_str += f', {k}="{kwargs.pop(k)}"'
 
             if 'stdout_path' not in kwargs:
                 kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
@@ -1880,7 +1914,32 @@ class TmyRunner:
     def eagle_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
                   site_slice=None, supplemental_fp=None, var_meta=None,
                   **kwargs):
-        """Submit three eagle jobs for TMY, TGY, and TDY."""
+        """Submit three eagle jobs for TMY, TGY, and TDY.
+
+        Parameters
+        ----------
+        nsrdb_base_fp : str
+            Base nsrdb filepath to retrieve annual files from. Must include
+            a single {} format option for the year. Can include * for an
+            NSRDB multi file source.
+        years : iterable
+            Iterable of years to include in the TMY calculation.
+        out_dir : str
+            Directory to dump temporary output files.
+        n_nodes : int
+            Number of eagle nodes to use for jobs.
+        site_slice : slice
+            Sites to consider in this TMY.
+        supplemental_fp : None | dict
+            Supplemental data base filepaths including {} for year for
+            uncommon dataset inputs to the TMY calculation. For example:
+            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
+        var_meta : str
+            CSV filepath containing meta data for all NSRDB variables.
+            Defaults to the NSRDB var meta csv in git repo.
+        kwargs : dict
+            Optional keyword arguments.
+        """
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
             y = sorted(list(years))[-1]
@@ -1908,6 +1967,11 @@ class TmyRunner:
                                  site_slice=site_slice,
                                  supp_dirs=supplemental_fp,
                                  var_meta=var_meta)
+        sig = signature(cls.collect)
+        for k in sig.parameters:
+            if k in kwargs:
+                arg_str += f', {k}="{kwargs.pop(k)}"'
+
         if 'stdout_path' not in kwargs:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         if 'node_name' not in kwargs:
