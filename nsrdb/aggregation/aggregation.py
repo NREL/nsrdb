@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 """NSRDB aggregation methods
- - 2km 5min CONUS -> 4km 30min NSRDB PSM v3 Meta
- - 2km 15min East -> 4km 30min NSRDB PSM v3 Meta
- - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
+- 2km 5min CONUS -> 4km 30min NSRDB PSM v3 Meta
+- 2km 15min East -> 4km 30min NSRDB PSM v3 Meta
+- 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
-from concurrent.futures import as_completed
 import json
 import logging
-import numpy as np
 import os
-import pandas as pd
 import pickle
-from scipy.spatial import cKDTree
-from scipy.stats import mode
+from concurrent.futures import as_completed
 from warnings import warn
 
+import numpy as np
+import pandas as pd
 from farms.utilities import calc_dhi
 from rex import NSRDB as NSRDBHandler
 from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
+from scipy.spatial import cKDTree
+from scipy.stats import mode
 
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.file_handlers.outputs import Outputs
@@ -1331,7 +1331,7 @@ class Manager:
             logger.error(e)
             raise FileNotFoundError(e)
 
-        d, i = tree.query(meta[['latitude', 'longitude']], k=k)
+        d, i = tree.query(meta[['latitude', 'longitude']].values, k=k)
         if len(i.shape) == 1:
             d = d.reshape((len(i), 1))
             i = i.reshape((len(i), 1))

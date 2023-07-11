@@ -2,21 +2,22 @@
 """A framework for handling UW/GOES source data."""
 import datetime
 import logging
-import numpy as np
 import os
-import pandas as pd
-import psutil
-from scipy.spatial import cKDTree
 import re
-from scipy.stats import mode
 from warnings import warn
 
+import numpy as np
+import pandas as pd
+import psutil
 from farms import CLOUD_TYPES
+from scipy.spatial import cKDTree
+from scipy.stats import mode
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 
 logger = logging.getLogger(__name__)
+
 
 class CloudCoords:
     """Class to correct cloud coordinates based on parallax correction and
@@ -53,7 +54,7 @@ class CloudCoords:
             e = ('Could not parse cloud file, expecting .h5 or .nc but '
                  'received: {}'.format(os.path.basename(fp)))
             logger.error(e)
-            raise IOError(e)
+            raise OSError(e)
 
         check = [d in dsets for d in CloudCoords.REQUIRED]
 
@@ -959,7 +960,6 @@ class CloudVarSingleNC(CloudVarSingle):
             else:
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
 
-
         try:
             if parallax_correct:
                 lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
@@ -970,7 +970,6 @@ class CloudVarSingleNC(CloudVarSingle):
                                                       sol_azi, cld_height,
                                                       option='shading')
             grid['latitude'], grid['longitude'] = lat, lon
-
 
         except Exception as e:
             logger.warning('Could not perform cloud coordinate adjustment '
@@ -1194,7 +1193,7 @@ class CloudVar(AncillaryVarHandler):
             raise StopIteration
 
     def _check_freq(self):
-        """Check the input vs inferred file frequency and warn if != """
+        """Check the input vs inferred file frequency and warn if !="""
         test_freq_1 = self.freq.lower().replace('T', 'min')
         test_freq_2 = self.inferred_freq.lower().replace('T', 'min')
         if test_freq_1 != test_freq_2:
@@ -1499,7 +1498,7 @@ class CloudVar(AncillaryVarHandler):
                 freq = '{}T'.format(ti_delta_minutes)
             else:
                 try:
-                    ti_delta_minutes = int(mode(ti_deltas_minutes).mode[0])
+                    ti_delta_minutes = int(mode(ti_deltas_minutes).mode)
                 except Exception as e:
                     msg = ('Could not get mode of time index deltas: {}'
                            .format(ti_deltas_minutes))

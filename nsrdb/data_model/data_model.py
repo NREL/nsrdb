@@ -32,27 +32,32 @@ class variables in Ancillary() below.
      'dew_point')
 """
 import copy
-from concurrent.futures import as_completed
 import logging
-import numpy as np
 import os
-import pandas as pd
-import psutil
 import time
+from concurrent.futures import as_completed
+from glob import glob
 from warnings import warn
 
+import numpy as np
+import pandas as pd
+import psutil
 from rex.utilities.execution import SpawnProcessPool
 
 from nsrdb import DATADIR
-from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.data_model.base_handler import BaseDerivedVar
 from nsrdb.data_model.clouds import CloudVar
+from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.utilities.interpolation import (spatial_interp, temporal_lin,
-                                           temporal_step, parse_method)
-from nsrdb.utilities.nearest_neighbor import geo_nn, knn
 from nsrdb.utilities.file_utils import clean_meta
+from nsrdb.utilities.interpolation import (
+    parse_method,
+    spatial_interp,
+    temporal_lin,
+    temporal_step,
+)
+from nsrdb.utilities.nearest_neighbor import geo_nn, knn
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +192,6 @@ class DataModel:
 
     def _parse_nsrdb_grid(self, inp,
                           req=('latitude', 'longitude', 'elevation')):
-
         """Set the NSRDB reference grid from a csv file.
 
         Parameters
@@ -440,7 +444,7 @@ class DataModel:
         else:
             # Get the index of NN to NSRDB grid
             dist, index = cloud_obj_single.tree.query(
-                nsrdb_grid[cloud_obj_single.GRID_LABELS], k=1)
+                nsrdb_grid[cloud_obj_single.GRID_LABELS].values, k=1)
             out_of_bounds = dist > dist_lim
             index[out_of_bounds] = -1
 
@@ -581,7 +585,7 @@ class DataModel:
                  'some required directories and/or files. '
                  'The following are missing: {}'.format(missing_list))
             logger.exception(e)
-            raise IOError(e)
+            raise OSError(e)
 
     @staticmethod
     def convert_units(var, data):
@@ -713,6 +717,8 @@ class DataModel:
             pattern = pattern.format(doy=str(handler.doy).zfill(3))
 
         source_dir = os.path.dirname(pattern)
+        if '*' in source_dir:
+            source_dir = glob(source_dir)[0]
         if not os.path.exists(source_dir):
             return False, {}
 
@@ -1029,8 +1035,8 @@ class DataModel:
                 completed += 1
                 mem = psutil.virtual_memory()
                 logger.info('Cloud data Regrid and IO futures completed: '
-                            '{0} out of {1}. Current memory usage is '
-                            '{2:.3f} GB out of {3:.3f} GB total.'
+                            '{} out of {}. Current memory usage is '
+                            '{:.3f} GB out of {:.3f} GB total.'
                             .format(completed, len(futures),
                                     mem.used / 1e9, mem.total / 1e9))
 
@@ -1123,7 +1129,7 @@ class DataModel:
                     'and writing to NSRDB arrays.')
         mem = psutil.virtual_memory()
         logger.info('Current memory usage is '
-                    '{0:.3f} GB out of {1:.3f} GB total.'
+                    '{:.3f} GB out of {:.3f} GB total.'
                     .format(mem.used / 1e9, mem.total / 1e9))
 
         return cloud_data
@@ -1365,7 +1371,6 @@ class DataModel:
         var_list += deps
         var_list = tuple(set(var_list))
 
-
         # remove cloud variables from var_list to be processed together
         # (most efficient to process all cloud variables together to minimize
         # number of kdtrees during regrid)
@@ -1512,12 +1517,12 @@ class DataModel:
                                     mem.total / 1e9))
 
             logger.info('Futures finished, maximum memory usage was '
-                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        '{:.3f} GB out of {:.3f} GB total.'
                         .format(max_mem, mem.total / 1e9))
 
             mem = psutil.virtual_memory()
             logger.info('Current memory usage is '
-                        '{0:.3f} GB out of {1:.3f} GB total.'
+                        '{:.3f} GB out of {:.3f} GB total.'
                         .format(mem.used / 1e9, mem.total / 1e9))
 
             # gather results
@@ -1643,7 +1648,7 @@ class DataModel:
             logger.info('Processing data for "{}".'.format(var))
         else:
             if '{var}' not in fpath_out or '{i}' not in fpath_out:
-                raise IOError('Cannot write to fpath_out, need "var" and "i" '
+                raise OSError('Cannot write to fpath_out, need "var" and "i" '
                               'format keywords: {}'.format(fpath_out))
             fpath_out = fpath_out.format(var=var,
                                          i=data_model.nsrdb_grid.index[0])
@@ -1735,7 +1740,6 @@ class DataModel:
         data : dict
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
-
 
         logger.info('Processing data for multiple cloud variables: {}'
                     .format(cloud_vars))
