@@ -7,34 +7,36 @@ Created on Thu Apr 25 15:47:53 2019
 @author: gbuster
 """
 
+import calendar
+import copy
 import datetime
-import pandas as pd
-import numpy as np
-import os
 import json
 import logging
-import sys
+import os
 import shutil
+import sys
 import time
-import copy
-import calendar
-import psutil
 
+import numpy as np
+import pandas as pd
+import psutil
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
 
-from nsrdb import __version__
-from nsrdb.all_sky.all_sky import (all_sky, all_sky_h5, all_sky_h5_parallel,
-                                   ALL_SKY_ARGS)
+from nsrdb import CONFIGDIR, __version__
+from nsrdb.aggregation.aggregation import Manager
+from nsrdb.all_sky.all_sky import (
+    ALL_SKY_ARGS,
+    all_sky,
+    all_sky_h5,
+    all_sky_h5_parallel,
+)
 from nsrdb.data_model import DataModel, VarFactory
-from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.file_handlers.collection import Collector
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.pipeline import Status
-from nsrdb.utilities.file_utils import clean_meta, ts_freq_check, pd_date_range
-from nsrdb.aggregation.aggregation import Manager
-from nsrdb import CONFIGDIR
-
+from nsrdb.utilities.file_utils import clean_meta, pd_date_range, ts_freq_check
 
 logger = logging.getLogger(__name__)
 
@@ -177,9 +179,9 @@ class NSRDB:
 
                 mem = psutil.virtual_memory()
                 logger.debug(
-                    'Initializing output dataset "{0}" in-memory with shape '
-                    '{1} and dtype {2}. Current memory usage is '
-                    '{3:.3f} GB out of {4:.3f} GB total.'
+                    'Initializing output dataset "{}" in-memory with shape '
+                    '{} and dtype {}. Current memory usage is '
+                    '{:.3f} GB out of {:.3f} GB total.'
                     .format(dset, shape, final_dtype, mem.used / 1e9,
                             mem.total / 1e9))
 
@@ -533,10 +535,10 @@ class NSRDB:
         logger.info(f'Creating NSRDB config files with {user_input}')
 
         if int(user_input['year']) < 2018:
-            with open(PRE2018_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+            with open(PRE2018_CONFIG_TEMPLATE, encoding='utf-8') as s:
                 s = s.read()
         else:
-            with open(POST2017_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+            with open(POST2017_CONFIG_TEMPLATE, encoding='utf-8') as s:
                 s = s.read()
 
         for k, v in user_input.items():
@@ -553,7 +555,7 @@ class NSRDB:
 
         logger.info(f'Created file: {outfile}')
 
-        with open(PIPELINE_CONFIG_TEMPLATE, 'r', encoding='utf-8') as s:
+        with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
             s = s.read()
 
         for k, v in user_input.items():
