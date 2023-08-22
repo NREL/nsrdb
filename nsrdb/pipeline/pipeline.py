@@ -4,7 +4,7 @@ NSRDB data pipeline architecture.
 """
 import logging
 
-from reV.pipeline.pipeline import Pipeline
+from gaps.legacy import Pipeline
 from rex.utilities.loggers import init_logger
 
 from nsrdb.pipeline.config import NsrdbPipelineConfig
@@ -48,4 +48,4 @@ class NsrdbPipeline(Pipeline):
         # init logger for pipeline module if requested in input config
         if 'logging' in self._config:
             init_logger('nsrdb.pipeline', **self._config.logging)
-            init_logger('reV.pipeline', **self._config.logging)
+            init_logger('gaps.legacy', **self._config.logging)
