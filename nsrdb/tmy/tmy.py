@@ -855,13 +855,16 @@ class Tmy:
         with Handler(fpath) as f:
             ti_len = len(f.time_index)
 
-        if (ti_len == 17520) | (ti_len == 17568):
-            freq = '30min'
-        elif (ti_len == 8760) | (ti_len == 8784):
-            freq = '1h'
+        if ti_len % 8760 == 0:
+            freq = f'{60 * 8760 // ti_len}min'
+        elif ti_len % 8784 == 0:
+            freq = f'{60 * 8784 // ti_len}min'
         else:
             raise ValueError('Could not parse source temporal frequency '
                              'from time index length {}'.format(ti_len))
+        if freq == '60min':
+            freq = '1h'
+
         return freq
 
     def get_weighted_fs(self):
@@ -1172,12 +1175,13 @@ class Tmy:
                 self._tmy_years_long[masks[month], site] = \
                     tmy_years[(month - 1), site]
 
-        if len(data) > 8760:
-            data = data[1::2, :]
-            self._tmy_years_long = self._tmy_years_long[1::2, :]
-        if len(data) != 8760:
-            raise ValueError('TMY timeseries was not evaluated as an 8760! '
-                             'Instead had final length {}.'.format(len(data)))
+        step = len(data) // 8760
+        msg = ('Original TMY timeseries is not divisible by 8760 '
+               f'length = {len(data)}.')
+        assert len(data) % 8760 == 0, msg
+
+        data = data[1::step, :]
+        self._tmy_years_long = self._tmy_years_long[1::step, :]
 
         return data
 
@@ -1987,7 +1991,7 @@ class TmyRunner:
         (directory setup depends on having run eagle_all() first)."""
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
-            y = sorted(list(years))[-1]
+            y = sorted(years)[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.eagle_collect(nsrdb_base_fp, years, fun_out_dir,
