@@ -44,12 +44,12 @@
     "name": "nsrdb_east",
     "nsrdb_freq": "10min",
     "nsrdb_grid": "/projects/pxs/reference_grids/nsrdb_meta_2km_east_-105.csv",
-    "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/east/",
+    "out_dir": "/projects/pxs/processing/2019/east/",
     "year": 2019
   },
   "eagle": {
     "alloc": "pxs",
-    "feature": "--qos=high",
+    "feature": "--qos=normal",
     "memory": 178,
     "walltime": 48
   }

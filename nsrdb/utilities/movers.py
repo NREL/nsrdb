@@ -3,15 +3,15 @@
 
 @author: gbuster
 """
-import h5py
 import logging
-import numpy as np
 import os
-import pandas as pd
 import time
 from warnings import warn
 
-from rex.utilities.hpc import SLURM, PBS
+import h5py
+import numpy as np
+import pandas as pd
+from rex.utilities.hpc import PBS, SLURM
 from rex.utilities.loggers import init_logger
 
 from nsrdb.utilities.file_utils import repack_h5
@@ -421,7 +421,7 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
 
 def eagle(fun_str, arg_str, alloc='pxs', memory=96,
           walltime=10, node_name='mover',
-          stdout_path='/lustre/eaglefs/scratch/gbuster/data_movers/'):
+          stdout_path='//scratch/gbuster/data_movers/'):
     """Kick off an eagle job to execute a mover function.
 
     Parameters

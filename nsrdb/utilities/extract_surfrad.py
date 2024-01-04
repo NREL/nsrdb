@@ -4,13 +4,12 @@ Created on Tue Mar 12 16:50:16 2019
 
 @author: gbuster
 """
+import os
+
 import h5py
 import numpy as np
-import os
 import pandas as pd
-
 from farms import SZA_LIM
-
 
 DAT_COLS = ('year',
             'jday',
@@ -104,7 +103,7 @@ def get_dat_table(d, flist):
         table = []
 
         # get readlines iterator
-        with open(os.path.join(d, fname), 'r') as f:
+        with open(os.path.join(d, fname)) as f:
             lines = f.readlines()
 
         # iterate through lines
@@ -161,7 +160,7 @@ def get_lw1_table(d, flist):
     for i, fname in enumerate(flist):
 
         # get readlines iterator
-        with open(os.path.join(d, fname), 'r') as f:
+        with open(os.path.join(d, fname)) as f:
             lines = f.readlines()
 
         # iterate through lines
@@ -302,7 +301,7 @@ def extract_all(root_dir, dir_out, years=range(1998, 2018), file_flag='.dat',
 
 
 if __name__ == '__main__':
-    root_dir = '/lustre/eaglefs/projects/pxs/surfrad/raw'
-    dir_out = '/lustre/eaglefs/projects/pxs/surfrad/h5'
+    root_dir = '/projects/pxs/surfrad/raw'
+    dir_out = '/projects/pxs/surfrad/h5'
     site_codes = ('bon', 'dra', 'fpk', 'gwn', 'psu', 'sxf', 'tbl')
     extract_all(root_dir, dir_out, site_codes=site_codes)

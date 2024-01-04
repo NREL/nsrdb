@@ -3,10 +3,11 @@
 
 @author: gbuster
 """
-import h5py
 import os
 
-root_dir = '/lustre/eaglefs/projects/pxs/nsrdb/v3.0.1/'
+import h5py
+
+root_dir = '/projects/pxs/nsrdb/v3.0.1/'
 
 versions = {"nsrdb_1998.h5": "3.0.6",
             "nsrdb_1999.h5": "3.0.6",
