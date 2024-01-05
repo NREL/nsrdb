@@ -11,22 +11,13 @@ jobs:
       max-parallel: 3
       matrix:
         os: [ubuntu-latest]
-        python-version: ['3.10']
-        include:
-          - os: ubuntu-latest
-            python-version: 3.9
+        python-version: ['3.9']
     steps:
       - uses: actions/checkout@v3
       - name: select python version
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
-      - name: checkout mlclouds
-        uses: actions/checkout@v2
-        with:
-          repository: nrel/mlclouds
-          ssh-key: ${{ secrets.SSH_KEY }}
-          path: mlclouds
       - name: checkout rest2
         uses: actions/checkout@v2
         with:
@@ -43,11 +34,6 @@ jobs:
         shell: bash -l {0}
         run: |
           conda install pip
-          pip install -e .
-      - name: Install mlclouds dependencies
-        working-directory: ./mlclouds
-        shell: bash -l {0}
-        run: |
           pip install -e .
       - name: install sphinx dependencies
         run: |
