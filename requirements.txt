@@ -3,4 +3,5 @@ matplotlib
 NREL-cloud_fs>=0.0.8
 NREL-farms>=1.0.5
 NREL-reV<0.8.0
+NREL-rest2>=1.0.1
 scikit-learn>=1.0
