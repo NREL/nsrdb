@@ -6,5 +6,5 @@ on:
     branches:
       - "main"
     paths:
-      - "./codecov.yml"
-      - "./gh_pages.yml"
+      - ".github/workflows/codecov.yml"
+      - ".github/workflows/gh_pages.yml"
