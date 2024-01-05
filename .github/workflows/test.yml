@@ -1,0 +1,10 @@
+on:
+  push:
+    branches:
+      - "bnb/docs"
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - ".github/workflows/codecov.yaml"
+      - ".github/workflows/gh_pages.yaml"
