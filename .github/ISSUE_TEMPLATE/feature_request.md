@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Request a new reV feature
+about: Request a new NSRDB feature
 title: ''
 labels: feature
 assignees: ''
