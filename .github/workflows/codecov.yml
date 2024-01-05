@@ -1,8 +1,6 @@
 name: Codecov
 
-on:
-  push:
-    branches: [main, master]
+on: pull_request
 
 jobs:
   run:
@@ -54,6 +52,7 @@ jobs:
       run: |
         pip install -e .
     - name: Install codecov dependencies
+      working-directory: ./nsrdb
       run: |
         python -m pip install --upgrade pip
         python -m pip install pytest
