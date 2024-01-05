@@ -41,13 +41,13 @@
     "log_level": "DEBUG",
     "name": "nsrdb_west_conus",
     "nsrdb_freq": "5min",
-    "nsrdb_grid": "/lustre/eaglefs/projects/pxs/reference_grids/nsrdb_meta_2km_conus_west.csv",
-    "out_dir": "/lustre/eaglefs/projects/pxs/processing/2019/west_conus/",
+    "nsrdb_grid": "/projects/pxs/reference_grids/nsrdb_meta_2km_conus_west.csv",
+    "out_dir": "/projects/pxs/processing/2019/west_conus/",
     "year": 2019
   },
   "eagle": {
     "alloc": "pxs",
-    "feature": "--qos=high",
+    "feature": "--qos=normal",
     "memory": 83,
     "walltime": 4
   }

@@ -3,25 +3,23 @@
 
 @author: gbuster
 """
-from concurrent.futures import as_completed
 import gzip
 import logging
 import os
+import re
 import shlex
 import shutil
-import re
-from subprocess import Popen, PIPE, run
 import time
-from urllib.request import urlopen
+from concurrent.futures import as_completed
+from subprocess import PIPE, Popen, run
 from urllib.error import URLError
-import pandas as pd
-from packaging import version
-
-
-from rex.utilities.execution import SpawnProcessPool
-from rex.utilities.loggers import init_logger
+from urllib.request import urlopen
 
 import numpy as np
+import pandas as pd
+from packaging import version
+from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +208,7 @@ def convert_h4(path4, f_h4, path5, f_h5):
     h5 = os.path.join(path5, f_h5)
 
     if not os.path.exists(h4):
-        raise IOError('Could not locate file for conversion to h5: {}'
+        raise OSError('Could not locate file for conversion to h5: {}'
                       .format(h4))
     if os.path.exists(h5):
         logger.info('Target h5 file already exists, may have already been '
@@ -281,7 +279,7 @@ def convert_list_serial(conversion_list):
     """Convert h4 to h5 files in serial based on the conversion list.
 
     Parameters
-    -------
+    ----------
     conversion_list : list
         List of paths and files to convert for input to convert4to5.
         Format is: conversion_list = [[path4, f_h4, path5, f_h5], ...]
@@ -297,7 +295,7 @@ def convert_list_parallel(conversion_list, n_workers=2):
     """Convert h4 to h5 files in parallel based on the conversion list.
 
     Parameters
-    -------
+    ----------
     conversion_list : list
         List of paths and files to convert for input to convert4to5.
         Format is: conversion_list = [[path4, f_h4, path5, f_h5], ...]
@@ -364,8 +362,8 @@ def convert_directory(path4, path5, n_workers=1):
 
 
 if __name__ == '__main__':
-    path4 = '/lustre/eaglefs/projects/pxs/uwisc/2018_west/'
-    path5 = '/lustre/eaglefs/projects/pxs/uwisc/2018_west_h5/'
+    path4 = '/projects/pxs/uwisc/2018_west/'
+    path5 = '/projects/pxs/uwisc/2018_west_h5/'
     init_logger(__name__, log_level='INFO',
                 log_file=os.path.join(path5, 'convert.log'))
     convert_directory(path4, path5, n_workers=36)
