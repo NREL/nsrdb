@@ -2,6 +2,27 @@
 Welcome to the National Solar Radiation Data Base (NSRDB)!
 **********************************************************
 
+.. image:: https://github.com/NREL/nsrdb/workflows/Documentation/badge.svg
+    :target: https://nrel.github.io/nsrdb/
+
+.. image:: https://github.com/NREL/nsrdb/workflows/Pytests/badge.svg
+    :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Pytests%22
+
+.. image:: https://github.com/NREL/nsrdb/workflows/Lint%20Code%20Base/badge.svg
+    :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Lint+Code+Base%22
+
+.. image:: https://img.shields.io/pypi/pyversions/NREL-nsrdb.svg
+    :target: https://pypi.org/project/NREL-nsrdb/
+
+.. image:: https://badge.fury.io/py/NREL-nsrdb.svg
+    :target: https://badge.fury.io/py/NREL-nsrdb
+
+.. image:: https://codecov.io/gh/nrel/nsrdb/branch/main/graph/badge.svg
+    :target: https://codecov.io/gh/nrel/nsrdb
+
+.. image:: https://zenodo.org/badge/340209614.svg
+    :target: https://zenodo.org/badge/latestdoi/340209614
+
 This repository contains all of the methods for the NSRDB data processing pipeline.
 You can read more about the NSRDB `here <https://nsrdb.nrel.gov/>`_ and
 `here <https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_.
@@ -165,7 +186,7 @@ Recommended Citation
 
 Update with current version and DOI:
 
-Grant Buster, Brandon Benton, Mike Bannister, Yu Xie, Aron Habte, Galen Maclaurin, Manajit Sengupta. National Solar Radiation Database (NSRDB). https://github.com/NREL/nsrdb (version v4.0.0), 2023.
+Grant Buster, Brandon Benton, Mike Bannister, Yu Xie, Aron Habte, Galen Maclaurin, Manajit Sengupta. National Solar Radiation Database (NSRDB). https://github.com/NREL/nsrdb (version v4.0.0), 2023. DOI: 10.5281/zenodo.10471523
 
 Acknowledgments
 ===============
