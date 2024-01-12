@@ -1,0 +1,59 @@
+nsrdb.pipeline.config.NsrdbPipelineConfig
+=========================================
+
+.. currentmodule:: nsrdb.pipeline.config
+
+.. autoclass:: NsrdbPipelineConfig
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~NsrdbPipelineConfig.check_files
+      ~NsrdbPipelineConfig.check_overwrite_keys
+      ~NsrdbPipelineConfig.clear
+      ~NsrdbPipelineConfig.copy
+      ~NsrdbPipelineConfig.fromkeys
+      ~NsrdbPipelineConfig.get
+      ~NsrdbPipelineConfig.get_file
+      ~NsrdbPipelineConfig.items
+      ~NsrdbPipelineConfig.keys
+      ~NsrdbPipelineConfig.pop
+      ~NsrdbPipelineConfig.popitem
+      ~NsrdbPipelineConfig.resolve_path
+      ~NsrdbPipelineConfig.set_self_dict
+      ~NsrdbPipelineConfig.setdefault
+      ~NsrdbPipelineConfig.str_replace_and_resolve
+      ~NsrdbPipelineConfig.update
+      ~NsrdbPipelineConfig.values
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~NsrdbPipelineConfig.NAME
+      ~NsrdbPipelineConfig.REQUIREMENTS
+      ~NsrdbPipelineConfig.STR_REP
+      ~NsrdbPipelineConfig.analysis_years
+      ~NsrdbPipelineConfig.config_dir
+      ~NsrdbPipelineConfig.config_keys
+      ~NsrdbPipelineConfig.execution_control
+      ~NsrdbPipelineConfig.hardware
+      ~NsrdbPipelineConfig.log_directory
+      ~NsrdbPipelineConfig.log_level
+      ~NsrdbPipelineConfig.logging
+      ~NsrdbPipelineConfig.name
+      ~NsrdbPipelineConfig.pipeline
+      ~NsrdbPipelineConfig.status_file
+   
+   

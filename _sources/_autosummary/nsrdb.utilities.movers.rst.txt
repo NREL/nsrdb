@@ -1,0 +1,42 @@
+nsrdb.utilities.movers
+======================
+
+.. automodule:: nsrdb.utilities.movers
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      change_dtypes
+      check_dsets
+      eagle
+      get_dset_attrs
+      get_dset_dtype
+      get_dset_list
+      get_dset_shape
+      get_meta_df
+      interrogate_dset
+      peregrine
+      pull_data
+      rename_dset
+      update_dset
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+

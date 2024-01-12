@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.get\_dset\_dtype
+=======================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: get_dset_dtype

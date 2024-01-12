@@ -1,0 +1,34 @@
+nsrdb.pipeline.pipeline.NsrdbPipeline
+=====================================
+
+.. currentmodule:: nsrdb.pipeline.pipeline
+
+.. autoclass:: NsrdbPipeline
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~NsrdbPipeline.cancel_all
+      ~NsrdbPipeline.parse_previous
+      ~NsrdbPipeline.run
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~NsrdbPipeline.CMD_BASE
+      ~NsrdbPipeline.COMMANDS
+      ~NsrdbPipeline.RETURN_CODES
+   
+   

@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.rename\_dset
+===================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: rename_dset

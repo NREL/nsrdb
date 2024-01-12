@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nsrdb &mdash; nsrdb 4.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=977c7dfd"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Command Line Interfaces (CLIs)" href="cli.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            nsrdb
+          </a>
+              <div class="version">
+                4.0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Home page</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../misc/installation_usage.html">Installation and Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../misc/installation.html">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../misc/installation.html#nsrdb-versions">NSRDB Versions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../_autosummary/nsrdb.html">API reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.html">nsrdb.aggregation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.html">nsrdb.aggregation.aggregation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.collect.html">nsrdb.aggregation.aggregation.collect</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.run.html">nsrdb.aggregation.aggregation.run</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.Aggregation.html">nsrdb.aggregation.aggregation.Aggregation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.Manager.html">nsrdb.aggregation.aggregation.Manager</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.aggregation.aggregation.MetaManager.html">nsrdb.aggregation.aggregation.MetaManager</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.blend.html">nsrdb.blend</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.blend.blend.html">nsrdb.blend.blend</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.blend.blend.Blender.html">nsrdb.blend.blend.Blender</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.blend.cli.html">nsrdb.blend.cli</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.blend.cli.get_node_cmds.html">nsrdb.blend.cli.get_node_cmds</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.cli.html">nsrdb.cli</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.cli.check_if_dummy_run.html">nsrdb.cli.check_if_dummy_run</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.cli.check_if_dummy_run.html#nsrdb.cli.check_if_dummy_run"><code class="docutils literal notranslate"><span class="pre">check_if_dummy_run()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.cli.str_replace.html">nsrdb.cli.str_replace</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.cli.str_replace.html#nsrdb.cli.str_replace"><code class="docutils literal notranslate"><span class="pre">str_replace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.cli.ConfigRunners.html">nsrdb.cli.ConfigRunners</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.cli.ConfigRunners.html#nsrdb.cli.ConfigRunners"><code class="docutils literal notranslate"><span class="pre">ConfigRunners</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.cli.DictType.html">nsrdb.cli.DictType</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.cli.DictType.html#nsrdb.cli.DictType"><code class="docutils literal notranslate"><span class="pre">DictType</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.data_model.html">nsrdb.data_model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.albedo.html">nsrdb.data_model.albedo</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.albedo.AlbedoVar.html">nsrdb.data_model.albedo.AlbedoVar</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.asymmetry.html">nsrdb.data_model.asymmetry</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.asymmetry.AsymVar.html">nsrdb.data_model.asymmetry.AsymVar</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.base_handler.html">nsrdb.data_model.base_handler</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.base_handler.AncillaryVarHandler.html">nsrdb.data_model.base_handler.AncillaryVarHandler</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.base_handler.BaseDerivedVar.html">nsrdb.data_model.base_handler.BaseDerivedVar</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.html">nsrdb.data_model.clouds</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.CloudCoords.html">nsrdb.data_model.clouds.CloudCoords</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.CloudVar.html">nsrdb.data_model.clouds.CloudVar</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.CloudVarSingle.html">nsrdb.data_model.clouds.CloudVarSingle</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.CloudVarSingleH5.html">nsrdb.data_model.clouds.CloudVarSingleH5</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.clouds.CloudVarSingleNC.html">nsrdb.data_model.clouds.CloudVarSingleNC</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.data_model.html">nsrdb.data_model.data_model</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.data_model.DataModel.html">nsrdb.data_model.data_model.DataModel</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.gfs.html">nsrdb.data_model.gfs</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.gfs.GfsDewPoint.html">nsrdb.data_model.gfs.GfsDewPoint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.gfs.GfsFiles.html">nsrdb.data_model.gfs.GfsFiles</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.gfs.GfsVar.html">nsrdb.data_model.gfs.GfsVar</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.gfs.GfsVarSingle.html">nsrdb.data_model.gfs.GfsVarSingle</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.maiac_aod.html">nsrdb.data_model.maiac_aod</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.maiac_aod.MaiacVar.html">nsrdb.data_model.maiac_aod.MaiacVar</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.merra.html">nsrdb.data_model.merra</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.merra.DewPoint.html">nsrdb.data_model.merra.DewPoint</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.merra.MerraVar.html">nsrdb.data_model.merra.MerraVar</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.merra.RelativeHumidity.html">nsrdb.data_model.merra.RelativeHumidity</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.nrel_data.html">nsrdb.data_model.nrel_data</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.nrel_data.NrelVar.html">nsrdb.data_model.nrel_data.NrelVar</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.solar_zenith_angle.html">nsrdb.data_model.solar_zenith_angle</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.solar_zenith_angle.SolarZenithAngle.html">nsrdb.data_model.solar_zenith_angle.SolarZenithAngle</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.data_model.variable_factory.html">nsrdb.data_model.variable_factory</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.data_model.variable_factory.VarFactory.html">nsrdb.data_model.variable_factory.VarFactory</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.html">nsrdb.file_handlers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.collection.html">nsrdb.file_handlers.collection</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.collection.Collector.html">nsrdb.file_handlers.collection.Collector</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.file_system.html">nsrdb.file_handlers.file_system</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.file_system.NSRDBFileSystem.html">nsrdb.file_handlers.file_system.NSRDBFileSystem</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.outputs.html">nsrdb.file_handlers.outputs</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.outputs.Outputs.html">nsrdb.file_handlers.outputs.Outputs</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.resource.html">nsrdb.file_handlers.resource</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.resource.MultiFileResource.html">nsrdb.file_handlers.resource.MultiFileResource</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.resource.Resource.html">nsrdb.file_handlers.resource.Resource</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.surfrad.html">nsrdb.file_handlers.surfrad</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.file_handlers.surfrad.Surfrad.html">nsrdb.file_handlers.surfrad.Surfrad</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.html">nsrdb.gap_fill</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.cloud_fill.html">nsrdb.gap_fill.cloud_fill</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.cloud_fill.CloudGapFill.html">nsrdb.gap_fill.cloud_fill.CloudGapFill</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.irradiance_fill.html">nsrdb.gap_fill.irradiance_fill</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.irradiance_fill.enforce_clearsky.html">nsrdb.gap_fill.irradiance_fill.enforce_clearsky</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.irradiance_fill.gap_fill_irrad.html">nsrdb.gap_fill.irradiance_fill.gap_fill_irrad</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.irradiance_fill.make_fill_flag.html">nsrdb.gap_fill.irradiance_fill.make_fill_flag</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.irradiance_fill.missing_cld_props.html">nsrdb.gap_fill.irradiance_fill.missing_cld_props</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.mlclouds_fill.html">nsrdb.gap_fill.mlclouds_fill</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.gap_fill.mlclouds_fill.MLCloudsFill.html">nsrdb.gap_fill.mlclouds_fill.MLCloudsFill</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.mymean.html">nsrdb.mymean</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.mymean.mymean.html">nsrdb.mymean.mymean</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.mymean.mymean.MyMean.html">nsrdb.mymean.mymean.MyMean</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.nsrdb.html">nsrdb.nsrdb</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.nsrdb.NSRDB.html">nsrdb.nsrdb.NSRDB</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.nsrdb.NSRDB.html#nsrdb.nsrdb.NSRDB"><code class="docutils literal notranslate"><span class="pre">NSRDB</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.pipeline.html">nsrdb.pipeline</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.pipeline.config.html">nsrdb.pipeline.config</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.pipeline.config.NsrdbPipelineConfig.html">nsrdb.pipeline.config.NsrdbPipelineConfig</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.pipeline.pipeline.html">nsrdb.pipeline.pipeline</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.pipeline.pipeline.NsrdbPipeline.html">nsrdb.pipeline.pipeline.NsrdbPipeline</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.html">nsrdb.solar_position</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.solpos.html">nsrdb.solar_position.solpos</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.solpos.SolPos.html">nsrdb.solar_position.solpos.SolPos</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.spa.html">nsrdb.solar_position.spa</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.spa.SPA.html">nsrdb.solar_position.spa.SPA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.spa_tables.html">nsrdb.solar_position.spa_tables</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.spa_tables.DeltaTable.html">nsrdb.solar_position.spa_tables.DeltaTable</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.solar_position.spa_tables.SPAtables.html">nsrdb.solar_position.spa_tables.SPAtables</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.tmy.html">nsrdb.tmy</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.tmy.qa.html">nsrdb.tmy.qa</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.tmy.qa.run_checks.html">nsrdb.tmy.qa.run_checks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.tmy.tmy.html">nsrdb.tmy.tmy</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.tmy.tmy.Cdf.html">nsrdb.tmy.tmy.Cdf</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.tmy.tmy.Tmy.html">nsrdb.tmy.tmy.Tmy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.tmy.tmy.TmyRunner.html">nsrdb.tmy.tmy.TmyRunner</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.utilities.html">nsrdb.utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_nsrdb_data.html">nsrdb.utilities.extract_nsrdb_data</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_nsrdb_data.ExtractNSRDB.html">nsrdb.utilities.extract_nsrdb_data.ExtractNSRDB</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_nsrdb_data.ExtractPuertoRico.html">nsrdb.utilities.extract_nsrdb_data.ExtractPuertoRico</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_nsrdb_data.ExtractTestData.html">nsrdb.utilities.extract_nsrdb_data.ExtractTestData</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_nsrdb_data.ExtractValidationData.html">nsrdb.utilities.extract_nsrdb_data.ExtractValidationData</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.html">nsrdb.utilities.extract_surfrad</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.extract_all.html">nsrdb.utilities.extract_surfrad.extract_all</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.filter_measurement_df.html">nsrdb.utilities.extract_surfrad.filter_measurement_df</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.get_dat_table.html">nsrdb.utilities.extract_surfrad.get_dat_table</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.get_lw1_table.html">nsrdb.utilities.extract_surfrad.get_lw1_table</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.extract_surfrad.surfrad_to_h5.html">nsrdb.utilities.extract_surfrad.surfrad_to_h5</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.html">nsrdb.utilities.file_utils</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.clean_meta.html">nsrdb.utilities.file_utils.clean_meta</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.convert_directory.html">nsrdb.utilities.file_utils.convert_directory</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.convert_h4.html">nsrdb.utilities.file_utils.convert_h4</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.convert_list_parallel.html">nsrdb.utilities.file_utils.convert_list_parallel</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.convert_list_serial.html">nsrdb.utilities.file_utils.convert_list_serial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.get_conversion_list.html">nsrdb.utilities.file_utils.get_conversion_list</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.pd_date_range.html">nsrdb.utilities.file_utils.pd_date_range</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.repack_h5.html">nsrdb.utilities.file_utils.repack_h5</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.ts_freq_check.html">nsrdb.utilities.file_utils.ts_freq_check</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.unzip_gz.html">nsrdb.utilities.file_utils.unzip_gz</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.file_utils.url_download.html">nsrdb.utilities.file_utils.url_download</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.html">nsrdb.utilities.interpolation</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.agg.html">nsrdb.utilities.interpolation.agg</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.idw.html">nsrdb.utilities.interpolation.idw</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.lower_data.html">nsrdb.utilities.interpolation.lower_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.nn.html">nsrdb.utilities.interpolation.nn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.parse_method.html">nsrdb.utilities.interpolation.parse_method</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.raise_data.html">nsrdb.utilities.interpolation.raise_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.remove_tz.html">nsrdb.utilities.interpolation.remove_tz</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.spatial_interp.html">nsrdb.utilities.interpolation.spatial_interp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.temporal_lin.html">nsrdb.utilities.interpolation.temporal_lin</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.interpolation.temporal_step.html">nsrdb.utilities.interpolation.temporal_step</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.html">nsrdb.utilities.movers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.change_dtypes.html">nsrdb.utilities.movers.change_dtypes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.check_dsets.html">nsrdb.utilities.movers.check_dsets</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.eagle.html">nsrdb.utilities.movers.eagle</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.get_dset_attrs.html">nsrdb.utilities.movers.get_dset_attrs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.get_dset_dtype.html">nsrdb.utilities.movers.get_dset_dtype</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.get_dset_list.html">nsrdb.utilities.movers.get_dset_list</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.get_dset_shape.html">nsrdb.utilities.movers.get_dset_shape</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.get_meta_df.html">nsrdb.utilities.movers.get_meta_df</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.interrogate_dset.html">nsrdb.utilities.movers.interrogate_dset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.peregrine.html">nsrdb.utilities.movers.peregrine</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.pull_data.html">nsrdb.utilities.movers.pull_data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.rename_dset.html">nsrdb.utilities.movers.rename_dset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.movers.update_dset.html">nsrdb.utilities.movers.update_dset</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.html">nsrdb.utilities.nearest_neighbor</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.geo_nn.html">nsrdb.utilities.nearest_neighbor.geo_nn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.knn.html">nsrdb.utilities.nearest_neighbor.knn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.rad_to_dist.html">nsrdb.utilities.nearest_neighbor.rad_to_dist</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.reg_grid_nn.html">nsrdb.utilities.nearest_neighbor.reg_grid_nn</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.nearest_neighbor.to_rads.html">nsrdb.utilities.nearest_neighbor.to_rads</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.plots.html">nsrdb.utilities.plots</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.plots.Spatial.html">nsrdb.utilities.plots.Spatial</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.plots.Temporal.html">nsrdb.utilities.plots.Temporal</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.sky_class.html">nsrdb.utilities.sky_class</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.sky_class.SkyClass.html">nsrdb.utilities.sky_class.SkyClass</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.html">nsrdb.utilities.statistics</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.N.html">nsrdb.utilities.statistics.N</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.mae.html">nsrdb.utilities.statistics.mae</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.mae_perc.html">nsrdb.utilities.statistics.mae_perc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.mbe.html">nsrdb.utilities.statistics.mbe</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.mbe_perc.html">nsrdb.utilities.statistics.mbe_perc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.rmse.html">nsrdb.utilities.statistics.rmse</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../_autosummary/nsrdb.utilities.statistics.rmse_perc.html">nsrdb.utilities.statistics.rmse_perc</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../_autosummary/nsrdb.version.html">nsrdb.version</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="cli.html">CLI reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">nsrdb</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-aggregate">aggregate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-blend">blend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-config">config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-create-configs">create-configs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-direct">direct</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-all-sky">all-sky</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-cloud-fill">cloud-fill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-collect-daily">collect-daily</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-collect-data-model">collect-data-model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-collect-final">collect-final</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-collect-flist">collect-flist</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-daily-all-sky">daily-all-sky</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-data-model">data-model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#nsrdb-direct-ml-cloud-fill">ml-cloud-fill</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#nsrdb-pipeline">pipeline</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">nsrdb</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="cli.html">Command Line Interfaces (CLIs)</a></li>
+      <li class="breadcrumb-item active">nsrdb</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/nrel/nsrdb/blob/main/docs/source/_cli/nsrdb.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="nsrdb">
+<h1>nsrdb<a class="headerlink" href="#nsrdb" title="Link to this heading"></a></h1>
+<p>NSRDB processing CLI.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<section id="nsrdb-aggregate">
+<h2>aggregate<a class="headerlink" href="#nsrdb-aggregate" title="Link to this heading"></a></h2>
+<p>NSRDB data aggregation.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>aggregate<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-aggregate-kw">
+<span id="cmdoption-nsrdb-aggregate-kwargs"></span><span class="sig-name descname"><span class="pre">-kw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--kwargs</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;kwargs&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-aggregate-kw" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Argument dictionary. Needs to include year. e.g. ‘{“year”:2019}’.</p>
+<p>Available keys: year, basename (file prefix), outdir (parent directory of data directories), metadir (directory with meta file), full_spatial, conus_spatial, final_spatial (spatial resolution for each domain), full_freq, conus_freq, final_freq (temporal resolution for each domain), n_chunks (number of chunks to process the meta data in), alloc (project allocation code), memory (node memory), walltime (time for job).</p>
+<p>default_kwargs = {“basename”: “nsrdb”, “basename”: “nsrdb”, “metadir”: “/projects/pxs/reference_grids”, “full_spatial”: “2km”, “conus_spatial”: “2km”, “final_spatial”: “4km”, “outdir”: “./”, “full_freq”: “10min”, “conus_freq”: “5min”, “final_freq”: “30min”, “n_chunks”: 32, “alloc”: “pxs”, “memory”: 90, “walltime”: 40, “stdout”: “./”}</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-aggregate-collect">
+<span class="sig-name descname"><span class="pre">--collect</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-aggregate-collect" title="Link to this definition"></a></dt>
+<dd><p>Flag to collect aggregation chunks.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-aggregate-eagle">
+<span class="sig-name descname"><span class="pre">--eagle</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-aggregate-eagle" title="Link to this definition"></a></dt>
+<dd><p>Flag to run collection on eagle.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-blend">
+<h2>blend<a class="headerlink" href="#nsrdb-blend" title="Link to this heading"></a></h2>
+<p>NSRDB data blend.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>blend<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-blend-kw">
+<span id="cmdoption-nsrdb-blend-kwargs"></span><span class="sig-name descname"><span class="pre">-kw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--kwargs</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;kwargs&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-blend-kw" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Argument dictionary. Needs to include year. e.g. ‘{“year”:2019, “extent”: “full”}’.</p>
+<p>Available keys: year, outdir (parent directory of data directories), file_tag (“ancillary_a”, “ancillary_b”, “clearsky”, “clouds”, “csp”, “irradiance”, “pv”, “all”) - If file_tag is all then all other tags will be run, spatial (meta file resolution), extent (full/conus), basename (file prefix), east_dir (directory with east data, auto populated if None), west_dir (directory with west data, auto populated if None), metadir (directory with meta file), meta_file. (auto populated if None), alloc (project allocation code), memory (node memory), chunk_size (number of sites to read/write at a time), walltime (time for job).</p>
+<p>default_kwargs = {“file_tag”: “all”, “basename”: “nsrdb”, “extent”: “conus”, “outdir”: “./”, “east_dir”: None, “west_dir”: None, “metadir”: “/projects/pxs/reference_grids”, “spatial”: “2km”, “meta_file” : None, “alloc”: “pxs”, “walltime”: 48, “chunk_size”: 100000, “memory”: 83, “stdout”: “./”}</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-blend-collect">
+<span class="sig-name descname"><span class="pre">--collect</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-blend-collect" title="Link to this definition"></a></dt>
+<dd><p>Flag to collect blended data files.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-blend-eagle">
+<span class="sig-name descname"><span class="pre">--eagle</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-blend-eagle" title="Link to this definition"></a></dt>
+<dd><p>Flag to run collection on eagle.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-config">
+<h2>config<a class="headerlink" href="#nsrdb-config" title="Link to this heading"></a></h2>
+<p>NSRDB processing CLI from config json file.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>config<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-config-c">
+<span id="cmdoption-nsrdb-config-config_file"></span><span class="sig-name descname"><span class="pre">-c</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--config_file</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;config_file&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-config-c" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Filepath to config file.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-config-cmd">
+<span id="cmdoption-nsrdb-config-command"></span><span class="sig-name descname"><span class="pre">-cmd</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--command</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;command&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-config-cmd" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> NSRDB CLI command string.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-create-configs">
+<h2>create-configs<a class="headerlink" href="#nsrdb-create-configs" title="Link to this heading"></a></h2>
+<p>NSRDB config file creation from templates.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>create-configs<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-create-configs-kw">
+<span id="cmdoption-nsrdb-create-configs-kwargs"></span><span class="sig-name descname"><span class="pre">-kw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--kwargs</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;kwargs&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-create-configs-kw" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Argument dictionary. Needs to include year. Needs to be in a string format. e.g. ‘{“year”:2019, “freq”:”5min”}’.</p>
+<p>Available keys: year, freq, outdir (parent directory for run directory), satellite (east/west), spatial (meta file resolution), extent (full/conus), basename (file prefix), meta_file. (auto populated if None), doy_range (all days of year if None).</p>
+<p>default_kwargs = {“basename”: “nsrdb”, “freq”: “5min”, “satellite”: “east”, “extent”: “conus”, “outdir”: “./”, “spatial”: “4km”, “meta_file” : None, “doy_range”: None}</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-create-configs-all_domains">
+<span id="cmdoption-nsrdb-create-configs-ad"></span><span class="sig-name descname"><span class="pre">-all_domains</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">-ad</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-create-configs-all_domains" title="Link to this definition"></a></dt>
+<dd><p>Flag to generate config files for all domains. If True config files for east/west and conus/full will be generated. (just full if year is &lt; 2018). satellite, extent, spatial, freq, and meta_file will be auto populated.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-direct">
+<h2>direct<a class="headerlink" href="#nsrdb-direct" title="Link to this heading"></a></h2>
+<p>NSRDB direct processing CLI (no config file).</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-n">
+<span id="cmdoption-nsrdb-direct-name"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;name&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-n" title="Link to this definition"></a></dt>
+<dd><p>Job and node name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-y">
+<span id="cmdoption-nsrdb-direct-year"></span><span class="sig-name descname"><span class="pre">-y</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--year</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;year&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-y" title="Link to this definition"></a></dt>
+<dd><p>Year of analysis.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-g">
+<span id="cmdoption-nsrdb-direct-nsrdb_grid"></span><span class="sig-name descname"><span class="pre">-g</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--nsrdb_grid</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;nsrdb_grid&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-g" title="Link to this definition"></a></dt>
+<dd><p>File path to NSRDB meta data grid.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-f">
+<span id="cmdoption-nsrdb-direct-nsrdb_freq"></span><span class="sig-name descname"><span class="pre">-f</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--nsrdb_freq</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;nsrdb_freq&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-f" title="Link to this definition"></a></dt>
+<dd><p>NSRDB frequency (e.g. “5min”, “30min”).</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-vm">
+<span id="cmdoption-nsrdb-direct-var_meta"></span><span class="sig-name descname"><span class="pre">-vm</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--var_meta</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;var_meta&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-vm" title="Link to this definition"></a></dt>
+<dd><p>CSV file or dataframe containing meta data for all NSRDB variables. Defaults to the NSRDB var meta csv in git repo.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-od">
+<span id="cmdoption-nsrdb-direct-out_dir"></span><span class="sig-name descname"><span class="pre">-od</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--out_dir</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;out_dir&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-od" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Output directory.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-v">
+<span id="cmdoption-nsrdb-direct-verbose"></span><span class="sig-name descname"><span class="pre">-v</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--verbose</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-direct-v" title="Link to this definition"></a></dt>
+<dd><p>Flag to turn on debug logging. Default is not verbose.</p>
+</dd></dl>
+
+<section id="nsrdb-direct-all-sky">
+<h3>all-sky<a class="headerlink" href="#nsrdb-direct-all-sky" title="Link to this heading"></a></h3>
+<p>Run allsky for a single chunked file</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>all-sky<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-i">
+<span id="cmdoption-nsrdb-direct-all-sky-i_chunk"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--i_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;i_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-i" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunked file index in out_dir to run allsky for.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-ch">
+<span id="cmdoption-nsrdb-direct-all-sky-col_chunk"></span><span class="sig-name descname"><span class="pre">-ch</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--col_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;col_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-ch" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunking method to run all sky one column chunk at a time to reduce memory requirements. This is an integer specifying how many columns to work on at one time.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-do">
+<span id="cmdoption-nsrdb-direct-all-sky-disc_on"></span><span class="sig-name descname"><span class="pre">-do</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--disc_on</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;disc_on&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-do" title="Link to this definition"></a></dt>
+<dd><p>Whether to run compute cloudy sky dni with the disc model (True) or the farms-dni model (False).</p>
+</dd></dl>
+
+<section id="nsrdb-direct-all-sky-eagle">
+<h4>eagle<a class="headerlink" href="#nsrdb-direct-all-sky-eagle" title="Link to this heading"></a></h4>
+<p>Eagle submission tool for the NSRDB cli.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>all-sky<span class="w"> </span>eagle<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-eagle-a">
+<span id="cmdoption-nsrdb-direct-all-sky-eagle-alloc"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--alloc</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;alloc&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-eagle-a" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Eagle allocation account name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-eagle-mem">
+<span id="cmdoption-nsrdb-direct-all-sky-eagle-memory"></span><span class="sig-name descname"><span class="pre">-mem</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;memory&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-eagle-mem" title="Link to this definition"></a></dt>
+<dd><p>Eagle node memory request in GB. Default is None</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-eagle-wt">
+<span id="cmdoption-nsrdb-direct-all-sky-eagle-walltime"></span><span class="sig-name descname"><span class="pre">-wt</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--walltime</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;walltime&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-eagle-wt" title="Link to this definition"></a></dt>
+<dd><p>Eagle walltime request in hours. Default is 1.0</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-eagle-l">
+<span id="cmdoption-nsrdb-direct-all-sky-eagle-feature"></span><span class="sig-name descname"><span class="pre">-l</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--feature</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;feature&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-eagle-l" title="Link to this definition"></a></dt>
+<dd><p>Additional flags for SLURM job. Format is “–qos=high” or “–depend=[state:job_id]”. Default is None.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-all-sky-eagle-sout">
+<span id="cmdoption-nsrdb-direct-all-sky-eagle-stdout_path"></span><span class="sig-name descname"><span class="pre">-sout</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--stdout_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;stdout_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-all-sky-eagle-sout" title="Link to this definition"></a></dt>
+<dd><p>Subprocess standard output path. Default is in out_dir.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-direct-cloud-fill">
+<h3>cloud-fill<a class="headerlink" href="#nsrdb-direct-cloud-fill" title="Link to this heading"></a></h3>
+<p>Gap fill a cloud data file.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>cloud-fill<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-i">
+<span id="cmdoption-nsrdb-direct-cloud-fill-i_chunk"></span><span class="sig-name descname"><span class="pre">-i</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--i_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;i_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-i" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunked file index in out_dir to run cloud fill for.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-ch">
+<span id="cmdoption-nsrdb-direct-cloud-fill-col_chunk"></span><span class="sig-name descname"><span class="pre">-ch</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--col_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;col_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-ch" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Optional chunking method to gap fill one column chunk at a time to reduce memory requirements. If provided, this should be an int specifying how many columns to work on at one time.</p>
+</dd></dl>
+
+<section id="nsrdb-direct-cloud-fill-eagle">
+<h4>eagle<a class="headerlink" href="#nsrdb-direct-cloud-fill-eagle" title="Link to this heading"></a></h4>
+<p>Eagle submission tool for the NSRDB cli.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>cloud-fill<span class="w"> </span>eagle<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-eagle-a">
+<span id="cmdoption-nsrdb-direct-cloud-fill-eagle-alloc"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--alloc</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;alloc&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-eagle-a" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Eagle allocation account name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-eagle-mem">
+<span id="cmdoption-nsrdb-direct-cloud-fill-eagle-memory"></span><span class="sig-name descname"><span class="pre">-mem</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;memory&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-eagle-mem" title="Link to this definition"></a></dt>
+<dd><p>Eagle node memory request in GB. Default is None</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-eagle-wt">
+<span id="cmdoption-nsrdb-direct-cloud-fill-eagle-walltime"></span><span class="sig-name descname"><span class="pre">-wt</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--walltime</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;walltime&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-eagle-wt" title="Link to this definition"></a></dt>
+<dd><p>Eagle walltime request in hours. Default is 1.0</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-eagle-l">
+<span id="cmdoption-nsrdb-direct-cloud-fill-eagle-feature"></span><span class="sig-name descname"><span class="pre">-l</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--feature</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;feature&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-eagle-l" title="Link to this definition"></a></dt>
+<dd><p>Additional flags for SLURM job. Format is “–qos=high” or “–depend=[state:job_id]”. Default is None.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-cloud-fill-eagle-sout">
+<span id="cmdoption-nsrdb-direct-cloud-fill-eagle-stdout_path"></span><span class="sig-name descname"><span class="pre">-sout</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--stdout_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;stdout_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-cloud-fill-eagle-sout" title="Link to this definition"></a></dt>
+<dd><p>Subprocess standard output path. Default is in out_dir.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-direct-collect-daily">
+<h3>collect-daily<a class="headerlink" href="#nsrdb-direct-collect-daily" title="Link to this heading"></a></h3>
+<p>Run the NSRDB file collection method on a specific daily directory
+for specific datasets to a single output file.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-daily<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-cd">
+<span id="cmdoption-nsrdb-direct-collect-daily-collect_dir"></span><span class="sig-name descname"><span class="pre">-cd</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--collect_dir</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;collect_dir&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-cd" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Directory containing chunked files to collect from.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-fo">
+<span id="cmdoption-nsrdb-direct-collect-daily-fn_out"></span><span class="sig-name descname"><span class="pre">-fo</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fn_out</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;fn_out&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-fo" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Output filename to be saved in out_dir.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-ds">
+<span id="cmdoption-nsrdb-direct-collect-daily-dsets"></span><span class="sig-name descname"><span class="pre">-ds</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--dsets</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;dsets&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-ds" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> List of dataset names to collect.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-nw">
+<span id="cmdoption-nsrdb-direct-collect-daily-n_writes"></span><span class="sig-name descname"><span class="pre">-nw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--n_writes</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;n_writes&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-nw" title="Link to this definition"></a></dt>
+<dd><p>Number of file list divisions to write per dataset. For example, if ghi and dni are being collected and n_writes is set to 2, half of the source ghi files will be collected at once and then written, then the second half of ghi files, then dni.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-w">
+<span id="cmdoption-nsrdb-direct-collect-daily-max_workers"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--max_workers</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;max_workers&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-w" title="Link to this definition"></a></dt>
+<dd><p>Number of parallel workers to use.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-daily-e">
+<span id="cmdoption-nsrdb-direct-collect-daily-eagle"></span><span class="sig-name descname"><span class="pre">-e</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--eagle</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-daily-e" title="Link to this definition"></a></dt>
+<dd><p>Flag for that this is being used to pass commands to an Eagle call.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-direct-collect-data-model">
+<h3>collect-data-model<a class="headerlink" href="#nsrdb-direct-collect-data-model" title="Link to this heading"></a></h3>
+<p>Collect data model results into cohesive timseries file chunks.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-data-model<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-n">
+<span id="cmdoption-nsrdb-direct-collect-data-model-n_chunks"></span><span class="sig-name descname"><span class="pre">-n</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--n_chunks</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;n_chunks&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-n" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Number of chunks to collect into.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-ic">
+<span id="cmdoption-nsrdb-direct-collect-data-model-i_chunk"></span><span class="sig-name descname"><span class="pre">-ic</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--i_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;i_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-ic" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunk index.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-if">
+<span id="cmdoption-nsrdb-direct-collect-data-model-i_fname"></span><span class="sig-name descname"><span class="pre">-if</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--i_fname</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;i_fname&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-if" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Filename index: 0: ancillary_a, 1: ancillary_b, 2: clearsky, 3: clouds, 4: csp, 5: irrad, 6: pv.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-nw">
+<span id="cmdoption-nsrdb-direct-collect-data-model-n_writes"></span><span class="sig-name descname"><span class="pre">-nw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--n_writes</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;n_writes&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-nw" title="Link to this definition"></a></dt>
+<dd><p>Number of file list divisions to write per dataset. For example, if ghi and dni are being collected and n_writes is set to 2, half of the source ghi files will be collected at once and then written, then the second half of ghi files, then dni.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-w">
+<span id="cmdoption-nsrdb-direct-collect-data-model-max_workers"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--max_workers</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;max_workers&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-w" title="Link to this definition"></a></dt>
+<dd><p>Number of parallel workers to use.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-f">
+<span id="cmdoption-nsrdb-direct-collect-data-model-final"></span><span class="sig-name descname"><span class="pre">-f</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--final</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-f" title="Link to this definition"></a></dt>
+<dd><p>Flag for final collection. Will put collected files in the final directory instead of in the collect directory.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-pn">
+<span id="cmdoption-nsrdb-direct-collect-data-model-final_file_name"></span><span class="sig-name descname"><span class="pre">-pn</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--final_file_name</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;final_file_name&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-pn" title="Link to this definition"></a></dt>
+<dd><p>Final file name for filename outputs if this is the terminal job. None will default to the name in ctx which is usually the slurm job name.</p>
+</dd></dl>
+
+<section id="nsrdb-direct-collect-data-model-eagle">
+<h4>eagle<a class="headerlink" href="#nsrdb-direct-collect-data-model-eagle" title="Link to this heading"></a></h4>
+<p>Eagle submission tool for the NSRDB cli.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-data-model<span class="w"> </span>eagle<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-eagle-a">
+<span id="cmdoption-nsrdb-direct-collect-data-model-eagle-alloc"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--alloc</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;alloc&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-eagle-a" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Eagle allocation account name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-eagle-mem">
+<span id="cmdoption-nsrdb-direct-collect-data-model-eagle-memory"></span><span class="sig-name descname"><span class="pre">-mem</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;memory&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-eagle-mem" title="Link to this definition"></a></dt>
+<dd><p>Eagle node memory request in GB. Default is None</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-eagle-wt">
+<span id="cmdoption-nsrdb-direct-collect-data-model-eagle-walltime"></span><span class="sig-name descname"><span class="pre">-wt</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--walltime</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;walltime&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-eagle-wt" title="Link to this definition"></a></dt>
+<dd><p>Eagle walltime request in hours. Default is 1.0</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-eagle-l">
+<span id="cmdoption-nsrdb-direct-collect-data-model-eagle-feature"></span><span class="sig-name descname"><span class="pre">-l</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--feature</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;feature&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-eagle-l" title="Link to this definition"></a></dt>
+<dd><p>Additional flags for SLURM job. Format is “–qos=high” or “–depend=[state:job_id]”. Default is None.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-data-model-eagle-sout">
+<span id="cmdoption-nsrdb-direct-collect-data-model-eagle-stdout_path"></span><span class="sig-name descname"><span class="pre">-sout</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--stdout_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;stdout_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-data-model-eagle-sout" title="Link to this definition"></a></dt>
+<dd><p>Subprocess standard output path. Default is in out_dir.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-direct-collect-final">
+<h3>collect-final<a class="headerlink" href="#nsrdb-direct-collect-final" title="Link to this heading"></a></h3>
+<p>Collect chunked files with final data into final full files.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-final<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-d">
+<span id="cmdoption-nsrdb-direct-collect-final-collect_dir"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--collect_dir</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;collect_dir&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-d" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunked directory to collect to out_dir.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-if">
+<span id="cmdoption-nsrdb-direct-collect-final-i_fname"></span><span class="sig-name descname"><span class="pre">-if</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--i_fname</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;i_fname&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-if" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Filename index (0: ancillary, 1: clouds, 2: irrad, 3: sam vars).</p>
+</dd></dl>
+
+<section id="nsrdb-direct-collect-final-eagle">
+<h4>eagle<a class="headerlink" href="#nsrdb-direct-collect-final-eagle" title="Link to this heading"></a></h4>
+<p>Eagle submission tool for the NSRDB cli.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-final<span class="w"> </span>eagle<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-eagle-a">
+<span id="cmdoption-nsrdb-direct-collect-final-eagle-alloc"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--alloc</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;alloc&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-eagle-a" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Eagle allocation account name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-eagle-mem">
+<span id="cmdoption-nsrdb-direct-collect-final-eagle-memory"></span><span class="sig-name descname"><span class="pre">-mem</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;memory&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-eagle-mem" title="Link to this definition"></a></dt>
+<dd><p>Eagle node memory request in GB. Default is None</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-eagle-wt">
+<span id="cmdoption-nsrdb-direct-collect-final-eagle-walltime"></span><span class="sig-name descname"><span class="pre">-wt</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--walltime</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;walltime&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-eagle-wt" title="Link to this definition"></a></dt>
+<dd><p>Eagle walltime request in hours. Default is 1.0</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-eagle-l">
+<span id="cmdoption-nsrdb-direct-collect-final-eagle-feature"></span><span class="sig-name descname"><span class="pre">-l</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--feature</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;feature&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-eagle-l" title="Link to this definition"></a></dt>
+<dd><p>Additional flags for SLURM job. Format is “–qos=high” or “–depend=[state:job_id]”. Default is None.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-final-eagle-sout">
+<span id="cmdoption-nsrdb-direct-collect-final-eagle-stdout_path"></span><span class="sig-name descname"><span class="pre">-sout</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--stdout_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;stdout_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-final-eagle-sout" title="Link to this definition"></a></dt>
+<dd><p>Subprocess standard output path. Default is in out_dir.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-direct-collect-flist">
+<h3>collect-flist<a class="headerlink" href="#nsrdb-direct-collect-flist" title="Link to this heading"></a></h3>
+<p>Run the NSRDB file collection method with explicitly defined flist.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>collect-flist<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-flist-fl">
+<span id="cmdoption-nsrdb-direct-collect-flist-flist"></span><span class="sig-name descname"><span class="pre">-fl</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--flist</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;flist&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-flist-fl" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Explicit list of filenames in collect_dir to collect. Using this option will superscede the default behavior of collecting daily data model outputs in collect_dir.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-flist-cd">
+<span id="cmdoption-nsrdb-direct-collect-flist-collect_dir"></span><span class="sig-name descname"><span class="pre">-cd</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--collect_dir</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;collect_dir&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-flist-cd" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Directory containing chunked files to collect from.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-flist-fo">
+<span id="cmdoption-nsrdb-direct-collect-flist-fn_out"></span><span class="sig-name descname"><span class="pre">-fo</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fn_out</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;fn_out&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-flist-fo" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Output filename to be saved in out_dir.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-flist-ds">
+<span id="cmdoption-nsrdb-direct-collect-flist-dsets"></span><span class="sig-name descname"><span class="pre">-ds</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--dsets</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;dsets&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-flist-ds" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> List of dataset names to collect.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-collect-flist-e">
+<span id="cmdoption-nsrdb-direct-collect-flist-eagle"></span><span class="sig-name descname"><span class="pre">-e</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--eagle</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-direct-collect-flist-e" title="Link to this definition"></a></dt>
+<dd><p>Flag for that this is being used to pass commands to an Eagle call.</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-direct-daily-all-sky">
+<h3>daily-all-sky<a class="headerlink" href="#nsrdb-direct-daily-all-sky" title="Link to this heading"></a></h3>
+<p>Run allsky for a single day using daily data model output files as
+source data</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>daily-all-sky<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-daily-all-sky-d">
+<span id="cmdoption-nsrdb-direct-daily-all-sky-date"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--date</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;date&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-daily-all-sky-d" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Single day data model output to run cloud fill on.Must be str in YYYYMMDD format.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-daily-all-sky-ch">
+<span id="cmdoption-nsrdb-direct-daily-all-sky-col_chunk"></span><span class="sig-name descname"><span class="pre">-ch</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--col_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;col_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-daily-all-sky-ch" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Chunking method to run all sky one column chunk at a time to reduce memory requirements. This is an integer specifying how many columns to work on at one time.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-daily-all-sky-do">
+<span id="cmdoption-nsrdb-direct-daily-all-sky-disc_on"></span><span class="sig-name descname"><span class="pre">-do</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--disc_on</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;disc_on&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-daily-all-sky-do" title="Link to this definition"></a></dt>
+<dd><p>Whether to run compute cloudy sky dni with the disc model (True) or the farms-dni model (False).</p>
+</dd></dl>
+
+</section>
+<section id="nsrdb-direct-data-model">
+<h3>data-model<a class="headerlink" href="#nsrdb-direct-data-model" title="Link to this heading"></a></h3>
+<p>Run the data model for a single day.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>data-model<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-d">
+<span id="cmdoption-nsrdb-direct-data-model-doy"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--doy</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;doy&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-d" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Integer day-of-year to run data model for.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-vl">
+<span id="cmdoption-nsrdb-direct-data-model-var_list"></span><span class="sig-name descname"><span class="pre">-vl</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--var_list</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;var_list&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-vl" title="Link to this definition"></a></dt>
+<dd><p>Variables to process with the data model. None will default to all NSRDB variables.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-dl">
+<span id="cmdoption-nsrdb-direct-data-model-dist_lim"></span><span class="sig-name descname"><span class="pre">-dl</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--dist_lim</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;dist_lim&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-dl" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Return only neighbors within this distance during cloud regrid. The distance is in decimal degrees (more efficient than real distance). NSRDB sites further than this value from GOES data pixels will be warned and given missing cloud types and properties resulting in a full clearsky timeseries.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-kw">
+<span id="cmdoption-nsrdb-direct-data-model-factory_kwargs"></span><span class="sig-name descname"><span class="pre">-kw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--factory_kwargs</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;factory_kwargs&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-kw" title="Link to this definition"></a></dt>
+<dd><p>Optional namespace of kwargs to use to initialize variable data handlers from the data models variable factory. Keyed by variable name. Values can be “source_dir”, “handler”, etc… source_dir for cloud variables can be a normal directory path or /directory/prefix*suffix where /directory/ can have more sub dirs.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-w">
+<span id="cmdoption-nsrdb-direct-data-model-max_workers"></span><span class="sig-name descname"><span class="pre">-w</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--max_workers</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;max_workers&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-w" title="Link to this definition"></a></dt>
+<dd><p>Number of workers to use in parallel.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-mwr">
+<span id="cmdoption-nsrdb-direct-data-model-max_workers_regrid"></span><span class="sig-name descname"><span class="pre">-mwr</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--max_workers_regrid</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;max_workers_regrid&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-mwr" title="Link to this definition"></a></dt>
+<dd><p>Number of workers to use in parallel for the cloud regrid algorithm.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-ml">
+<span id="cmdoption-nsrdb-direct-data-model-mlclouds"></span><span class="sig-name descname"><span class="pre">-ml</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--mlclouds</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-ml" title="Link to this definition"></a></dt>
+<dd><p>Flag to process additional variables if mlclouds gap fillis going to be run after the data_model step.</p>
+</dd></dl>
+
+<section id="nsrdb-direct-data-model-eagle">
+<h4>eagle<a class="headerlink" href="#nsrdb-direct-data-model-eagle" title="Link to this heading"></a></h4>
+<p>Eagle submission tool for the NSRDB cli.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>data-model<span class="w"> </span>eagle<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-eagle-a">
+<span id="cmdoption-nsrdb-direct-data-model-eagle-alloc"></span><span class="sig-name descname"><span class="pre">-a</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--alloc</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;alloc&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-eagle-a" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Eagle allocation account name.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-eagle-mem">
+<span id="cmdoption-nsrdb-direct-data-model-eagle-memory"></span><span class="sig-name descname"><span class="pre">-mem</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--memory</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;memory&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-eagle-mem" title="Link to this definition"></a></dt>
+<dd><p>Eagle node memory request in GB. Default is None</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-eagle-wt">
+<span id="cmdoption-nsrdb-direct-data-model-eagle-walltime"></span><span class="sig-name descname"><span class="pre">-wt</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--walltime</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;walltime&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-eagle-wt" title="Link to this definition"></a></dt>
+<dd><p>Eagle walltime request in hours. Default is 1.0</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-eagle-l">
+<span id="cmdoption-nsrdb-direct-data-model-eagle-feature"></span><span class="sig-name descname"><span class="pre">-l</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--feature</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;feature&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-eagle-l" title="Link to this definition"></a></dt>
+<dd><p>Additional flags for SLURM job. Format is “–qos=high” or “–depend=[state:job_id]”. Default is None.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-data-model-eagle-sout">
+<span id="cmdoption-nsrdb-direct-data-model-eagle-stdout_path"></span><span class="sig-name descname"><span class="pre">-sout</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--stdout_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;stdout_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-data-model-eagle-sout" title="Link to this definition"></a></dt>
+<dd><p>Subprocess standard output path. Default is in out_dir.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-direct-ml-cloud-fill">
+<h3>ml-cloud-fill<a class="headerlink" href="#nsrdb-direct-ml-cloud-fill" title="Link to this heading"></a></h3>
+<p>Gap fill cloud properties in daily data model outputs using a physics
+guided neural network (phgynn).</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>direct<span class="w"> </span>ml-cloud-fill<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-ml-cloud-fill-d">
+<span id="cmdoption-nsrdb-direct-ml-cloud-fill-date"></span><span class="sig-name descname"><span class="pre">-d</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--date</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;date&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-ml-cloud-fill-d" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Single day data model output to run cloud fill on.Must be str in YYYYMMDD format.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-ml-cloud-fill-all">
+<span id="cmdoption-nsrdb-direct-ml-cloud-fill-fill_all"></span><span class="sig-name descname"><span class="pre">-all</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--fill_all</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;fill_all&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-ml-cloud-fill-all" title="Link to this definition"></a></dt>
+<dd><p>Flag to fill all cloud properties for all timesteps where cloud_type is cloudy.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-ml-cloud-fill-mp">
+<span id="cmdoption-nsrdb-direct-ml-cloud-fill-model_path"></span><span class="sig-name descname"><span class="pre">-mp</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--model_path</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;model_path&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-ml-cloud-fill-mp" title="Link to this definition"></a></dt>
+<dd><p>Directory to load phygnn model from. This is typically a fpath to a .pkl file with an accompanying .json file in the same directory.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-ml-cloud-fill-ch">
+<span id="cmdoption-nsrdb-direct-ml-cloud-fill-col_chunk"></span><span class="sig-name descname"><span class="pre">-ch</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--col_chunk</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;col_chunk&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-ml-cloud-fill-ch" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Optional chunking method to gap fill one column chunk at a time to reduce memory requirements. If provided, this should be an int specifying how many columns to work on at one time.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-direct-ml-cloud-fill-mw">
+<span id="cmdoption-nsrdb-direct-ml-cloud-fill-max_workers"></span><span class="sig-name descname"><span class="pre">-mw</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--max_workers</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;max_workers&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-direct-ml-cloud-fill-mw" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> Maximum workers to clean data in parallel. 1 is serial and None uses all available workers.</p>
+</dd></dl>
+
+</section>
+</section>
+<section id="nsrdb-pipeline">
+<h2>pipeline<a class="headerlink" href="#nsrdb-pipeline" title="Link to this heading"></a></h2>
+<p>NSRDB pipeline from a pipeline config file.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>nsrdb<span class="w"> </span>pipeline<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<p class="rubric">Options</p>
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-pipeline-c">
+<span id="cmdoption-nsrdb-pipeline-config_file"></span><span class="sig-name descname"><span class="pre">-c</span></span><span class="sig-prename descclassname"></span><span class="sig-prename descclassname"><span class="pre">,</span> </span><span class="sig-name descname"><span class="pre">--config_file</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;config_file&gt;</span></span><a class="headerlink" href="#cmdoption-nsrdb-pipeline-c" title="Link to this definition"></a></dt>
+<dd><p><strong>Required</strong> NSRDB pipeline configuration json file.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-pipeline-cancel">
+<span class="sig-name descname"><span class="pre">--cancel</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-pipeline-cancel" title="Link to this definition"></a></dt>
+<dd><p>Flag to cancel all jobs associated with a given pipeline.</p>
+</dd></dl>
+
+<dl class="std option">
+<dt class="sig sig-object std" id="cmdoption-nsrdb-pipeline-monitor">
+<span class="sig-name descname"><span class="pre">--monitor</span></span><span class="sig-prename descclassname"></span><a class="headerlink" href="#cmdoption-nsrdb-pipeline-monitor" title="Link to this definition"></a></dt>
+<dd><p>Flag to monitor pipeline jobs continuously. Default is not to monitor (kick off jobs and exit).</p>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="cli.html" class="btn btn-neutral float-left" title="Command Line Interfaces (CLIs)" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Alliance for Sustainable Energy, LLC.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

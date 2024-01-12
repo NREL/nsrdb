@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.eagle
+============================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: eagle

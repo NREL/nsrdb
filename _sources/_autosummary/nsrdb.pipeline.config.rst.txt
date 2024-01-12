@@ -1,0 +1,31 @@
+nsrdb.pipeline.config
+=====================
+
+.. automodule:: nsrdb.pipeline.config
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      NsrdbPipelineConfig
+   
+   
+
+   
+   
+   
+
+
+

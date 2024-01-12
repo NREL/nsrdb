@@ -1,0 +1,39 @@
+nsrdb.cli.DictType
+==================
+
+.. currentmodule:: nsrdb.cli
+
+.. autoclass:: DictType
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~DictType.convert
+      ~DictType.fail
+      ~DictType.get_metavar
+      ~DictType.get_missing_message
+      ~DictType.shell_complete
+      ~DictType.split_envvar_value
+      ~DictType.to_info_dict
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~DictType.arity
+      ~DictType.envvar_list_splitter
+      ~DictType.is_composite
+      ~DictType.name
+   
+   

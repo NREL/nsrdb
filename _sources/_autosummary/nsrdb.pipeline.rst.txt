@@ -1,0 +1,31 @@
+nsrdb.pipeline
+==============
+
+.. automodule:: nsrdb.pipeline
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   nsrdb.pipeline.config
+   nsrdb.pipeline.pipeline
+

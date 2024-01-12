@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.get\_meta\_df
+====================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: get_meta_df

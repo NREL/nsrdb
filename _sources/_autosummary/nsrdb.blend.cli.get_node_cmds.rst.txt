@@ -1,0 +1,6 @@
+nsrdb.blend.cli.get\_node\_cmds
+===============================
+
+.. currentmodule:: nsrdb.blend.cli
+
+.. autofunction:: get_node_cmds

@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.update\_dset
+===================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: update_dset
