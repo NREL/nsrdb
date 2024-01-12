@@ -1,30 +1,38 @@
 # -*- coding: utf-8 -*-
 """NSRDB all-sky module.
 """
-from concurrent.futures import as_completed
 import logging
-import numpy as np
 import os
-import pandas as pd
-import psutil
+from concurrent.futures import as_completed
 from warnings import warn
 
-from rex import MultiFileResource, Resource
-from rex.utilities import SpawnProcessPool
-
+import numpy as np
+import pandas as pd
+import psutil
 from farms import SZA_LIM
 from farms.disc import disc
 from farms.farms import farms
-from farms.utilities import (ti_to_radius, calc_beta, merge_rest_farms,
-                             calc_dhi, screen_sza, screen_cld,
-                             dark_night, cloud_variability)
+from farms.utilities import (
+    calc_beta,
+    calc_dhi,
+    cloud_variability,
+    dark_night,
+    merge_rest_farms,
+    screen_cld,
+    screen_sza,
+    ti_to_radius,
+)
 from rest2.rest2 import rest2, rest2_tuuclr
+from rex import MultiFileResource, Resource
+from rex.utilities import SpawnProcessPool
 
 from nsrdb.all_sky.utilities import scale_all_sky_outputs
-from nsrdb.gap_fill.irradiance_fill import (make_fill_flag, gap_fill_irrad,
-                                            missing_cld_props,
-                                            enforce_clearsky)
-
+from nsrdb.gap_fill.irradiance_fill import (
+    enforce_clearsky,
+    gap_fill_irrad,
+    make_fill_flag,
+    missing_cld_props,
+)
 
 logger = logging.getLogger(__name__)
 

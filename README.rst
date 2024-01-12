@@ -2,6 +2,27 @@
 Welcome to the National Solar Radiation Data Base (NSRDB)!
 **********************************************************
 
+.. image:: https://github.com/NREL/nsrdb/workflows/Documentation/badge.svg
+    :target: https://nrel.github.io/nsrdb/
+
+.. image:: https://github.com/NREL/nsrdb/workflows/Pytests/badge.svg
+    :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Pytests%22
+
+.. image:: https://github.com/NREL/nsrdb/workflows/Lint%20Code%20Base/badge.svg
+    :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Lint+Code+Base%22
+
+.. image:: https://img.shields.io/pypi/pyversions/NREL-nsrdb.svg
+    :target: https://pypi.org/project/NREL-nsrdb/
+
+.. image:: https://badge.fury.io/py/NREL-nsrdb.svg
+    :target: https://badge.fury.io/py/NREL-nsrdb
+
+.. image:: https://codecov.io/gh/nrel/nsrdb/branch/main/graph/badge.svg
+    :target: https://codecov.io/gh/nrel/nsrdb
+
+.. image:: https://zenodo.org/badge/340209614.svg
+    :target: https://zenodo.org/badge/latestdoi/340209614
+
 This repository contains all of the methods for the NSRDB data processing pipeline.
 You can read more about the NSRDB `here <https://nsrdb.nrel.gov/>`_ and
 `here <https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_.
@@ -165,12 +186,12 @@ Recommended Citation
 
 Update with current version and DOI:
 
-Grant Buster, Brandon Benton, Mike Bannister, Yu Xie, Aron Habte, Galen Maclaurin, Manajit Sengupta. National Solar Radiation Database (NSRDB). https://github.com/NREL/nsrdb (version v4.0.0), 2023.
+Grant Buster, Brandon Benton, Mike Bannister, Yu Xie, Aron Habte, Galen Maclaurin, Manajit Sengupta. National Solar Radiation Database (NSRDB). https://github.com/NREL/nsrdb (version v4.0.0), 2023. DOI: 10.5281/zenodo.10471523
 
 Acknowledgments
 ===============
 
-This work (SWR-23-77) was authored by the National Renewable Energy Laboratory, operated by Alliance for Sustainable Energy, LLC, for the U.S. Department of Energy (DOE) under Contract No. DE-AC36-08GO28308. Funding provided by the DOE Grid Deployment Office (GDO), the DOE Advanced Scientific Computing Research (ASCR) program, the DOE Solar Energy Technologies Office (SETO), the DOE Wind Energy Technologies Office (WETO), the United States Agency for International Development (USAID), and the Laboratory Directed Research and Development (LDRD) program at the National Renewable Energy Laboratory. The research was performed using computational resources sponsored by the Department of Energy's Office of Energy Efficiency and Renewable Energy and located at the National Renewable Energy Laboratory. The views expressed in the article do not necessarily represent the views of the DOE or the U.S. Government. The U.S. Government retains and the publisher, by accepting the article for publication, acknowledges that the U.S. Government retains a nonexclusive, paid-up, irrevocable, worldwide license to publish or reproduce the published form of this work, or allow others to do so, for U.S. Government purposes.
+This work (SWR-23-77) was authored by the National Renewable Energy Laboratory, operated by Alliance for Sustainable Energy, LLC, for the U.S. Department of Energy (DOE) under Contract No. DE-AC36-08GO28308. Funding provided by the DOE Grid Deployment Office (GDO), the DOE Advanced Scientific Computing Research (ASCR) program, the DOE Solar Energy Technologies Office (SETO), the DOE Wind Energy Technologies Office (WETO), the United States Agency for International Development (USAID), and the Laboratory Directed Research and Development (LDRD) program at the National Renewable Energy Laboratory. The research was performed using computational resources sponsored by the Department of Energy's Office of Energy Efficiency and Renewable Energy and located at the National Renewable Energy Laboratory. The views expressed in the article do not necessarily represent the views of the DOE or the U.S. Government. The U.S. Government retains and the publisher, by accepting the article for publication, acknowledges that the U.S. Government retains a nonexclusive, paid-up, irrevocable, worldwide license to publish or reproduce the published form of this work, or allow others to do so, for U.S. Government purposes.
 
 \*Note: The “Data Years” column shows which years of NSRDB data were updated at
 the time of version release. However, each NSRDB file should be checked for the

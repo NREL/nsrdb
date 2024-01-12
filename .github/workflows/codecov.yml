@@ -11,49 +11,38 @@ jobs:
       max-parallel: 3
       matrix:
         os: [ubuntu-latest]
-        python-version: ['3.9']
     env:
       OS: ${{ matrix.os }}
       PYTHON: '3.9'
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-      - name: checkout rest2
-        uses: actions/checkout@v2
-        with:
-          repository: nrel/rest2
-          ssh-key: ${{ secrets.SSH_KEY }}
-          path: rest2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: conda-incubator/setup-miniconda@v2
-        with:
-          auto-update-conda: true
-          python-version: ${{ matrix.python-version }}
-      - name: Install rest2 dependencies
-        working-directory: ./rest2
-        shell: bash -l {0}
-        run: |
-          conda install pip
-          pip install -e .
-      - name: Install codecov dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest
-          python -m pip install pytest-cov
-          python -m pip install .
-      - name: Generate coverage report
-        run: |
-          python -m  pytest --cov=./ --cov-report=xml:coverage.xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
-          flags: unittests
-          env_vars: OS,PYTHON
-          name: codecov-umbrella
-          fail_ci_if_error: false
-          verbose: true
+    - uses: actions/checkout@v3
+    - uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: |
+          ${{ secrets.REST2_SSH_KEY }}
+          ${{ secrets.MLCLOUDS_SSH_KEY }}
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    - name: install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        conda install hdf4
+        python -m pip install pyhdf
+        python -m pip install pytest
+        python -m pip install pytest-cov
+        python -m pip install .
+    - name: Generate coverage report
+      run: |
+        python -m  pytest --cov=./ --cov-report=xml:coverage.xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests
+        env_vars: OS,PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        verbose: true

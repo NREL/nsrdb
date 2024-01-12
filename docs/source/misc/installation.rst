@@ -2,5 +2,5 @@ Installation
 ============
 
 .. include:: ../../../README.rst
-   :start-after: Installing nsrdb
+   :start-after: Installation
    :end-before: Recommended Citation
