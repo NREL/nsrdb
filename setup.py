@@ -2,12 +2,13 @@
 setup.py
 """
 import os
-from codecs import open
-from setuptools import setup, find_packages
-from setuptools.command.develop import develop
-from subprocess import check_call
 import shlex
+from codecs import open
+from subprocess import check_call
 from warnings import warn
+
+from setuptools import find_packages, setup
+from setuptools.command.develop import develop
 
 
 class PostDevelopCommand(develop):
@@ -59,8 +60,8 @@ setup(
     keywords="nsrdb",
     python_requires='>=3.9',
     classifiers=[
-        "Development Status :: Beta",
-        "Intended Audience :: Modelers",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Science/Research",
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3.7",
