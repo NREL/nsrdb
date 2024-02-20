@@ -311,7 +311,7 @@ class NSRDB:
              'source_priority': source_priority}}
 
         run_name = f'{user_input["basename"]}_{user_input["year"]}_agg'
-        Manager.eagle(NSRDB, user_input['outdir'], user_input['metadir'],
+        Manager.hpc(NSRDB, user_input['outdir'], user_input['metadir'],
                       user_input['year'], user_input['n_chunks'],
                       alloc=user_input['alloc'], memory=user_input['memory'],
                       walltime=user_input['walltime'], feature='--qos=normal',
@@ -1190,7 +1190,7 @@ class NSRDB:
         tmp : bool
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Doesn't seem to be faster than collecting to normal
-            scratch on eagle.
+            scratch on hpc.
         job_name : str
             Optional name for pipeline and status identification.
         """

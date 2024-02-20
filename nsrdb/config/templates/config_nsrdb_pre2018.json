@@ -65,7 +65,7 @@
     "out_dir": "./",
     "year": "%year%"
   },
-  "eagle": {
+  "hpc": {
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 4

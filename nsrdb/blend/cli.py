@@ -2,12 +2,12 @@
 """
 NSRDB east-west blend command line interface (cli).
 """
-import click
 import logging
 import os
 import time
 
-from rex.utilities.cli_dtypes import STR, INT
+import click
+from rex.utilities.cli_dtypes import INT, STR
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
 
@@ -59,7 +59,7 @@ def main(ctx, name, meta, out_dir, east_dir, west_dir, out_fn, east_fn,
     Valid optional input combinations:
      - All filenames
      - Only file_tag
-     - No filenames and no file_tag (for all file tags on Eagle)
+     - No filenames and no file_tag (for all file tags on HPC)
 
     Examples
     --------
@@ -209,7 +209,7 @@ def get_node_cmds(name, meta, out_dir, east_dir, west_dir, out_fn,
               help='Subprocess standard output path. Default is in log_dir.')
 @click.pass_context
 def slurm(ctx, alloc, walltime, feature, memory, stdout_path):
-    """slurm (Eagle) submission tool for reV supply curve aggregation."""
+    """Slurm (HPC) submission tool for reV supply curve aggregation."""
 
     name = ctx.obj['NAME']
     meta = ctx.obj['META']

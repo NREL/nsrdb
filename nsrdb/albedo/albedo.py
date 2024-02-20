@@ -6,22 +6,20 @@ Created on Jan 23 2020
 
 @author: mbannist
 """
+import logging
+import os
 from concurrent.futures import as_completed
 from datetime import datetime as dt
-import h5py
-import logging
 from multiprocessing import cpu_count
+
+import h5py
 import numpy as np
-import os
+from rex.utilities.execution import SpawnProcessPool
 from scipy import ndimage
 from scipy.spatial import cKDTree
 
-from rex.utilities.execution import SpawnProcessPool
-
+from nsrdb.albedo import ims, modis
 from nsrdb.albedo import temperature_model as tm
-from nsrdb.albedo import ims
-from nsrdb.albedo import modis
-
 
 # Value for NODATA cells in composite albedo
 ALBEDO_NODATA = 0
@@ -50,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 class AlbedoError(Exception):
-    """ Exceptions for albedo related errors """
+    """Exceptions for albedo related errors"""
 
 
 class CompositeAlbedoDay:
@@ -70,7 +68,7 @@ class CompositeAlbedoDay:
     of the tree significantly.
 
     Combining the two data sources takes roughly 15 minutes for older, 4 km
-    IMS data, and 50 minutes for 1 km IMS data running on a 36 core eagle node.
+    IMS data, and 50 minutes for 1 km IMS data running on a 36 core HPC node.
 
     Methods
     -------
@@ -80,6 +78,7 @@ class CompositeAlbedoDay:
     write_tiff_from_h5 - Load existing composite albedo data from HDF5 and
                          write to TIFF.
     """
+
     # Value for snow/sea ice in IMS. In thousandths, e.g. 867 == 0.867
     SNOW_ALBEDO = 867
 
@@ -270,7 +269,7 @@ class CompositeAlbedoDay:
         tif.write_image(data)
         tif.close()
 
-        with open(os.path.splitext(filename)[0] + '.tfw', 'wt',
+        with open(os.path.splitext(filename)[0] + '.tfw', "w",
                   encoding='utf-8') as f:
             f.write(WORLD)
 
@@ -532,6 +531,7 @@ class ModisClipper:
         MODIS longigutes clipped to IMS extent
 
     """
+
     def __init__(self, modis, ims):
         """
         Parameters

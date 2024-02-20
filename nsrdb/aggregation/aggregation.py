@@ -1551,10 +1551,10 @@ class Manager:
         logger.info('NSRDB aggregation complete!')
 
     @classmethod
-    def eagle(cls, data, data_dir, meta_dir, year, n_chunks, alloc='pxs',
+    def hpc(cls, data, data_dir, meta_dir, year, n_chunks, alloc='pxs',
               memory=90, walltime=4, feature='--qos=normal', node_name='agg',
               stdout_path=None):
-        """Run NSRDB aggregation on Eagle with each agg chunk on a node.
+        """Run NSRDB aggregation on HPC with each agg chunk on a node.
 
         Parameters
         ----------
@@ -1614,7 +1614,7 @@ class Manager:
 
             if out:
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'Eagle.'.format(i_node_name, out))
+                       'HPC.'.format(i_node_name, out))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
@@ -1673,7 +1673,7 @@ def run():
     meta_dir = '/projects/pxs/reference_grids/'
     n_chunks = 32
     year = 2018
-    Manager.eagle(NSRDB_2018, data_dir, meta_dir, year, n_chunks,
+    Manager.hpc(NSRDB_2018, data_dir, meta_dir, year, n_chunks,
                   alloc='pxs', memory=90, walltime=40, feature='--qos=high',
                   node_name='agg',
                   stdout_path=os.path.join(data_dir, 'stdout/'))
