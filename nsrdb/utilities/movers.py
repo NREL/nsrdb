@@ -420,8 +420,8 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
 
 
 def hpc(fun_str, arg_str, alloc='pxs', memory=96,
-          walltime=10, node_name='mover',
-          stdout_path='//scratch/gbuster/data_movers/'):
+        walltime=10, node_name='mover',
+        stdout_path='//scratch/gbuster/data_movers/'):
     """Kick off an hpc job to execute a mover function.
 
     Parameters

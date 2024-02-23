@@ -42,9 +42,7 @@ def check_if_dummy_run(debug_day, doy):
         Returns True if we want to skip running but include job in status file.
         False if we want to run normally
     """
-    if debug_day is None:
-        return False
-    elif debug_day == doy:
+    if debug_day is None or debug_day == doy:
         return False
     else:
         return True
@@ -1202,7 +1200,7 @@ def collect_final(ctx, collect_dir, i_fname):
               help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
 def hpc(ctx, alloc, memory, walltime, feature, stdout_path,
-          dummy_run=False):
+        dummy_run=False):
     """HPC submission tool for the NSRDB cli."""
 
     name = ctx.obj['NAME']

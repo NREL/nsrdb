@@ -1817,7 +1817,7 @@ class TmyRunner:
 
     @staticmethod
     def _hpc(fun_str, arg_str, alloc='pxs', memory=90, walltime=4,
-               feature='--qos=high', node_name='tmy', stdout_path=None):
+             feature='--qos=high', node_name='tmy', stdout_path=None):
         """Run a TmyRunner method on an HPC node.
 
         Format: TmyRunner.fun_str(arg_str)
@@ -1874,8 +1874,8 @@ class TmyRunner:
 
     @classmethod
     def hpc_tmy(cls, fun_str, nsrdb_base_fp, years, out_dir, fn_out,
-                  weights=None, n_nodes=1, site_slice=None,
-                  supplemental_fp=None, var_meta=None, **kwargs):
+                weights=None, n_nodes=1, site_slice=None,
+                supplemental_fp=None, var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY job on an HPC node."""
 
         if isinstance(weights, dict):
@@ -1916,8 +1916,8 @@ class TmyRunner:
 
     @classmethod
     def hpc_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
-                  site_slice=None, supplemental_fp=None, var_meta=None,
-                  **kwargs):
+                site_slice=None, supplemental_fp=None, var_meta=None,
+                **kwargs):
         """Submit three hpc jobs for TMY, TGY, and TDY.
 
         Parameters
@@ -1950,14 +1950,14 @@ class TmyRunner:
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.hpc_tmy(fun_str, nsrdb_base_fp, years, fun_out_dir,
-                          fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
-                          supplemental_fp=supplemental_fp,
-                          var_meta=var_meta, **kwargs)
+                        fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
+                        supplemental_fp=supplemental_fp,
+                        var_meta=var_meta, **kwargs)
 
     @classmethod
     def hpc_collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
-                      site_slice=None, supplemental_fp=None,
-                      var_meta=None, **kwargs):
+                    site_slice=None, supplemental_fp=None,
+                    var_meta=None, **kwargs):
         """Run a TMY/TDY/TGY file collection job on an HPC node."""
 
         if isinstance(supplemental_fp, dict):
@@ -1986,7 +1986,7 @@ class TmyRunner:
 
     @classmethod
     def hpc_collect_all(cls, nsrdb_base_fp, years, out_dir,
-                          site_slice=None, var_meta=None, **kwargs):
+                        site_slice=None, var_meta=None, **kwargs):
         """Submit three hpc jobs to collect TMY, TGY, and TDY
         (directory setup depends on having run hpc_all() first)."""
 
@@ -1995,5 +1995,5 @@ class TmyRunner:
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
             cls.hpc_collect(nsrdb_base_fp, years, fun_out_dir,
-                              fun_fn_out, site_slice=site_slice,
-                              var_meta=var_meta, **kwargs)
+                            fun_fn_out, site_slice=site_slice,
+                            var_meta=var_meta, **kwargs)

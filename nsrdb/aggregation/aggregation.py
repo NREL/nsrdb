@@ -1213,9 +1213,7 @@ class Manager:
             w = 1
 
         elif final_tres == '30min':
-            if tres == '15min':
-                w = 3
-            elif tres == '10min':
+            if tres == '15min' or tres == '10min':
                 w = 3
             elif tres == '5min':
                 w = 7
@@ -1257,10 +1255,9 @@ class Manager:
                 if fn.endswith('.h5'):
                     fpath = os.path.join(data_dir, data_sub_dir, fn)
                     with NSRDBHandler(fpath) as out:
-                        if (var == 'fill_flag' and var in out.dsets
-                                and 'irradiance' in fn):
-                            break
-                        elif var != 'fill_flag' and var in out.dsets:
+                        if ((var == 'fill_flag' and var in out.dsets
+                                and 'irradiance' in fn) or
+                           (var != 'fill_flag' and var in out.dsets)):
                             break
             self.data[source][var] = fpath
         return fpath
@@ -1552,8 +1549,8 @@ class Manager:
 
     @classmethod
     def hpc(cls, data, data_dir, meta_dir, year, n_chunks, alloc='pxs',
-              memory=90, walltime=4, feature='--qos=normal', node_name='agg',
-              stdout_path=None):
+            memory=90, walltime=4, feature='--qos=normal', node_name='agg',
+            stdout_path=None):
         """Run NSRDB aggregation on HPC with each agg chunk on a node.
 
         Parameters
@@ -1674,9 +1671,9 @@ def run():
     n_chunks = 32
     year = 2018
     Manager.hpc(NSRDB_2018, data_dir, meta_dir, year, n_chunks,
-                  alloc='pxs', memory=90, walltime=40, feature='--qos=high',
-                  node_name='agg',
-                  stdout_path=os.path.join(data_dir, 'stdout/'))
+                alloc='pxs', memory=90, walltime=40, feature='--qos=high',
+                node_name='agg',
+                stdout_path=os.path.join(data_dir, 'stdout/'))
 
 
 def collect():
