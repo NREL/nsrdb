@@ -312,11 +312,11 @@ class NSRDB:
 
         run_name = f'{user_input["basename"]}_{user_input["year"]}_agg'
         Manager.hpc(NSRDB, user_input['outdir'], user_input['metadir'],
-                      user_input['year'], user_input['n_chunks'],
-                      alloc=user_input['alloc'], memory=user_input['memory'],
-                      walltime=user_input['walltime'], feature='--qos=normal',
-                      node_name=run_name, stdout_path=os.path.join(
-                          user_input['outdir'], f'{final_sub_dir}/stdout/'))
+                    user_input['year'], user_input['n_chunks'],
+                    alloc=user_input['alloc'], memory=user_input['memory'],
+                    walltime=user_input['walltime'], feature='--qos=normal',
+                    node_name=run_name, stdout_path=os.path.join(
+                        user_input['outdir'], f'{final_sub_dir}/stdout/'))
 
     @staticmethod
     def blend_files(kwargs):
@@ -434,7 +434,6 @@ class NSRDB:
             satellite, extent, freq,
             spatial, meta_file, doy_range
         """
-
         if kwargs['year'] < 2018:
             kwargs['spatial'] = '4km'
             kwargs['extent'] = 'full'
@@ -445,6 +444,22 @@ class NSRDB:
             kwargs['extent'] = 'full'
             kwargs['satellite'] = 'west'
             kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+        elif kwargs['year'] == 2018:
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '10min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '4km'
+            kwargs['extent'] = 'full'
+            kwargs['satellite'] = 'west'
+            kwargs['freq'] = '30min'
+            NSRDB.create_config_files(kwargs)
+            kwargs['spatial'] = '2km'
+            kwargs['extent'] = 'conus'
+            kwargs['satellite'] = 'east'
+            kwargs['freq'] = '5min'
             NSRDB.create_config_files(kwargs)
         else:
             kwargs['spatial'] = '2km'
