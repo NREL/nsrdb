@@ -1,8 +1,9 @@
 {
   "collect-data-model": {
     "final": true,
-    "max_workers": 1,
-    "n_chunks": 1
+    "max_workers": 10,
+    "n_writes": 1,
+    "n_chunks": 100
   },
   "daily-all-sky": {},
   "data-model": {

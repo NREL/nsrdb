@@ -1,9 +1,10 @@
 {
   "collect-data-model": {
     "final": true,
-    "max_workers": 1,
+    "max_workers": 10,
+    "n_chunks": 100,
     "memory": 178,
-    "n_writes": 10,
+    "n_writes": 1,
     "walltime": 48
   },
   "daily-all-sky": {},
@@ -55,7 +56,7 @@
       }
     },
     "max_workers": null,
-    "max_workers_regrid": null,
+    "max_workers_regrid": 16,
     "mlclouds": true
   },
   "debug_day": null,
@@ -65,16 +66,17 @@
     "nsrdb_freq": "%freq%",
     "nsrdb_grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",
+    "max_workers": 32,
     "year": "%year%"
   },
   "hpc": {
     "alloc": "pxs",
     "feature": "--qos=normal",
-    "walltime": 4
+    "walltime": 40
   },
   "ml-cloud-fill": {
     "col_chunk": 10000,
     "fill_all": false,
-    "max_workers": null
+    "max_workers": 4
   }
 }

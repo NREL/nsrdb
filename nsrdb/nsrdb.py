@@ -435,52 +435,30 @@ class NSRDB:
             spatial, meta_file, doy_range
         """
         if kwargs['year'] < 2018:
-            kwargs['spatial'] = '4km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'east'
-            kwargs['freq'] = '30min'
+            kwargs.update({'spatial': '4km', 'extent': 'full', 'freq': '30min',
+                           'satellite': 'east'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '4km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'west'
-            kwargs['freq'] = '30min'
+            kwargs.update({'satellite': 'west'})
             NSRDB.create_config_files(kwargs)
         elif kwargs['year'] == 2018:
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'east'
-            kwargs['freq'] = '10min'
+            kwargs.update({'spatial': '2km', 'extent': 'full', 'freq': '10min',
+                           'satellite': 'east'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '4km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'west'
-            kwargs['freq'] = '30min'
+            kwargs.update({'extent': 'conus', 'freq': '5min'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'conus'
-            kwargs['satellite'] = 'east'
-            kwargs['freq'] = '5min'
+            kwargs.update({'spatial': '4km', 'extent': 'full', 'freq': '30min',
+                           'satellite': 'west'})
             NSRDB.create_config_files(kwargs)
         else:
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'east'
-            kwargs['freq'] = '10min'
+            kwargs.update({'spatial': '2km', 'extent': 'full', 'freq': '10min',
+                           'satellite': 'east'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'full'
-            kwargs['satellite'] = 'west'
-            kwargs['freq'] = '10min'
+            kwargs.update({'satellite': 'west'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'conus'
-            kwargs['satellite'] = 'east'
-            kwargs['freq'] = '5min'
+            kwargs.update({'extent': 'conus', 'freq': '5min',
+                           'satellite': 'east'})
             NSRDB.create_config_files(kwargs)
-            kwargs['spatial'] = '2km'
-            kwargs['extent'] = 'conus'
-            kwargs['satellite'] = 'west'
-            kwargs['freq'] = '5min'
+            kwargs.update({'satellite': 'west'})
             NSRDB.create_config_files(kwargs)
 
     @staticmethod
