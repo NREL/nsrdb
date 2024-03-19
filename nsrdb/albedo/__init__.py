@@ -1,0 +1,1 @@
+"""NSRDB Albedo calculation module"""
