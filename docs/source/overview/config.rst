@@ -1,4 +1,4 @@
 Config
 =======
 
-.. mdinclude:: ../../../config/README.md
+.. include:: ../../../nsrdb/config/README.rst

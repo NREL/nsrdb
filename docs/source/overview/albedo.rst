@@ -1,4 +1,4 @@
 Albedo
 =======
 
-.. mdinclude:: ../../../albedo/README.md
+.. include:: ../../../nsrdb/albedo/README.rst

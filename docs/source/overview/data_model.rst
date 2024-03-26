@@ -1,4 +1,4 @@
 Data Model
 ===========
 
-.. mdinclude:: ../../../data_model/README.md
+.. include:: ../../../nsrdb/data_model/README.rst

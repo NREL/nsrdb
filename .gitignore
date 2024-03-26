@@ -131,3 +131,7 @@ scratch
 
 # Visual Studio
 .vs/
+
+# Docs
+docs/_build
+docs/source/_autosummary

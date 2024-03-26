@@ -1,4 +1,4 @@
 All Sky
 =======
 
-.. mdinclude:: ../../../all_sky/README.md
+.. include:: ../../../nsrdb/all_sky/README.rst
