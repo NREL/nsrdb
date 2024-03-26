@@ -36,7 +36,7 @@ If applicable, add screenshots to help explain your problem.
 
 **System (please complete the following information):**
  - OS: [e.g. OSX, Windows, Linux]
- - Compute hardware (e.g. Eagle, AWS)
+ - Compute hardware (e.g. HPC, AWS)
  - Version [e.g. 0.1]
 
 **Additional context**

@@ -5,16 +5,16 @@ MODIS dry-land albedo and IMS snow data.
 Mike Bannister
 1/29/2020
 """
-import click
-from datetime import datetime as dt
-from datetime import timedelta
 import logging
 import os
 import sys
+from datetime import datetime as dt
+from datetime import timedelta
 
+import click
+from rex.utilities.cli_dtypes import INT, STR
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
-from rex.utilities.cli_dtypes import STR, INT
 
 from nsrdb.albedo.albedo import CompositeAlbedoDay
 from nsrdb.albedo.ims import get_dt
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class Date(click.ParamType):
-    """Date argument parser and sanity checker """
+    """Date argument parser and sanity checker"""
 
     @staticmethod
     def convert(value, param, ctx):
@@ -45,7 +45,7 @@ class Date(click.ParamType):
 
 
 def _setup_paths(ctx):
-    """ Handle paths and path overrides """
+    """Handle paths and path overrides"""
     # Verify path is set
     if ctx.obj['path'] is None and (ctx.obj['mpath'] is None
                                     or ctx.obj['ipath'] is None
@@ -159,19 +159,19 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
 @click.argument('start', type=Date())
 @click.argument('end', type=Date())
 @click.option('--alloc', required=True, type=STR,
-              help='Eagle allocation account name.')
+              help='HPC allocation account name.')
 @click.option('--walltime', '-wt', default=1.0, type=float,
-              help='Eagle walltime request in hours. Default is 1.0')
+              help='HPC walltime request in hours. Default is 1.0')
 @click.option('--feature', '-l', default=None, type=STR,
               help=('Additional flags for SLURM job. Format is "--qos=high" '
                     'or "--depend=[state:job_id]". Default is None.'))
 @click.option('--memory', '-mem', default=None, type=INT,
-              help='Eagle node memory request in GB. Default is None')
+              help='HPC node memory request in GB. Default is None')
 @click.option('--stdout_path', '-sout', default=None, type=STR,
               help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
 def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
-    """ Calculate composite albedo for a range of dates. Range is inclusive """
+    """Calculate composite albedo for a range of dates. Range is inclusive"""
 
     _setup_paths(ctx)
     if stdout_path is None:
@@ -199,7 +199,7 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
         logger.debug(f'command for slurm: {cmd}')
 
         name = dt.strftime(date, 'a%Y%j')
-        logger.info('Running composite albedo processing on Eagle with '
+        logger.info('Running composite albedo processing on HPC with '
                     f'name "{name}" for {date}')
         out = slurm_manager.sbatch(cmd,
                                    alloc=alloc,
@@ -210,7 +210,7 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
                                    stdout_path=stdout_path)[0]
         if out:
             msg = (f'Kicked off NSRDB albedo job "{name}" (SLURM '
-                   f'jobid #{out}) on Eagle.')
+                   f'jobid #{out}) on HPC.')
         else:
             msg = (f'Was unable to kick off NSRDB albedo job "{name}". '
                    'Please see the stdout error messages')
@@ -221,13 +221,13 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
 @main.command()
 @click.argument('albedo-file')
 def h5totiff(albedo_file):
-    """ Convert composite data in H5 file to TIFF """
+    """Convert composite data in H5 file to TIFF"""
     click.echo(f'Creating TIFF from {albedo_file}')
     CompositeAlbedoDay.write_tiff_from_h5(albedo_file)
 
 
 def get_node_cmd(date, ipath, mpath, apath, mepath, tiff, log_file):
-    """ Create shell command for single day CLI call """
+    """Create shell command for single day CLI call"""
     sdate = date.strftime('%Y%m%d')
     args = f'-i {ipath} -m {mpath} -a {apath} '
     args += f'-me {mepath} --log-file {log_file}'

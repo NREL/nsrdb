@@ -419,10 +419,10 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
     print(msg)
 
 
-def eagle(fun_str, arg_str, alloc='pxs', memory=96,
-          walltime=10, node_name='mover',
-          stdout_path='//scratch/gbuster/data_movers/'):
-    """Kick off an eagle job to execute a mover function.
+def hpc(fun_str, arg_str, alloc='pxs', memory=96,
+        walltime=10, node_name='mover',
+        stdout_path='//scratch/gbuster/data_movers/'):
+    """Kick off an hpc job to execute a mover function.
 
     Parameters
     ----------
@@ -464,7 +464,7 @@ def eagle(fun_str, arg_str, alloc='pxs', memory=96,
 
     if out:
         msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-               'Eagle.'.format(node_name, out))
+               'HPC.'.format(node_name, out))
     else:
         msg = ('Was unable to kick off job "{}". '
                'Please see the stdout error messages'

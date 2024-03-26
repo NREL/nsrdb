@@ -1816,9 +1816,9 @@ class TmyRunner:
         tgy._collect()
 
     @staticmethod
-    def _eagle(fun_str, arg_str, alloc='pxs', memory=90, walltime=4,
-               feature='--qos=high', node_name='tmy', stdout_path=None):
-        """Run a TmyRunner method on an Eagle node.
+    def _hpc(fun_str, arg_str, alloc='pxs', memory=90, walltime=4,
+             feature='--qos=high', node_name='tmy', stdout_path=None):
+        """Run a TmyRunner method on an HPC node.
 
         Format: TmyRunner.fun_str(arg_str)
 
@@ -1865,7 +1865,7 @@ class TmyRunner:
 
         if out:
             msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'Eagle.'.format(node_name, out))
+                   'HPC.'.format(node_name, out))
         else:
             msg = ('Was unable to kick off job "{}". '
                    'Please see the stdout error messages'
@@ -1873,10 +1873,10 @@ class TmyRunner:
         print(msg)
 
     @classmethod
-    def eagle_tmy(cls, fun_str, nsrdb_base_fp, years, out_dir, fn_out,
-                  weights=None, n_nodes=1, site_slice=None,
-                  supplemental_fp=None, var_meta=None, **kwargs):
-        """Run a TMY/TDY/TGY job on an Eagle node."""
+    def hpc_tmy(cls, fun_str, nsrdb_base_fp, years, out_dir, fn_out,
+                weights=None, n_nodes=1, site_slice=None,
+                supplemental_fp=None, var_meta=None, **kwargs):
+        """Run a TMY/TDY/TGY job on an HPC node."""
 
         if isinstance(weights, dict):
             weights = json.dumps(weights)
@@ -1912,13 +1912,13 @@ class TmyRunner:
             else:
                 kwargs['node_name'] = '{}{}'.format(node_name, node_index)
 
-            cls._eagle(fun_str, arg_str, **kwargs)
+            cls._hpc(fun_str, arg_str, **kwargs)
 
     @classmethod
-    def eagle_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
-                  site_slice=None, supplemental_fp=None, var_meta=None,
-                  **kwargs):
-        """Submit three eagle jobs for TMY, TGY, and TDY.
+    def hpc_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
+                site_slice=None, supplemental_fp=None, var_meta=None,
+                **kwargs):
+        """Submit three hpc jobs for TMY, TGY, and TDY.
 
         Parameters
         ----------
@@ -1931,7 +1931,7 @@ class TmyRunner:
         out_dir : str
             Directory to dump temporary output files.
         n_nodes : int
-            Number of eagle nodes to use for jobs.
+            Number of hpc nodes to use for jobs.
         site_slice : slice
             Sites to consider in this TMY.
         supplemental_fp : None | dict
@@ -1949,16 +1949,16 @@ class TmyRunner:
             y = sorted(list(years))[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.eagle_tmy(fun_str, nsrdb_base_fp, years, fun_out_dir,
-                          fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
-                          supplemental_fp=supplemental_fp,
-                          var_meta=var_meta, **kwargs)
+            cls.hpc_tmy(fun_str, nsrdb_base_fp, years, fun_out_dir,
+                        fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
+                        supplemental_fp=supplemental_fp,
+                        var_meta=var_meta, **kwargs)
 
     @classmethod
-    def eagle_collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
-                      site_slice=None, supplemental_fp=None,
-                      var_meta=None, **kwargs):
-        """Run a TMY/TDY/TGY file collection job on an Eagle node."""
+    def hpc_collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
+                    site_slice=None, supplemental_fp=None,
+                    var_meta=None, **kwargs):
+        """Run a TMY/TDY/TGY file collection job on an HPC node."""
 
         if isinstance(supplemental_fp, dict):
             supplemental_fp = json.dumps(supplemental_fp)
@@ -1982,18 +1982,18 @@ class TmyRunner:
             kwargs['node_name'] = \
                 'col_{}'.format(os.path.basename(fn_out.replace('.h5', '')))
 
-        cls._eagle('collect', arg_str, **kwargs)
+        cls._hpc('collect', arg_str, **kwargs)
 
     @classmethod
-    def eagle_collect_all(cls, nsrdb_base_fp, years, out_dir,
-                          site_slice=None, var_meta=None, **kwargs):
-        """Submit three eagle jobs to collect TMY, TGY, and TDY
-        (directory setup depends on having run eagle_all() first)."""
+    def hpc_collect_all(cls, nsrdb_base_fp, years, out_dir,
+                        site_slice=None, var_meta=None, **kwargs):
+        """Submit three hpc jobs to collect TMY, TGY, and TDY
+        (directory setup depends on having run hpc_all() first)."""
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
             y = sorted(years)[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.eagle_collect(nsrdb_base_fp, years, fun_out_dir,
-                              fun_fn_out, site_slice=site_slice,
-                              var_meta=var_meta, **kwargs)
+            cls.hpc_collect(nsrdb_base_fp, years, fun_out_dir,
+                            fun_fn_out, site_slice=site_slice,
+                            var_meta=var_meta, **kwargs)
