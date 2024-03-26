@@ -1,11 +1,11 @@
 =====================================
 Welcome to the NSRDB Albedo Library!
-======================================
+=====================================
 
 The surface albedo dataset is a measure of the ground reflectivity.
 The albedo parameter is comprised of a slow-changing land-based albedo parameter from the
-`MODIS Dataset (Version 6) <https://lpdaac.usgs.gov/news/release-modis-version-6-brdfalbedo-gap-filled-snow-free-product/>_`
-and the `IMS Snow Dataset <https://nsidc.org/data/g02156>_`.
+`MODIS Dataset (Version 6) <https://lpdaac.usgs.gov/news/release-modis-version-6-brdfalbedo-gap-filled-snow-free-product/>`_
+and the `IMS Snow Dataset <https://nsidc.org/data/g02156>`_.
 Both datasets are available at a high spatial resolution close to the final NSRDB resolution, so no spatial interpolation is required.
 The MODIS Dataset is paired with the IMS daily snow cover, resulting in a daily albedo time series.
 
@@ -28,6 +28,6 @@ The processing of surface albedo was updated in February 2020 . The new process 
 Downloading MODIS data
 -----------------------
 
-The current MODIS data requires a free `Earthdata <https://wiki.earthdata.nasa.gov/display/EL/Earthdata+Login+Home>_` login account and must be downloaded manually. Files are available at the Earthdata `Data Pool <https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006>_`. The albedo processing requires the shortwave, white-sky albedo datasets, which have the filename format `MCD43GF_wsa_shortwave_113_2017_V006.hdf`.
+The current MODIS data requires a free `Earthdata <https://wiki.earthdata.nasa.gov/display/EL/Earthdata+Login+Home>`_ login account and must be downloaded manually. Files are available at the Earthdata `Data Pool <https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006>`_. The albedo processing requires the shortwave, white-sky albedo datasets, which have the filename format `MCD43GF_wsa_shortwave_113_2017_V006.hdf`.
 
-`Directions <https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget>_` are available to download the MODIS data via curl and wget. Additionally, the provided Python script `modis_v6_download.py` can be used to automate downloading MODIS data after the `.netrc` and `.urs_cookies` files are setup per the directions above.
+`Directions <https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget>`_ are available to download the MODIS data via curl and wget. Additionally, the provided Python script `modis_v6_download.py` can be used to automate downloading MODIS data after the `.netrc` and `.urs_cookies` files are setup per the directions above.
