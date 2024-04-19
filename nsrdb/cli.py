@@ -5,20 +5,20 @@ Created on Mon Oct 21 15:39:01 2019
 
 @author: gbuster
 """
-import click
+import copy
 import json
 import logging
 import os
-import copy
 
-from rex.utilities.cli_dtypes import STR, INT, FLOAT, STRLIST
+import click
+from rex.utilities.cli_dtypes import FLOAT, INT, STR, STRLIST
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
 from rex.utilities.utilities import safe_json_load, unstupify_path
 
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
-from nsrdb.pipeline import Status, NsrdbPipeline
+from nsrdb.pipeline import NsrdbPipeline, Status
 from nsrdb.utilities.file_utils import ts_freq_check
 
 logger = logging.getLogger(__name__)
@@ -42,9 +42,7 @@ def check_if_dummy_run(debug_day, doy):
         Returns True if we want to skip running but include job in status file.
         False if we want to run normally
     """
-    if debug_day is None:
-        return False
-    elif debug_day == doy:
+    if debug_day is None or debug_day == doy:
         return False
     else:
         return True
@@ -182,15 +180,15 @@ def create_configs(ctx, kwargs, all_domains):
               '"stdout": "./"}')
 @click.option('--collect', is_flag=True,
               help='Flag to collect blended data files. ')
-@click.option('--eagle', is_flag=True,
-              help='Flag to run collection on eagle. ')
+@click.option('--hpc', is_flag=True,
+              help='Flag to run collection on HPC. ')
 @click.pass_context
-def blend(ctx, kwargs, collect, eagle):
+def blend(ctx, kwargs, collect, hpc):
     """NSRDB data blend."""
 
     ctx.ensure_object(dict)
     if collect:
-        if not eagle:
+        if not hpc:
             NSRDB.collect_blended(kwargs)
         else:
             default_kwargs = {"alloc": 'pxs',
@@ -223,7 +221,7 @@ def blend(ctx, kwargs, collect, eagle):
 
             if out:
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'Eagle.'.format(node_name, out))
+                       'HPC.'.format(node_name, out))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
@@ -262,15 +260,15 @@ def blend(ctx, kwargs, collect, eagle):
               '"stdout": "./"}')
 @click.option('--collect', is_flag=True,
               help='Flag to collect aggregation chunks. ')
-@click.option('--eagle', is_flag=True,
-              help='Flag to run collection on eagle. ')
+@click.option('--hpc', is_flag=True,
+              help='Flag to run collection on HPC. ')
 @click.pass_context
-def aggregate(ctx, kwargs, collect, eagle):
+def aggregate(ctx, kwargs, collect, hpc):
     """NSRDB data aggregation."""
 
     ctx.ensure_object(dict)
     if collect:
-        if not eagle:
+        if not hpc:
             NSRDB.collect_aggregation(kwargs)
         else:
             default_kwargs = {"alloc": 'pxs',
@@ -303,7 +301,7 @@ def aggregate(ctx, kwargs, collect, eagle):
 
             if out:
                 msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'Eagle.'.format(node_name, out))
+                       'HPC.'.format(node_name, out))
             else:
                 msg = ('Was unable to kick off job "{}". '
                        'Please see the stdout error messages'
@@ -351,7 +349,7 @@ def config(ctx, config_file, command):
     run_config = safe_json_load(config_file)
     run_config = str_replace(d=run_config, str_rep=str_rep)
     direct_args = run_config.pop('direct')
-    eagle_args = run_config.pop('eagle')
+    hpc_args = run_config.pop('hpc')
     cmd_args = run_config.pop(command)
 
     if cmd_args is None:
@@ -360,9 +358,9 @@ def config(ctx, config_file, command):
     cmd_args['debug_day'] = run_config.pop('debug_day', None)
 
     # replace any args with higher priority entries in command dict
-    for k in eagle_args.keys():
+    for k in hpc_args.keys():
         if k in cmd_args:
-            eagle_args[k] = cmd_args[k]
+            hpc_args[k] = cmd_args[k]
     for k in direct_args.keys():
         if k in cmd_args:
             direct_args[k] = cmd_args[k]
@@ -380,28 +378,28 @@ def config(ctx, config_file, command):
     init_logger('nsrdb.cli', log_level=direct_args['log_level'], log_file=None)
 
     if command == 'data-model':
-        ConfigRunners.run_data_model_config(ctx, name, cmd_args, eagle_args,
+        ConfigRunners.run_data_model_config(ctx, name, cmd_args, hpc_args,
                                             direct_args)
     elif command == 'cloud-fill':
-        ConfigRunners.run_cloud_fill_config(ctx, name, cmd_args, eagle_args)
+        ConfigRunners.run_cloud_fill_config(ctx, name, cmd_args, hpc_args)
     elif command == 'ml-cloud-fill':
         ConfigRunners.run_ml_cloud_fill_config(ctx, name, cmd_args,
-                                               eagle_args, direct_args,
+                                               hpc_args, direct_args,
                                                run_config)
     elif command == 'all-sky':
-        ConfigRunners.run_all_sky_config(ctx, name, cmd_args, eagle_args)
+        ConfigRunners.run_all_sky_config(ctx, name, cmd_args, hpc_args)
     elif command == 'daily-all-sky':
-        ConfigRunners.run_daily_all_sky_config(ctx, name, cmd_args, eagle_args,
+        ConfigRunners.run_daily_all_sky_config(ctx, name, cmd_args, hpc_args,
                                                direct_args, run_config)
     elif command == 'collect-data-model':
         ConfigRunners.run_collect_data_model_config(ctx, name, cmd_args,
-                                                    eagle_args)
+                                                    hpc_args)
     elif command == 'collect-daily':
-        ConfigRunners.run_collect_daily_config(ctx, name, cmd_args, eagle_args)
+        ConfigRunners.run_collect_daily_config(ctx, name, cmd_args, hpc_args)
     elif command == 'collect-flist':
-        ConfigRunners.run_collect_flist_config(ctx, name, cmd_args, eagle_args)
+        ConfigRunners.run_collect_flist_config(ctx, name, cmd_args, hpc_args)
     elif command == 'collect-final':
-        ConfigRunners.run_collect_final_config(ctx, name, cmd_args, eagle_args,
+        ConfigRunners.run_collect_final_config(ctx, name, cmd_args, hpc_args,
                                                direct_args)
     else:
         raise KeyError('Command not recognized: "{}"'.format(command))
@@ -439,7 +437,7 @@ class ConfigRunners:
         return doy_list
 
     @classmethod
-    def run_data_model_config(cls, ctx, name, cmd_args, eagle_args,
+    def run_data_model_config(cls, ctx, name, cmd_args, hpc_args,
                               direct_args):
         """Run the daily data model processing code for each day of year.
 
@@ -452,8 +450,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         direct_args : dict
             Dictionary of kwargs from the nsrdb config file under the "direct"
             key that are common to all command blocks.
@@ -478,12 +476,12 @@ class ConfigRunners:
                        max_workers_regrid=max_workers_regrid,
                        mlclouds=cmd_args.get('mlclouds', False))
 
-            eagle_args['dummy_run'] = check_if_dummy_run(
+            hpc_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_cloud_fill_config(ctx, name, cmd_args, eagle_args):
+    def run_cloud_fill_config(ctx, name, cmd_args, hpc_args):
         """Run the cloud gap fill using simple legacy nearest neighbor methods.
 
         Parameters
@@ -495,18 +493,18 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         """
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
             ctx.obj['NAME'] = name + '_cloud_fill_{}'.format(i_chunk)
             ctx.invoke(cloud_fill, i_chunk=i_chunk,
                        col_chunk=cmd_args.get('col_chunk', None))
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
     @classmethod
-    def run_ml_cloud_fill_config(cls, ctx, name, cmd_args, eagle_args,
+    def run_ml_cloud_fill_config(cls, ctx, name, cmd_args, hpc_args,
                                  direct_args, run_config):
         """Run the cloud gap fill using machine learning methods (phygnn).
 
@@ -519,8 +517,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         direct_args : dict
             Dictionary of kwargs from the nsrdb config file under the "direct"
             key that are common to all command blocks.
@@ -546,12 +544,12 @@ class ConfigRunners:
                        col_chunk=cmd_args.get('col_chunk', None),
                        max_workers=cmd_args.get('max_workers', None))
 
-            eagle_args['dummy_run'] = check_if_dummy_run(
+            hpc_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_all_sky_config(ctx, name, cmd_args, eagle_args):
+    def run_all_sky_config(ctx, name, cmd_args, hpc_args):
         """Run the all sky module to produce irradiance outputs.
 
         Parameters
@@ -563,8 +561,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         """
         n_chunks = cmd_args['n_chunks']
         for i_chunk in range(n_chunks):
@@ -572,10 +570,10 @@ class ConfigRunners:
             ctx.invoke(all_sky, i_chunk=i_chunk,
                        disc_on=cmd_args.get('disc_on', False),
                        col_chunk=cmd_args.get('col_chunk', 10))
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
     @classmethod
-    def run_daily_all_sky_config(cls, ctx, name, cmd_args, eagle_args,
+    def run_daily_all_sky_config(cls, ctx, name, cmd_args, hpc_args,
                                  direct_args, run_config):
         """Run the all sky module to produce irradiance outputs using daily
         data model outputs as source.
@@ -589,8 +587,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         direct_args : dict
             Dictionary of kwargs from the nsrdb config file under the "direct"
             key that are common to all command blocks.
@@ -614,12 +612,12 @@ class ConfigRunners:
                        disc_on=cmd_args.get('disc_on', False),
                        col_chunk=cmd_args.get('col_chunk', 500))
 
-            eagle_args['dummy_run'] = check_if_dummy_run(
+            hpc_args['dummy_run'] = check_if_dummy_run(
                 cmd_args.get('debug_day', None), doy)
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_collect_data_model_config(ctx, name, cmd_args, eagle_args):
+    def run_collect_data_model_config(ctx, name, cmd_args, hpc_args):
         """Run collection of daily data model outputs to multiple files
         chunked by sites (n_chunks argument in cmd_args)
 
@@ -632,8 +630,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         """
         n_chunks = cmd_args.get('n_chunks', 1)
         n_files_tot = len(NSRDB.OUTS)
@@ -661,10 +659,10 @@ class ConfigRunners:
                            n_writes=cmd_args.get('n_writes', 1),
                            max_workers=cmd_args['max_workers'],
                            final=final, final_file_name=final_file_name)
-                ctx.invoke(eagle, **eagle_args)
+                ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_collect_daily_config(ctx, name, cmd_args, eagle_args):
+    def run_collect_daily_config(ctx, name, cmd_args, hpc_args):
         """Run full collection of all daily data model outputs to a single file
 
         Parameters
@@ -676,19 +674,19 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         """
         ctx.obj['NAME'] = name + '_collect_daily'
         ctx.invoke(collect_daily, collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
                    n_writes=cmd_args.get('n_writes', 1),
                    max_workers=cmd_args.get('max_workers', None),
-                   eagle=True)
-        ctx.invoke(eagle, **eagle_args)
+                   hpc=True)
+        ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_collect_flist_config(ctx, name, cmd_args, eagle_args):
+    def run_collect_flist_config(ctx, name, cmd_args, hpc_args):
         """Run custom file collection.
 
         Parameters
@@ -700,18 +698,18 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         """
         ctx.obj['NAME'] = name + '_collect_flist'
         ctx.invoke(collect_flist, flist=cmd_args['flist'],
                    collect_dir=cmd_args['collect_dir'],
                    fn_out=cmd_args['fn_out'], dsets=cmd_args['dsets'],
-                   max_workers=cmd_args.get('max_workers', None), eagle=True)
-        ctx.invoke(eagle, **eagle_args)
+                   max_workers=cmd_args.get('max_workers', None), hpc=True)
+        ctx.invoke(hpc, **hpc_args)
 
     @staticmethod
-    def run_collect_final_config(ctx, name, cmd_args, eagle_args, direct_args):
+    def run_collect_final_config(ctx, name, cmd_args, hpc_args, direct_args):
         """Run final file collection.
 
         Parameters
@@ -723,8 +721,8 @@ class ConfigRunners:
         cmd_args : dict
             Dictionary of kwargs from the nsrdb config file specifically for
             this command block.
-        eagle_args : dict
-            Dictionary of kwargs from the nsrdb config to make eagle submission
+        hpc_args : dict
+            Dictionary of kwargs from the nsrdb config to make hpc submission
         direct_args : dict
             Dictionary of kwargs from the nsrdb config file under the "direct"
             key that are common to all command blocks.
@@ -736,7 +734,7 @@ class ConfigRunners:
             ctx.invoke(collect_final,
                        collect_dir=cmd_args.get('collect_dir', def_dir),
                        i_fname=i_fname)
-            ctx.invoke(eagle, **eagle_args)
+            ctx.invoke(hpc, **hpc_args)
 
 
 @main.group()
@@ -1070,12 +1068,12 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, n_writes,
               'then dni.')
 @click.option('--max_workers', '-w', type=INT, default=None,
               help='Number of parallel workers to use.')
-@click.option('-e', '--eagle', is_flag=True,
+@click.option('-e', '--hpc', is_flag=True,
               help='Flag for that this is being used to pass commands to '
-              'an Eagle call.')
+              'an hpc call.')
 @click.pass_context
 def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers,
-                  eagle):
+                  hpc):
     """Run the NSRDB file collection method on a specific daily directory
     for specific datasets to a single output file."""
 
@@ -1100,7 +1098,7 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers,
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-daily'
 
-    if ctx.invoked_subcommand is None and not eagle:
+    if ctx.invoked_subcommand is None and not hpc:
         init_logger('nsrdb.file_handlers', log_level=log_level,
                     log_file=log_file)
         Collector.collect_daily(collect_dir, fp_out, dsets,
@@ -1119,11 +1117,11 @@ def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers,
               help='Output filename to be saved in out_dir.')
 @click.option('--dsets', '-ds', type=STRLIST, required=True,
               help='List of dataset names to collect.')
-@click.option('-e', '--eagle', is_flag=True,
+@click.option('-e', '--hpc', is_flag=True,
               help='Flag for that this is being used to pass commands to '
-              'an Eagle call.')
+              'an hpc call.')
 @click.pass_context
-def collect_flist(ctx, flist, collect_dir, fn_out, dsets, eagle):
+def collect_flist(ctx, flist, collect_dir, fn_out, dsets, hpc):
     """Run the NSRDB file collection method with explicitly defined flist."""
 
     name = ctx.obj['NAME']
@@ -1146,7 +1144,7 @@ def collect_flist(ctx, flist, collect_dir, fn_out, dsets, eagle):
     ctx.obj['ARG_STR'] = arg_str
     ctx.obj['COMMAND'] = 'collect-flist'
 
-    if ctx.invoked_subcommand is None and not eagle:
+    if ctx.invoked_subcommand is None and not hpc:
         init_logger('nsrdb.file_handlers', log_level=log_level,
                     log_file=log_file)
         for dset in dsets:
@@ -1190,20 +1188,20 @@ def collect_final(ctx, collect_dir, i_fname):
 
 @data_model.command()
 @click.option('--alloc', '-a', required=True, type=STR,
-              help='Eagle allocation account name.')
+              help='HPC allocation account name.')
 @click.option('--memory', '-mem', default=None, type=INT,
-              help='Eagle node memory request in GB. Default is None')
+              help='HPC node memory request in GB. Default is None')
 @click.option('--walltime', '-wt', default=1.0, type=float,
-              help='Eagle walltime request in hours. Default is 1.0')
+              help='HPC walltime request in hours. Default is 1.0')
 @click.option('--feature', '-l', default=None, type=STR,
               help=('Additional flags for SLURM job. Format is "--qos=high" '
                     'or "--depend=[state:job_id]". Default is None.'))
 @click.option('--stdout_path', '-sout', default=None, type=STR,
               help='Subprocess standard output path. Default is in out_dir.')
 @click.pass_context
-def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
-          dummy_run=False):
-    """Eagle submission tool for the NSRDB cli."""
+def hpc(ctx, alloc, memory, walltime, feature, stdout_path,
+        dummy_run=False):
+    """HPC submission tool for the NSRDB cli."""
 
     name = ctx.obj['NAME']
     out_dir = ctx.obj['OUT_DIR']
@@ -1221,7 +1219,7 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
         stdout_path = os.path.join(out_dir, 'stdout/')
 
     status = Status.retrieve_job_status(out_dir, command, name,
-                                        hardware='eagle',
+                                        hardware='slurm',
                                         subprocess_manager=slurm_manager)
 
     msg = 'NSRDB CLI failed to submit jobs!'
@@ -1247,11 +1245,11 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
 
             if out:
                 slurm_id = out
-                msg = ('Kicked off job "{}" (SLURM jobid #{}) on Eagle.'
+                msg = ('Kicked off job "{}" (SLURM jobid #{}) on hpc.'
                        .format(name, slurm_id))
 
         job_attrs = {'job_id': slurm_id,
-                     'hardware': 'eagle',
+                     'hardware': 'hpc',
                      'out_dir': out_dir}
         if dummy_run:
             job_attrs['job_status'] = None
@@ -1264,10 +1262,10 @@ def eagle(ctx, alloc, memory, walltime, feature, stdout_path,
     logger.info(msg)
 
 
-collect_data_model.add_command(eagle)
-cloud_fill.add_command(eagle)
-all_sky.add_command(eagle)
-collect_final.add_command(eagle)
+collect_data_model.add_command(hpc)
+cloud_fill.add_command(hpc)
+all_sky.add_command(hpc)
+collect_final.add_command(hpc)
 
 
 if __name__ == '__main__':

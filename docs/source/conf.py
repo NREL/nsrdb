@@ -16,8 +16,10 @@ Documentation config file
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import sphinx_rtd_theme
 import sys
+
+import sphinx_rtd_theme
+
 sys.path.insert(0, os.path.abspath('../../'))
 
 # -- Project information -----------------------------------------------------
@@ -31,6 +33,7 @@ pkg = os.path.dirname(pkg)
 sys.path.append(pkg)
 
 from nsrdb.version import __version__ as v
+
 # The short X.Y version
 version = v
 # The full version, including alpha/beta/rc tags
@@ -92,6 +95,7 @@ exclude_patterns = [
     # to ensure that include files (partial pages) aren't built, exclude them
     # https://github.com/sphinx-doc/sphinx/issues/1965#issuecomment-124732907
     "**/includes/**",
+    "**version.py"
 ]
 
 # The name of the Pygments (syntax highlighting) style to use.
@@ -167,7 +171,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'nsrdb.tex', 'nsrdb Documentation',
-     'Brandon Benton, Grant Buster, Andrew Glaws, Ryan King', 'manual'),
+     author, 'manual'),
 ]
 
 # -- Options for manual page output ------------------------------------------
@@ -186,7 +190,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'nsrdb', 'nsrdb Documentation',
-     author, 'nsrdb', 'One line description of project.',
+     author, 'nsrdb', 'NSRDB data pipeline methods',
      'Miscellaneous'),
 ]
 

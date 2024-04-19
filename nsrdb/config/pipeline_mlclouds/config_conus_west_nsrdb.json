@@ -67,7 +67,7 @@
     "out_dir": "./",
     "year": 2019
   },
-  "eagle": {
+  "hpc": {
     "alloc": "pxs",
     "feature": "--qos=normal",
     "memory": 83,

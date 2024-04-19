@@ -47,7 +47,7 @@
     "out_dir": "/projects/pxs/processing/2019/east/",
     "year": 2019
   },
-  "eagle": {
+  "hpc": {
     "alloc": "pxs",
     "feature": "--qos=normal",
     "memory": 178,
