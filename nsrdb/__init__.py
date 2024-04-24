@@ -4,7 +4,8 @@ NSRDB processing methods.
 @author: gbuster
 """
 import os
-from nsrdb.version import __version__
+
+from ._version import __version__
 
 NSRDBDIR = os.path.dirname(os.path.realpath(__file__))
 CONFIGDIR = os.path.join(NSRDBDIR, 'config')

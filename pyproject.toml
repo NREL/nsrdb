@@ -1,0 +1,100 @@
+[build-system]
+requires = [
+  "setuptools >= 61.0",
+  "setuptools_scm[toml] >= 8",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "NREL-nsrdb"
+dynamic = ["version"]
+description = "National Solar Radiation Database (NSRDB) Software"
+keywords = ["nsrdb", "NREL"]
+readme = "README.rst"
+authors = [
+  {name = "Brandon Benton", email = "brandon.benton@nrel.gov"},
+]
+license = {text = "BSD-3-Clause"}
+requires-python = ">= 3.8"
+classifiers=[
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: BSD License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+  "netCDF>=1.5",
+  "matplotlib",
+  "NREL-cloud_fs>=0.0.8",
+  "NREL-farms>=1.0.5",
+  "NREL-reV<0.8.0",
+  "scikit-learn>=1.0",
+  "NREL-rest2 @ git+https://github.com/NREL/rest2.git@main",
+  "mlclouds @ git+https://github.com/NREL/mlclouds.git@main",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=0.5",
+  "pre-commit",
+  "ruff"
+]
+doc = [
+  "sphinx>=7.0",
+  "sphinx_rtd_theme>=2.0",
+  "sphinx-click>=4.0",
+]
+test = [
+  "pytest>=5.2",
+]
+
+[project.urls]
+homepage = "https://github.com/NREL/nsrdb"
+documentation = "https://nrel.github.io/nsrdb/"
+repository = "https://github.com/NREL/nsrdb"
+
+[tool.ruff]
+line-length = 79
+indent-width = 4
+
+target-version = "py38"
+
+[tool.ruff.lint]
+ignore = [
+  "B008", # function-call-in-default-argument
+  "B024", # abstract-base-class-without-abstract-method
+  "B028", # no-explicit-stacklevel
+  "B905", # zip-without-explicit-strict
+  "D105", # undocumented-magic-method
+  "D202", # no-blank-line-after-function
+  "D205", # blank-line-after-summary
+  "D209", # new-line-after-last-paragraph
+  "D212", # multi-line-summary-first-line
+  "D213", # multi-line-summary-second-linek
+  "D400", # ends-in-period
+  "D401", # non-imperative-mood
+  "D413", # blank-line-after-last-section
+  "D415", # ends-in-punctuation
+  "E902", # io-error
+  "PLR0913", # too-many-arguments
+  "UP009", # utf8-encoding-declaration
+  "UP032", # f-string
+  "UP038" # non-pep604-isinstance
+  ]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["nsrdb"]
+
+[tool.setuptools_scm]
+version_file = "nsrdb/_version.py"
