@@ -1,4 +1,3 @@
-[flake8]
-ignore = E731,E402,F,W503
+[ruff]
 exclude = .git,__pycache__,docs/source/conf.py,old,build,dist,bin/tmp/*
 max-complexity = 20
