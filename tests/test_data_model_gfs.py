@@ -7,17 +7,13 @@ Created on Thu Nov 29 09:54:51 2018
 @author: gbuster
 """
 
-import os
-import pytest
-import numpy as np
-import pandas as pd
-import h5py
 import datetime
+import os
 
-from nsrdb import TESTDATADIR, DEFAULT_VAR_META, DATADIR
-from nsrdb.data_model import DataModel, VarFactory
-from rex.utilities.loggers import init_logger
+import pytest
 
+from nsrdb import TESTDATADIR
+from nsrdb.data_model import DataModel
 
 RTOL = 0.01
 ATOL = 0.0

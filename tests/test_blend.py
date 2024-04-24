@@ -5,12 +5,13 @@ PyTest file for east-west blender utility
 """
 
 import os
-import pandas as pd
-import numpy as np
 import tempfile
 
-from nsrdb.file_handlers.outputs import Outputs
+import numpy as np
+import pandas as pd
+
 from nsrdb.blend.blend import Blender
+from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.file_utils import pd_date_range
 
 

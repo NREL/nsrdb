@@ -9,17 +9,21 @@ Created on Thu Nov 29 09:54:51 2018
 import datetime
 import os
 import shutil
-import pytest
-import numpy as np
-import pandas as pd
-import datetime
-import h5py
 import tempfile
 
-from nsrdb import DEFAULT_VAR_META, TESTDATADIR, CONFIGDIR
+import h5py
+import numpy as np
+import pandas as pd
+import pytest
+
+from nsrdb import CONFIGDIR, DEFAULT_VAR_META, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
-from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
-                                     CloudVarSingleNC, CloudCoords)
+from nsrdb.data_model.clouds import (
+    CloudCoords,
+    CloudVar,
+    CloudVarSingleH5,
+    CloudVarSingleNC,
+)
 
 RTOL = 0.001
 ATOL = 0.001
@@ -143,10 +147,6 @@ def test_regrid(max_workers_regrid):
 
 def test_regrid_duplicates():
     """Test the cloud regrid algorithm with duplicate coordinates."""
-
-    cloud_vars = DataModel.CLOUD_VARS
-    var_meta = DEFAULT_VAR_META
-    date = datetime.date(year=2007, month=1, day=16)
 
     kwargs = {'parallax_correct': False,
               'solar_shading': False,
@@ -305,7 +305,6 @@ def test_parallax_shading_correct(plot=False):
                 data = cv_obj.source_data[dset]
                 kws = kws_dict.get(dset, {})
 
-                fig = plt.figure(figsize=(10, 7))
                 a = plt.scatter(grid.longitude, grid.latitude, c=data,
                                 marker='s', s=50, linewidth=0, **kws)
                 plt.xlim(xlim)
@@ -315,7 +314,6 @@ def test_parallax_shading_correct(plot=False):
                             dpi=300)
                 plt.close()
 
-                fig = plt.figure(figsize=(10, 7))
                 a = plt.scatter(grid.longitude, grid.latitude, c=data,
                                 marker='s', s=10, linewidth=0, **kws)
                 plt.colorbar(a, label=dset)

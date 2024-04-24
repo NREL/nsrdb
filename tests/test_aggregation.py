@@ -5,17 +5,17 @@ Created on Tue Feb 11 14:04:45 2020
 
 @author: gbuster
 """
-import numpy as np
 import os
-import pytest
-from scipy.stats import mode
 import shutil
 import tempfile
 
-from nsrdb.aggregation.aggregation import Manager, Aggregation
-from nsrdb import TESTDATADIR
-
+import numpy as np
+import pytest
 from rex import NSRDB
+from scipy.stats import mode
+
+from nsrdb import TESTDATADIR
+from nsrdb.aggregation.aggregation import Aggregation, Manager
 
 meta_dir = os.path.join(TESTDATADIR, 'meta/')
 

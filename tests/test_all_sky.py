@@ -8,12 +8,13 @@ Created on Feb 13th 2019
 """
 
 import os
-import h5py
-import pytest
 import time
+
+import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import pytest
 
 from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.utilities.statistics import mae_perc

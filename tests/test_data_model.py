@@ -7,18 +7,19 @@ Created on Thu Nov 29 09:54:51 2018
 @author: gbuster
 """
 
-import os
-import pytest
-import numpy as np
-import pandas as pd
-import h5py
 import datetime
+import os
 import tempfile
 
-from nsrdb import TESTDATADIR, DEFAULT_VAR_META, DATADIR
-from nsrdb.data_model import DataModel, VarFactory
-from rex.utilities.loggers import init_logger
+import h5py
+import numpy as np
+import pandas as pd
+import pytest
 from rex import Resource
+from rex.utilities.loggers import init_logger
+
+from nsrdb import DATADIR, DEFAULT_VAR_META, TESTDATADIR
+from nsrdb.data_model import DataModel, VarFactory
 
 
 def test_data_model_dump(var='asymmetry'):

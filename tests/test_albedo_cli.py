@@ -8,16 +8,17 @@ Created on Jan 23th 2020
 @author: mbannist
 """
 import os
-import h5py
-import pytest
 import tempfile
 import traceback
-import numpy as np
-from click.testing import CliRunner
 
-from nsrdb.albedo import cli
-from nsrdb import TESTDATADIR
+import h5py
+import numpy as np
+import pytest
+from click.testing import CliRunner
 from rex.utilities.loggers import LOGGERS
+
+from nsrdb import TESTDATADIR
+from nsrdb.albedo import cli
 
 pytest.importorskip("pyhdf")
 
@@ -28,12 +29,12 @@ TEST_MERRA_DIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 
 @pytest.fixture(scope="module")
 def runner():
-    """ Runner for testing click CLIs """
+    """Runner for testing click CLIs"""
     return CliRunner()
 
 
 def test_cli_4km_data_with_temp_model(runner):
-    """ Test CLI with 4km IMS data """
+    """Test CLI with 4km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test.log')
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
@@ -66,7 +67,7 @@ def test_cli_4km_data_with_temp_model(runner):
 
 
 def test_cli_4km_data(runner):
-    """ Test CLI with 4km IMS data """
+    """Test CLI with 4km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test.log')
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
@@ -103,7 +104,7 @@ def test_cli_4km_data(runner):
 
 
 def test_cli_1km_data(runner):
-    """ Test CLI with 1km IMS data """
+    """Test CLI with 1km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test2.log')
         result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,

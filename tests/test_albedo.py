@@ -7,21 +7,21 @@ Created on Jan 23th 2020
 
 @author: mbannist
 """
-import os
-import pytest
-from datetime import datetime as dt
-import numpy as np
-import h5py
-import tempfile
 import logging
+import os
+import tempfile
+from datetime import datetime as dt
 
+import h5py
+import numpy as np
+import pytest
+
+from nsrdb import TESTDATADIR
+from nsrdb.albedo import albedo
+from nsrdb.albedo import temperature_model as tm
 
 pytest.importorskip("pyhdf")
 
-from nsrdb.albedo import temperature_model as tm
-from nsrdb.albedo import albedo
-
-from nsrdb import TESTDATADIR
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 MERRATESTDATADIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 
@@ -83,7 +83,7 @@ def test_increasing_temp_decreasing_albedo():
 
 
 def test_4km_data_with_temp_model():
-    """ Create composite albedo data with temperature dependent
+    """Create composite albedo data with temperature dependent
     albedo model using 4km IMS """
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_file, 'r') as f:
@@ -112,7 +112,7 @@ def test_4km_data_with_temp_model():
 
 
 def test_4km_data():
-    """ Create composite albedo data using 4km IMS """
+    """Create composite albedo data using 4km IMS"""
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
@@ -135,7 +135,7 @@ def test_4km_data():
 
 
 def test_1km_data():
-    """ Create composite albedo data using 1km IMS """
+    """Create composite albedo data using 1km IMS"""
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2015_001.h5')
     with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
@@ -158,7 +158,7 @@ def test_1km_data():
 
 
 def test_single_worker():
-    """ Create composite albedo data using 4km IMS and one worker"""
+    """Create composite albedo data using 4km IMS and one worker"""
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
@@ -182,7 +182,7 @@ def test_single_worker():
 
 
 def test_five_workers():
-    """ Create composite albedo data using 4km IMS and an arbitrary number
+    """Create composite albedo data using 4km IMS and an arbitrary number
     of workers (5).
     """
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
