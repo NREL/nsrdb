@@ -18,11 +18,8 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: ${{ github.event.pull_request.head.ref }}
-    - uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: |
-          ${{ secrets.REST2_SSH_KEY }}
-          ${{ secrets.MLCLOUDS_SSH_KEY }}
+        fetch-depth: 0
+        fetch-tags: true
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:

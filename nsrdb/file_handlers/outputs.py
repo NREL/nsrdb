@@ -2,24 +2,21 @@
 """
 Classes to handle NSRSDB h5 output files.
 """
-import os
 import logging
+import os
+
 import numpy as np
-
 from reV.handlers.outputs import Outputs as RevOutputs
-
-from rex.utilities.loggers import create_dirs
 from rex.rechunk_h5.chunk_size import ArrayChunkSize
+from rex.utilities.loggers import create_dirs
 
-from nsrdb.version import __version__
+from nsrdb import __version__
 
 logger = logging.getLogger(__name__)
 
 
 class Outputs(RevOutputs):
-    """
-    Base class to handle NSRDB output data in .h5 format
-    """
+    """Base class to handle NSRDB output data in .h5 format"""
 
     def set_version_attr(self):
         """Set the version attribute to the h5 file."""
@@ -29,6 +26,7 @@ class Outputs(RevOutputs):
     def init_h5(cls, fout, dsets, attrs, chunks, dtypes, time_index, meta,
                 add_coords=False, mode='w-'):
         """Initialize a full h5 output file with the final intended shape.
+
         Parameters
         ----------
         fout : str

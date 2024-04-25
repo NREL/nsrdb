@@ -23,11 +23,17 @@ Welcome to the National Solar Radiation Data Base (NSRDB)!
 .. image:: https://zenodo.org/badge/340209614.svg
     :target: https://zenodo.org/badge/latestdoi/340209614
 
-This repository contains all of the methods for the NSRDB data processing pipeline.
-You can read more about the NSRDB `here <https://nsrdb.nrel.gov/>`_ and
-`here <https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_.
-For details on NSRDB variable units, datatypes, and attributes, see the
-`NSRDB variable meta data <https://github.com/NREL/nsrdb/blob/master/config/nsrdb_vars.csv>`_.
+.. inclusion-intro
+
+The National Solar Radiation Database (NSRDB) software includes all the methods
+for the irradiance data processing pipeline. To get started, check out the
+NSRDB command line interface (CLI) `here
+<https://nrel.github.io/nsrdb/_cli/nsrdb.html#nsrdb>`_. You can read more about
+the NSRDB `here <https://nsrdb.nrel.gov/>`_ and `here
+<https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_.  For
+details on NSRDB variable units, datatypes, and attributes, see the `NSRDB
+variable meta data
+<https://github.com/NREL/nsrdb/blob/master/config/nsrdb_vars.csv>`_.
 
 The PXS All-Sky Irradiance Model
 ================================

@@ -2,26 +2,23 @@
 Temperature based albedo model using MERRA data
 for calculations
 
-Created pn Feb 23 2022
+Created on Feb 23 2022
 
 @author : bnb32
 """
 
-from concurrent.futures import as_completed
-import pandas as pd
-import numpy as np
-from datetime import datetime as dt
 import logging
+from concurrent.futures import as_completed
+from datetime import datetime as dt
 
-from nsrdb.data_model import DataModel
-from nsrdb import DEFAULT_VAR_META
-
+import numpy as np
+import pandas as pd
 from rex.utilities.execution import SpawnProcessPool
-from rex.utilities.loggers import init_logger
+
+from nsrdb import DEFAULT_VAR_META
+from nsrdb.data_model import DataModel
 
 logger = logging.getLogger(__name__)
-
-init_logger('nsrdb')
 
 
 class DataHandler:
@@ -173,7 +170,7 @@ class TemperatureModel:
         """
         albedo = T.copy()
         albedo[T < -5] = 0.8
-        mask = (-5 <= T) & (T < 0)
+        mask = (T >= -5) & (T < 0)
         albedo[mask] = 0.65 - 0.03 * T[mask]
         albedo[T >= 0] = 0.65
         albedo *= 1000

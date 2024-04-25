@@ -9,7 +9,6 @@ from warnings import warn
 
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.data_model import VarFactory
-import sys
 
 logger = logging.getLogger(__name__)
 

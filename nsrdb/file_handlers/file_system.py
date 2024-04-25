@@ -2,11 +2,13 @@
 """
 Utility to abstractly handle filesystem operations locally and in the cloud
 """
-from cloud_fs import FileSystem
+from warnings import warn
+
 import h5py
 import netCDF4 as nc
+from cloud_fs import FileSystem
+
 from nsrdb.file_handlers.resource import Resource
-from warnings import warn
 
 
 class NSRDBFileSystem(FileSystem):
