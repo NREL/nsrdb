@@ -1,6 +1,6 @@
-**********************************************************
+##########################################################
 Welcome to the National Solar Radiation Data Base (NSRDB)!
-**********************************************************
+##########################################################
 
 .. image:: https://github.com/NREL/nsrdb/workflows/Documentation/badge.svg
     :target: https://nrel.github.io/nsrdb/
@@ -27,43 +27,44 @@ Welcome to the National Solar Radiation Data Base (NSRDB)!
 
 The National Solar Radiation Database (NSRDB) software includes all the methods
 for the irradiance data processing pipeline. To get started, check out the
-NSRDB command line interface (CLI) `here
-<https://nrel.github.io/nsrdb/_cli/nsrdb.html#nsrdb>`_. You can read more about
-the NSRDB `here <https://nsrdb.nrel.gov/>`_ and `here
-<https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_.  For
-details on NSRDB variable units, datatypes, and attributes, see the `NSRDB
-variable meta data
+NSRDB command line interface `(CLI) <https://nrel.github.io/nsrdb/_cli/nsrdb.html#nsrdb>`_.
+Refer to the `NREL website
+<https://nsrdb.nrel.gov/>`_ and the original `journal article
+<https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_ for
+more information on the NSRDB.  For details on NSRDB variable units, datatypes,
+and attributes, see the `NSRDB variable meta data
 <https://github.com/NREL/nsrdb/blob/master/config/nsrdb_vars.csv>`_.
 
 The PXS All-Sky Irradiance Model
 ================================
-The PXS All-Sky Irradiance Model is the main physics package that calculates
-surface irradiance variables. The code base and additional documentation can
-be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/all_sky>`_.
+The PXS All-Sky `Irradiance Model
+<https://github.com/NREL/nsrdb/tree/master/nsrdb/all_sky>`_ is the main physics
+package that calculates surface irradiance variables.
 
 The NSRDB Data Model
 ====================
-The NSRDB Data Model is the data aggregation framework that sources, processes,
-and prepares data for input to All-Sky. The code base and additional
-documentation can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/data_model>`_.
+The NSRDB `Data Model
+<https://github.com/NREL/nsrdb/tree/master/nsrdb/data_model>`_ is the data
+aggregation framework that sources, processes, and prepares data for input to
+All-Sky.
 
 Installation
 ============
 
-#. Use conda (anaconda or miniconda with python 3.9) to create an nsrdb
+1. Use conda (anaconda or miniconda with python 3.9) to create an nsrdb
    environment: ``conda create --name nsrdb python=3.9``
-#. Activate your new conda env: ``conda activate nsrdb``
-#. Follow the steps used in the pytest actions, described `here <https://github.com/NREL/nsrdb/blob/main/.github/workflows/pull_request_tests.yml>`_.
+2. Activate your new conda env: ``conda activate nsrdb``
+3. Follow the steps used in the `pytest actions <https://github.com/NREL/nsrdb/blob/main/.github/workflows/pull_request_tests.yml>`_.
 
-    - These actions refer to the required repositories needed to run all tests and the commands which should be run from the local location of those repositories
-    - If you plan to run without MLClouds the step associated with this repository can be skipped.
-#. Test your installation:
+    1) These actions refer to the required repositories needed to run all tests and the commands which should be run from the local location of those repositories
+    2) If you plan to run without MLClouds the step associated with this repository can be skipped.
+4. Test your installation:
 
-    a. Start ipython and test the following import:
+    1) Start ipython and test the following import:
        ``from nsrdb.data_model import DataModel``
-    b. Navigate to the tests/ directory and run the command: ``pytest``
+    2) Navigate to the tests/ directory and run the command: ``pytest``
 
-#. If you are a developer, also run `pre-commit install` in the directory
+5. If you are a developer, also run ``pre-commit install`` in the directory
    containing .pre-commit-config.yaml.
 
 
