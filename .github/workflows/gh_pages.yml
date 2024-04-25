@@ -9,11 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: |
-            ${{ secrets.REST2_SSH_KEY }}
-            ${{ secrets.MLCLOUDS_SSH_KEY }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          fetch-tags: true
       - name: select python version
         uses: actions/setup-python@v4
         with:
