@@ -13,6 +13,10 @@ jobs:
         id-token: write
     steps:
     - uses: actions/checkout@v4
+    with:
+      ref: ${{ github.event.pull_request.head.ref }}
+      fetch-depth: 0
+      fetch-tags: true
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -26,5 +30,5 @@ jobs:
       run: |
         pip install twine
         twine check dist/*
-    - name: Publish
-      uses: pypa/gh-action-pypi-publish@release/v1
+    #- name: Publish
+    #  uses: pypa/gh-action-pypi-publish@release/v1
