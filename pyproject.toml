@@ -26,7 +26,7 @@ classifiers=[
   "Programming Language :: Python :: 3.10",
 ]
 dependencies = [
-  "netCDF>=1.5",
+  "netCDF4>=1.6",
   "matplotlib",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.5",
@@ -60,7 +60,7 @@ repository = "https://github.com/NREL/nsrdb"
 line-length = 79
 indent-width = 4
 
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
   ignore = [
@@ -87,7 +87,7 @@ target-version = "py38"
   ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
+"__init__.py" = ["F401"] # unused imports
 
 [tool.ruff.format]
 quote-style = "single"
