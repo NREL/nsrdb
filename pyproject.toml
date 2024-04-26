@@ -32,8 +32,8 @@ dependencies = [
   "NREL-farms>=1.0.5",
   "NREL-reV<0.8.0",
   "scikit-learn>=1.0",
-  "NREL-rest2 @ git+https://github.com/NREL/rest2.git@main",
-  "mlclouds @ git+https://github.com/NREL/mlclouds.git@main",
+  "NREL-rest2",
+  "NREL-mlclouds",
 ]
 
 [project.optional-dependencies]
