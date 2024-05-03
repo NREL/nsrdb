@@ -1,26 +1,27 @@
 ##########################################################
 Welcome to the National Solar Radiation Data Base (NSRDB)!
 ##########################################################
+|Docs| |Tests| |Linter| |PyPi| |PythonV| |Codecov| |Zenodo|
 
-.. image:: https://github.com/NREL/nsrdb/workflows/Documentation/badge.svg
+.. |Docs| image:: https://github.com/NREL/nsrdb/workflows/Documentation/badge.svg
     :target: https://nrel.github.io/nsrdb/
 
-.. image:: https://github.com/NREL/nsrdb/workflows/Pytests/badge.svg
+.. |Tests| image:: https://github.com/NREL/nsrdb/workflows/Pytests/badge.svg
     :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Pytests%22
 
-.. image:: https://github.com/NREL/nsrdb/workflows/Lint%20Code%20Base/badge.svg
+.. |Linter| image:: https://github.com/NREL/nsrdb/workflows/Lint%20Code%20Base/badge.svg
     :target: https://github.com/NREL/nsrdb/actions?query=workflow%3A%22Lint+Code+Base%22
 
-.. image:: https://img.shields.io/pypi/pyversions/NREL-nsrdb.svg
+.. |PyPi| image:: https://img.shields.io/pypi/pyversions/NREL-nsrdb.svg
     :target: https://pypi.org/project/NREL-nsrdb/
 
-.. image:: https://badge.fury.io/py/NREL-nsrdb.svg
+.. |PythonV| image:: https://badge.fury.io/py/NREL-nsrdb.svg
     :target: https://badge.fury.io/py/NREL-nsrdb
 
-.. image:: https://codecov.io/gh/nrel/nsrdb/branch/main/graph/badge.svg
+.. |Codecov| image:: https://codecov.io/gh/nrel/nsrdb/branch/main/graph/badge.svg
     :target: https://codecov.io/gh/nrel/nsrdb
 
-.. image:: https://zenodo.org/badge/340209614.svg
+.. |Zenodo| image:: https://zenodo.org/badge/340209614.svg
     :target: https://zenodo.org/badge/latestdoi/340209614
 
 .. inclusion-intro
