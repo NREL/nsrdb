@@ -6,15 +6,17 @@ Created on Feb 13th 2019
 
 @author: gbuster
 """
-from copy import deepcopy
 import os
-import pytest
-import pandas as pd
+from copy import deepcopy
+
 import numpy as np
+import pandas as pd
+import pytest
+
 from nsrdb import TESTDATADIR
 from nsrdb.tmy.tmy import Cdf, Tmy
 from nsrdb.utilities.file_utils import pd_date_range
-
+from nsrdb.utilities.pytest import execute_pytest
 
 RTOL = 0.001
 ATOL = 0.001
@@ -220,21 +222,5 @@ def plot_cdf():
     cdf.plot_tmy_selection()
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

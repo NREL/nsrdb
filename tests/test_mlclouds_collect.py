@@ -6,20 +6,22 @@ Created on 12/3/2020
 
 @author: gbuster
 """
-import pytest
-import numpy as np
-import tempfile
 import os
 import shutil
-from nsrdb import TESTDATADIR
-from nsrdb.nsrdb import NSRDB
-from nsrdb.file_handlers.outputs import Outputs
+import tempfile
+
+import numpy as np
+import pytest
 from rex import MultiFileNSRDB
+
+from nsrdb import TESTDATADIR
+from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.nsrdb import NSRDB
+from nsrdb.utilities.pytest import execute_pytest
 
 pytest.importorskip("mlclouds")
 pytest.importorskip("phygnn")
 from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
-
 
 PROJECT_DIR = os.path.join(TESTDATADIR, 'mlclouds_pipeline/')
 ARCHIVE_DIR = os.path.join(PROJECT_DIR, 'daily_files_archive/')
@@ -101,21 +103,5 @@ def test_collect(dates=('20190102', '20190103', '20190104'), slim_meta=True):
                         assert str(v) == str(attrs_final[k]), msg
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

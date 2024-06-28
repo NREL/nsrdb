@@ -1,5 +1,3 @@
-# pylint: skip-file
-# flake8: noqa
 """
 PyTest file for solar position algorithms.
 
@@ -8,39 +6,40 @@ Created on Jun 4th 2019
 @author: gbuster
 """
 from copy import deepcopy
-import pytest
-import numpy as np
-import os
-from nsrdb.gap_fill.cloud_fill import CloudGapFill
 
-CLOUD_TYPE = np.array([[0,   0, -128,   0,  0,   7],
-                       [1,   1,  -15,   0,  0,   7],
-                       [7,   3,  -15,   0,  0,   0],
-                       [7, -15,  -15,   0,  1,   0],
-                       [3,   8,  -15,   5,  1,   7],
-                       [3,   8,  -15,   5,  1,   7],
-                       [7,   3,  -15, -15,  4, -15],
-                       [7,   3,  -15,   5,  4,   7],
+import numpy as np
+
+from nsrdb.gap_fill.cloud_fill import CloudGapFill
+from nsrdb.utilities.pytest import execute_pytest
+
+CLOUD_TYPE = np.array([[0, 0, -128, 0, 0, 7],
+                       [1, 1, -15, 0, 0, 7],
+                       [7, 3, -15, 0, 0, 0],
+                       [7, -15, -15, 0, 1, 0],
+                       [3, 8, -15, 5, 1, 7],
+                       [3, 8, -15, 5, 1, 7],
+                       [7, 3, -15, -15, 4, -15],
+                       [7, 3, -15, 5, 4, 7],
                        ])
 
-CLD_OPD_DCOMP = np.array([[ 0,  0, 0, 0, 0,  0],
-                          [ 0,  0, 0, 0, 0,  0],
-                          [ 0,  0, 0, 0, 0,  0],
-                          [ 0,  0, 0, 0, 0,  0],
-                          [71, 43, 0, 0, 0,  0],
+CLD_OPD_DCOMP = np.array([[0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0],
+                          [71, 43, 0, 0, 0, 0],
                           [73, 45, 0, 0, 0, 41],
-                          [17, 29, 0, 0, 0,  0],
-                          [14, 21, 0, 0, 0,  0],
+                          [17, 29, 0, 0, 0, 0],
+                          [14, 21, 0, 0, 0, 0],
                           ], dtype=np.int32)
 
-SZA = np.array([[  0, 0, 0,   0,   0, 180],
-                [  0, 0, 0,   0,   0, 180],
-                [  0, 0, 0,   0, 180, 180],
-                [  0, 0, 0,   0, 180, 180],
-                [  0, 0, 0,   0,   0,   0],
-                [  0, 0, 0,   0,   0,   0],
-                [  0, 0, 0,   0, 180,   0],
-                [180, 0, 0, 180, 180,   0],
+SZA = np.array([[0, 0, 0, 0, 0, 180],
+                [0, 0, 0, 0, 0, 180],
+                [0, 0, 0, 0, 180, 180],
+                [0, 0, 0, 0, 180, 180],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 180, 0],
+                [180, 0, 0, 180, 180, 0],
                 ])
 
 OUT_CTYPE = np.array([[0, 0, 0, 0, 0, 7],
@@ -52,14 +51,14 @@ OUT_CTYPE = np.array([[0, 0, 0, 0, 0, 7],
                       [7, 3, 0, 5, 4, 7],
                       [7, 3, 0, 5, 4, 7]], dtype=np.int8)
 
-OUT_PROP = np.array([[ 0,  0, 0,  0, 0,  0],
-                     [ 0,  0, 0,  0, 0,  0],
-                     [17, 29, 0,  0, 0,  0],
-                     [17, 29, 0,  0, 0,  0],
+OUT_PROP = np.array([[0, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0],
+                     [17, 29, 0, 0, 0, 0],
+                     [17, 29, 0, 0, 0, 0],
                      [71, 43, 0, 10, 0, 41],
                      [73, 45, 0, 10, 0, 41],
                      [17, 29, 0, 10, 0, 41],
-                     [ 0, 21, 0,  0, 0, 41]], dtype=np.int32)
+                     [0, 21, 0, 0, 0, 41]], dtype=np.int32)
 
 OUT_FILL_FLAG = np.array([[0, 0, 2, 0, 0, 0],
                           [0, 0, 2, 0, 0, 0],
@@ -90,21 +89,5 @@ def test_opd():
     return cloud_prop, fill_flag
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

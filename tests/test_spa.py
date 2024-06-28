@@ -6,13 +6,15 @@ Created on Jun 4th 2019
 
 @author: gbuster
 """
-import pytest
-import numpy as np
 import os
-from nsrdb.solar_position.spa import SPA
-from nsrdb.solar_position.solpos import SolPos
+
+import numpy as np
+
 from nsrdb import TESTDATADIR
 from nsrdb.file_handlers.resource import Resource
+from nsrdb.solar_position.solpos import SolPos
+from nsrdb.solar_position.spa import SPA
+from nsrdb.utilities.pytest import execute_pytest
 
 
 def test_spa_solpo():
@@ -43,21 +45,5 @@ def test_spa_solpo():
     assert result, 'Apparent SZA does not match.'
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

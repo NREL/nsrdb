@@ -20,6 +20,7 @@ from rex.utilities.loggers import init_logger
 
 from nsrdb import DATADIR, DEFAULT_VAR_META, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
+from nsrdb.utilities.pytest import execute_pytest
 
 
 def test_data_model_dump(var='asymmetry'):
@@ -226,21 +227,5 @@ def test_nrel_data_handler(var='aod'):
     assert np.allclose(aod, truth)
 
 
-def execute_pytest(capture='all', flags='-rapP', purge=True):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

@@ -7,17 +7,18 @@ Created on Thu Nov 29 09:54:51 2018
 @author: gbuster
 """
 
-import os
-import pytest
-import numpy as np
-import pandas as pd
 import datetime
+import os
 import tempfile
 
-from nsrdb import TESTDATADIR, DEFAULT_VAR_META
+import numpy as np
+import pandas as pd
+
+from nsrdb import DEFAULT_VAR_META, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.file_utils import clean_meta
+from nsrdb.utilities.pytest import execute_pytest
 
 RTOL = 0.05
 ATOL = .1
@@ -99,21 +100,5 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
                                        rtol=RTOL, atol=ATOL), msg
 
 
-def execute_pytest(capture='all', flags='-rapP', purge=True):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

@@ -19,6 +19,7 @@ import pytest
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import albedo
 from nsrdb.albedo import temperature_model as tm
+from nsrdb.utilities.pytest import execute_pytest
 
 pytest.importorskip("pyhdf")
 
@@ -207,21 +208,5 @@ def test_five_workers():
         assert np.array_equal(data, new_data)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

@@ -1,4 +1,3 @@
-# pylint: skip-file
 """
 PyTest file for all sky daily processing after mlclouds daily gap fill
 
@@ -6,19 +5,21 @@ Created on 12/3/2020
 
 @author: gbuster
 """
-import pytest
-import numpy as np
 import os
-import tempfile
 import shutil
+import tempfile
+
+import numpy as np
+import pytest
+from rex import MultiFileNSRDB
+
 from nsrdb import TESTDATADIR
 from nsrdb.nsrdb import NSRDB
-from rex import MultiFileNSRDB
+from nsrdb.utilities.pytest import execute_pytest
 
 pytest.importorskip("mlclouds")
 pytest.importorskip("phygnn")
 from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
-
 
 PROJECT_DIR = os.path.join(TESTDATADIR, 'mlclouds_pipeline/')
 ARCHIVE_DIR = os.path.join(PROJECT_DIR, 'daily_files_archive/')
@@ -42,7 +43,7 @@ def test_all_sky_daily(date):
         dsets = ('dni', 'ghi', 'dhi', 'fill_flag', 'clearsky_dhi',
                  'clearsky_dni', 'clearsky_ghi')
         with MultiFileNSRDB(h5_source) as res:
-            assert all([d in res.dsets for d in dsets])
+            assert all(d in res.dsets for d in dsets)
             dni = res['dni']
             ghi = res['ghi']
             dhi = res['dhi']
@@ -70,21 +71,5 @@ def test_all_sky_daily(date):
         assert np.isin(fill_flag, (0, 1, 2, 5, 7)).all()
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

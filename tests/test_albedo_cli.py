@@ -19,6 +19,7 @@ from rex.utilities.loggers import LOGGERS
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import cli
+from nsrdb.utilities.pytest import execute_pytest
 
 pytest.importorskip("pyhdf")
 
@@ -44,7 +45,7 @@ def test_cli_4km_data_with_temp_model(runner):
                                           '--log-file', log_file,
                                           'singleday', '2013001',
                                           '--modis-shape', '122', '120',
-                                          '--ims-shape', '32', '25', ])
+                                          '--ims-shape', '32', '25'])
         # assert result.exit_code == 0
         if result.exit_code != 0:
             msg = ('Failed with error {}'
@@ -76,7 +77,7 @@ def test_cli_4km_data(runner):
                                           '--log-file', log_file,
                                           'singleday', '2013001',
                                           '--modis-shape', '122', '120',
-                                          '--ims-shape', '32', '25', ])
+                                          '--ims-shape', '32', '25'])
         # assert result.exit_code == 0
         if result.exit_code != 0:
             msg = ('Failed with error {}'
@@ -139,21 +140,5 @@ def test_cli_1km_data(runner):
         LOGGERS.clear()
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

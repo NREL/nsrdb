@@ -24,6 +24,7 @@ from nsrdb.data_model.clouds import (
     CloudVarSingleH5,
     CloudVarSingleNC,
 )
+from nsrdb.utilities.pytest import execute_pytest
 
 RTOL = 0.001
 ATOL = 0.001
@@ -113,7 +114,7 @@ def test_regrid(max_workers_regrid):
               'parallax_correct': False,
               'solar_shading': False,
               'remap_pc': False}
-    factory_kwargs = {v: kwargs for v in cloud_vars}
+    factory_kwargs = dict.fromkeys(cloud_vars, kwargs)
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'east_psm_extent.csv')
     out_dir = os.path.join(TESTDATADIR, 'processed_ancillary')
@@ -187,7 +188,7 @@ def test_regrid_big_dist():
               'parallax_correct': False,
               'solar_shading': False,
               'remap_pc': False}
-    factory_kwargs = {v: kwargs for v in cloud_vars}
+    factory_kwargs = dict.fromkeys(cloud_vars, kwargs)
     nsrdb_grid = os.path.join(TESTDATADIR, 'reference_grids',
                               'west_psm_extent.csv')
 
@@ -364,21 +365,5 @@ def test_parallax_sanity(kws):
     assert np.allclose(kws['lon_pc'], lon, atol=0.001)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

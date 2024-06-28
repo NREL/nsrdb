@@ -1,20 +1,17 @@
 """Test for temperature dependent albedo calculation"""
 
 import os
-from datetime import datetime as dt
 import tempfile
+from datetime import datetime as dt
+
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import cKDTree
-import matplotlib.pyplot as plt
-
 
 from nsrdb import TESTDATADIR
+from nsrdb.albedo import albedo, ims, modis
 from nsrdb.albedo import temperature_model as tm
-from nsrdb.albedo import albedo
-from nsrdb.albedo import modis, ims
-from nsrdb.albedo.albedo import (ModisClipper,
-                                 IMS_EDGE_BUFFFER,
-                                 ALBEDO_NODATA)
+from nsrdb.albedo.albedo import ALBEDO_NODATA, IMS_EDGE_BUFFFER, ModisClipper
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 source_dir = os.path.join(TESTDATADIR, 'merra2_source_files')
@@ -89,7 +86,7 @@ def calc_albedo(cad):
 
 
 def test_albedo_model(with_temp_model=True, plot=False):
-    """ Test temperature based albedo model """
+    """Test temperature based albedo model"""
 
     d = dt(2013, 1, 1)
     modis_shape = (122, 120)
