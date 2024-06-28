@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 
 from nsrdb.all_sky.all_sky import all_sky
+from nsrdb.utilities.pytest import execute_pytest
 from nsrdb.utilities.statistics import mae_perc
 
 BASE_DIR = os.path.dirname(__file__)
@@ -247,21 +248,5 @@ def iter_speed_compare(sites=list(range(10))):
           .format(len(sites), t_broad, t_iter))
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

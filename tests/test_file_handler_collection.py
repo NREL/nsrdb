@@ -9,19 +9,20 @@ Created on Thu Nov 29 09:54:51 2018
 
 import os
 import shutil
-import pytest
-import numpy as np
-import pandas as pd
-from pandas.testing import assert_frame_equal, assert_index_equal
 import tempfile
 
-from nsrdb import TESTDATADIR
-from nsrdb.nsrdb import NSRDB
-from nsrdb.data_model import VarFactory
-from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.file_handlers.collection import Collector
-from nsrdb.utilities.file_utils import pd_date_range
+import numpy as np
+import pandas as pd
+import pytest
+from pandas.testing import assert_frame_equal, assert_index_equal
 
+from nsrdb import TESTDATADIR
+from nsrdb.data_model import VarFactory
+from nsrdb.file_handlers.collection import Collector
+from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.nsrdb import NSRDB
+from nsrdb.utilities.file_utils import pd_date_range
+from nsrdb.utilities.pytest import execute_pytest
 
 RTOL = 0.05
 ATOL = .1
@@ -33,7 +34,7 @@ BASELINE_ANNUAL = os.path.join(TESTDATADIR, 'collection_baseline/',
 
 
 def retrieve_data(fp, dset='air_temperature'):
-    """get data from h5."""
+    """Get data from h5."""
 
     with Outputs(fp, mode='r') as f:
         ti = f.time_index
@@ -203,21 +204,5 @@ def test_final_daily():
                         assert check, msg
 
 
-def execute_pytest(capture='all', flags='-rapP', purge=True):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

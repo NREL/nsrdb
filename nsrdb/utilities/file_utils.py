@@ -71,7 +71,7 @@ def clean_meta(meta):
         The first column must be the NSRDB site gid's.
     """
     for n in meta.columns:
-        if meta.dtypes[n] == object:
+        if isinstance(meta[n], object):
             meta[n] = meta[n].replace(np.nan, 'None')
         if n == 'timezone':
             meta[n] = meta[n].astype(np.int8)

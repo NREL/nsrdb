@@ -8,19 +8,18 @@ Created on Feb 13th 2019
 """
 
 import os
+
 import h5py
-import pytest
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from nsrdb import TESTDATADIR
-from nsrdb.utilities.statistics import mbe_perc, rmse_perc
-from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.all_sky import CLEAR_TYPES, CLOUD_TYPES
-from nsrdb.solar_position.solpos import SolPos
+from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.file_handlers.surfrad import Surfrad
-
+from nsrdb.solar_position.solpos import SolPos
+from nsrdb.utilities.statistics import mbe_perc, rmse_perc
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -179,9 +178,8 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
         measurement = get_measurement_data(surfrad_file)
 
         return nsrdb, measurement
-    else:
-        print('Skipping, does not exist: {}'.format(surfrad_file))
-        return None
+    print('Skipping, does not exist: {}'.format(surfrad_file))
+    return None
 
 
 def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
@@ -219,7 +217,7 @@ def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
 
 
 def normalize_stats(stats, N):
-    """Normalize (average) the stats over N samples. """
+    """Normalize (average) the stats over N samples."""
     for k1, v in stats.items():
         for k2 in v.keys():
             stats[k1][k2] = np.round(stats[k1][k2] / N, decimals=2)
@@ -281,26 +279,10 @@ def stats_bar_chart(stats, var='dni', metric='mbe_perc', y_range=None,
     plt.close()
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
 
     out = {}
-    for site in SITE_CODES.keys():
+    for site in SITE_CODES:
         print('Running for "{}"'.format(SITE_CODES[site]))
         stats = None
         cloudy_stats = None

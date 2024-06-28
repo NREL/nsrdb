@@ -1,4 +1,3 @@
-# pylint: skip-file
 """
 PyTest file for mlclouds gap fill on daily files.
 
@@ -6,21 +5,23 @@ Created on 12/3/2020
 
 @author: gbuster
 """
-import h5py
-import pytest
-import numpy as np
 import os
 import shutil
 import tempfile
-from nsrdb import TESTDATADIR
-from nsrdb.file_handlers.outputs import Outputs
+
+import h5py
+import numpy as np
+import pytest
 from farms import CLOUD_TYPES
 from rex import MultiFileNSRDB
+
+from nsrdb import TESTDATADIR
+from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.utilities.pytest import execute_pytest
 
 pytest.importorskip("mlclouds")
 pytest.importorskip("phygnn")
 from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
-
 
 ARCHIVE_DIR = os.path.join(TESTDATADIR,
                            'mlclouds_pipeline/daily_files_archive/')
@@ -106,7 +107,7 @@ def test_mlclouds_fill(col_chunk, max_workers, date, slim_meta):
         missing_full_timeseries = (missing | ~day).all(axis=0)
         assert any(missing_full_timeseries)
         i = np.where(missing_full_timeseries)[0][0]
-        assert (2 == fill_flag[:, i]).all()
+        assert (fill_flag[:, i] == 2).all()
         assert (fill_ctype[:, i] == 0).all()
 
         # make sure some timesteps were missing cloud pressure and were filled
@@ -245,21 +246,5 @@ def test_mlclouds_fill_low_mem(col_chunk, max_workers, date='20190103'):
         assert np.allclose(fill_opd, fill_opd_low_mem)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)
