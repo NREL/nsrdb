@@ -2,14 +2,17 @@
 """Factory pattern for retrieving NSRDB data source handlers."""
 import logging
 
-from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
-from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
-                                     CloudVarSingleNC)
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
-from nsrdb.data_model.gfs import GfsVar, GfsDewPoint
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
+from nsrdb.data_model.clouds import (
+    CloudVar,
+    CloudVarSingleH5,
+    CloudVarSingleNC,
+)
+from nsrdb.data_model.gfs import GfsDewPoint, GfsVar
 from nsrdb.data_model.maiac_aod import MaiacVar
-from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
+from nsrdb.data_model.merra import DewPoint, MerraVar, RelativeHumidity
 from nsrdb.data_model.nrel_data import NrelVar
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 
@@ -123,8 +126,7 @@ class VarFactory:
                      .format(handler, list(cls.HANDLER_NAMES.keys())))
                 logger.error(e)
                 raise KeyError(e)
-            else:
-                HandlerClass = cls.HANDLER_NAMES[handler]
+            HandlerClass = cls.HANDLER_NAMES[handler]
 
         elif var_name in cls.MAPPING:
             HandlerClass = cls.MAPPING[var_name]
@@ -285,8 +287,7 @@ class VarFactory:
 
         if fpath.endswith('.h5'):
             return CloudVarSingleH5(fpath, dsets=dsets, **kwargs)
-        elif fpath.endswith('.nc'):
+        if fpath.endswith('.nc'):
             return CloudVarSingleNC(fpath, dsets=dsets, **kwargs)
-        else:
-            raise TypeError('Did not recognize cloud file type as .nc or '
-                            '.h5: {}'.format(fpath))
+        raise TypeError('Did not recognize cloud file type as .nc or '
+                        '.h5: {}'.format(fpath))

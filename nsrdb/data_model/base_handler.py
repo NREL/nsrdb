@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
-from abc import ABC, abstractmethod
+import datetime as dt
 import logging
+from abc import ABC, abstractmethod
+from warnings import warn
+
 import numpy as np
 import pandas as pd
-from warnings import warn
-import datetime as dt
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS

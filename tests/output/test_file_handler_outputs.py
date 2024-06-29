@@ -92,7 +92,7 @@ def test_output_handler(var_list=('surface_pressure', 'air_temperature',
                                    chunks=None, attrs=attrs)
 
         with Outputs(out_file, mode='r', unscale=False) as fout:
-            for dset in data_model.processed_data.keys():
+            for dset in data_model.processed_data:
                 if dset not in ['time_index', 'meta']:
                     data = fout[dset]
                     msg = 'Output handler failed for {}'.format(dset)
