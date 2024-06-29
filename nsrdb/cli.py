@@ -42,10 +42,7 @@ def check_if_dummy_run(debug_day, doy):
         Returns True if we want to skip running but include job in status file.
         False if we want to run normally
     """
-    if debug_day is None or debug_day == doy:
-        return False
-    else:
-        return True
+    return not (debug_day is None or debug_day == doy)
 
 
 def str_replace(d, str_rep):
@@ -95,13 +92,12 @@ class DictType(click.ParamType):
         """Convert to dict or return as None."""
         if isinstance(value, dict):
             return value
-        elif isinstance(value, str):
+        if isinstance(value, str):
             return json.loads(value)
-        elif value is None:
+        if value is None:
             return None
-        else:
-            raise TypeError('Cannot recognize int type: {} {} {} {}'
-                            .format(value, type(value), param, ctx))
+        raise TypeError('Cannot recognize int type: {} {} {} {}'
+                        .format(value, type(value), param, ctx))
 
 
 DICT = DictType()
@@ -358,10 +354,10 @@ def config(ctx, config_file, command):
     cmd_args['debug_day'] = run_config.pop('debug_day', None)
 
     # replace any args with higher priority entries in command dict
-    for k in hpc_args.keys():
+    for k in hpc_args:
         if k in cmd_args:
             hpc_args[k] = cmd_args[k]
-    for k in direct_args.keys():
+    for k in direct_args:
         if k in cmd_args:
             direct_args[k] = cmd_args[k]
 
@@ -431,7 +427,7 @@ class ConfigRunners:
         if doy_list is None and doy_range is None:
             return None
 
-        elif doy_list is None and doy_range is not None:
+        if doy_list is None and doy_range is not None:
             doy_list = list(range(doy_range[0], doy_range[1]))
 
         return doy_list
@@ -638,7 +634,7 @@ class ConfigRunners:
         n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
         i_files = cmd_args.get('collect_files', n_files_default)
         final = cmd_args.get('final', False)
-        fnames = sorted(list(NSRDB.OUTS.keys()))
+        fnames = sorted(NSRDB.OUTS.keys())
         if final:
             i_files = range(n_files_tot)
 
@@ -1032,7 +1028,7 @@ def collect_data_model(ctx, n_chunks, i_chunk, i_fname, n_writes,
     if final_file_name is None:
         final_file_name = name
 
-    fnames = sorted(list(NSRDB.OUTS.keys()))
+    fnames = sorted(NSRDB.OUTS.keys())
     fn_tag = fnames[i_fname].split('_')[1]
     log_file = ('collect/collect_{}_{}_{}.log'
                 .format(i_fname, fn_tag, i_chunk))
