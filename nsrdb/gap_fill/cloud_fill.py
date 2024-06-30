@@ -425,11 +425,12 @@ class CloudGapFill:
         logger.debug('Gap filling "{}".'.format(prop_name))
 
         float_convert = False
-        if isinstance(cloud_prop, np.ndarray):
-            if np.issubdtype(cloud_prop.dtype, np.integer):
-                float_convert = True
-                native_dtype = cloud_prop.dtype
-                cloud_prop = cloud_prop.astype(np.float32)
+        if isinstance(cloud_prop, np.ndarray) and np.issubdtype(
+            cloud_prop.dtype, np.integer
+        ):
+            float_convert = True
+            native_dtype = cloud_prop.dtype
+            cloud_prop = cloud_prop.astype(np.float32)
 
         # make dataframes
         df_convert = False
@@ -458,7 +459,7 @@ class CloudGapFill:
         cloud_prop[(cloud_prop <= 0)] = np.nan
 
         # perform gap fill for each cloud category seperately
-        for category, _ in cls.CATS.items():
+        for category in cls.CATS:
             # make property fill for given cloud type set
             cloud_prop = cls.fill_cloud_cat(category, cloud_prop, cloud_type)
 
@@ -471,8 +472,10 @@ class CloudGapFill:
         )
 
         if np.isnan(cloud_prop.values).sum() > 0:
-            e = 'Cloud property still has {} nan values out of shape {}!'.format(
-                np.isnan(cloud_prop).values.sum(), cloud_prop.shape
+            e = (
+                'Cloud property still has '
+                f'{np.isnan(cloud_prop).values().sum()} nan values out of '
+                f'shape {cloud_prop.shape}!'
             )
             logger.error(e)
             raise RuntimeError(e)
