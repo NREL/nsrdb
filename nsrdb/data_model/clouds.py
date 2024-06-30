@@ -44,7 +44,7 @@ class CloudCoords:
 
         if fp.endswith(('.nc', '.nc4')):
             with NFS(fp) as f:
-                dsets = sorted(list(f.variables.keys()))
+                dsets = sorted(f.variables.keys())
 
         elif fp.endswith('.h5'):
             with NFS(fp, use_h5py=True) as f:
@@ -707,8 +707,7 @@ class CloudVarSingleH5(CloudVarSingle):
                        .format(dset, data.shape, sparse_mask.shape))
                 logger.error(msg)
                 raise RuntimeError(msg)
-            else:
-                data = data[sparse_mask]
+            data = data[sparse_mask]
 
         if index is not None:
             data = data[index]
@@ -1018,8 +1017,7 @@ class CloudVarSingleNC(CloudVarSingle):
                        .format(dset, data.shape, sparse_mask.shape))
                 logger.error(msg)
                 raise RuntimeError(msg)
-            else:
-                data = data[sparse_mask]
+            data = data[sparse_mask]
 
         data = data.ravel()
 
@@ -1189,8 +1187,7 @@ class CloudVar(AncillaryVarHandler):
 
             return timestamp, obj
 
-        else:
-            raise StopIteration
+        raise StopIteration
 
     def _check_freq(self):
         """Check the input vs inferred file frequency and warn if !="""

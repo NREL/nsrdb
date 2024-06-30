@@ -281,10 +281,7 @@ def all_sky_h5(f_source, rows=slice(None), cols=slice(None), disc_on=False):
             'fill_flag'
     """
 
-    if os.path.exists(f_source):
-        Handler = Resource
-    else:
-        Handler = MultiFileResource
+    Handler = Resource if os.path.exists(f_source) else MultiFileResource
 
     with Handler(f_source) as source:
         all_sky_input = {dset: source[dset, rows, cols]
@@ -337,10 +334,7 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
             'fill_flag'
     """
 
-    if os.path.exists(f_source):
-        Handler = Resource
-    else:
-        Handler = MultiFileResource
+    Handler = Resource if os.path.exists(f_source) else MultiFileResource
 
     with Handler(f_source) as res:
         data_shape = res.shape
@@ -401,9 +395,9 @@ def all_sky_h5_parallel(f_source, rows=slice(None), cols=slice(None),
 
             if completed % 10 == 0:
                 logger.info('All-sky futures completed: '
-                            '{0} out of {1}. '
+                            '{} out of {}. '
                             'Current memory usage is '
-                            '{2:.3f} GB out of {3:.3f} GB total.'
+                            '{:.3f} GB out of {:.3f} GB total.'
                             .format(completed, len(futures),
                                     mem.used / 1e9, mem.total / 1e9))
 

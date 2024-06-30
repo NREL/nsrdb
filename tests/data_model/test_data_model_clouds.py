@@ -123,7 +123,7 @@ def test_regrid(max_workers_regrid):
                                 nsrdb_freq='1d', var_meta=var_meta,
                                 factory_kwargs=factory_kwargs,
                                 max_workers_regrid=max_workers_regrid)
-    for k in data.keys():
+    for k in data:
         data[k] = data[k][0, :].ravel()
 
     for key, value in data.items():
@@ -352,7 +352,7 @@ def test_parallax_shading_correct(plot=False):
      {'lat': 20, 'lon': 0, 'zen': 80, 'azi': -135, 'height': 10000,
       'lat_pc': 20.361, 'lon_pc': .384, 'option': 'shading'}))
 def test_parallax_sanity(kws):
-    """This checks baseline parallax/shading corrections just based on logical
+    """Check baseline parallax/shading corrections just based on logical
     directions/magnitudes of shift."""
     lat = np.array([kws['lat']]).astype(float)
     lon = np.array([kws['lon']]).astype(float)

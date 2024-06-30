@@ -2,7 +2,7 @@
   "collect-data-model": {
     "final": true,
     "max_workers": 10,
-    "n_chunks": 100,
+    "n_chunks": 1,
     "memory": 178,
     "n_writes": 1,
     "walltime": 48
@@ -69,7 +69,8 @@
     "max_workers": 32,
     "year": "%year%"
   },
-  "hpc": {
+  "execution": {
+    "option": "hpc",
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 40

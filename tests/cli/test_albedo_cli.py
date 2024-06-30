@@ -7,6 +7,7 @@ Created on Jan 23th 2020
 
 @author: mbannist
 """
+
 import os
 import tempfile
 import traceback
@@ -21,14 +22,14 @@ from nsrdb import TESTDATADIR
 from nsrdb.albedo import cli
 from nsrdb.utilities.pytest import execute_pytest
 
-pytest.importorskip("pyhdf")
+pytest.importorskip('pyhdf')
 
 BASE_DIR = os.path.dirname(__file__)
-TEST_DATA_DIR = os.path.join(BASE_DIR, './data/albedo')
+TEST_DATA_DIR = os.path.join(TESTDATADIR, 'albedo')
 TEST_MERRA_DIR = os.path.join(TESTDATADIR, 'merra2_source_files')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def runner():
     """Runner for testing click CLIs"""
     return CliRunner()
@@ -38,18 +39,34 @@ def test_cli_4km_data_with_temp_model(runner):
     """Test CLI with 4km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test.log')
-        result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
-                                          '-i', TEST_DATA_DIR,
-                                          '-a', td,
-                                          '-me', TEST_MERRA_DIR,
-                                          '--log-file', log_file,
-                                          'singleday', '2013001',
-                                          '--modis-shape', '122', '120',
-                                          '--ims-shape', '32', '25'])
+        result = runner.invoke(
+            cli.main,
+            [
+                '-m',
+                TEST_DATA_DIR,
+                '-i',
+                TEST_DATA_DIR,
+                '-a',
+                td,
+                '-me',
+                TEST_MERRA_DIR,
+                '--log-file',
+                log_file,
+                'singleday',
+                '2013001',
+                '--modis-shape',
+                '122',
+                '120',
+                '--ims-shape',
+                '32',
+                '25',
+            ],
+        )
         # assert result.exit_code == 0
         if result.exit_code != 0:
-            msg = ('Failed with error {}'
-                   .format(traceback.print_exception(*result.exc_info)))
+            msg = 'Failed with error {}'.format(
+                traceback.print_exception(*result.exc_info)
+            )
             raise RuntimeError(msg)
 
         # Compare against known output
@@ -71,17 +88,32 @@ def test_cli_4km_data(runner):
     """Test CLI with 4km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test.log')
-        result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
-                                          '-i', TEST_DATA_DIR,
-                                          '-a', td,
-                                          '--log-file', log_file,
-                                          'singleday', '2013001',
-                                          '--modis-shape', '122', '120',
-                                          '--ims-shape', '32', '25'])
+        result = runner.invoke(
+            cli.main,
+            [
+                '-m',
+                TEST_DATA_DIR,
+                '-i',
+                TEST_DATA_DIR,
+                '-a',
+                td,
+                '--log-file',
+                log_file,
+                'singleday',
+                '2013001',
+                '--modis-shape',
+                '122',
+                '120',
+                '--ims-shape',
+                '32',
+                '25',
+            ],
+        )
         # assert result.exit_code == 0
         if result.exit_code != 0:
-            msg = ('Failed with error {}'
-                   .format(traceback.print_exception(*result.exc_info)))
+            msg = 'Failed with error {}'.format(
+                traceback.print_exception(*result.exc_info)
+            )
             raise RuntimeError(msg)
 
         # Compare against known output
@@ -108,18 +140,32 @@ def test_cli_1km_data(runner):
     """Test CLI with 1km IMS data"""
     with tempfile.TemporaryDirectory() as td:
         log_file = os.path.join(td, 'test2.log')
-        result = runner.invoke(cli.main, ['-m', TEST_DATA_DIR,
-                                          '-i', TEST_DATA_DIR,
-                                          '-a', td,
-                                          '--log-file', log_file,
-                                          'singleday', '20150101',
-                                          '--modis-shape', '60', '61',
-                                          '--ims-shape', '64', '50',
-                                          ])
+        result = runner.invoke(
+            cli.main,
+            [
+                '-m',
+                TEST_DATA_DIR,
+                '-i',
+                TEST_DATA_DIR,
+                '-a',
+                td,
+                '--log-file',
+                log_file,
+                'singleday',
+                '20150101',
+                '--modis-shape',
+                '60',
+                '61',
+                '--ims-shape',
+                '64',
+                '50',
+            ],
+        )
         # assert result.exit_code == 0
         if result.exit_code != 0:
-            msg = ('Failed with error {}'
-                   .format(traceback.print_exception(*result.exc_info)))
+            msg = 'Failed with error {}'.format(
+                traceback.print_exception(*result.exc_info)
+            )
             raise RuntimeError(msg)
 
         # Compare against known output

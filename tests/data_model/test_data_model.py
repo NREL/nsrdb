@@ -113,7 +113,7 @@ def test_ancillary_single(var):
         grid,
         var_meta=var_meta,
         scale=True,
-        factory_kwargs=dict(temporal_interp='linear'),
+        factory_kwargs={'temporal_interp': 'linear'},
     )
 
     baseline_path = os.path.join(out_dir, var + '.h5')
@@ -177,7 +177,7 @@ def test_ancillary_single(var):
         # range but not constant
         baseline_end = data_baseline[-12:]
         data_end = data[-12:]
-        assert not all([np.array_equal(x, data_end[0]) for x in data_end])
+        assert not all(np.array_equal(x, data_end[0]) for x in data_end)
         assert np.allclose(
             [np.mean(data_end)], [np.mean(baseline_end)], atol=1.0, rtol=0.05
         )
