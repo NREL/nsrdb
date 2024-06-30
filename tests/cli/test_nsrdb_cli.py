@@ -156,7 +156,12 @@ def test_cli_steps(runner, run_config):
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{os.path.dirname(config_file)}/final/*.h5')) == 7
 
-    status_files = glob(os.path.dirname(config_file) + '/.gaps/*.json')
+    status_files = glob(
+        os.path.dirname(config_file) + '/.gaps/jobstatus*.json'
+    )
+    status_dicts = [safe_json_load(sf) for sf in status_files]
+    for sd in status_dicts:
+        assert all('successful' in str(vals) for vals in sd.values())
 
 
 def test_cli_pipeline(runner, run_config):
