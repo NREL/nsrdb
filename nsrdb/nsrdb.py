@@ -1235,7 +1235,6 @@ class NSRDB:
             terminal job.
         """
 
-        t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
         ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)

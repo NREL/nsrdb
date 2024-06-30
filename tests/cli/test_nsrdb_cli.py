@@ -9,6 +9,7 @@ from glob import glob
 
 import pytest
 from click.testing import CliRunner
+from rex import safe_json_load
 
 from nsrdb import DEFAULT_VAR_META, NSRDB, TESTDATADIR, cli
 from nsrdb.data_model import DataModel
@@ -155,6 +156,8 @@ def test_cli_steps(runner, run_config):
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{os.path.dirname(config_file)}/final/*.h5')) == 7
 
+    status_files = glob(os.path.dirname(config_file) + '/.gaps/*.json')
+
 
 def test_cli_pipeline(runner, run_config):
     """Test cli for pipeline, run using cli.pipeline"""
@@ -189,6 +192,13 @@ def test_cli_pipeline(runner, run_config):
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7
+
+    # final status file update
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+
+    status_file = glob(os.path.dirname(pipeline_file) + '/.gaps/*.json')[0]
+    status_dict = safe_json_load(status_file)
+    assert all('successful' in str(vals) for vals in status_dict.values())
 
 
 if __name__ == '__main__':
