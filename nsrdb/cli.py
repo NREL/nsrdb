@@ -498,8 +498,9 @@ def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
             log_file_i = log_file.replace('.log', f'_{i_chunk}.log')
             log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
             ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        config.update({'i_chunk': i_chunk})
-        ctx.obj['NAME'] = f'{name}_{i_chunk}'
+        config['i_chunk'] = i_chunk
+        config['job_name'] = f'{name}_{i_chunk}'
+        ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.gap_fill_clouds, config)
 
         BaseCLI.kickoff_job(ModuleName.CLOUD_FILL, config, ctx)
@@ -539,9 +540,10 @@ def all_sky(ctx, config, verbose=False, pipeline_step=None):
     for i_chunk in range(config['n_chunks']):
         log_file = f'{ctx.obj["out_dir"]}/all_sky/all_sky_{i_chunk}.log'
         log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
+        config['i_chunk'] = i_chunk
+        config['job_name'] = f'{name}_{i_chunk}'
         ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        config.update({'i_chunk': i_chunk})
-        ctx.obj['NAME'] = f'{name}_{i_chunk}'
+        ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.run_all_sky, config)
 
         BaseCLI.kickoff_job(ModuleName.ALL_SKY, config, ctx)
@@ -606,7 +608,8 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
             config['i_chunk'] = i_chunk
             config['i_fname'] = i_fname
             fn_tag = fnames[i_fname].split('_')[1]
-            ctx.obj['NAME'] = f'{name}_{i_fname}_{fn_tag}_{i_chunk}'
+            config['job_name'] = f'{name}_{i_fname}_{fn_tag}_{i_chunk}'
+            ctx.obj['NAME'] = config['job_name']
             ctx.obj['FUN_STR'] = get_fun_call_str(
                 NSRDB.collect_data_model, config
             )
@@ -709,7 +712,8 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
         log_file = f'{ctx.obj["out_dir"]}/final/final_collection_{i_fname}.log'
         log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
         ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        ctx.obj['NAME'] = f'{name}_{i_fname}'
+        config['job_name'] = f'{name}_{i_fname}'
+        ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
         BaseCLI.kickoff_job(ModuleName.COLLECT_FINAL, config, ctx)
 

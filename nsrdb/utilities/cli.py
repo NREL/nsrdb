@@ -120,6 +120,10 @@ class BaseCLI:
         ctx.obj['OUT_DIR'] = status_dir
         ctx.obj['IMPORT_STR'] = IMPORT_STR
         ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
+        ctx.obj['LOG_DIR'] = os.makedirs(
+            os.path.join(status_dir, 'logs', module_name.replace('-', '_')),
+            exist_ok=True,
+        )
         log_file = config.get('log_file', None)
         config_verbose = config.get('log_level', 'INFO')
         log_arg_str = f'"nsrdb", log_level="{config_verbose}"'
