@@ -568,10 +568,7 @@ class DataModel:
             weight_arr[(weight_arr < 0)] = 1
             self._weights[var_obj.name] = weight_arr
 
-        if var_obj.name in self._weights:
-            weights = self._weights[var_obj.name]
-        else:
-            weights = None
+        weights = self._weights.get(var_obj.name, None)
 
         return weights
 

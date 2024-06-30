@@ -6,6 +6,7 @@ Created on Thu Apr 25 15:47:53 2019
 
 @author: gbuster
 """
+
 import calendar
 import copy
 import datetime
@@ -601,7 +602,7 @@ class NSRDB:
 
         run_name = f"{user_input['basename']}_{user_input['satellite']}"
         run_name += f"_{user_input['extent']}_{user_input['year']}"
-        run_name += f"_{user_input['spatial']}"
+        run_name += f"_{user_input['spatial']}_{user_input['freq']}"
 
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 

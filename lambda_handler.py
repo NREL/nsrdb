@@ -1,25 +1,24 @@
-"""
-Lambda function handler
-"""
-from cloud_fs import FileSystem
-from datetime import datetime
-import h5py
+"""Lambda function handler"""
 import json
-from nsrdb import NSRDB
-from nsrdb.data_model.clouds import CloudVar
-import numpy as np
 import os
-import pandas as pd
-from rex import init_logger, safe_json_load
 import sys
 import tempfile
 import time
+from datetime import datetime
+
+import h5py
+import numpy as np
+import pandas as pd
+from cloud_fs import FileSystem
+from rex import init_logger, safe_json_load
+
+from nsrdb import NSRDB
+from nsrdb.data_model.clouds import CloudVar
 
 
 class LambdaHandler(dict):
-    """
-    Lambda Handler class
-    """
+    """Lambda Handler class"""
+
     def __init__(self, event):
         """
         Parameters
@@ -430,16 +429,16 @@ class LambdaHandler(dict):
 
 def handler(event, context):
     """
-        Wrapper for NSRDB to allow AWS Lambda invocation
+    Wrapper for NSRDB to allow AWS Lambda invocation
 
-        Parameters
-        ----------
-        event : dict
-            The event dict that contains the parameters sent when the function
-            is invoked.
-        context : dict
-            The context in which the function is called.
-        """
+    Parameters
+    ----------
+    event : dict
+        The event dict that contains the parameters sent when the function
+        is invoked.
+    context : dict
+        The context in which the function is called.
+    """
     return LambdaHandler.run(event, context=context)
 
 

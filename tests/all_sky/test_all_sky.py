@@ -14,25 +14,25 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pytest
 
+from nsrdb import TESTDATADIR
 from nsrdb.all_sky.all_sky import all_sky
 from nsrdb.utilities.pytest import execute_pytest
 from nsrdb.utilities.statistics import mae_perc
 
-BASE_DIR = os.path.dirname(__file__)
-TEST_FILE = os.path.join(BASE_DIR,
-                         './data/validation_nsrdb_farmsdni/nsrdb_2000.h5')
+TEST_FILE = os.path.join(
+    TESTDATADIR, 'validation_nsrdb_farmsdni', 'nsrdb_2000.h5'
+)
 RTOL = 1e-03
 ATOL = 0.01
 
+SITES = list(range(10))
 
-def get_benchmark_data(test_file=TEST_FILE, sites=list(range(10))):
-    """Get original irradiance data from an NSRDB file to benchmark against.
-    """
+
+def get_benchmark_data(test_file=TEST_FILE, sites=SITES):
+    """Get original irradiance data from an NSRDB file to benchmark against."""
 
     with h5py.File(test_file, 'r') as f:
-
         # get the original baseline irradiance variables
         dhi_orig = f['dhi'][:, sites]
         dni_orig = f['dni'][:, sites]
@@ -42,16 +42,23 @@ def get_benchmark_data(test_file=TEST_FILE, sites=list(range(10))):
     return dhi_orig, dni_orig, ghi_orig, fill_orig
 
 
-def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
-    """Retrieve the variables required to run all-sky for a given set of sites.
-    """
+def get_source_data(test_file=TEST_FILE, sites=SITES):
+    """Retrieve the variables required to run all-sky for a given set of
+    sites."""
     out = {}
-    var_list = ('solar_zenith_angle', 'surface_pressure', 'surface_albedo',
-                'ssa', 'aod', 'alpha', 'ozone', 'total_precipitable_water',
-                'asymmetry')
+    var_list = (
+        'solar_zenith_angle',
+        'surface_pressure',
+        'surface_albedo',
+        'ssa',
+        'aod',
+        'alpha',
+        'ozone',
+        'total_precipitable_water',
+        'asymmetry',
+    )
 
     with h5py.File(test_file, 'r') as f:
-
         # get unscaled source variables
         out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
 
@@ -62,15 +69,17 @@ def get_source_data(test_file=TEST_FILE, sites=list(range(10))):
         out['cloud_type'] = f['cloud_type'][:, sites]
         out['cld_reff_dcomp'] = (
             f['cld_reff_dcomp'][:, sites].astype(float)
-            / f['cld_reff_dcomp'].attrs['psm_scale_factor'])
+            / f['cld_reff_dcomp'].attrs['psm_scale_factor']
+        )
         out['cld_opd_dcomp'] = (
             f['cld_opd_dcomp'][:, sites]
-            / f['cld_opd_dcomp'].attrs['psm_scale_factor'])
+            / f['cld_opd_dcomp'].attrs['psm_scale_factor']
+        )
 
     return out
 
 
-def run_all_sky(test_file=TEST_FILE, sites=list(range(9))):
+def run_all_sky(test_file=TEST_FILE, sites=SITES):
     """Run the all-sky processing code over the specified site list."""
 
     source_vars = get_source_data(test_file=test_file, sites=sites)
@@ -91,36 +100,45 @@ def make_df(site):
 
     dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=site)
 
-    df_dhi = pd.DataFrame({'ti': d['time_index'],
-                           'sza': d['solar_zenith_angle'].flatten(),
-                           'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': aso['fill_flag'].flatten(),
-                           'fill_flag_orig': fill_orig.flatten(),
-                           'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'dhi': aso['dhi'].flatten(),
-                           'dhi_orig': dhi_orig.flatten(),
-                           'cs_dhi': aso['clearsky_dhi'].flatten(),
-                           })
-    df_dni = pd.DataFrame({'ti': d['time_index'],
-                           'sza': d['solar_zenith_angle'].flatten(),
-                           'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': aso['fill_flag'].flatten(),
-                           'fill_flag_orig': fill_orig.flatten(),
-                           'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'dni': aso['dni'].flatten(),
-                           'dni_orig': dni_orig.flatten(),
-                           'cs_dni': aso['clearsky_dni'].flatten(),
-                           })
-    df_ghi = pd.DataFrame({'ti': d['time_index'],
-                           'sza': d['solar_zenith_angle'].flatten(),
-                           'cloud_type': d['cloud_type'].flatten(),
-                           'fill_flag': aso['fill_flag'].flatten(),
-                           'fill_flag_orig': fill_orig.flatten(),
-                           'cld_opd': d['cld_opd_dcomp'].flatten(),
-                           'ghi': aso['ghi'].flatten(),
-                           'ghi_orig': ghi_orig.flatten(),
-                           'cs_ghi': aso['clearsky_ghi'].flatten(),
-                           })
+    df_dhi = pd.DataFrame(
+        {
+            'ti': d['time_index'],
+            'sza': d['solar_zenith_angle'].flatten(),
+            'cloud_type': d['cloud_type'].flatten(),
+            'fill_flag': aso['fill_flag'].flatten(),
+            'fill_flag_orig': fill_orig.flatten(),
+            'cld_opd': d['cld_opd_dcomp'].flatten(),
+            'dhi': aso['dhi'].flatten(),
+            'dhi_orig': dhi_orig.flatten(),
+            'cs_dhi': aso['clearsky_dhi'].flatten(),
+        }
+    )
+    df_dni = pd.DataFrame(
+        {
+            'ti': d['time_index'],
+            'sza': d['solar_zenith_angle'].flatten(),
+            'cloud_type': d['cloud_type'].flatten(),
+            'fill_flag': aso['fill_flag'].flatten(),
+            'fill_flag_orig': fill_orig.flatten(),
+            'cld_opd': d['cld_opd_dcomp'].flatten(),
+            'dni': aso['dni'].flatten(),
+            'dni_orig': dni_orig.flatten(),
+            'cs_dni': aso['clearsky_dni'].flatten(),
+        }
+    )
+    df_ghi = pd.DataFrame(
+        {
+            'ti': d['time_index'],
+            'sza': d['solar_zenith_angle'].flatten(),
+            'cloud_type': d['cloud_type'].flatten(),
+            'fill_flag': aso['fill_flag'].flatten(),
+            'fill_flag_orig': fill_orig.flatten(),
+            'cld_opd': d['cld_opd_dcomp'].flatten(),
+            'ghi': aso['ghi'].flatten(),
+            'ghi_orig': ghi_orig.flatten(),
+            'cs_ghi': aso['clearsky_ghi'].flatten(),
+        }
+    )
 
     return df_dhi, df_dni, df_ghi
 
@@ -131,7 +149,7 @@ def plot_benchmark(sites, y_range=None):
     """
     aso = run_all_sky(sites=sites)
 
-    dhi_orig, dni_orig, ghi_orig, fill_orig = get_benchmark_data(sites=sites)
+    dhi_orig, dni_orig, ghi_orig, _ = get_benchmark_data(sites=sites)
 
     # calculate maximum GHI differences and index locations
     ghi_diff = np.abs(aso['ghi'] - ghi_orig)
@@ -149,8 +167,11 @@ def plot_benchmark(sites, y_range=None):
         else:
             t0, t1 = y_range
 
-        print('\nIndices {} through {} with diff {} at {}'
-              .format(t0, t1, max_diff[site], loc_max_diff[site]))
+        print(
+            '\nIndices {} through {} with diff {} at {}'.format(
+                t0, t1, max_diff[site], loc_max_diff[site]
+            )
+        )
 
         plt.hist(ghi_diff[:, site], bins=50)
         plt.ylim([0, 100])
@@ -178,13 +199,13 @@ def plot_benchmark(sites, y_range=None):
         plt.close()
 
 
-@pytest.mark.parametrize('test_file',
-                         ('./data/validation_nsrdb_farmsdni/nsrdb_2000.h5',
-                          ))
-def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
-                 mae_perc_threshold=5):
+def test_all_sky(
+    test_file=TEST_FILE,
+    sites=SITES,
+    timestep_frac_threshold=0.15,
+    mae_perc_threshold=5,
+):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
-    test_file = os.path.join(BASE_DIR, test_file)
 
     baseline = {}
 
@@ -201,18 +222,22 @@ def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
 
     for i, site in enumerate(sites):
         for var in ('dhi', 'dni', 'ghi'):
-            hist, bin_edges = np.histogram(np.abs(new[var][:, i]
-                                                  - baseline[var][:, i]),
-                                           bins=100, range=(0.0, 1000.0))
+            hist, _ = np.histogram(
+                np.abs(new[var][:, i] - baseline[var][:, i]),
+                bins=100,
+                range=(0.0, 1000.0),
+            )
 
             n_bad = np.sum(hist[2:])
             frac_bad = n_bad / new['ghi'].shape[0]
             max_perc_bad = np.max((max_perc_bad, 100 * frac_bad))
 
-            msg = ('{0:.4f}% of the values do not match the baseline '
-                   'irradiance (threshold is {1:.4f}%) for site {2}.'
-                   .format(100 * frac_bad, 100 * timestep_frac_threshold,
-                           site))
+            msg = (
+                '{:.4f}% of the values do not match the baseline '
+                'irradiance (threshold is {:.4f}%) for site {}.'.format(
+                    100 * frac_bad, 100 * timestep_frac_threshold, site
+                )
+            )
             assert frac_bad < timestep_frac_threshold, msg
 
             mae_p[var] += mae_perc(new[var][:, i], baseline[var][:, i])
@@ -222,16 +247,20 @@ def test_all_sky(test_file, sites=list(range(9)), timestep_frac_threshold=0.15,
     mae_p['ghi'] = np.round(mae_p['ghi'] / len(sites), decimals=2)
 
     for var in ('dhi', 'dni', 'ghi'):
-        msg = ('Mean absolute error for "{}" in "{}" is {}%'
-               .format(var, test_file, mae_p[var]))
+        msg = 'Mean absolute error for "{}" in "{}" is {}%'.format(
+            var, test_file, mae_p[var]
+        )
         assert mae_p[var] < mae_perc_threshold, msg
 
     print(mae_p)
-    print('Maximum of {0:.4f}% bad timesteps. Threshold was {1:.4f}%.'
-          .format(max_perc_bad, 100 * timestep_frac_threshold))
+    print(
+        'Maximum of {:.4f}% bad timesteps. Threshold was {:.4f}%.'.format(
+            max_perc_bad, 100 * timestep_frac_threshold
+        )
+    )
 
 
-def iter_speed_compare(sites=list(range(10))):
+def iter_speed_compare(sites=SITES):
     """Run a speed test comparing broadcasted all-sky to iterated all-sky."""
 
     t0 = time.time()
@@ -243,9 +272,12 @@ def iter_speed_compare(sites=list(range(10))):
         run_all_sky(sites=[site])
     t_iter = time.time() - t0
 
-    print('Running {0} sites through all sky took {1:.2f} seconds '
-          'broadcasted, {2:.2f} seconds iterated.'
-          .format(len(sites), t_broad, t_iter))
+    print(
+        'Running {} sites through all sky took {:.2f} seconds '
+        'broadcasted, {:.2f} seconds iterated.'.format(
+            len(sites), t_broad, t_iter
+        )
+    )
 
 
 if __name__ == '__main__':

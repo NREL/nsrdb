@@ -39,7 +39,7 @@ class Surfrad(Resource):
 
     @staticmethod
     def get_window_size(df, window_minutes=61):
-        """calculate the index window size to take a moving average over.
+        """Calculate the index window size to take a moving average over.
 
         Parameters
         ----------

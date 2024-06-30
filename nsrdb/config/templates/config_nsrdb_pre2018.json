@@ -3,7 +3,7 @@
     "final": true,
     "max_workers": 10,
     "n_writes": 1,
-    "n_chunks": 100
+    "n_chunks": 1
   },
   "daily-all-sky": {},
   "data-model": {
@@ -66,7 +66,8 @@
     "out_dir": "./",
     "year": "%year%"
   },
-  "hpc": {
+  "execution": {
+    "option": "hpc",
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 4
