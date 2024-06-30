@@ -2,5 +2,7 @@
 """
 NSRDB data pipeline architecture.
 """
+
+from gaps import Status
+
 from .pipeline import NsrdbPipeline
-from reV.pipeline.status import Status

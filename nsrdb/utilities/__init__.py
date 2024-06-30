@@ -1,6 +1,4 @@
-"""
-NSRDB utilities.
-"""
+"""NSRDB utilities."""
 
 from enum import Enum
 
@@ -17,10 +15,14 @@ class ModuleName(str, Enum):
     ML_CLOUD_FILL = 'ml-cloud-fill'
     ALL_SKY = 'all-sky'
     DAILY_ALL_SKY = 'daily-all-sky'
+    BLEND = 'blend'
+    AGGREGATE = 'aggregate'
     COLLECT_DATA_MODEL = 'collect-data-model'
     COLLECT_DAILY = 'collect-daily'
     COLLECT_FLIST = 'collect-flist'
     COLLECT_FINAL = 'collect-final'
+    COLLECT_BLENDED = 'collect-blended'
+    COLLECT_AGG = 'collect-agg'
 
     def __str__(self):
         return self.value

@@ -38,6 +38,7 @@ import os
 import time
 from concurrent.futures import as_completed
 from glob import glob
+from typing import ClassVar
 from warnings import warn
 
 import numpy as np
@@ -70,7 +71,7 @@ class DataModel:
     CACHE_DIR = '/projects/pxs/reference_grids/_nn_query_cache'
 
     # source files for weight factors
-    WEIGHTS = {
+    WEIGHTS: ClassVar = {
         'aod': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'
         ),
@@ -893,7 +894,7 @@ class DataModel:
         VarClass = self._var_factory.get_class(
             var, var_meta=self._var_meta, **kwargs
         )
-        deps = tuple()
+        deps = ()
         if issubclass(VarClass, BaseDerivedVar):
             deps = VarClass.DEPENDENCIES
 
@@ -1130,8 +1131,7 @@ class DataModel:
                 )
             )
 
-            completed = 0
-            for future in as_completed(futures):
+            for completed, future in enumerate(as_completed(futures)):
                 i = futures[future]
                 single_data = future.result()
 
@@ -1139,7 +1139,6 @@ class DataModel:
                     # write single timestep with NSRDB sites to row
                     cloud_data[dset][i, :] = array
 
-                completed += 1
                 mem = psutil.virtual_memory()
                 logger.info(
                     'Cloud data Regrid and IO futures completed: '
@@ -1534,7 +1533,7 @@ class DataModel:
         if var_list is None:
             var_list = cls.ALL_VARS
 
-        deps = tuple()
+        deps = ()
         for var in var_list:
             deps += data_model.get_dependencies(var)
 
@@ -1985,9 +1984,7 @@ class DataModel:
         """
 
         logger.info(
-            'Processing data for multiple cloud variables: {}'.format(
-                cloud_vars
-            )
+            f'Processing data for multiple cloud variables: {cloud_vars}'
         )
 
         data_model = cls(
