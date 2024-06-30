@@ -8,6 +8,7 @@ Created on Fri April 26 2019
 import logging
 import os
 from copy import deepcopy
+from typing import ClassVar
 from warnings import warn
 
 import numpy as np
@@ -24,10 +25,10 @@ class CloudGapFill:
     """Framework to fill gaps in cloud properties."""
 
     # cloud categories
-    CATS = {'water': WATER_TYPES, 'ice': ICE_TYPES}
+    CATS: ClassVar = {'water': WATER_TYPES, 'ice': ICE_TYPES}
 
     # hard fill for sites that have full year w no data.
-    FILL = {
+    FILL: ClassVar = {
         'water': {
             'cld_opd_dcomp': 10.0,
             'cld_reff_dcomp': 8.0,
@@ -239,11 +240,11 @@ class CloudGapFill:
             df_convert = True
             cloud_type = pd.DataFrame(cloud_type)
 
-        if missing < 0:
-            # everything less than zero is a missing value usually
-            missing_mask = cloud_type.values < 0
-        else:
-            missing_mask = cloud_type.values == missing
+        missing_mask = (
+            cloud_type.values < 0
+            if missing < 0
+            else cloud_type.values == missing
+        )
 
         if fill_flag is None:
             fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
@@ -260,11 +261,11 @@ class CloudGapFill:
             logger.warning(msg)
             warn(msg)
             # reset missing mask
-            if missing < 0:
-                # everything less than zero is a missing value usually
-                missing_mask = cloud_type.values < 0
-            else:
-                missing_mask = cloud_type.values == missing
+            missing_mask = (
+                cloud_type.values < 0
+                if missing < 0
+                else cloud_type.values == missing
+            )
 
         if missing_mask.any():
             cloud_type = cloud_type.astype(np.float32)
@@ -281,11 +282,11 @@ class CloudGapFill:
             )
             cloud_type = cloud_type.astype(np.int8)
 
-        if missing < 0:
-            # everything less than zero is a missing value usually
-            missing_mask = cloud_type.values < 0
-        else:
-            missing_mask = cloud_type.values == missing
+        missing_mask = (
+            cloud_type.values < 0
+            if missing < 0
+            else cloud_type.values == missing
+        )
 
         if missing_mask.sum() > 0:
             e = (
@@ -442,8 +443,11 @@ class CloudGapFill:
         if isinstance(sza, np.ndarray):
             sza = pd.DataFrame(sza)
 
-        if fill_flag is None:
-            fill_flag = np.zeros(cloud_type.shape, dtype=np.uint8)
+        fill_flag = (
+            np.zeros(cloud_type.shape, dtype=np.uint8)
+            if fill_flag is None
+            else fill_flag
+        )
 
         if not cloud_type_is_clean:
             # fill cloud types.
