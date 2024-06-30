@@ -36,7 +36,6 @@ from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
-from nsrdb.pipeline import Status
 from nsrdb.utilities.file_utils import clean_meta, pd_date_range, ts_freq_check
 
 logger = logging.getLogger(__name__)
@@ -477,16 +476,13 @@ class NSRDB:
 
     @staticmethod
     def create_configs_all_domains(kwargs):
-        """Modify config files for all domains with
-        specified parameters
+        """Modify config files for all domains with specified parameters
 
         Parameters
         ----------
         kwargs : dict
-            Dictionary of parameters
-            including year, basename,
-            satellite, extent, freq,
-            spatial, meta_file, doy_range
+            Dictionary of parameters including year, basename, satellite,
+            extent, freq, spatial, meta_file, doy_range
         """
         if kwargs['year'] < 2018:
             kwargs.update(
@@ -542,16 +538,13 @@ class NSRDB:
 
     @staticmethod
     def create_config_files(kwargs):
-        """Modify config files with
-        specified parameters
+        """Modify config files with specified parameters
 
         Parameters
         ----------
         kwargs : dict
-            Dictionary of parameters
-            including year, basename,
-            satellite, extent, freq,
-            spatial, meta_file, doy_range
+            Dictionary of parameters including year, basename, satellite,
+            extent, freq, spatial, meta_file, doy_range
         """
 
         default_kwargs = {
@@ -1099,7 +1092,6 @@ class NSRDB:
         max_workers_regrid=None,
         log_level='DEBUG',
         log_file='data_model.log',
-        job_name=None,
     ):
         """Run daily data model, and save output files.
 
@@ -1149,11 +1141,8 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
-        job_name : str
-            Optional name for pipeline and status identification.
         """
 
-        t0 = time.time()
         date = cls.to_datetime(date)
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq, var_meta=var_meta)
@@ -1184,24 +1173,6 @@ class NSRDB:
         if fpath_out is None:
             nsrdb._exe_fout(data_model)
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            year = date.year
-            date_str = nsrdb.doy_to_datestr(year, nsrdb.date_to_doy(date))
-            status = {
-                'out_dir': nsrdb._daily_dir,
-                'fout': fpath_out,
-                'job_status': 'successful',
-                'runtime': runtime,
-                'grid': grid,
-                'freq': freq,
-                'var_meta': nsrdb._var_meta,
-                'data_model_date': date_str,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'data-model', job_name, status
-            )
-
     @classmethod
     def collect_data_model(
         cls,
@@ -1217,7 +1188,6 @@ class NSRDB:
         log_level='DEBUG',
         log_file='collect_dm.log',
         max_workers=None,
-        job_name=None,
         final=False,
         final_file_name=None,
     ):
@@ -1256,8 +1226,6 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None uses all available workers.
-        job_name : str
-            Optional name for pipeline and status identification.
         final : bool
             Flag signifying that this is the last step in the NSRDB pipeline.
             this will collect the data to the out_dir/final/ directory instead
@@ -1324,23 +1292,6 @@ class NSRDB:
         )
         logger.info('Finished file collection to: {}'.format(f_out))
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._collect_dir,
-                'fout': f_out,
-                'job_status': 'successful',
-                'runtime': runtime,
-                'grid': grid,
-                'freq': freq,
-                'n_chunks': n_chunks,
-                'i_chunk': i_chunk,
-                'i_fname': i_fname,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'collect-data-model', job_name, status
-            )
-
     @classmethod
     def collect_final(
         cls,
@@ -1390,7 +1341,6 @@ class NSRDB:
             Optional name for pipeline and status identification.
         """
 
-        t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
         ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
@@ -1463,20 +1413,6 @@ class NSRDB:
 
         logger.info('Finished final file collection to: {}'.format(out_dir))
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._final_dir,
-                'fout': f_out,
-                'job_status': 'successful',
-                'runtime': runtime,
-                'grid': grid,
-                'freq': freq,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'collect-final', job_name, status
-            )
-
     @classmethod
     def gap_fill_clouds(
         cls,
@@ -1489,7 +1425,6 @@ class NSRDB:
         var_meta=None,
         log_level='DEBUG',
         log_file='cloud_fill.log',
-        job_name=None,
     ):
         """Gap fill cloud properties in a collected data model output file.
 
@@ -1517,10 +1452,7 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
-        job_name : str
-            Optional name for pipeline and status identification.
         """
-        t0 = time.time()
         nsrdb = cls(out_dir, year, None, var_meta=var_meta)
 
         fname_clouds = next(fn for fn in nsrdb.OUTS if 'cloud' in fn).format(
@@ -1540,19 +1472,6 @@ class NSRDB:
         )
         logger.info('Finished cloud gap fill.')
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._collect_dir,
-                'fout': f_cloud,
-                'gap_fill_method': 'legacy_nn',
-                'job_status': 'successful',
-                'runtime': runtime,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'cloud-fill', job_name, status
-            )
-
     @classmethod
     def ml_cloud_fill(
         cls,
@@ -1563,7 +1482,6 @@ class NSRDB:
         var_meta=None,
         log_level='DEBUG',
         log_file='cloud_fill.log',
-        job_name=None,
         col_chunk=None,
         max_workers=None,
     ):
@@ -1593,8 +1511,6 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
-        job_name : str
-            Optional name for pipeline and status identification.
         col_chunk : None | int
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
@@ -1605,7 +1521,6 @@ class NSRDB:
         """
         from nsrdb.gap_fill.mlclouds_fill import MLCloudsFill
 
-        t0 = time.time()
         assert len(str(date)) == 8
         nsrdb = cls(out_dir, str(date)[0:4], None, var_meta=var_meta)
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
@@ -1625,19 +1540,6 @@ class NSRDB:
 
         logger.info('Finished mlclouds gap fill.')
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._daily_dir,
-                'h5_source': h5_source,
-                'gap_fill_method': 'mlclouds',
-                'job_status': 'successful',
-                'runtime': runtime,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'ml-cloud-fill', job_name, status
-            )
-
     @classmethod
     def run_all_sky(
         cls,
@@ -1653,7 +1555,6 @@ class NSRDB:
         log_level='DEBUG',
         log_file='all_sky.log',
         i_chunk=None,
-        job_name=None,
         disc_on=False,
     ):
         """Run the all-sky physics model from collected .h5 files
@@ -1690,13 +1591,10 @@ class NSRDB:
             File to log to. Will be put in output directory.
         i_chunk : None | int
             Enumerated file index if running on site chunk.
-        job_name : str
-            Optional name for pipeline and status identification.
         disc_on : bool
             Compute cloudy sky dni with the disc model (True) or the farms-dni
             model (False)
         """
-        t0 = time.time()
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
@@ -1764,18 +1662,6 @@ class NSRDB:
 
         logger.info('Finished writing all-sky results.')
 
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._collect_dir,
-                'fout': f_out,
-                'job_status': 'successful',
-                'runtime': runtime,
-                'grid': grid,
-                'freq': freq,
-            }
-            Status.make_job_file(nsrdb._out_dir, 'all-sky', job_name, status)
-
     @classmethod
     def run_daily_all_sky(
         cls,
@@ -1791,7 +1677,6 @@ class NSRDB:
         max_workers=None,
         log_level='DEBUG',
         log_file='all_sky.log',
-        job_name=None,
         disc_on=False,
     ):
         """Run the all-sky physics model from daily data model output files.
@@ -1829,13 +1714,10 @@ class NSRDB:
             initialized.
         log_file : str
             File to log to. Will be put in output directory.
-        job_name : str
-            Optional name for pipeline and status identification.
         disc_on : bool
             Compute cloudy sky dni with the disc model (True) or the farms-dni
             model (False)
         """
-        t0 = time.time()
         assert len(str(date)) == 8
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
@@ -1870,21 +1752,6 @@ class NSRDB:
                 f[dset, rows, cols] = arr
 
         logger.info('Finished writing all-sky results.')
-
-        if job_name is not None:
-            runtime = (time.time() - t0) / 60
-            status = {
-                'out_dir': nsrdb._daily_dir,
-                'f_source': f_source,
-                'f_out': '{}_*_0.h5'.format(date),
-                'job_status': 'successful',
-                'runtime': runtime,
-                'grid': grid,
-                'freq': freq,
-            }
-            Status.make_job_file(
-                nsrdb._out_dir, 'daily-all-sky', job_name, status
-            )
 
     @classmethod
     def run_full(

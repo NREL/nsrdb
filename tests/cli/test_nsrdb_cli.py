@@ -48,13 +48,14 @@ def run_config(tmpdir_factory):
         'cache_file': False,
     }
     nsrdb_grid = os.path.join(TESTDATADIR, 'meta', 'surfrad_meta.csv')
-    config_file = os.path.join(td, 'nsrdb_config.json')
+    config_file = os.path.join(td, 'config_nsrdb.json')
+    pipeline_file = os.path.join(td, 'config_pipeline.json')
     config_dict = {
         'direct': {
             'out_dir': td,
             'year': 2020,
-            'nsrdb_grid': nsrdb_grid,
-            'nsrdb_freq': '30min',
+            'grid': nsrdb_grid,
+            'freq': '30min',
             'var_meta': var_meta,
         },
         'data-model': {
@@ -72,11 +73,26 @@ def run_config(tmpdir_factory):
         },
         'daily-all-sky': {},
         'collect-data-model': {'max_workers': 1, 'final': True},
-        'execution': {'option': 'local'},
+        'execution_control': {'option': 'local'},
     }
     with open(config_file, 'w') as f:
         f.write(json.dumps(config_dict))
-    return config_file
+
+    with open(pipeline_file, 'w') as f:
+        f.write(
+            json.dumps(
+                {
+                    'logging': {'log_file': None, 'log_level': 'INFO'},
+                    'pipeline': [
+                        {'data-model': config_file},
+                        {'ml-cloud-fill': config_file},
+                        {'daily-all-sky': config_file},
+                        {'collect-data-model': config_file},
+                    ],
+                }
+            )
+        )
+    return config_file, pipeline_file
 
 
 def test_cli_create_configs(runner):
@@ -104,45 +120,75 @@ def test_cli_create_configs(runner):
         assert os.path.exists(os.path.join(out_dir, 'run.sh'))
 
 
-def test_cli_pipeline(runner, run_config):
-    """Test cli for full pipeline: data-model, gap-fill, all-sky, and
-    collection"""
+def test_cli_steps(runner, run_config):
+    """Test cli for full pipeline, using separate config calls to data-model,
+    gap-fill, all-sky, and collection"""
 
+    config_file, _ = run_config
     result = runner.invoke(
-        cli.config,
-        ['--config_file', run_config, '--command', 'data-model'],
+        cli.config, ['-c', config_file, '--command', 'data-model']
     )
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     result = runner.invoke(
-        cli.config,
-        ['--config_file', run_config, '--command', 'ml-cloud-fill'],
+        cli.config, ['-c', config_file, '--command', 'ml-cloud-fill']
     )
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
-    assert len(glob(f'{os.path.dirname(run_config)}/daily/*.h5')) == 2 + len(
+    assert len(glob(f'{os.path.dirname(config_file)}/daily/*.h5')) == 2 + len(
         DataModel.ALL_VARS_ML
     )
 
     result = runner.invoke(
-        cli.config,
-        ['--config_file', run_config, '--command', 'daily-all-sky'],
+        cli.config, ['-c', config_file, '--command', 'daily-all-sky']
     )
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
-    assert len(glob(f'{os.path.dirname(run_config)}/daily/*.h5')) == 1 + len(
+    assert len(glob(f'{os.path.dirname(config_file)}/daily/*.h5')) == 1 + len(
         DataModel.MLCLOUDS_VARS
     ) + sum(len(v) for v in NSRDB.OUTS.values())
 
     result = runner.invoke(
-        cli.config,
-        ['--config_file', run_config, '--command', 'collect-data-model'],
+        cli.config, ['-c', config_file, '--command', 'collect-data-model']
     )
-    assert len(glob(f'{os.path.dirname(run_config)}/final/*.h5')) == 7
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(f'{os.path.dirname(config_file)}/final/*.h5')) == 7
 
-    if result.exit_code != 0:
-        msg = 'Failed with error {}'.format(
-            traceback.print_exception(*result.exc_info)
-        )
-        raise RuntimeError(msg)
+
+def test_cli_pipeline(runner, run_config):
+    """Test cli for pipeline, run using cli.pipeline"""
+
+    _, pipeline_file = run_config
+
+    # data-model
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # ml-cloud-fill
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
+    assert len(
+        glob(f'{os.path.dirname(pipeline_file)}/daily/*.h5')
+    ) == 2 + len(DataModel.ALL_VARS_ML)
+
+    # all-sky
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # specific_humidity not included in OUTS or MLCLOUDS_VARS
+    assert len(
+        glob(f'{os.path.dirname(pipeline_file)}/daily/*.h5')
+    ) == 1 + len(DataModel.MLCLOUDS_VARS) + sum(
+        len(v) for v in NSRDB.OUTS.values()
+    )
+
+    # data collection
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7
 
 
 if __name__ == '__main__':

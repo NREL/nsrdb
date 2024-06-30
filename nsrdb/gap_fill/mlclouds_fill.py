@@ -2,16 +2,17 @@
 """
 Cloud Properties filling using phgynn
 """
-from concurrent.futures import as_completed
+
 import logging
-import numpy as np
 import os
-import pandas as pd
-import psutil
 import shutil
 import time
+from concurrent.futures import as_completed
 from warnings import warn
 
+import numpy as np
+import pandas as pd
+import psutil
 from farms import ICE_TYPES, WATER_TYPES
 from mlclouds import MODEL_FPATH
 from phygnn import PhygnnModel
@@ -30,10 +31,12 @@ class MLCloudsFill:
     """
     Use the MLClouds algorith with phygnn model to fill missing cloud data
     """
+
     DEFAULT_MODEL = MODEL_FPATH
 
-    def __init__(self, h5_source, fill_all=False, model_path=None,
-                 var_meta=None):
+    def __init__(
+        self, h5_source, fill_all=False, model_path=None, var_meta=None
+    ):
         """
         Parameters
         ----------
@@ -63,12 +66,19 @@ class MLCloudsFill:
         if model_path is None:
             model_path = self.DEFAULT_MODEL
 
-        logger.info('Initializing MLCloudsFill with h5_source: {}'
-                    .format(self._h5_source))
-        logger.info('Initializing MLCloudsFill with model: {}'
-                    .format(model_path))
-        logger.info('MLCloudsFill fill filling all cloud properties: {}'
-                    .format(self._fill_all))
+        logger.info(
+            'Initializing MLCloudsFill with h5_source: {}'.format(
+                self._h5_source
+            )
+        )
+        logger.info(
+            'Initializing MLCloudsFill with model: {}'.format(model_path)
+        )
+        logger.info(
+            'MLCloudsFill fill filling all cloud properties: {}'.format(
+                self._fill_all
+            )
+        )
         self._phygnn_model = PhygnnModel.load(model_path)
 
         if self.h5_source is not None:
@@ -82,12 +92,14 @@ class MLCloudsFill:
         missing = []
         for dset in self._phygnn_model.feature_names:
             ignore = ('clear', 'ice_cloud', 'water_cloud', 'bad_cloud')
-            if (dset not in ignore and dset not in self._dset_map):
+            if dset not in ignore and dset not in self._dset_map:
                 missing.append(dset)
 
         if any(missing):
-            msg = ('The following datasets were missing in the h5_source '
-                   'directory: {}'.format(missing))
+            msg = (
+                'The following datasets were missing in the h5_source '
+                'directory: {}'.format(missing)
+            )
             logger.error(msg)
             raise FileNotFoundError(msg)
 
@@ -153,8 +165,9 @@ class MLCloudsFill:
         if feature_data is None:
             feature_data = {}
 
-        dsets = (self._phygnn_model.feature_names
-                 + self._phygnn_model.label_names)
+        dsets = (
+            self._phygnn_model.feature_names + self._phygnn_model.label_names
+        )
 
         with MultiFileNSRDB(self.h5_source) as res:
             for dset in dsets:
@@ -163,19 +176,28 @@ class MLCloudsFill:
                     feature_data[dset] = res[dset, :, col_slice]
 
         mem = psutil.virtual_memory()
-        logger.info('Feature data loaded for column slice {}. '
-                    'Memory utilization is {:.3f} GB out of {:.3f} GB total '
-                    '({:.2f}% used).'
-                    .format(col_slice, mem.used / 1e9, mem.total / 1e9,
-                            100 * mem.used / mem.total))
+        logger.info(
+            'Feature data loaded for column slice {}. '
+            'Memory utilization is {:.3f} GB out of {:.3f} GB total '
+            '({:.2f}% used).'.format(
+                col_slice,
+                mem.used / 1e9,
+                mem.total / 1e9,
+                100 * mem.used / mem.total,
+            )
+        )
 
         return feature_data
 
     def init_clean_arrays(self):
-        """Initialize a dict of numpy arrays for clean data. """
+        """Initialize a dict of numpy arrays for clean data."""
         arr = np.zeros(self._res_shape, dtype=np.float32)
-        dsets = ('cloud_type', 'cld_press_acha', 'cld_opd_dcomp',
-                 'cld_reff_dcomp')
+        dsets = (
+            'cloud_type',
+            'cld_press_acha',
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+        )
         clean_arrays = {d: arr.copy() for d in dsets}
         fill_flag_array = arr.copy().astype(np.uint8)
         return clean_arrays, fill_flag_array
@@ -205,21 +227,29 @@ class MLCloudsFill:
         any_bad = bad.any()
         bad_cols = (~bad).sum(axis=0) < 3
         if bad.all():
-            msg = ('Feature dataset "{}" has all NaN data! Filling with zeros.'
-                   .format(dset))
+            msg = (
+                f'Feature dataset "{dset}" has all NaN data! Filling with '
+                'zeros.'
+            )
             logger.warning(msg)
             warn(msg)
             array[:] = 0
         elif bad_cols.any():
             mean_impute = np.nanmean(array, axis=0)
             count = bad_cols.sum()
-            msg = ('Feature dataset "{}" has {} columns with nearly all NaN '
-                   'values out of {} ({:.2f}%) ({} NaN values out of '
-                   '{} total {:.2f}%). Filling with mean values by site.'
-                   .format(dset, count, array.shape[1],
-                           100 * count / array.shape[1],
-                           bad.sum(), array.size,
-                           100 * bad.sum() / array.size))
+            msg = (
+                'Feature dataset "{}" has {} columns with nearly all NaN '
+                'values out of {} ({:.2f}%) ({} NaN values out of '
+                '{} total {:.2f}%). Filling with mean values by site.'.format(
+                    dset,
+                    count,
+                    array.shape[1],
+                    100 * count / array.shape[1],
+                    bad.sum(),
+                    array.size,
+                    100 * bad.sum() / array.size,
+                )
+            )
             logger.warning(msg)
             warn(msg)
             array[:, bad_cols] = mean_impute[bad_cols]
@@ -227,8 +257,13 @@ class MLCloudsFill:
         # attempt to fill all remaining NaN values that should be scattered
         # throughout (not full sites missing data)
         if any_bad:
-            array = pd.DataFrame(array).interpolate(
-                'nearest').ffill().bfill().values
+            array = (
+                pd.DataFrame(array)
+                .interpolate('nearest')
+                .ffill()
+                .bfill()
+                .values
+            )
 
         # Fill any persistent NaN values with the global mean (these are
         # usually sites that have no valid data at all)
@@ -236,20 +271,28 @@ class MLCloudsFill:
         bad_cols = (~bad).sum(axis=0) < 3
         if bad.any() or bad_cols.any():
             mean_impute = np.nanmean(array)
-            msg = ('There were {} observations (out of {}) that have '
-                   'persistent NaN values and {} sites (out of {}) that '
-                   'still have all NaN values that could not be '
-                   'cleaned for {}. Filling with global mean value of {}'
-                   .format(bad.sum(), bad.size, bad_cols.sum(),
-                           array.shape[1], dset, mean_impute))
+            msg = (
+                'There were {} observations (out of {}) that have '
+                'persistent NaN values and {} sites (out of {}) that '
+                'still have all NaN values that could not be '
+                'cleaned for {}. Filling with global mean value of {}'.format(
+                    bad.sum(),
+                    bad.size,
+                    bad_cols.sum(),
+                    array.shape[1],
+                    dset,
+                    mean_impute,
+                )
+            )
             logger.warning(msg)
             warn(msg)
             array[bad] = mean_impute
 
         return array
 
-    def clean_feature_data(self, feature_raw, fill_flag, sza_lim=90,
-                           max_workers=1):
+    def clean_feature_data(
+        self, feature_raw, fill_flag, sza_lim=90, max_workers=1
+    ):
         """
         Clean feature data
 
@@ -279,30 +322,35 @@ class MLCloudsFill:
         t0 = time.time()
         feature_data = feature_raw.copy()
 
-        day = (feature_data['solar_zenith_angle'] < sza_lim)
+        day = feature_data['solar_zenith_angle'] < sza_lim
 
         cloud_type = feature_data['cloud_type']
         assert cloud_type.shape == fill_flag.shape
         # fill flag 1 and 2 are the missing cloud type flags
-        day_missing_ctype = day & (np.isin(fill_flag, (1, 2))
-                                   | (cloud_type < 0))
+        day_missing_ctype = day & (
+            np.isin(fill_flag, (1, 2)) | (cloud_type < 0)
+        )
 
         mask = cloud_type < 0
         full_missing_ctype_mask = mask.all(axis=0)
         if any(full_missing_ctype_mask) or mask.any():
-            msg = ('There are {} missing cloud type observations '
-                   'out of {} including {} with full missing ctype. This '
-                   'needs to be resolved using the fill_ctype_press() '
-                   'method before this step.'
-                   .format(mask.sum(), mask.size,
-                           full_missing_ctype_mask.sum()))
+            msg = (
+                'There are {} missing cloud type observations '
+                'out of {} including {} with full missing ctype. This '
+                'needs to be resolved using the fill_ctype_press() '
+                'method before this step.'.format(
+                    mask.sum(), mask.size, full_missing_ctype_mask.sum()
+                )
+            )
             logger.error(msg)
             raise RuntimeError(msg)
 
         feature_data['cld_opd_dcomp'] = np.nan_to_num(
-            feature_data['cld_opd_dcomp'], nan=-1.0)
+            feature_data['cld_opd_dcomp'], nan=-1.0
+        )
         feature_data['cld_reff_dcomp'] = np.nan_to_num(
-            feature_data['cld_reff_dcomp'], nan=-1.0)
+            feature_data['cld_reff_dcomp'], nan=-1.0
+        )
 
         cloudy = np.isin(cloud_type, ICE_TYPES + WATER_TYPES)
         day_clouds = day & cloudy
@@ -311,27 +359,40 @@ class MLCloudsFill:
 
         mask_fill_flag_opd = day_missing_opd & (fill_flag == 0)
         mask_fill_flag_reff = day_missing_reff & (fill_flag == 0)
-        mask_all_bad_opd = ((day_missing_opd | ~day).all(axis=0)
-                            & (fill_flag < 2).all(axis=0))
-        mask_all_bad_reff = ((day_missing_reff | ~day).all(axis=0)
-                             & (fill_flag < 2).all(axis=0))
+        mask_all_bad_opd = (day_missing_opd | ~day).all(axis=0) & (
+            fill_flag < 2
+        ).all(axis=0)
+        mask_all_bad_reff = (day_missing_reff | ~day).all(axis=0) & (
+            fill_flag < 2
+        ).all(axis=0)
         fill_flag[mask_fill_flag_opd] = 7  # fill_flag=7 is mlcloud fill
         fill_flag[mask_fill_flag_reff] = 7  # fill_flag=7 is mlcloud fill
         fill_flag[:, mask_all_bad_opd] = 4
         fill_flag[:, mask_all_bad_reff] = 4
 
-        logger.info('{:.2f}% of timesteps are daylight'
-                    .format(100 * day.sum() / (day.shape[0] * day.shape[1])))
-        logger.info('{:.2f}% of daylight timesteps are cloudy'
-                    .format(100 * day_clouds.sum() / day.sum()))
-        logger.info('{:.2f}% of daylight timesteps are missing cloud type'
-                    .format(100 * day_missing_ctype.sum() / day.sum()))
-        logger.info('{:.2f}% of cloudy daylight timesteps are missing cloud '
-                    'opd'
-                    .format(100 * day_missing_opd.sum() / day_clouds.sum()))
-        logger.info('{:.2f}% of cloudy daylight timesteps are missing cloud '
-                    'reff'
-                    .format(100 * day_missing_reff.sum() / day_clouds.sum()))
+        logger.info(
+            '{:.2f}% of timesteps are daylight'.format(
+                100 * day.sum() / (day.shape[0] * day.shape[1])
+            )
+        )
+        logger.info(
+            '{:.2f}% of daylight timesteps are cloudy'.format(
+                100 * day_clouds.sum() / day.sum()
+            )
+        )
+        logger.info(
+            '{:.2f}% of daylight timesteps are missing cloud type'.format(
+                100 * day_missing_ctype.sum() / day.sum()
+            )
+        )
+        logger.info(
+            '{:.2f}% of cloudy daylight timesteps are missing cloud '
+            'opd'.format(100 * day_missing_opd.sum() / day_clouds.sum())
+        )
+        logger.info(
+            '{:.2f}% of cloudy daylight timesteps are missing cloud '
+            'reff'.format(100 * day_missing_reff.sum() / day_clouds.sum())
+        )
 
         mask = feature_data['cld_opd_dcomp'] <= 0
         feature_data['cld_opd_dcomp'][mask] = np.nan
@@ -353,12 +414,16 @@ class MLCloudsFill:
                 if c not in self.phygnn_model.label_names:
                     feature_data[c] = self.clean_array(c, d)
         else:
-            logger.info('Interpolating feature data with {} max workers'
-                        .format(max_workers))
+            logger.info(
+                'Interpolating feature data with {} max workers'.format(
+                    max_workers
+                )
+            )
             futures = {}
             loggers = ['nsrdb', 'rex', 'phygnn']
-            with SpawnProcessPool(loggers=loggers,
-                                  max_workers=max_workers) as exe:
+            with SpawnProcessPool(
+                loggers=loggers, max_workers=max_workers
+            ) as exe:
                 for c, d in feature_data.items():
                     if c not in self.phygnn_model.label_names:
                         future = exe.submit(self.clean_array, c, d)
@@ -379,8 +444,9 @@ class MLCloudsFill:
         cloud_type = feature_data['cloud_type']
         day_ice_clouds = day & np.isin(cloud_type, ICE_TYPES)
         day_water_clouds = day & np.isin(cloud_type, WATER_TYPES)
-        day_clouds_bad_ctype = ((day_ice_clouds | day_water_clouds)
-                                & day_missing_ctype)
+        day_clouds_bad_ctype = (
+            day_ice_clouds | day_water_clouds
+        ) & day_missing_ctype
 
         flag = np.full(day_ice_clouds.shape, 'night', dtype=object)
         flag[day] = 'clear'
@@ -390,21 +456,34 @@ class MLCloudsFill:
         flag[day_missing_opd] = 'bad_cloud'
         flag[day_missing_reff] = 'bad_cloud'
         feature_data['flag'] = flag
-        logger.debug('Created the "flag" dataset with the following unique '
-                     'values: {}'.format(np.unique(flag)))
+        logger.debug(
+            'Created the "flag" dataset with the following unique '
+            'values: {}'.format(np.unique(flag))
+        )
 
         mem = psutil.virtual_memory()
-        logger.debug('Cleaned feature data dict has these keys: {}'
-                     .format(feature_data.keys()))
-        logger.debug('Cleaned feature data dict values have these shapes: {}'
-                     .format([d.shape for d in feature_data.values()]))
-        logger.debug('Feature flag column has these values: {}'
-                     .format(np.unique(feature_data['flag'])))
+        logger.debug(
+            'Cleaned feature data dict has these keys: {}'.format(
+                feature_data.keys()
+            )
+        )
+        logger.debug(
+            'Cleaned feature data dict values have these shapes: {}'.format(
+                [d.shape for d in feature_data.values()]
+            )
+        )
+        logger.debug(
+            'Feature flag column has these values: {}'.format(
+                np.unique(feature_data['flag'])
+            )
+        )
         logger.info('Cleaning took {:.1f} seconds'.format(time.time() - t0))
-        logger.info('Memory utilization is '
-                    '{:.3f} GB out of {:.3f} GB total ({:.2f}% used).'
-                    .format(mem.used / 1e9, mem.total / 1e9,
-                            100 * mem.used / mem.total))
+        logger.info(
+            'Memory utilization is '
+            '{:.3f} GB out of {:.3f} GB total ({:.2f}% used).'.format(
+                mem.used / 1e9, mem.total / 1e9, 100 * mem.used / mem.total
+            )
+        )
 
         return feature_data, fill_flag
 
@@ -415,8 +494,12 @@ class MLCloudsFill:
         should be run at the end to remove the .tmp designation. This will
         signify that the cloud fill was completed successfully.
         """
-        cld_dsets = ['cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
-                     'cloud_type']
+        cld_dsets = [
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+            'cloud_type',
+        ]
         for dset in cld_dsets:
             src_fpath = self.dset_map[dset]
             src_dir, f_name = os.path.split(src_fpath)
@@ -426,27 +509,36 @@ class MLCloudsFill:
 
             dst_fpath = os.path.join(dst_dir, f_name)
             dst_fpath_tmp = dst_fpath + '.tmp'
-            logger.debug('Archiving {} to {}'
-                         .format(src_fpath, dst_fpath_tmp))
+            logger.debug('Archiving {} to {}'.format(src_fpath, dst_fpath_tmp))
             if os.path.exists(dst_fpath):
-                msg = ("A raw cloud file already exists, this suggests "
-                       "MLClouds gap fill has already been run: {}"
-                       .format(dst_fpath))
+                msg = (
+                    'A raw cloud file already exists, this suggests '
+                    'MLClouds gap fill has already been run: {}'.format(
+                        dst_fpath
+                    )
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
-            elif os.path.exists(dst_fpath_tmp):
+            if os.path.exists(dst_fpath_tmp):
                 # don't overwrite the tmp file, the original may have been
                 # manipulated by a failed mlclouds job.
-                logger.debug('Archive file exists, not overwriting: {}'
-                             .format(dst_fpath_tmp))
+                logger.debug(
+                    'Archive file exists, not overwriting: {}'.format(
+                        dst_fpath_tmp
+                    )
+                )
             else:
                 shutil.copy(src_fpath, dst_fpath_tmp)
 
     def mark_complete_archived_files(self):
         """Remove the .tmp marker from the archived files once MLCloudsFill
         is complete"""
-        cld_dsets = ['cld_opd_dcomp', 'cld_reff_dcomp', 'cld_press_acha',
-                     'cloud_type']
+        cld_dsets = [
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+            'cloud_type',
+        ]
         for dset in cld_dsets:
             fpath = self.dset_map[dset]
             src_dir, f_name = os.path.split(fpath)
@@ -455,14 +547,18 @@ class MLCloudsFill:
             if os.path.exists(raw_path + '.tmp'):
                 os.rename(raw_path + '.tmp', raw_path)
             else:
-                msg = ('Something went wrong. The .tmp file created at the '
-                       'beginning of MLCloudsFill no longer exists: {}'
-                       .format(raw_path + '.tmp'))
+                msg = (
+                    'Something went wrong. The .tmp file created at the '
+                    'beginning of MLCloudsFill no longer exists: {}'.format(
+                        raw_path + '.tmp'
+                    )
+                )
                 logger.error(msg)
                 raise FileNotFoundError(msg)
 
-    def predict_cld_properties(self, feature_data, col_slice=None,
-                               low_mem=False):
+    def predict_cld_properties(
+        self, feature_data, col_slice=None, low_mem=False
+    ):
         """
         Predict cloud properties with phygnn
 
@@ -490,9 +586,11 @@ class MLCloudsFill:
         """
 
         L = feature_data['flag'].shape[0] * feature_data['flag'].shape[1]
-        cols = [k for k in feature_data.keys()
-                if k in self.phygnn_model.feature_names
-                or k == 'flag']
+        cols = [
+            k
+            for k in feature_data
+            if k in self.phygnn_model.feature_names or k == 'flag'
+        ]
         feature_df = pd.DataFrame(index=np.arange(L), columns=cols)
         for dset, arr in feature_data.items():
             if dset in feature_df:
@@ -505,14 +603,18 @@ class MLCloudsFill:
         night_mask = feature_df['flag'] == 'night'
         feature_df.loc[night_mask, 'flag'] = 'clear'
 
-        logger.debug('Predicting gap filled cloud data for column slice {}'
-                     .format(col_slice))
+        logger.debug(
+            'Predicting gap filled cloud data for column slice {}'.format(
+                col_slice
+            )
+        )
         if not low_mem:
             labels = self.phygnn_model.predict(feature_df, table=False)
         else:
             len_df = len(feature_df)
-            chunks = np.array_split(np.arange(len_df),
-                                    int(np.ceil(len_df / 1000)))
+            chunks = np.array_split(
+                np.arange(len_df), int(np.ceil(len_df / 1000))
+            )
             labels = []
             for index_chunk in chunks:
                 sub = feature_df.iloc[index_chunk]
@@ -520,36 +622,49 @@ class MLCloudsFill:
             labels = np.concatenate(labels, axis=0)
 
         mem = psutil.virtual_memory()
-        logger.debug('Prediction complete for column slice {}. Memory '
-                     'utilization is {:.3f} GB out of {:.3f} GB total '
-                     '({:.2f}% used).'
-                     .format(col_slice, mem.used / 1e9, mem.total / 1e9,
-                             100 * mem.used / mem.total))
+        logger.debug(
+            'Prediction complete for column slice {}. Memory '
+            'utilization is {:.3f} GB out of {:.3f} GB total '
+            '({:.2f}% used).'.format(
+                col_slice,
+                mem.used / 1e9,
+                mem.total / 1e9,
+                100 * mem.used / mem.total,
+            )
+        )
         logger.debug('Label data shape: {}'.format(labels.shape))
 
         shape = feature_data['flag'].shape
         predicted_data = {}
         for i, dset in enumerate(self.phygnn_model.label_names):
-            logger.debug('Reshaping predicted {} to {}'
-                         .format(dset, shape))
+            logger.debug('Reshaping predicted {} to {}'.format(dset, shape))
             predicted_data[dset] = labels[:, i].reshape(shape, order='F')
 
         for dset, arr in predicted_data.items():
             nnan = np.isnan(arr).sum()
             ntot = arr.shape[0] * arr.shape[1]
-            logger.debug('Raw predicted data for {} for column slice {} '
-                         'has mean: {:.2f}, median: {:.2f}, range: '
-                         '({:.2f}, {:.2f}) and {} NaN values out of '
-                         '{} ({:.2f}%)'
-                         .format(dset, col_slice, np.nanmean(arr),
-                                 np.median(arr), np.nanmin(arr),
-                                 np.nanmax(arr), nnan, ntot,
-                                 100 * nnan / ntot))
+            logger.debug(
+                'Raw predicted data for {} for column slice {} '
+                'has mean: {:.2f}, median: {:.2f}, range: '
+                '({:.2f}, {:.2f}) and {} NaN values out of '
+                '{} ({:.2f}%)'.format(
+                    dset,
+                    col_slice,
+                    np.nanmean(arr),
+                    np.median(arr),
+                    np.nanmin(arr),
+                    np.nanmax(arr),
+                    nnan,
+                    ntot,
+                    100 * nnan / ntot,
+                )
+            )
 
         return predicted_data
 
-    def fill_bad_cld_properties(self, predicted_data, feature_data,
-                                col_slice=None):
+    def fill_bad_cld_properties(
+        self, predicted_data, feature_data, col_slice=None
+    ):
         """
         Fill bad cloud properties in the feature data from predicted data
 
@@ -581,31 +696,44 @@ class MLCloudsFill:
         fill_mask = feature_data['flag'] == 'bad_cloud'
         night_mask = feature_data['flag'] == 'night'
         clear_mask = feature_data['flag'] == 'clear'
-        cloud_mask = ((feature_data['flag'] != 'night')
-                      & (feature_data['flag'] != 'clear'))
-        logger.debug('Final fill mask has {} bad clouds, {} night timesteps, '
-                     '{} clear timesteps, {} timesteps that are either night '
-                     'or clear, and {} cloudy timesteps out of {} '
-                     'total observations.'
-                     .format(fill_mask.sum(), night_mask.sum(),
-                             clear_mask.sum(), (clear_mask | night_mask).sum(),
-                             cloud_mask.sum(), fill_mask.size))
+        cloud_mask = (feature_data['flag'] != 'night') & (
+            feature_data['flag'] != 'clear'
+        )
+        logger.debug(
+            'Final fill mask has {} bad clouds, {} night timesteps, '
+            '{} clear timesteps, {} timesteps that are either night '
+            'or clear, and {} cloudy timesteps out of {} '
+            'total observations.'.format(
+                fill_mask.sum(),
+                night_mask.sum(),
+                clear_mask.sum(),
+                (clear_mask | night_mask).sum(),
+                cloud_mask.sum(),
+                fill_mask.size,
+            )
+        )
 
         if fill_mask.sum() == 0:
-            msg = ('No "bad_cloud" flags were detected in the feature_data '
-                   '"flag" dataset. Something went wrong! '
-                   'The cloud data is never perfect...')
+            msg = (
+                'No "bad_cloud" flags were detected in the feature_data '
+                '"flag" dataset. Something went wrong! '
+                'The cloud data is never perfect...'
+            )
             logger.warning(msg)
             warn(msg)
 
         if self._fill_all:
-            logger.debug('Filling {} values (all cloudy timesteps) using '
-                         'MLClouds predictions for column slice {}'
-                         .format(np.sum(cloud_mask), col_slice))
+            logger.debug(
+                'Filling {} values (all cloudy timesteps) using '
+                'MLClouds predictions for column slice {}'.format(
+                    np.sum(cloud_mask), col_slice
+                )
+            )
         else:
-            logger.debug('Filling {} values using MLClouds predictions for '
-                         'column slice {}'
-                         .format(np.sum(fill_mask), col_slice))
+            logger.debug(
+                'Filling {} values using MLClouds predictions for '
+                'column slice {}'.format(np.sum(fill_mask), col_slice)
+            )
 
         filled_data = {}
         for dset, arr in predicted_data.items():
@@ -624,21 +752,28 @@ class MLCloudsFill:
 
             nnan = np.isnan(filled_data[dset]).sum()
             ntot = filled_data[dset].shape[0] * filled_data[dset].shape[1]
-            logger.debug('Final cleaned data for {} for column slice {} '
-                         'has mean: {:.2f}, median: {:.2f}, range: '
-                         '({:.2f}, {:.2f}) and {} NaN values out of '
-                         '{} ({:.2f}%)'
-                         .format(dset, col_slice,
-                                 np.nanmean(filled_data[dset]),
-                                 np.median(filled_data[dset]),
-                                 np.nanmin(filled_data[dset]),
-                                 np.nanmax(filled_data[dset]),
-                                 nnan, ntot,
-                                 100 * nnan / ntot))
+            logger.debug(
+                'Final cleaned data for {} for column slice {} '
+                'has mean: {:.2f}, median: {:.2f}, range: '
+                '({:.2f}, {:.2f}) and {} NaN values out of '
+                '{} ({:.2f}%)'.format(
+                    dset,
+                    col_slice,
+                    np.nanmean(filled_data[dset]),
+                    np.median(filled_data[dset]),
+                    np.nanmin(filled_data[dset]),
+                    np.nanmax(filled_data[dset]),
+                    nnan,
+                    ntot,
+                    100 * nnan / ntot,
+                )
+            )
 
             if nnan > 0:
-                msg = ('Gap filled cloud property "{}" still had '
-                       '{} NaN values!'.format(dset, nnan))
+                msg = (
+                    'Gap filled cloud property "{}" still had '
+                    '{} NaN values!'.format(dset, nnan)
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
 
@@ -679,11 +814,17 @@ class MLCloudsFill:
             sza = f['solar_zenith_angle', :, col_slice]
 
         cloud_type, fill_flag = CloudGapFill.fill_cloud_type(
-            cloud_type, fill_flag=fill_flag)
+            cloud_type, fill_flag=fill_flag
+        )
 
         cloud_pres, fill_flag = CloudGapFill.fill_cloud_prop(
-            'cld_press_acha', cloud_pres, cloud_type, sza,
-            fill_flag=fill_flag, cloud_type_is_clean=True)
+            'cld_press_acha',
+            cloud_pres,
+            cloud_type,
+            sza,
+            fill_flag=fill_flag,
+            cloud_type_is_clean=True,
+        )
 
         return cloud_type, cloud_pres, sza, fill_flag
 
@@ -708,8 +849,11 @@ class MLCloudsFill:
         for dset, arr in filled_data.items():
             fpath = self.dset_map[dset]
             with Outputs(fpath, mode='a') as f:
-                logger.info('Writing filled "{}" to: {}'
-                            .format(dset, os.path.basename(fpath)))
+                logger.info(
+                    'Writing filled "{}" to: {}'.format(
+                        dset, os.path.basename(fpath)
+                    )
+                )
                 f[dset, :, col_slice] = arr
                 logger.debug('Finished writing "{}".'.format(dset))
 
@@ -728,15 +872,17 @@ class MLCloudsFill:
         """
         fpath_opd = self._dset_map['cld_opd_dcomp']
         fpath = fpath_opd.replace('cld_opd_dcomp', 'cloud_fill_flag')
-        var_obj = VarFactory.get_base_handler('cloud_fill_flag',
-                                              var_meta=self._var_meta)
+        var_obj = VarFactory.get_base_handler(
+            'cloud_fill_flag', var_meta=self._var_meta
+        )
 
         with Resource(fpath_opd) as res:
             ti = res.time_index
             meta = res.meta
 
-        logger.info('Writing cloud_fill_flag to: {}'
-                    .format(os.path.basename(fpath)))
+        logger.info(
+            'Writing cloud_fill_flag to: {}'.format(os.path.basename(fpath))
+        )
 
         init_dset = False
         if os.path.exists(fpath):
@@ -751,31 +897,46 @@ class MLCloudsFill:
                 with Outputs(fpath, mode='w') as fout:
                     fout.time_index = ti
                     fout.meta = meta
-                    init_data = np.zeros((len(ti), len(meta)),
-                                         dtype=var_obj.final_dtype)
-                    fout._add_dset(dset_name='cloud_fill_flag',
-                                   dtype=var_obj.final_dtype, data=init_data,
-                                   chunks=var_obj.chunks, attrs=var_obj.attrs)
+                    init_data = np.zeros(
+                        (len(ti), len(meta)), dtype=var_obj.final_dtype
+                    )
+                    fout._add_dset(
+                        dset_name='cloud_fill_flag',
+                        dtype=var_obj.final_dtype,
+                        data=init_data,
+                        chunks=var_obj.chunks,
+                        attrs=var_obj.attrs,
+                    )
 
             with Outputs(fpath, mode='a') as fout:
                 fout['cloud_fill_flag', :, col_slice] = fill_flag
         except Exception as e:
-            msg = ('Could not write col_slice {} to file: "{}"'
-                   .format(col_slice, fpath))
+            msg = 'Could not write col_slice {} to file: "{}"'.format(
+                col_slice, fpath
+            )
             logger.exception(msg)
-            raise IOError from e
+            raise OSError from e
 
         logger.debug('Write complete')
         logger.info('Final cloud_fill_flag counts:')
         ntot = fill_flag.shape[0] * fill_flag.shape[1]
         for n in range(10):
             count = (fill_flag == n).sum()
-            logger.info('\tFlag {} has {} counts out of {} ({:.2f}%)'
-                        .format(n, count, ntot, 100 * count / ntot))
+            logger.info(
+                '\tFlag {} has {} counts out of {} ({:.2f}%)'.format(
+                    n, count, ntot, 100 * count / ntot
+                )
+            )
 
     @classmethod
-    def prep_chunk(cls, h5_source, model_path=None, var_meta=None, sza_lim=90,
-                   col_slice=slice(None)):
+    def prep_chunk(
+        cls,
+        h5_source,
+        model_path=None,
+        var_meta=None,
+        sza_lim=90,
+        col_slice=slice(None),
+    ):
         """Prepare a column chunk (slice) of data for phygnn prediction.
 
         Parameters
@@ -818,25 +979,44 @@ class MLCloudsFill:
         """
         obj = cls(h5_source, model_path=model_path, var_meta=var_meta)
 
-        logger.debug('Preparing data for MLCloudsFill for column slice {}'
-                     .format(col_slice))
+        logger.debug(
+            'Preparing data for MLCloudsFill for column slice {}'.format(
+                col_slice
+            )
+        )
         ctype, cpres, sza, fill_flag = obj.fill_ctype_press(
-            obj.h5_source, col_slice=col_slice)
+            obj.h5_source, col_slice=col_slice
+        )
         clean_data = {'cloud_type': ctype, 'cld_press_acha': cpres}
-        feature_data = {'cloud_type': ctype,
-                        'cld_press_acha': cpres,
-                        'solar_zenith_angle': sza}
-        feature_data = obj.parse_feature_data(feature_data=feature_data,
-                                              col_slice=col_slice)
+        feature_data = {
+            'cloud_type': ctype,
+            'cld_press_acha': cpres,
+            'solar_zenith_angle': sza,
+        }
+        feature_data = obj.parse_feature_data(
+            feature_data=feature_data, col_slice=col_slice
+        )
         feature_data, fill_flag = obj.clean_feature_data(
-            feature_data, fill_flag, sza_lim=sza_lim)
-        logger.debug('Completed MLClouds data prep for column slice {}'
-                     .format(col_slice))
+            feature_data, fill_flag, sza_lim=sza_lim
+        )
+        logger.debug(
+            'Completed MLClouds data prep for column slice {}'.format(
+                col_slice
+            )
+        )
 
         return feature_data, clean_data, fill_flag
 
-    def process_chunk(self, i_features, i_clean, i_flag, col_slice,
-                      clean_data, fill_flag, low_mem=False):
+    def process_chunk(
+        self,
+        i_features,
+        i_clean,
+        i_flag,
+        col_slice,
+        clean_data,
+        fill_flag,
+        low_mem=False,
+    ):
         """Use cleaned and prepared data to run phygnn predictions and create
         final filled data for a single column chunk.
 
@@ -884,11 +1064,12 @@ class MLCloudsFill:
             This is for ALL chunks (full resource shape).
         """
 
-        i_predicted = self.predict_cld_properties(i_features,
-                                                  col_slice=col_slice,
-                                                  low_mem=low_mem)
-        i_filled = self.fill_bad_cld_properties(i_predicted, i_features,
-                                                col_slice=col_slice)
+        i_predicted = self.predict_cld_properties(
+            i_features, col_slice=col_slice, low_mem=low_mem
+        )
+        i_filled = self.fill_bad_cld_properties(
+            i_predicted, i_features, col_slice=col_slice
+        )
         i_clean.update(i_filled)
 
         fill_flag[:, col_slice] = i_flag
@@ -898,8 +1079,15 @@ class MLCloudsFill:
         return clean_data, fill_flag
 
     @classmethod
-    def clean_data_model(cls, data_model, fill_all=False, model_path=None,
-                         var_meta=None, sza_lim=90, low_mem=False):
+    def clean_data_model(
+        cls,
+        data_model,
+        fill_all=False,
+        model_path=None,
+        var_meta=None,
+        sza_lim=90,
+        low_mem=False,
+    ):
         """Run the MLCloudsFill process on data in-memory in an nsrdb
         data model object.
 
@@ -937,8 +1125,9 @@ class MLCloudsFill:
             now cleaned.
         """
 
-        obj = cls(None, fill_all=fill_all, model_path=model_path,
-                  var_meta=var_meta)
+        obj = cls(
+            None, fill_all=fill_all, model_path=model_path, var_meta=var_meta
+        )
 
         logger.info('Preparing data for MLCloudsFill to clean data model')
 
@@ -949,23 +1138,24 @@ class MLCloudsFill:
         feature_data = {'cloud_type': ctype, 'solar_zenith_angle': sza}
 
         logger.info('Loading feature data.')
-        dsets = (obj._phygnn_model.feature_names
-                 + obj._phygnn_model.label_names)
+        dsets = obj._phygnn_model.feature_names + obj._phygnn_model.label_names
 
         for dset in dsets:
             if dset not in feature_data and dset in data_model:
                 feature_data[dset] = data_model[dset]
 
         mem = psutil.virtual_memory()
-        logger.info('Feature data loaded for data model cleaning. '
-                    'Memory utilization is {:.3f} GB out of {:.3f} GB total '
-                    '({:.2f}% used).'
-                    .format(mem.used / 1e9, mem.total / 1e9,
-                            100 * mem.used / mem.total))
+        logger.info(
+            'Feature data loaded for data model cleaning. '
+            'Memory utilization is {:.3f} GB out of {:.3f} GB total '
+            '({:.2f}% used).'.format(
+                mem.used / 1e9, mem.total / 1e9, 100 * mem.used / mem.total
+            )
+        )
 
-        feature_data, fill_flag = obj.clean_feature_data(feature_data,
-                                                         fill_flag,
-                                                         sza_lim=sza_lim)
+        feature_data, fill_flag = obj.clean_feature_data(
+            feature_data, fill_flag, sza_lim=sza_lim
+        )
         logger.info('Completed MLClouds data prep')
 
         predicted = obj.predict_cld_properties(feature_data, low_mem=low_mem)
@@ -973,12 +1163,16 @@ class MLCloudsFill:
 
         feature_data['cloud_fill_flag'] = fill_flag
         for k, v in feature_data.items():
-            logger.info('Sending cleaned feature dataset "{}" to data model '
-                        'with shape {}'.format(k, v.shape))
+            logger.info(
+                'Sending cleaned feature dataset "{}" to data model '
+                'with shape {}'.format(k, v.shape)
+            )
             data_model[k] = v
         for k, v in filled.items():
-            logger.info('Sending cleaned cloud property dataset "{}" to '
-                        'data model with shape {}'.format(k, v.shape))
+            logger.info(
+                'Sending cleaned cloud property dataset "{}" to '
+                'data model with shape {}'.format(k, v.shape)
+            )
             data_model[k] = v
 
         logger.info('Finished MLClouds fill of data model object.')
@@ -1017,8 +1211,9 @@ class MLCloudsFill:
             attrs = res.attrs.get('cld_opd_dcomp', {})
 
         if 'merra' in attrs.get('data_source', '').lower():
-            logger.info('Found cloud data from MERRA2 for source: {}'
-                        .format(h5_source))
+            logger.info(
+                'Found cloud data from MERRA2 for source: {}'.format(h5_source)
+            )
             fill_flag_arr = mlclouds.init_clean_arrays()[1]
             fill_flag_arr[:] = merra_fill_flag
             mlclouds.write_fill_flag(fill_flag_arr)
@@ -1027,8 +1222,17 @@ class MLCloudsFill:
         return False
 
     @classmethod
-    def run(cls, h5_source, fill_all=False, model_path=None, var_meta=None,
-            sza_lim=90, col_chunk=None, max_workers=None, low_mem=False):
+    def run(
+        cls,
+        h5_source,
+        fill_all=False,
+        model_path=None,
+        var_meta=None,
+        sza_lim=90,
+        col_chunk=None,
+        max_workers=None,
+        low_mem=False,
+    ):
         """
         Fill cloud properties using phygnn predictions. Original files will be
         archived to a new "raw/" sub-directory
@@ -1068,82 +1272,121 @@ class MLCloudsFill:
             reduce this to (1000 x n_nodes_per_layer)
         """
 
-        logger.info('Running MLCloudsFill with h5_source: {}'
-                    .format(h5_source))
-        logger.info('Running MLCloudsFill with model: {}'
-                    .format(model_path))
-        logger.info('Running MLCloudsFill with col_chunk: {}'
-                    .format(col_chunk))
-        obj = cls(h5_source, fill_all=fill_all, model_path=model_path,
-                  var_meta=var_meta)
+        logger.info(
+            'Running MLCloudsFill with h5_source: {}'.format(h5_source)
+        )
+        logger.info('Running MLCloudsFill with model: {}'.format(model_path))
+        logger.info(
+            'Running MLCloudsFill with col_chunk: {}'.format(col_chunk)
+        )
+        obj = cls(
+            h5_source,
+            fill_all=fill_all,
+            model_path=model_path,
+            var_meta=var_meta,
+        )
         obj.preflight()
         obj.archive_cld_properties()
         clean_data, fill_flag = obj.init_clean_arrays()
 
         if col_chunk is None:
             slices = [slice(None)]
-            logger.info('MLClouds gap fill is being run without col_chunk for '
-                        'full data shape {} all on one process. If you see '
-                        'memory errors, try setting the col_chunk input to '
-                        'distribute the problem across multiple small workers.'
-                        .format(obj._res_shape))
+            logger.info(
+                'MLClouds gap fill is being run without col_chunk for '
+                'full data shape {} all on one process. If you see '
+                'memory errors, try setting the col_chunk input to '
+                'distribute the problem across multiple small workers.'.format(
+                    obj._res_shape
+                )
+            )
         else:
             columns = np.arange(obj._res_shape[1])
             N = np.ceil(len(columns) / col_chunk)
             arrays = np.array_split(columns, N)
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
-            logger.info('MLClouds gap fill will be run across the full data '
-                        'column shape {} in {} column chunks with '
-                        'approximately {} sites per chunk'
-                        .format(len(columns), len(slices), col_chunk))
+            logger.info(
+                'MLClouds gap fill will be run across the full data '
+                'column shape {} in {} column chunks with '
+                'approximately {} sites per chunk'.format(
+                    len(columns), len(slices), col_chunk
+                )
+            )
 
         if max_workers == 1:
             for col_slice in slices:
-                out = obj.prep_chunk(h5_source, model_path=model_path,
-                                     var_meta=var_meta, sza_lim=sza_lim,
-                                     col_slice=col_slice)
+                out = obj.prep_chunk(
+                    h5_source,
+                    model_path=model_path,
+                    var_meta=var_meta,
+                    sza_lim=sza_lim,
+                    col_slice=col_slice,
+                )
                 i_features, i_clean, i_flag = out
-                out = obj.process_chunk(i_features, i_clean, i_flag,
-                                        col_slice, clean_data, fill_flag,
-                                        low_mem=low_mem)
+                out = obj.process_chunk(
+                    i_features,
+                    i_clean,
+                    i_flag,
+                    col_slice,
+                    clean_data,
+                    fill_flag,
+                    low_mem=low_mem,
+                )
                 clean_data, fill_flag = out
                 del i_features, i_clean, i_flag
 
         else:
             futures = {}
-            logger.info('Starting process pool for parallel phygnn cloud '
-                        'fill with {} workers.'.format(max_workers))
+            logger.info(
+                'Starting process pool for parallel phygnn cloud '
+                'fill with {} workers.'.format(max_workers)
+            )
             loggers = ['nsrdb', 'rex', 'phygnn']
-            with SpawnProcessPool(loggers=loggers,
-                                  max_workers=max_workers) as exe:
+            with SpawnProcessPool(
+                loggers=loggers, max_workers=max_workers
+            ) as exe:
                 for col_slice in slices:
-                    future = exe.submit(obj.prep_chunk, h5_source,
-                                        model_path=model_path,
-                                        var_meta=var_meta,
-                                        sza_lim=sza_lim,
-                                        col_slice=col_slice)
+                    future = exe.submit(
+                        obj.prep_chunk,
+                        h5_source,
+                        model_path=model_path,
+                        var_meta=var_meta,
+                        sza_lim=sza_lim,
+                        col_slice=col_slice,
+                    )
                     futures[future] = col_slice
 
                 logger.info('Kicked off {} futures.'.format(len(futures)))
                 for i, future in enumerate(as_completed(futures)):
                     col_slice = futures[future]
                     i_features, i_clean, i_flag = future.result()
-                    out = obj.process_chunk(i_features, i_clean, i_flag,
-                                            col_slice, clean_data, fill_flag,
-                                            low_mem=low_mem)
+                    out = obj.process_chunk(
+                        i_features,
+                        i_clean,
+                        i_flag,
+                        col_slice,
+                        clean_data,
+                        fill_flag,
+                        low_mem=low_mem,
+                    )
                     clean_data, fill_flag = out
                     del i_features, i_clean, i_flag, future
 
                     mem = psutil.virtual_memory()
-                    logger.info('MLCloudsFill futures completed: '
-                                '{0} out of {1}. '
-                                'Current memory usage is '
-                                '{2:.3f} GB out of {3:.3f} GB total.'
-                                .format(i + 1, len(futures),
-                                        mem.used / 1e9, mem.total / 1e9))
+                    logger.info(
+                        'MLCloudsFill futures completed: '
+                        '{} out of {}. '
+                        'Current memory usage is '
+                        '{:.3f} GB out of {:.3f} GB total.'.format(
+                            i + 1,
+                            len(futures),
+                            mem.used / 1e9,
+                            mem.total / 1e9,
+                        )
+                    )
 
         obj.write_filled_data(clean_data, col_slice=slice(None))
         obj.write_fill_flag(fill_flag, col_slice=slice(None))
         obj.mark_complete_archived_files()
-        logger.info('Completed MLCloudsFill for h5_source: {}'
-                    .format(h5_source))
+        logger.info(
+            'Completed MLCloudsFill for h5_source: {}'.format(h5_source)
+        )

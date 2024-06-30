@@ -6,18 +6,18 @@ Created on Mon Oct 21 15:39:01 2019
 @author: gbuster
 """
 
-import copy
 import json
 import logging
 import os
 
 import click
 from gaps import Pipeline
-from rex.utilities.cli_dtypes import FLOAT, INT, STR, STRLIST
-from rex.utilities.hpc import SLURM
+from gaps.cli.pipeline import pipeline as gaps_pipeline
+from rex import safe_json_load
+from rex.utilities.fun_utils import get_fun_call_str
 from rex.utilities.loggers import init_logger
-from rex.utilities.utilities import safe_json_load, unstupify_path
 
+from nsrdb import __version__
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
 from nsrdb.utilities import ModuleName
@@ -27,108 +27,137 @@ from nsrdb.utilities.file_utils import ts_freq_check
 logger = logging.getLogger(__name__)
 
 
-def get_doys(cmd_args):
-    """Get the doy iterable from either the "doy_list" (prioritized)
-    or "doy_range" input
+class DictOrFile(click.ParamType):
+    """Dict or file click input argument type."""
 
-    Parameters
-    ----------
-    cmd_args : dict
-        Dictionary of kwargs from the nsrdb config file specifically for
-        this command block.
-
-    Returns
-    -------
-    doys : list | None
-        List of day-of-year integers to iterate through. None if neither
-        doy_list nor doy_range are found.
-    """
-    doy_list = cmd_args.get('doy_list', None)
-    doy_range = cmd_args.get('doy_range', None)
-    if doy_list is None and doy_range is None:
-        return None
-
-    if doy_list is None and doy_range is not None:
-        doy_list = list(range(doy_range[0], doy_range[1]))
-
-    return doy_list
-
-
-def str_replace(d, str_rep):
-    """Perform a deep string replacement in d.
-
-    Parameters
-    ----------
-    d : dict
-        Config dictionary potentially containing strings to replace.
-    str_rep : dict
-        Replacement mapping where keys are strings to search for and values
-        are the new values.
-
-    Returns
-    -------
-    d : dict
-        Config dictionary with replaced strings.
-    """
-
-    if isinstance(d, dict):
-        # go through dict keys and values
-        for key, val in d.items():
-            d[key] = str_replace(val, str_rep)
-
-    elif isinstance(d, list):
-        # if the value is also a list, iterate through
-        for i, entry in enumerate(d):
-            d[i] = str_replace(entry, str_rep)
-
-    elif isinstance(d, str):
-        # if val is a str, check to see if str replacements apply
-        for old_str, new in str_rep.items():
-            # old_str is in the value, replace with new value
-            d = d.replace(old_str, new)
-
-    # return updated
-    return d
-
-
-class DictType(click.ParamType):
-    """Dict click input argument type."""
-
-    name = 'dict'
+    name = 'dict_or_file'
 
     @staticmethod
     def convert(value, param, ctx):
         """Convert to dict or return as None."""
         if isinstance(value, dict):
             return value
+        if isinstance(value, str) and os.path.exists(value):
+            return value
         if isinstance(value, str):
-            return json.loads(value)
+            try:
+                return json.loads(value)
+            except Exception as e:
+                msg = (
+                    f'Could not load {value} as a dictionary. Make sure '
+                    'you provide a valid string representation'
+                )
+                raise ValueError(msg) from e
         if value is None:
             return None
         raise TypeError(
-            'Cannot recognize int type: {} {} {} {}'.format(
+            'Cannot recognize input type: {} {} {} {}'.format(
                 value, type(value), param, ctx
             )
         )
 
 
-DICT = DictType()
+CONFIG_TYPE = DictOrFile()
 
 
 @click.group()
+@click.version_option(version=__version__)
+@click.option(
+    '--config',
+    '-c',
+    required=True,
+    type=click.Path(exists=True),
+    help='NSRDB config file json for a single module.',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
 @click.pass_context
-def main(ctx):
-    """NSRDB processing CLI."""
+def main(ctx, config_file, verbose):
+    """NSRDB command line interface.
+
+    Try using the following commands to pull up the help pages for the
+    respective NSRDB CLIs::
+
+        $ nsrdb --help
+
+        $ nsrdb -c config.json pipeline --help
+
+        $ nsrdb -c config.json data-model --help
+
+        $ nsrdb -c config.json ml-cloud-fill --help
+
+        $ nsrdb -c config.json daily-all-sky --help
+
+        $ nsrdb -c config.json collect-data-model --help
+
+    Typically, a good place to start is to set up a sup3r job with a pipeline
+    config that points to several NSRDB modules that you want to run in serial.
+    You would call the NSRDB pipeline CLI using::
+
+        $ nsrdb -c config_pipeline.json pipeline
+
+    See the help pages of the module CLIs for more details on the config files
+    for each CLI.
+    """
     ctx.ensure_object(dict)
+    ctx.obj['CONFIG_FILE'] = config_file
+    ctx.obj['VERBOSE'] = verbose
+
+
+@main.group(invoke_without_command=True)
+@click.option(
+    '--config',
+    '-c',
+    required=True,
+    type=click.Path(exists=True),
+    help='NSRDB pipeline configuration json file.',
+)
+@click.option(
+    '--cancel',
+    is_flag=True,
+    help='Flag to cancel all jobs associated with a given pipeline.',
+)
+@click.option(
+    '--monitor',
+    is_flag=True,
+    help='Flag to monitor pipeline jobs continuously. '
+    'Default is not to monitor (kick off jobs and exit).',
+)
+@click.option(
+    '--background',
+    is_flag=True,
+    help='Flag to monitor pipeline jobs continuously in the '
+    'background using the nohup command. This only works with the '
+    '--monitor flag. Note that the stdout/stderr will not be '
+    'captured, but you can set a pipeline log_file to capture logs.',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def pipeline(ctx, config, cancel, monitor, background, verbose):
+    """Run NSRDB pipeline from a pipeline config file."""
+
+    ctx.ensure_object(dict)
+    ctx.obj['VERBOSE'] = verbose or ctx.obj.get('VERBOSE', False)
+    gaps_pipeline(config, cancel, monitor, background)
 
 
 @main.command()
 @click.option(
-    '--kwargs',
-    '-kw',
+    '--config',
+    '-c',
     required=True,
-    type=DICT,
-    help='Argument dictionary. Needs to include year. Needs to be '
+    type=CONFIG_TYPE,
+    help='Either a path to a config file or a dictionary. '
+    'Needs to include year. If a dictionary it needs to be provided '
     'in a string format. e.g. \'{"year":2019, "freq":"5min"}\'. '
     '\n\nAvailable keys: '
     'year, freq, outdir (parent directory for run directory), '
@@ -156,7 +185,7 @@ def main(ctx):
 )
 @click.pass_context
 def create_configs(ctx, kwargs, all_domains):
-    """NSRDB config file creation from templates."""
+    """Create config files for standard NSRDB runs using config templates."""
 
     ctx.ensure_object(dict)
     if all_domains:
@@ -165,692 +194,13 @@ def create_configs(ctx, kwargs, all_domains):
         NSRDB.create_config_files(kwargs)
 
 
-@main.command()
-@click.option(
-    '--kwargs',
-    '-kw',
-    required=True,
-    type=DICT,
-    help='Argument dictionary. Needs to include year. '
-    'e.g. \'{"year":2019, "extent": "full"}\'. '
-    '\n\nAvailable keys: '
-    'year, '
-    'outdir (parent directory of data directories), '
-    'file_tag ("ancillary_a", "ancillary_b", "clearsky", '
-    '"clouds", "csp", "irradiance", "pv", "all") - If file_tag '
-    'is all then all other tags will be run, '
-    'spatial (meta file resolution), '
-    'extent (full/conus), '
-    'basename (file prefix), '
-    'east_dir (directory with east data, auto populated if None), '
-    'west_dir (directory with west data, auto populated if None), '
-    'metadir (directory with meta file), '
-    'meta_file. (auto populated if None), '
-    'alloc (project allocation code), '
-    'memory (node memory), '
-    'chunk_size (number of sites to read/write at a time), '
-    'walltime (time for job).'
-    '\n\ndefault_kwargs = {"file_tag": "all", '
-    '"basename": "nsrdb", '
-    '"extent": "conus", "outdir": "./", '
-    '"east_dir": None, "west_dir": None, '
-    '"metadir": "/projects/pxs/reference_grids", '
-    '"spatial": "2km", "meta_file" : None, '
-    '"alloc": "pxs", "walltime": 48, '
-    '"chunk_size": 100000, "memory": 83, '
-    '"stdout": "./"}',
-)
-@click.option(
-    '--collect', is_flag=True, help='Flag to collect blended data files. '
-)
-@click.option('--hpc', is_flag=True, help='Flag to run collection on HPC. ')
-@click.pass_context
-def blend(ctx, kwargs, collect, hpc):
-    """NSRDB data blend."""
-
-    ctx.ensure_object(dict)
-    if collect:
-        if not hpc:
-            NSRDB.collect_blended(kwargs)
-        else:
-            default_kwargs = {
-                'alloc': 'pxs',
-                'memory': 83,
-                'walltime': 40,
-                'basename': 'nsrdb',
-                'feature': '--qos=normal',
-            }
-
-            user_input = copy.deepcopy(default_kwargs)
-            user_input.update(kwargs)
-            stdout_path = user_input.get('stdout', './')
-
-            cmd = (
-                'python -c "from nsrdb.nsrdb import NSRDB;'
-                f'NSRDB.collect_blended({kwargs})"'
-            )
-
-            slurm_manager = SLURM()
-
-            node_name = f'{user_input["basename"]}_'
-            node_name += f'{user_input["year"]}_collect_blend'
-
-            out = slurm_manager.sbatch(
-                cmd,
-                alloc=user_input['alloc'],
-                memory=user_input['memory'],
-                walltime=user_input['walltime'],
-                feature=user_input['feature'],
-                name=node_name,
-                stdout_path=stdout_path,
-            )[0]
-
-            print('\ncmd:\n{}\n'.format(cmd))
-
-            if out:
-                msg = (
-                    'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
-                        node_name, out
-                    )
-                )
-            else:
-                msg = (
-                    'Was unable to kick off job "{}". '
-                    'Please see the stdout error messages'.format(node_name)
-                )
-            print(msg)
-    else:
-        NSRDB.blend_files(kwargs)
-
-
-@main.command()
-@click.option(
-    '--kwargs',
-    '-kw',
-    required=True,
-    type=DICT,
-    help='Argument dictionary. Needs to include year. '
-    'e.g. \'{"year":2019}\'. '
-    '\n\nAvailable keys: '
-    'year, '
-    'basename (file prefix), '
-    'outdir (parent directory of data directories), '
-    'metadir (directory with meta file), '
-    'full_spatial, conus_spatial, final_spatial '
-    '(spatial resolution for each domain), '
-    'full_freq, conus_freq, final_freq '
-    '(temporal resolution for each domain), '
-    'n_chunks (number of chunks to process the meta data in), '
-    'alloc (project allocation code), '
-    'memory (node memory), '
-    'walltime (time for job).'
-    '\n\ndefault_kwargs = {"basename": "nsrdb", '
-    '"basename": "nsrdb", '
-    '"metadir": "/projects/pxs/reference_grids", '
-    '"full_spatial": "2km", "conus_spatial": "2km", '
-    '"final_spatial": "4km", "outdir": "./", '
-    '"full_freq": "10min", "conus_freq": "5min", '
-    '"final_freq": "30min", "n_chunks": 32, '
-    '"alloc": "pxs", "memory": 90, '
-    '"walltime": 40, '
-    '"stdout": "./"}',
-)
-@click.option(
-    '--collect', is_flag=True, help='Flag to collect aggregation chunks. '
-)
-@click.option('--hpc', is_flag=True, help='Flag to run collection on HPC. ')
-@click.pass_context
-def aggregate(ctx, kwargs, collect, hpc):
-    """NSRDB data aggregation."""
-
-    ctx.ensure_object(dict)
-    if collect:
-        if not hpc:
-            NSRDB.collect_aggregation(kwargs)
-        else:
-            default_kwargs = {
-                'alloc': 'pxs',
-                'memory': 83,
-                'walltime': 40,
-                'basename': 'nsrdb',
-                'feature': '--qos=normal',
-            }
-
-            user_input = copy.deepcopy(default_kwargs)
-            user_input.update(kwargs)
-            stdout_path = user_input.get('stdout', './')
-
-            cmd = (
-                'python -c "from nsrdb.nsrdb import NSRDB;'
-                f'NSRDB.collect_aggregation({kwargs})"'
-            )
-
-            slurm_manager = SLURM()
-
-            node_name = f'{user_input["basename"]}_'
-            node_name += f'{user_input["year"]}_collect_agg'
-
-            out = slurm_manager.sbatch(
-                cmd,
-                alloc=user_input['alloc'],
-                memory=user_input['memory'],
-                walltime=user_input['walltime'],
-                feature=user_input['feature'],
-                name=node_name,
-                stdout_path=stdout_path,
-            )[0]
-
-            print('\ncmd:\n{}\n'.format(cmd))
-
-            if out:
-                msg = (
-                    'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
-                        node_name, out
-                    )
-                )
-            else:
-                msg = (
-                    'Was unable to kick off job "{}". '
-                    'Please see the stdout error messages'.format(node_name)
-                )
-            print(msg)
-
-    else:
-        NSRDB.aggregate_files(kwargs)
-
-
-@main.command()
-@click.option(
-    '--config_file',
-    '-c',
-    required=True,
-    type=click.Path(exists=True),
-    help='NSRDB pipeline configuration json file.',
-)
-@click.option(
-    '--cancel',
-    is_flag=True,
-    help='Flag to cancel all jobs associated with a given pipeline.',
-)
-@click.option(
-    '--monitor',
-    is_flag=True,
-    help='Flag to monitor pipeline jobs continuously. '
-    'Default is not to monitor (kick off jobs and exit).',
-)
-@click.pass_context
-def pipeline(ctx, config_file, cancel, monitor):
-    """NSRDB pipeline from a pipeline config file."""
-
-    ctx.ensure_object(dict)
-    if cancel:
-        Pipeline.cancel_all(config_file)
-    else:
-        Pipeline.run(config_file, monitor=monitor)
-
-
-@main.command()
-@click.option(
-    '--config_file',
-    '-c',
-    required=True,
-    type=click.Path(exists=True),
-    help='Filepath to config file.',
-)
-@click.option(
-    '--command',
-    '-cmd',
-    type=str,
-    required=True,
-    help='NSRDB CLI command string.',
-)
-@click.pass_context
-def config(ctx, config_file, command):
-    """NSRDB processing CLI from config json file."""
-
-    ctx.ensure_object(dict)
-    config_dir = os.path.dirname(unstupify_path(config_file))
-    config_dir += '/'
-    config_dir = config_dir.replace('\\', '/')
-    str_rep = {'./': config_dir}
-    run_config = safe_json_load(config_file)
-    run_config = str_replace(d=run_config, str_rep=str_rep)
-    direct_args = run_config.pop('direct')
-    exe_args = run_config.pop('execution', {'option': 'local'})
-    cmd_args = run_config.pop(command)
-
-    if cmd_args is None:
-        cmd_args = {}
-
-    cmd_args['debug_day'] = run_config.pop('debug_day', None)
-
-    # replace any args with higher priority entries in command dict
-    exe_args.update({k: v for k, v in cmd_args.items() if k in exe_args})
-    direct_args.update({k: v for k, v in cmd_args.items() if k in direct_args})
-
-    name = direct_args.get('name', 'nsrdb')
-    ctx.obj['NAME'] = name
-    ctx.obj['YEAR'] = direct_args['year']
-    ctx.obj['NSRDB_GRID'] = direct_args['nsrdb_grid']
-    ctx.obj['NSRDB_FREQ'] = direct_args['nsrdb_freq']
-    ctx.obj['VAR_META'] = direct_args.get('var_meta', None)
-    ctx.obj['OUT_DIR'] = direct_args.get('out_dir', './')
-    ctx.obj['LOG_LEVEL'] = direct_args.get('log_level', 'INFO')
-
-    init_logger('nsrdb.cli', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
-
-    if command == 'data-model':
-        ConfigRunners.run_data_model_config(
-            ctx, cmd_args, exe_args, direct_args
-        )
-    elif command == 'cloud-fill':
-        ConfigRunners.run_cloud_fill_config(ctx, cmd_args, exe_args)
-    elif command == 'ml-cloud-fill':
-        ConfigRunners.run_ml_cloud_fill_config(
-            ctx, cmd_args, exe_args, direct_args, run_config
-        )
-    elif command == 'all-sky':
-        ConfigRunners.run_all_sky_config(ctx, cmd_args, exe_args)
-    elif command == 'daily-all-sky':
-        ConfigRunners.run_daily_all_sky_config(
-            ctx, cmd_args, exe_args, direct_args, run_config
-        )
-    elif command == 'collect-data-model':
-        ConfigRunners.run_collect_data_model_config(ctx, cmd_args, exe_args)
-    elif command == 'collect-daily':
-        ConfigRunners.run_collect_daily_config(ctx, cmd_args, exe_args)
-    elif command == 'collect-flist':
-        ConfigRunners.run_collect_flist_config(ctx, cmd_args, exe_args)
-    elif command == 'collect-final':
-        ConfigRunners.run_collect_final_config(
-            ctx, cmd_args, exe_args, direct_args
-        )
-    else:
-        raise KeyError('Command not recognized: "{}"'.format(command))
-
-
-class ConfigRunners:
-    """Class to hold static methods that kickoff nsrdb modules from extracted
-    nsrdb config objects"""
-
-    @staticmethod
-    def get_doys(cmd_args):
-        """Get the doy iterable from either the "doy_list" (prioritized)
-        or "doy_range" input
-
-        Parameters
-        ----------
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-
-        Returns
-        -------
-        doys : list | None
-            List of day-of-year integers to iterate through. None if neither
-            doy_list nor doy_range are found.
-        """
-        doy_list = cmd_args.get('doy_list', None)
-        doy_range = cmd_args.get('doy_range', None)
-        if doy_list is None and doy_range is None:
-            return None
-
-        if doy_list is None and doy_range is not None:
-            doy_list = list(range(doy_range[0], doy_range[1]))
-
-        return doy_list
-
-    @classmethod
-    def run_data_model_config(cls, ctx, cmd_args, exe_args, direct_args):
-        """Run the daily data model processing code for each day of year.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        direct_args : dict
-            Dictionary of kwargs from the nsrdb config file under the "direct"
-            key that are common to all command blocks.
-        """
-        doys = cls.get_doys(cmd_args)
-        if doys is None:
-            msg = (
-                'NSRDB data model config needs either the '
-                '"doy_list" or "doy_range" input.'
-            )
-            logger.error(msg)
-            raise KeyError(msg)
-
-        name = ctx.obj['NAME']
-        for doy in doys:
-            date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.obj['NAME'] = name + '_data_model_{}_{}'.format(doy, date)
-            max_workers_regrid = cmd_args.get('max_workers_regrid', None)
-
-            ctx.invoke(
-                data_model,
-                doy=doy,
-                var_list=cmd_args.get('var_list', None),
-                dist_lim=cmd_args.get('dist_lim', 1.0),
-                factory_kwargs=cmd_args.get('factory_kwargs', None),
-                max_workers=cmd_args.get('max_workers', None),
-                max_workers_regrid=max_workers_regrid,
-                mlclouds=cmd_args.get('mlclouds', False),
-            )
-
-            ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_cloud_fill_config(ctx, cmd_args, exe_args):
-        """Run the cloud gap fill using simple legacy nearest neighbor methods.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        """
-        n_chunks = cmd_args['n_chunks']
-        name = ctx.obj['NAME']
-        for i_chunk in range(n_chunks):
-            ctx.obj['NAME'] = name + '_cloud_fill_{}'.format(i_chunk)
-            ctx.invoke(
-                cloud_fill,
-                i_chunk=i_chunk,
-                col_chunk=cmd_args.get('col_chunk', None),
-            )
-            ctx.invoke(execution, **exe_args)
-
-    @classmethod
-    def run_ml_cloud_fill_config(
-        cls, ctx, cmd_args, exe_args, direct_args, run_config
-    ):
-        """Run the cloud gap fill using machine learning methods (phygnn).
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        direct_args : dict
-            Dictionary of kwargs from the nsrdb config file under the "direct"
-            key that are common to all command blocks.
-        run_config : dict
-            Dictionary of the full nsrdb config file. Used here to extract
-            inputs from the data-model input block.
-        """
-        doys = cls.get_doys(cmd_args)
-        if doys is None:
-            doys = cls.get_doys(run_config['data-model'])
-        if doys is None:
-            msg = (
-                'NSRDB data model config needs either the '
-                '"doy_list" or "doy_range" input.'
-            )
-            logger.error(msg)
-            raise KeyError(msg)
-
-        name = ctx.obj['NAME']
-        for doy in doys:
-            date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.obj['NAME'] = name + '_mlclouds_{}_{}'.format(doy, date)
-            ctx.invoke(
-                ml_cloud_fill,
-                date=date,
-                fill_all=cmd_args.get('fill_all', False),
-                model_path=cmd_args.get('model_path', None),
-                col_chunk=cmd_args.get('col_chunk', None),
-                max_workers=cmd_args.get('max_workers', None),
-            )
-
-            ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_all_sky_config(ctx, cmd_args, exe_args):
-        """Run the all sky module to produce irradiance outputs.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        """
-        n_chunks = cmd_args['n_chunks']
-        name = ctx.obj['NAME']
-        for i_chunk in range(n_chunks):
-            ctx.obj['NAME'] = name + '_all_sky_{}'.format(i_chunk)
-            ctx.invoke(
-                all_sky,
-                i_chunk=i_chunk,
-                disc_on=cmd_args.get('disc_on', False),
-                col_chunk=cmd_args.get('col_chunk', 10),
-            )
-            ctx.invoke(execution, **exe_args)
-
-    @classmethod
-    def run_daily_all_sky_config(
-        cls, ctx, cmd_args, exe_args, direct_args, run_config
-    ):
-        """Run the all sky module to produce irradiance outputs using daily
-        data model outputs as source.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        direct_args : dict
-            Dictionary of kwargs from the nsrdb config file under the "direct"
-            key that are common to all command blocks.
-        run_config : dict
-            Dictionary of the full nsrdb config file. Used here to extract
-            inputs from the data-model input block.
-        """
-        doys = cls.get_doys(cmd_args)
-        if doys is None:
-            doys = cls.get_doys(run_config['data-model'])
-        if doys is None:
-            msg = (
-                'NSRDB data model config needs either the '
-                '"doy_list" or "doy_range" input.'
-            )
-            logger.error(msg)
-            raise KeyError(msg)
-
-        name = ctx.obj['NAME']
-        for doy in doys:
-            date = NSRDB.doy_to_datestr(direct_args['year'], doy)
-            ctx.obj['NAME'] = name + '_all_sky_{}_{}'.format(doy, date)
-            ctx.invoke(
-                daily_all_sky,
-                date=date,
-                disc_on=cmd_args.get('disc_on', False),
-                col_chunk=cmd_args.get('col_chunk', 500),
-            )
-
-            ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_collect_data_model_config(ctx, cmd_args, exe_args):
-        """Run collection of daily data model outputs to multiple files
-        chunked by sites (n_chunks argument in cmd_args)
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        """
-        n_chunks = cmd_args.get('n_chunks', 1)
-        n_files_tot = len(NSRDB.OUTS)
-        n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
-        i_files = cmd_args.get('collect_files', n_files_default)
-        final = cmd_args.get('final', False)
-        fnames = sorted(NSRDB.OUTS.keys())
-        name = ctx.obj['NAME']
-        if final:
-            i_files = range(n_files_tot)
-
-        if final and n_chunks != 1:
-            msg = 'Collect data model was marked as final but n_chunks != 1'
-            logger.error(msg)
-            raise ValueError(msg)
-
-        for i_chunk in range(n_chunks):
-            for i_fname in i_files:
-                final_file_name = name
-                fn_tag = fnames[i_fname].split('_')[1]
-                tag = '_{}_{}_{}'.format(i_fname, fn_tag, i_chunk)
-                ctx.obj['NAME'] = name + tag
-
-                ctx.invoke(
-                    collect_data_model,
-                    n_chunks=n_chunks,
-                    i_chunk=i_chunk,
-                    i_fname=i_fname,
-                    n_writes=cmd_args.get('n_writes', 1),
-                    max_workers=cmd_args['max_workers'],
-                    final=final,
-                    final_file_name=final_file_name,
-                )
-                ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_collect_daily_config(ctx, cmd_args, exe_args):
-        """Run full collection of all daily data model outputs to a single file
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        """
-        ctx.obj['NAME'] += '_collect_daily'
-        ctx.invoke(
-            collect_daily,
-            collect_dir=cmd_args['collect_dir'],
-            fn_out=cmd_args['fn_out'],
-            dsets=cmd_args['dsets'],
-            n_writes=cmd_args.get('n_writes', 1),
-            max_workers=cmd_args.get('max_workers', None),
-            hpc=True,
-        )
-        ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_collect_flist_config(ctx, cmd_args, exe_args):
-        """Run custom file collection.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        """
-        ctx.obj['NAME'] += '_collect_flist'
-        ctx.invoke(
-            collect_flist,
-            flist=cmd_args['flist'],
-            collect_dir=cmd_args['collect_dir'],
-            fn_out=cmd_args['fn_out'],
-            dsets=cmd_args['dsets'],
-            max_workers=cmd_args.get('max_workers', None),
-            hpc=True,
-        )
-        ctx.invoke(execution, **exe_args)
-
-    @staticmethod
-    def run_collect_final_config(ctx, cmd_args, exe_args, direct_args):
-        """Run final file collection.
-
-        Parameters
-        ----------
-        ctx : click.pass_context
-            Click context object.
-        cmd_args : dict
-            Dictionary of kwargs from the nsrdb config file specifically for
-            this command block.
-        exe_args : dict
-            Dictionary of kwargs from the nsrdb config to make hpc submission
-        direct_args : dict
-            Dictionary of kwargs from the nsrdb config file under the "direct"
-            key that are common to all command blocks.
-        """
-        def_dir = os.path.join(direct_args['out_dir'], 'collect/')
-        name = ctx.obj['NAME']
-        n_files = len(NSRDB.OUTS)
-        for i_fname in range(n_files):
-            ctx.obj['NAME'] = name + '_{}'.format(i_fname)
-            ctx.invoke(
-                collect_final,
-                collect_dir=cmd_args.get('collect_dir', def_dir),
-                i_fname=i_fname,
-            )
-            ctx.invoke(execution, **exe_args)
-
-
 @main.group()
 @click.option(
-    '--name', '-n', default='NSRDB', type=str, help='Job and node name.'
-)
-@click.option('--year', '-y', default=None, type=INT, help='Year of analysis.')
-@click.option(
-    '--nsrdb_grid',
-    '-g',
-    default=None,
-    type=STR,
-    help='File path to NSRDB meta data grid.',
-)
-@click.option(
-    '--nsrdb_freq',
-    '-f',
-    default=None,
-    type=STR,
-    help='NSRDB frequency (e.g. "5min", "30min").',
-)
-@click.option(
-    '--var_meta',
-    '-vm',
-    default=None,
-    type=STR,
-    help='CSV file or dataframe containing meta data for all NSRDB '
-    'variables. Defaults to the NSRDB var meta csv in git repo.',
-)
-@click.option(
-    '--out_dir', '-od', type=STR, required=True, help='Output directory.'
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.blend_files()',
 )
 @click.option(
     '-v',
@@ -859,845 +209,524 @@ class ConfigRunners:
     help='Flag to turn on debug logging. Default is not verbose.',
 )
 @click.pass_context
-def direct(
-    ctx, name, year, nsrdb_grid, nsrdb_freq, var_meta, out_dir, verbose
-):
-    """NSRDB direct processing CLI (no config file)."""
+def blend(ctx, config, verbose=False, pipeline_step=None):
+    """Blend files from separate domains (e.g. east / west) into a single
+    domain."""
 
-    ctx.obj['NAME'] = name
-    ctx.obj['YEAR'] = year
-    ctx.obj['NSRDB_GRID'] = nsrdb_grid
-    ctx.obj['NSRDB_FREQ'] = nsrdb_freq
-    ctx.obj['VAR_META'] = var_meta
-    ctx.obj['OUT_DIR'] = out_dir
+    config = BaseCLI.from_config_preflight(
+        ModuleName.BLEND, ctx, config, verbose, pipeline_step=pipeline_step
+    )
+    log_level = config.get('log_level', 'INFO')
+    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    log_file = config.get('log_file', None)
 
+    if log_file is not None:
+        log_arg_str += f', log_file="{log_file}"'
+
+    ctx.obj['LOG_ARG_STR'] = log_arg_str
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.blend_files, config)
+    BaseCLI.kickoff_job(ModuleName.BLEND, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.collect_blended()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+def collect_blended(ctx, config, verbose=False, pipeline_step=None):
+    """Collect blended data chunks into a single file."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_BLENDED,
+        ctx,
+        config,
+        verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_blended, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_BLENDED, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.aggregate_files()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def aggregate(ctx, config, verbose=False, pipeline_step=None):
+    """Aggregate data files to a lower resolution.
+
+    Note
+    ----
+    Used to create data files from high-resolution years (2018+) which match
+    resolution of low-resolution years (pre 2018)
+    """
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.AGGREGATE, ctx, config, verbose, pipeline_step=pipeline_step
+    )
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.aggregate_files, config)
+    BaseCLI.kickoff_job(ModuleName.AGGREGATE, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.collect_aggregation()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
+    """Collect aggregated data chunks."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_AGG,
+        ctx,
+        config,
+        verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_aggregation, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_AGG, config, ctx)
+
+
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    required=True,
+    type=CONFIG_TYPE,
+    help='Path to .json config file or str rep of dictionary.',
+)
+@click.option(
+    '--command',
+    '-cmd',
+    type=str,
+    required=True,
+    help='NSRDB CLI command string.',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def config(ctx, config, command, verbose=False):
+    """NSRDB processing CLI from config json file."""
+
+    ctx.ensure_object(dict)
+    config_dict = safe_json_load(config)
+    direct = config_dict.get('direct', {})
+    msg = 'Config must include "freq" key.'
+    assert 'freq' in config_dict or 'freq' in direct, msg
+    nsrdb_freq = config_dict.get('freq', direct['freq'])
     ts_freq_check(nsrdb_freq)
 
-    if verbose:
-        ctx.obj['LOG_LEVEL'] = 'DEBUG'
+    ctx.obj['LOG_LEVEL'] = 'DEBUG' if verbose else 'INFO'
+
+    init_logger('nsrdb.cli', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
+
+    if command == 'data-model':
+        ctx.invoke(data_model, config=config, verbose=verbose)
+    elif command == 'ml-cloud-fill':
+        ctx.invoke(ml_cloud_fill, config=config, verbose=verbose)
+    elif command == 'daily-all-sky':
+        ctx.invoke(daily_all_sky, config=config, verbose=verbose)
+    elif command == 'collect-data-model':
+        ctx.invoke(collect_data_model, config=config, verbose=verbose)
+    elif command == 'cloud-fill':
+        ctx.invoke(cloud_fill, config=config, verbose=verbose)
+    elif command == 'all-sky':
+        ctx.invoke(all_sky, config=config, verbose=verbose)
+    elif command == 'collect-daily':
+        ctx.invoke(collect_daily, config=config, verbose=verbose)
+    elif command == 'collect-flist':
+        ctx.invoke(collect_flist, config=config, verbose=verbose)
+    elif command == 'collect-final':
+        ctx.invoke(collect_final, config=config, verbose=verbose)
     else:
-        ctx.obj['LOG_LEVEL'] = 'INFO'
+        raise KeyError('Command not recognized: "{}"'.format(command))
 
 
-@direct.group()
+@main.group()
 @click.option(
-    '--doy',
-    '-d',
-    type=int,
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
     required=True,
-    help='Integer day-of-year to run data model for.',
+    help='Path to config file or dict of kwargs for NSRDB.run_data_model()',
 )
 @click.option(
-    '--var_list',
-    '-vl',
-    type=STRLIST,
-    required=False,
-    default=None,
-    help='Variables to process with the data model. None will '
-    'default to all NSRDB variables.',
-)
-@click.option(
-    '--dist_lim',
-    '-dl',
-    type=FLOAT,
-    required=True,
-    default=1.0,
-    help='Return only neighbors within this distance during cloud '
-    'regrid. The distance is in decimal degrees (more efficient '
-    'than real distance). NSRDB sites further than this value from '
-    'GOES data pixels will be warned and given missing cloud types '
-    'and properties resulting in a full clearsky timeseries.',
-)
-@click.option(
-    '--factory_kwargs',
-    '-kw',
-    type=DICT,
-    required=False,
-    default=None,
-    help='Optional namespace of kwargs to use to initialize '
-    'variable data handlers from the data models variable factory. '
-    'Keyed by variable name. Values can be "source_dir", "handler", '
-    'etc... source_dir for cloud variables can be a normal '
-    'directory path or /directory/prefix*suffix where /directory/ '
-    'can have more sub dirs.',
-)
-@click.option(
-    '--max_workers',
-    '-w',
-    type=INT,
-    default=None,
-    help='Number of workers to use in parallel.',
-)
-@click.option(
-    '--max_workers_regrid',
-    '-mwr',
-    type=INT,
-    default=None,
-    help='Number of workers to use in parallel for the '
-    'cloud regrid algorithm.',
-)
-@click.option(
-    '-ml',
-    '--mlclouds',
+    '-v',
+    '--verbose',
     is_flag=True,
-    help='Flag to process additional variables if mlclouds gap fill'
-    'is going to be run after the data_model step.',
+    help='Flag to turn on debug logging. Default is not verbose.',
 )
 @click.pass_context
-def data_model(
-    ctx,
-    doy,
-    var_list,
-    dist_lim,
-    factory_kwargs,
-    max_workers,
-    max_workers_regrid,
-    mlclouds,
-):
-    """Run the data model for a single day."""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    if var_list is not None:
-        var_list = json.dumps(var_list)
-    if factory_kwargs is not None:
-        factory_kwargs = json.dumps(factory_kwargs)
-        factory_kwargs = factory_kwargs.replace('true', 'True')
-        factory_kwargs = factory_kwargs.replace('false', 'False')
-        factory_kwargs = factory_kwargs.replace('null', 'None')
-
-    log_file = 'data_model/data_model.log'
-    date = NSRDB.doy_to_datestr(year, doy)
-    fun_str = 'NSRDB.run_data_model'
-    arg_str = (
-        '"{}", "{}", "{}", freq="{}", var_list={}, '
-        'dist_lim={}, max_workers={}, '
-        'max_workers_regrid={}, '
-        'log_level="{}", log_file="{}", '
-        'job_name="{}", factory_kwargs={}, mlclouds={}'.format(
-            out_dir,
-            date,
-            nsrdb_grid,
-            nsrdb_freq,
-            var_list,
-            dist_lim,
-            max_workers,
-            max_workers_regrid,
-            log_level,
-            log_file,
-            name,
-            factory_kwargs,
-            mlclouds,
-        )
-    )
-
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.DATA_MODEL
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
+def data_model(ctx, config, verbose=False, pipeline_step=None):
+    """Run daily data model and save output files."""
+    BaseCLI.kickoff_multiday(
+        module_name=ModuleName.DATA_MODEL,
+        func=NSRDB.run_data_model,
+        config=config,
+        ctx=ctx,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
     )
 
 
-@direct.group()
+@main.group()
 @click.option(
-    '--i_chunk',
-    '-i',
-    type=int,
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
     required=True,
-    help='Chunked file index in out_dir to run cloud fill for.',
+    help='Path to config file or dict with kwargs for NSRDB.ml_cloud_fill()',
 )
 @click.option(
-    '--col_chunk',
-    '-ch',
-    type=INT,
-    required=True,
-    default=None,
-    help='Optional chunking method to gap fill one column chunk at '
-    'a time to reduce memory requirements. If provided, this should '
-    'be an int specifying how many columns to work on at one time.',
-)
-@click.pass_context
-def cloud_fill(ctx, i_chunk, col_chunk):
-    """Gap fill a cloud data file."""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    log_level = ctx.obj['LOG_LEVEL']
-    var_meta = ctx.obj['VAR_META']
-    log_file = 'gap_fill/cloud_fill_{}.log'.format(i_chunk)
-
-    fun_str = 'NSRDB.gap_fill_clouds'
-    arg_str = (
-        '"{}", {}, {}, col_chunk={}, log_file="{}", '
-        'log_level="{}", job_name="{}"'.format(
-            out_dir, year, i_chunk, col_chunk, log_file, log_level, name
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.CLOUD_FILL
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-
-@direct.group()
-@click.option(
-    '--date',
-    '-d',
-    type=str,
-    required=True,
-    help='Single day data model output to run cloud fill on.'
-    'Must be str in YYYYMMDD format.',
-)
-@click.option(
-    '--fill_all',
-    '-all',
-    type=bool,
-    default=False,
-    help='Flag to fill all cloud properties for all timesteps where '
-    'cloud_type is cloudy.',
-)
-@click.option(
-    '--model_path',
-    '-mp',
-    type=STR,
-    default=None,
-    help='Directory to load phygnn model from. This is typically '
-    'a fpath to a .pkl file with an accompanying .json file in the '
-    'same directory.',
-)
-@click.option(
-    '--col_chunk',
-    '-ch',
-    type=INT,
-    required=True,
-    default=None,
-    help='Optional chunking method to gap fill one column chunk at '
-    'a time to reduce memory requirements. If provided, this should '
-    'be an int specifying how many columns to work on at one time.',
-)
-@click.option(
-    '--max_workers',
-    '-mw',
-    type=INT,
-    required=True,
-    default=None,
-    help='Maximum workers to clean data in parallel. 1 is serial '
-    'and None uses all available workers.',
-)
-@click.pass_context
-def ml_cloud_fill(ctx, date, fill_all, model_path, col_chunk, max_workers):
-    """Gap fill cloud properties in daily data model outputs using a physics
-    guided neural network (phgynn)."""
-
-    name = ctx.obj['NAME']
-    out_dir = ctx.obj['OUT_DIR']
-    log_level = ctx.obj['LOG_LEVEL']
-    var_meta = ctx.obj['VAR_META']
-    log_file = 'gap_fill/cloud_fill_{}.log'.format(date)
-
-    if isinstance(model_path, str):
-        model_path = '"{}"'.format(model_path)
-
-    fun_str = 'NSRDB.ml_cloud_fill'
-    arg_str = (
-        '"{}", "{}", fill_all={}, model_path={}, log_file="{}", '
-        'log_level="{}", job_name="{}", col_chunk={}, max_workers={}'.format(
-            out_dir,
-            date,
-            fill_all,
-            model_path,
-            log_file,
-            log_level,
-            name,
-            col_chunk,
-            max_workers,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.ML_CLOUD_FILL
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-
-@direct.group()
-@click.option(
-    '--i_chunk',
-    '-i',
-    type=int,
-    required=True,
-    help='Chunked file index in out_dir to run allsky for.',
-)
-@click.option(
-    '--col_chunk',
-    '-ch',
-    type=int,
-    required=True,
-    default=10,
-    help='Chunking method to run all sky one column chunk at a time '
-    'to reduce memory requirements. This is an integer specifying '
-    'how many columns to work on at one time.',
-)
-@click.option(
-    '--disc_on',
-    '-do',
-    type=bool,
-    required=False,
-    default=False,
-    help='Whether to run compute cloudy sky dni with the disc model '
-    '(True) or the farms-dni model (False).',
-)
-@click.pass_context
-def all_sky(ctx, i_chunk, col_chunk, disc_on):
-    """Run all-sky for a single chunked file"""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    log_file = 'all_sky/all_sky_{}.log'.format(i_chunk)
-    fun_str = 'NSRDB.run_all_sky'
-    arg_str = (
-        '"{}", {}, "{}", freq="{}", i_chunk={}, col_chunk={}, '
-        'disc_on={}, log_file="{}", log_level="{}", job_name="{}"'.format(
-            out_dir,
-            year,
-            nsrdb_grid,
-            nsrdb_freq,
-            i_chunk,
-            col_chunk,
-            disc_on,
-            log_file,
-            log_level,
-            name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.ALL_SKY
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-
-@direct.group()
-@click.option(
-    '--date',
-    '-d',
-    type=str,
-    required=True,
-    help='Single day data model output to run cloud fill on.'
-    'Must be str in YYYYMMDD format.',
-)
-@click.option(
-    '--col_chunk',
-    '-ch',
-    type=int,
-    required=True,
-    default=500,
-    help='Chunking method to run all sky one column chunk at a time '
-    'to reduce memory requirements. This is an integer specifying '
-    'how many columns to work on at one time.',
-)
-@click.option(
-    '--disc_on',
-    '-do',
-    type=bool,
-    required=False,
-    default=False,
-    help='Whether to run compute cloudy sky dni with the disc model '
-    '(True) or the farms-dni model (False).',
-)
-@click.pass_context
-def daily_all_sky(ctx, date, col_chunk, disc_on):
-    """Run all-sky for a single day using daily data model output files as
-    source data"""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    log_file = 'all_sky/all_sky_{}.log'.format(date)
-    fun_str = 'NSRDB.run_daily_all_sky'
-    arg_str = (
-        '"{}", {}, "{}", "{}", freq="{}", col_chunk={}, disc_on={}, '
-        'log_file="{}", log_level="{}", job_name="{}"'.format(
-            out_dir,
-            year,
-            nsrdb_grid,
-            date,
-            nsrdb_freq,
-            col_chunk,
-            disc_on,
-            log_file,
-            log_level,
-            name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.DAILY_ALL_SKY
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-
-@direct.group()
-@click.option(
-    '--n_chunks',
-    '-n',
-    type=int,
-    required=True,
-    help='Number of chunks to collect into.',
-)
-@click.option('--i_chunk', '-ic', type=int, required=True, help='Chunk index.')
-@click.option(
-    '--i_fname',
-    '-if',
-    type=int,
-    required=True,
-    help='Filename index: 0: ancillary_a, 1: ancillary_b, '
-    '2: clearsky, 3: clouds, 4: csp, 5: irrad, 6: pv.',
-)
-@click.option(
-    '--n_writes',
-    '-nw',
-    type=int,
-    default=1,
-    help='Number of file list divisions to write per dataset. For '
-    'example, if ghi and dni are being collected and n_writes is '
-    'set to 2, half of the source ghi files will be collected at '
-    'once and then written, then the second half of ghi files, '
-    'then dni.',
-)
-@click.option(
-    '--max_workers',
-    '-w',
-    type=INT,
-    default=None,
-    help='Number of parallel workers to use.',
-)
-@click.option(
-    '-f',
-    '--final',
+    '-v',
+    '--verbose',
     is_flag=True,
-    help='Flag for final collection. Will put collected files in '
-    'the final directory instead of in the collect directory.',
-)
-@click.option(
-    '--final_file_name',
-    '-pn',
-    type=STR,
-    default=None,
-    help='Final file name for filename outputs if this is the '
-    'terminal job. None will default to the name in ctx which is '
-    'usually the slurm job name.',
+    help='Flag to turn on debug logging. Default is not verbose.',
 )
 @click.pass_context
-def collect_data_model(
-    ctx,
-    n_chunks,
-    i_chunk,
-    i_fname,
-    n_writes,
-    max_workers,
-    final,
-    final_file_name,
-):
-    """Collect data model results into cohesive timseries file chunks."""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    if final_file_name is None:
-        final_file_name = name
-
-    fnames = sorted(NSRDB.OUTS.keys())
-    fn_tag = fnames[i_fname].split('_')[1]
-    log_file = 'collect/collect_{}_{}_{}.log'.format(i_fname, fn_tag, i_chunk)
-
-    fun_str = 'NSRDB.collect_data_model'
-    arg_str = (
-        '"{}", {}, "{}", n_chunks={}, i_chunk={}, '
-        'i_fname={}, freq="{}", n_writes={}, max_workers={}, '
-        'log_file="{}", log_level="{}", job_name="{}", '
-        'final={}, final_file_name="{}"'.format(
-            out_dir,
-            year,
-            nsrdb_grid,
-            n_chunks,
-            i_chunk,
-            i_fname,
-            nsrdb_freq,
-            n_writes,
-            max_workers,
-            log_file,
-            log_level,
-            name,
-            final,
-            final_file_name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['FUN_STR'] = fun_str
-    ctx.obj['ARG_STR'] = arg_str
-    ctx.obj['MODULE'] = ModuleName.COLLECT_DATA_MODEL
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
+def ml_cloud_fill(ctx, config, verbose=False, pipeline_step=None):
+    """Gap fill cloud properties using mlclouds."""
+    BaseCLI.kickoff_multiday(
+        module_name=ModuleName.ML_CLOUD_FILL,
+        func=NSRDB.ml_cloud_fill,
+        config=config,
+        ctx=ctx,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
     )
 
 
-@direct.group(invoke_without_command=True)
+@main.group()
 @click.option(
-    '--collect_dir',
-    '-cd',
-    type=str,
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
     required=True,
-    help='Directory containing chunked files to collect from.',
-)
-@click.option(
-    '--fn_out',
-    '-fo',
-    type=str,
-    required=True,
-    help='Output filename to be saved in out_dir.',
-)
-@click.option(
-    '--dsets',
-    '-ds',
-    type=STRLIST,
-    required=True,
-    help='List of dataset names to collect.',
-)
-@click.option(
-    '--n_writes',
-    '-nw',
-    type=int,
-    default=1,
-    help='Number of file list divisions to write per dataset. For '
-    'example, if ghi and dni are being collected and n_writes is '
-    'set to 2, half of the source ghi files will be collected at '
-    'once and then written, then the second half of ghi files, '
-    'then dni.',
-)
-@click.option(
-    '--max_workers',
-    '-w',
-    type=INT,
-    default=None,
-    help='Number of parallel workers to use.',
-)
-@click.option(
-    '-e',
-    '--hpc',
-    is_flag=True,
-    help='Flag for that this is being used to pass commands to '
-    'an hpc call.',
-)
-@click.pass_context
-def collect_daily(ctx, collect_dir, fn_out, dsets, n_writes, max_workers, hpc):
-    """Run the NSRDB file collection method on a specific daily directory
-    for specific datasets to a single output file."""
-
-    name = ctx.obj['NAME']
-    out_dir = ctx.obj['OUT_DIR']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-    log_file = os.path.join(out_dir, 'collect_daily/{}.log'.format(name))
-
-    fp_out = os.path.join(out_dir, fn_out)
-
-    arg_str = (
-        '"{}", "{}", {}, n_writes={}, max_workers={}, log_level="{}", '
-        'log_file="{}", write_status=True, job_name="{}"'.format(
-            collect_dir,
-            fp_out,
-            json.dumps(dsets),
-            n_writes,
-            max_workers,
-            log_level,
-            log_file,
-            name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-
-    import_str = 'from nsrdb.file_handlers.collection import Collector'
-    fun_str = 'Collector.collect_daily'
-    ctx.obj['MODULE'] = ModuleName.COLLECT_DAILY
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-    if ctx.invoked_subcommand is None and not hpc:
-        init_logger(
-            'nsrdb.file_handlers', log_level=log_level, log_file=log_file
-        )
-        Collector.collect_daily(
-            collect_dir,
-            fp_out,
-            dsets,
-            max_workers=max_workers,
-            var_meta=var_meta,
-        )
-
-
-@direct.group(invoke_without_command=True)
-@click.option(
-    '--flist',
-    '-fl',
-    type=STRLIST,
-    required=True,
-    help='Explicit list of filenames in collect_dir to collect. '
-    'Using this option will superscede the default behavior of '
-    'collecting daily data model outputs in collect_dir.',
-)
-@click.option(
-    '--collect_dir',
-    '-cd',
-    type=str,
-    required=True,
-    help='Directory containing chunked files to collect from.',
-)
-@click.option(
-    '--fn_out',
-    '-fo',
-    type=str,
-    required=True,
-    help='Output filename to be saved in out_dir.',
-)
-@click.option(
-    '--dsets',
-    '-ds',
-    type=STRLIST,
-    required=True,
-    help='List of dataset names to collect.',
-)
-@click.option(
-    '-e',
-    '--hpc',
-    is_flag=True,
-    help='Flag for that this is being used to pass commands to '
-    'an hpc call.',
-)
-@click.pass_context
-def collect_flist(ctx, flist, collect_dir, fn_out, dsets, hpc):
-    """Run the NSRDB file collection method with explicitly defined flist."""
-
-    name = ctx.obj['NAME']
-    out_dir = ctx.obj['OUT_DIR']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-    log_file = os.path.join(out_dir, 'collect/{}.log'.format(name))
-
-    fp_out = os.path.join(out_dir, fn_out)
-
-    arg_str = (
-        '{}, "{}", "{}", {} log_level="{}", '
-        'log_file="{}", write_status=True, job_name="{}"'.format(
-            json.dumps(flist),
-            collect_dir,
-            fp_out,
-            json.dumps(dsets),
-            log_level,
-            log_file,
-            name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.file_handlers.collection import Collector'
-    fun_str = 'Collector.collect_flist_lowmem'
-    ctx.obj['MODULE'] = ModuleName.COLLECT_FLIST
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-    if ctx.invoked_subcommand is None and not hpc:
-        init_logger(
-            'nsrdb.file_handlers', log_level=log_level, log_file=log_file
-        )
-        for dset in dsets:
-            Collector.collect_flist_lowmem(
-                flist, collect_dir, fp_out, dset, var_meta=var_meta
-            )
-
-
-@direct.group()
-@click.option(
-    '--collect_dir',
-    '-d',
-    type=str,
-    required=True,
-    help='Chunked directory to collect to out_dir.',
-)
-@click.option(
-    '--i_fname',
-    '-if',
-    type=int,
-    required=True,
-    help='Filename index (0: ancillary, 1: clouds, 2: irrad, 3: sam vars).',
-)
-@click.pass_context
-def collect_final(ctx, collect_dir, i_fname):
-    """Collect chunked files with final data into final full files."""
-
-    name = ctx.obj['NAME']
-    year = ctx.obj['YEAR']
-    out_dir = ctx.obj['OUT_DIR']
-    nsrdb_grid = ctx.obj['NSRDB_GRID']
-    nsrdb_freq = ctx.obj['NSRDB_FREQ']
-    var_meta = ctx.obj['VAR_META']
-    log_level = ctx.obj['LOG_LEVEL']
-
-    log_file = 'final/final_collection_{}.log'.format(i_fname)
-
-    fun_str = 'NSRDB.collect_final'
-    arg_str = (
-        '"{}", "{}", {}, "{}", freq="{}", '
-        'i_fname={}, log_file="{}", log_level="{}", '
-        'tmp=False, job_name="{}"'.format(
-            collect_dir,
-            out_dir,
-            year,
-            nsrdb_grid,
-            nsrdb_freq,
-            i_fname,
-            log_file,
-            log_level,
-            name,
-        )
-    )
-    if var_meta is not None:
-        arg_str += ', var_meta="{}"'.format(var_meta)
-    import_str = 'from nsrdb.nsrdb import NSRDB'
-    ctx.obj['MODULE'] = ModuleName.COLLECT_FINAL
-    ctx.obj['COMMAND'] = "python -c '{import_str};{f}({a})'".format(
-        import_str=import_str, f=fun_str, a=arg_str
-    )
-
-
-@data_model.command()
-@click.option(
-    '--option',
-    '-o',
-    required=True,
-    type=STR,
-    help='Hardware option. e.g. "hpc" or "local".',
-)
-@click.option(
-    '--alloc',
-    '-a',
-    required=False,
-    type=STR,
-    help='HPC allocation account name, if option is "kestrel"',
-)
-@click.option(
-    '--memory',
-    '-mem',
-    default=None,
-    type=INT,
-    help='HPC node memory request in GB. Default is None',
-)
-@click.option(
-    '--walltime',
-    '-wt',
-    default=1.0,
-    type=float,
-    help='HPC walltime request in hours. Default is 1.0',
-)
-@click.option(
-    '--feature',
-    '-l',
-    default=None,
-    type=STR,
     help=(
-        'Additional flags for SLURM job. Format is "--qos=high" '
-        'or "--depend=[state:job_id]". Default is None.'
+        'Path to config file or dict with kwargs for '
+        'NSRDB.run_daily_all_sky()'
     ),
 )
 @click.option(
-    '--stdout_path',
-    '-sout',
-    default=None,
-    type=STR,
-    help='Subprocess standard output path. Default is in out_dir.',
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
 )
 @click.pass_context
-def execution(ctx, option, alloc, memory, walltime, feature, stdout_path):
-    """Execution submission tool for the NSRDB cli. `option` is either `hpc` or
-    `local`"""
+def daily_all_sky(ctx, config, verbose=False, pipeline_step=None):
+    """Run all-sky physics model on daily data model output."""
+    BaseCLI.kickoff_multiday(
+        ModuleName.DAILY_ALL_SKY,
+        func=NSRDB.run_daily_all_sky,
+        config=config,
+        ctx=ctx,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
 
-    out_dir = ctx.obj['OUT_DIR']
-    cmd = ctx.obj['COMMAND']
-    module_name = ctx.obj['MODULE']
 
-    if stdout_path is None:
-        stdout_path = os.path.join(out_dir, 'stdout/')
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.cloud_fill()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
+    """Gap fill cloud properties in a collect data model output file, using
+    legacy gap-fill method."""
 
-    if option.lower() == 'hpc':
-        BaseCLI.kickoff_slurm_job(
-            module_name=module_name,
-            ctx=ctx,
-            cmd=cmd,
-            pipeline_step=module_name,
-            alloc=alloc,
-            memory=memory,
-            walltime=walltime,
-            feature=feature,
-            stdout_path=stdout_path,
-        )
+    config = BaseCLI.from_config_preflight(
+        ModuleName.CLOUD_FILL,
+        config=config,
+        ctx=ctx,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
 
-    else:
-        BaseCLI.kickoff_local_job(
-            module_name=module_name,
-            ctx=ctx,
-            cmd=cmd,
-            pipeline_step=module_name,
-        )
+    log_file = config.get('log_file', None)
+    log_level = config.get('log_level', 'INFO')
+    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    config['n_chunks'] = config.get('n_chunks', 1)
+    name = ctx.obj['NAME']
+
+    for i_chunk in range(config['n_chunks']):
+        if log_file is not None:
+            log_file_i = log_file.replace('.log', f'_{i_chunk}.log')
+            log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
+            ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+        config.update({'i_chunk': i_chunk})
+        ctx.obj['NAME'] = f'{name}_{i_chunk}'
+        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.gap_fill_clouds, config)
+
+        BaseCLI.kickoff_job(ModuleName.CLOUD_FILL, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.run_all_sky()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def all_sky(ctx, config, verbose=False, pipeline_step=None):
+    """Run all-sky physics model on collected data model output files."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.ALL_SKY,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    log_level = config.get('log_level', 'INFO')
+    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    config['n_chunks'] = config.get('n_chunks', 1)
+    name = ctx.obj['NAME']
+
+    for i_chunk in range(config['n_chunks']):
+        log_file = f'{ctx.obj["out_dir"]}/all_sky/all_sky_{i_chunk}.log'
+        log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
+        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+        config.update({'i_chunk': i_chunk})
+        ctx.obj['NAME'] = f'{name}_{i_chunk}'
+        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.run_all_sky, config)
+
+        BaseCLI.kickoff_job(ModuleName.ALL_SKY, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help=(
+        'Path to config file or dict with kwargs for '
+        'NSRDB.collect_data_model()'
+    ),
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
+    """Collect data model output files to a single site-chunked output file."""
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_DATA_MODEL,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    log_file = config.get('log_file', None)
+    log_level = config.get('log_level', 'INFO')
+    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+
+    config['n_chunks'] = config.get('n_chunks', 1)
+    config['n_writes'] = config.get('n_writes', 1)
+    config['final'] = config.get('final', False)
+    n_files_tot = len(NSRDB.OUTS)
+    n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
+    i_files = config.get('collect_files', n_files_default)
+    fnames = sorted(NSRDB.OUTS.keys())
+    name = ctx.obj['NAME']
+    if config['final']:
+        i_files = range(n_files_tot)
+
+    if config['final'] and config['n_chunks'] != 1:
+        msg = 'collect-data-model was marked as final but n_chunks != 1'
+        logger.error(msg)
+        raise ValueError(msg)
+
+    for i_chunk in range(config['n_chunks']):
+        for i_fname in i_files:
+            if log_file is not None:
+                log_file_i = log_file.replace('.log', f'_{i_fname}.log')
+                log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
+                ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+
+            config['final_file_name'] = name
+            config['i_chunk'] = i_chunk
+            config['i_fname'] = i_fname
+            fn_tag = fnames[i_fname].split('_')[1]
+            ctx.obj['NAME'] = f'{name}_{i_fname}_{fn_tag}_{i_chunk}'
+            ctx.obj['FUN_STR'] = get_fun_call_str(
+                NSRDB.collect_data_model, config
+            )
+
+            BaseCLI.kickoff_job(ModuleName.COLLECT_DATA_MODEL, config, ctx)
+
+
+@main.group(invoke_without_command=True)
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def collect_daily(ctx, config, verbose=False, pipeline_step=None):
+    """Collect daily data model output files from a directory to a single
+    file"""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_DAILY,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(Collector.collect_daily, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_DAILY, config, ctx)
+
+
+@main.group(invoke_without_command=True)
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def collect_flist(ctx, config, verbose=False, pipeline_step=None):
+    """Run the file collection method with explicitly defined flist."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_FLIST,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(Collector.collect_flist, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_FLIST, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def collect_final(ctx, config, verbose=False, pipeline_step=None):
+    """Collect chunked files with final data into final full files."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_FINAL,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    log_level = config.get('log_level', 'INFO')
+    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    name = ctx.obj['NAME']
+    n_files = len(NSRDB.OUTS)
+    for i_fname in range(n_files):
+        log_file = f'{ctx.obj["out_dir"]}/final/final_collection_{i_fname}.log'
+        log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
+        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+        ctx.obj['NAME'] = f'{name}_{i_fname}'
+        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
+        BaseCLI.kickoff_job(ModuleName.COLLECT_FINAL, config, ctx)
 
 
 Pipeline.COMMANDS[ModuleName.DATA_MODEL] = data_model
-Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.CLOUD_FILL] = cloud_fill
 Pipeline.COMMANDS[ModuleName.ALL_SKY] = all_sky
 Pipeline.COMMANDS[ModuleName.DAILY_ALL_SKY] = daily_all_sky
 Pipeline.COMMANDS[ModuleName.ML_CLOUD_FILL] = ml_cloud_fill
+Pipeline.COMMANDS[ModuleName.BLEND] = blend
+Pipeline.COMMANDS[ModuleName.AGGREGATE] = aggregate
+Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.COLLECT_FINAL] = collect_final
 Pipeline.COMMANDS[ModuleName.COLLECT_FLIST] = collect_flist
 Pipeline.COMMANDS[ModuleName.COLLECT_DAILY] = collect_daily
+Pipeline.COMMANDS[ModuleName.COLLECT_BLENDED] = collect_blended
+Pipeline.COMMANDS[ModuleName.COLLECT_AGG] = collect_aggregation
 
 
 if __name__ == '__main__':

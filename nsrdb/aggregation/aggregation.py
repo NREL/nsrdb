@@ -4,11 +4,13 @@
 - 2km 15min East -> 4km 30min NSRDB PSM v3 Meta
 - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
+
 import json
 import logging
 import os
 import pickle
 from concurrent.futures import as_completed
+from typing import ClassVar
 from warnings import warn
 
 import numpy as np
@@ -31,86 +33,116 @@ logger = logging.getLogger(__name__)
 
 
 # Standard configs.
-NSRDB = {'full_disk': {'data_sub_dir': 'blended_full',
-                       'tree_file': 'kdtree_nsrdb_meta_2km.pkl',
-                       'meta_file': 'nsrdb_meta_2km.csv',
-                       'spatial': '2km',
-                       'temporal': '10min'},
-         'conus': {'data_sub_dir': 'blended_conus',
-                   'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                   'meta_file': 'nsrdb_meta_2km_conus.csv',
-                   'spatial': '2km',
-                   'temporal': '5min'},
-         'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                   'fout': 'nsrdb.h5',
-                   'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
-                   'meta_file': 'nsrdb_meta_4km.csv',
-                   'spatial': '4km',
-                   'temporal': '30min',
-                   'source_priority': ['conus', 'full_disk']},
-         }
+NSRDB = {
+    'full_disk': {
+        'data_sub_dir': 'blended_full',
+        'tree_file': 'kdtree_nsrdb_meta_2km.pkl',
+        'meta_file': 'nsrdb_meta_2km.csv',
+        'spatial': '2km',
+        'temporal': '10min',
+    },
+    'conus': {
+        'data_sub_dir': 'blended_conus',
+        'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+        'meta_file': 'nsrdb_meta_2km_conus.csv',
+        'spatial': '2km',
+        'temporal': '5min',
+    },
+    'final': {
+        'data_sub_dir': 'nsrdb_4km_30min',
+        'fout': 'nsrdb.h5',
+        'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+        'meta_file': 'nsrdb_meta_4km.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+        'source_priority': ['conus', 'full_disk'],
+    },
+}
 
 
-SIMPLE = {'source': {'data_sub_dir': 'east',
-                     'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                     'meta_file': 'nsrdb_meta_2km_east.csv',
-                     'spatial': '2km',
-                     'temporal': '15min'},
-          'final': {'data_sub_dir': 'wrf_9km',
-                    'fout': 'wrf_9km_2018.h5',
-                    'tree_file': 'kdtree_wrf_meta_9km.pkl',
-                    'meta_file': 'wrf_meta_9km.csv',
-                    'spatial': '9km',
-                    'temporal': '15min'},
-          }
+SIMPLE = {
+    'source': {
+        'data_sub_dir': 'east',
+        'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+        'meta_file': 'nsrdb_meta_2km_east.csv',
+        'spatial': '2km',
+        'temporal': '15min',
+    },
+    'final': {
+        'data_sub_dir': 'wrf_9km',
+        'fout': 'wrf_9km_2018.h5',
+        'tree_file': 'kdtree_wrf_meta_9km.pkl',
+        'meta_file': 'wrf_meta_9km.csv',
+        'spatial': '9km',
+        'temporal': '15min',
+    },
+}
 
 
-NSRDB_2018 = {'east': {'data_sub_dir': 'east',
-                       'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                       'meta_file': 'nsrdb_meta_2km_east.csv',
-                       'spatial': '2km',
-                       'temporal': '15min'},
-              'west': {'data_sub_dir': 'west',
-                       'tree_file': 'kdtree_west_psm_extent.pkl',
-                       'meta_file': 'west_psm_extent.csv',
-                       'spatial': '4km',
-                       'temporal': '30min'},
-              'conus': {'data_sub_dir': 'conus',
-                        'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                        'meta_file': 'nsrdb_meta_2km_conus.csv',
-                        'spatial': '2km',
-                        'temporal': '5min'},
-              'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                        'fout': 'nsrdb_2018.h5',
-                        'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
-                        'meta_file': 'nsrdb_meta_4km.csv',
-                        'spatial': '4km',
-                        'temporal': '30min'},
-              }
+NSRDB_2018 = {
+    'east': {
+        'data_sub_dir': 'east',
+        'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+        'meta_file': 'nsrdb_meta_2km_east.csv',
+        'spatial': '2km',
+        'temporal': '15min',
+    },
+    'west': {
+        'data_sub_dir': 'west',
+        'tree_file': 'kdtree_west_psm_extent.pkl',
+        'meta_file': 'west_psm_extent.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+    },
+    'conus': {
+        'data_sub_dir': 'conus',
+        'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+        'meta_file': 'nsrdb_meta_2km_conus.csv',
+        'spatial': '2km',
+        'temporal': '5min',
+    },
+    'final': {
+        'data_sub_dir': 'nsrdb_4km_30min',
+        'fout': 'nsrdb_2018.h5',
+        'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+        'meta_file': 'nsrdb_meta_4km.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+    },
+}
 
 
-SURFRAD_2018 = {'east': {'data_sub_dir': 'east',
-                         'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-                         'meta_file': 'nsrdb_meta_2km_east.csv',
-                         'spatial': '2km',
-                         'temporal': '15min'},
-                'west': {'data_sub_dir': 'west',
-                         'tree_file': 'kdtree_west_psm_extent.pkl',
-                         'meta_file': 'west_psm_extent.csv',
-                         'spatial': '4km',
-                         'temporal': '30min'},
-                'conus': {'data_sub_dir': 'conus',
-                          'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
-                          'meta_file': 'nsrdb_meta_2km_conus.csv',
-                          'spatial': '2km',
-                          'temporal': '5min'},
-                'final': {'data_sub_dir': 'nsrdb_4km_30min',
-                          'fout': 'nsrdb_surfrad_2018.h5',
-                          'tree_file': 'kdtree_surfrad_meta.pkl',
-                          'meta_file': 'surfrad_meta.csv',
-                          'spatial': '4km',
-                          'temporal': '30min'},
-                }
+SURFRAD_2018 = {
+    'east': {
+        'data_sub_dir': 'east',
+        'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
+        'meta_file': 'nsrdb_meta_2km_east.csv',
+        'spatial': '2km',
+        'temporal': '15min',
+    },
+    'west': {
+        'data_sub_dir': 'west',
+        'tree_file': 'kdtree_west_psm_extent.pkl',
+        'meta_file': 'west_psm_extent.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+    },
+    'conus': {
+        'data_sub_dir': 'conus',
+        'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
+        'meta_file': 'nsrdb_meta_2km_conus.csv',
+        'spatial': '2km',
+        'temporal': '5min',
+    },
+    'final': {
+        'data_sub_dir': 'nsrdb_4km_30min',
+        'fout': 'nsrdb_surfrad_2018.h5',
+        'tree_file': 'kdtree_surfrad_meta.pkl',
+        'meta_file': 'surfrad_meta.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+    },
+}
 
 
 class MetaManager:
@@ -136,11 +168,13 @@ class MetaManager:
             DataFrame based on fpath_4km but with a "source" column containing
             the data source string.
         """
-        logger.info('Making aggregation meta data from {} sources to '
-                    'final meta: {}'
-                    .format(len(source_tree_fpaths), fpath_final))
-        logger.info('Aggregation meta data sources: {}'
-                    .format(source_tree_fpaths))
+        logger.info(
+            'Making aggregation meta data from {} sources to '
+            'final meta: {}'.format(len(source_tree_fpaths), fpath_final)
+        )
+        logger.info(
+            'Aggregation meta data sources: {}'.format(source_tree_fpaths)
+        )
 
         meta = pd.read_csv(fpath_final, index_col=0)
         meta['source'] = 'null'
@@ -154,17 +188,22 @@ class MetaManager:
             tree_fpath = source_tree_fpaths[source_name]
             tree = MetaManager.load_pickle_tree(tree_fpath)
             d = tree.query(meta[['latitude', 'longitude']].values)[0]
-            mask = (d < d_last)
-            logger.debug('Source "{}" found {} locations in final meta'
-                         .format(source_name, mask.sum()))
+            mask = d < d_last
+            logger.debug(
+                'Source "{}" found {} locations in final meta'.format(
+                    source_name, mask.sum()
+                )
+            )
             ind = meta.index[mask]
             meta.loc[ind, 'source'] = source_name
             d_last = d
 
         for name in pd.unique(meta['source']):
             count = (meta['source'] == name).sum()
-            logger.info('Aggregated NSRDB meta data has {} sites with '
-                        'aggregation source "{}"'.format(count, name))
+            logger.info(
+                'Aggregated NSRDB meta data has {} sites with '
+                'aggregation source "{}"'.format(count, name)
+            )
 
         if any(meta['source'] == 'null'):
             e = 'Null source values persisted in aggregation meta'
@@ -193,27 +232,32 @@ class MetaManager:
             DataFrame based on fpath_4km but with a "source" column containing
             the data source string.
         """
-        logger.info('Making meta data for custom 2018 setup with 4km '
-                    'source file: {}'.format(fpath_4km))
+        logger.info(
+            'Making meta data for custom 2018 setup with 4km '
+            'source file: {}'.format(fpath_4km)
+        )
 
         meta = pd.read_csv(fpath_4km, index_col=0)
         meta['source'] = 'west'
 
         # east 2km longitude boundary is at -125 lon (just west of CONUS)
-        east_mask = (meta.longitude > -125.0)
+        east_mask = meta.longitude > -125.0
         meta.loc[east_mask, 'source'] = 'east'
 
         # conus includes all of US except for Alaska and Hawaii
-        conus_mask = ((meta.country == 'United States')
-                      & ~meta.state.isin(['Alaska', 'Hawaii']))
+        conus_mask = (meta.country == 'United States') & ~meta.state.isin(
+            ['Alaska', 'Hawaii']
+        )
         meta.loc[conus_mask, 'source'] = 'conus'
 
         # made a line specific to the observed 2018 GOES East extreme angle
         # boundary, above which no cloud properties are returned for the East.
         lat_boundary = 0.6 * (meta.longitude.values + 125) + 42.7
-        angle_mask = ((meta.latitude > lat_boundary)
-                      & (meta.source != 'west')
-                      & (meta.longitude < -104.5))
+        angle_mask = (
+            (meta.latitude > lat_boundary)
+            & (meta.source != 'west')
+            & (meta.longitude < -104.5)
+        )
         meta.loc[angle_mask, 'source'] = 'west'
 
         return meta
@@ -234,8 +278,9 @@ class MetaManager:
             the data source string 'source'.
         """
 
-        logger.info('Making simple meta data with final meta: {}'
-                    .format(fpath_meta))
+        logger.info(
+            'Making simple meta data with final meta: {}'.format(fpath_meta)
+        )
         meta = pd.read_csv(fpath_meta, index_col=0)
         meta['source'] = 'source'
         return meta
@@ -264,9 +309,10 @@ class MetaManager:
             with open(fpath, 'rb') as pkl:
                 tree = pickle.load(pkl)
         except Exception as e:
-            m = ('Could not load pickle file. May have been generated '
-                 'with a different python version. Try recreating the file: {}'
-                 .format(e))
+            m = (
+                'Could not load pickle file. May have been generated with a '
+                f'different python version. Try recreating the file: {e}'
+            )
             logger.error(m)
             raise e
 
@@ -319,7 +365,7 @@ class Aggregation:
         """
         self.var = var
         self.data_fpath = data_fpath
-        self.nn = sorted(list(nn))
+        self.nn = sorted(nn)
         self.w = w
         self.final_ti = final_ti
 
@@ -426,8 +472,7 @@ class Aggregation:
 
             return out
 
-        else:
-            return inp
+        return inp
 
     def time_sum(self, inp):
         """Calculate the rolling sum for an input array or df.
@@ -457,8 +502,7 @@ class Aggregation:
 
             return out
 
-        else:
-            return inp
+        return inp
 
     @staticmethod
     def _get_rolling_window_index(L, w):
@@ -483,7 +527,7 @@ class Aggregation:
             iarr = np.zeros((L, w), dtype=np.int32)
             for i in range(L):
                 sub = [i + n for n in range(w)]
-                sub -= (np.round(w / 2) - 1)
+                sub -= np.round(w / 2) - 1
                 iarr[i, :] = sub
             iarr[(iarr < 0)] = 0
             iarr = np.maximum(iarr, 0)
@@ -510,17 +554,15 @@ class Aggregation:
 
         iarr = Aggregation._get_rolling_window_index(len(data), w)
 
-        cloud_mode = np.ndarray((len(data), ), dtype=data.dtype)
+        cloud_mode = np.ndarray((len(data),), dtype=data.dtype)
         for i, x in enumerate(data[iarr]):
             m = mode(x.flatten())[0]
             if np.isnan(m):
-                emsg = ('Bad cloud type mode from ctype array: \n\t{}'
-                        .format(x))
+                emsg = 'Bad cloud type mode from ctype array: \n\t{}'.format(x)
                 logger.info('Bad ctype mode at i {}'.format(i))
                 logger.exception(emsg)
                 raise ValueError(emsg)
-            else:
-                cloud_mode[i] = m
+            cloud_mode[i] = m
 
         return cloud_mode
 
@@ -540,20 +582,23 @@ class Aggregation:
 
         m = len(arr) / len(self.final_ti)
         if m % 1 != 0:
-            raise ValueError('Cannot reduce timeseries! Final ti has shape '
-                             '{} and working array has shape {}.'
-                             .format(self.final_ti.shape, arr.shape))
+            raise ValueError(
+                'Cannot reduce timeseries! Final ti has shape '
+                '{} and working array has shape {}.'.format(
+                    self.final_ti.shape, arr.shape
+                )
+            )
         m = int(m)
 
-        if len(arr.shape) == 1:
-            arr = arr[::m]
-        else:
-            arr = arr[::m, :]
+        arr = arr[::m] if len(arr.shape) == 1 else arr[::m, :]
 
         if len(arr) != len(self.final_ti):
-            raise ValueError('Timeseries length reduction failed! Final ti '
-                             'has shape {} and reduced array has shape {}.'
-                             .format(self.final_ti.shape, arr.shape))
+            raise ValueError(
+                'Timeseries length reduction failed! Final ti '
+                'has shape {} and reduced array has shape {}.'.format(
+                    self.final_ti.shape, arr.shape
+                )
+            )
 
         return arr
 
@@ -586,7 +631,7 @@ class Aggregation:
             (n, ) array unscaled and rounded data from the nn with time
             series matching final_ti.
         """
-        nn = [list(nn)[0]]
+        nn = [next(iter(nn))]
         a = cls(var, data_fpath, nn, w, final_ti)
         data = a.reduce_timeseries(a.data)
         data = a.format_out_arr(data)
@@ -657,7 +702,7 @@ class Aggregation:
         data = a.spatial_sum(data)
         data = a.time_sum(data)
         data = a.reduce_timeseries(data)
-        data /= (len(nn) * w / 100)
+        data /= len(nn) * w / 100
         data = a.format_out_arr(data)
         return data
 
@@ -719,11 +764,10 @@ class Aggregation:
 
         iarr = Aggregation._get_rolling_window_index(len(ctype_source), w)
 
-        cprop_out = np.ndarray((len(cprop_source), ),
-                               dtype=cprop_source.dtype)
+        cprop_out = np.ndarray((len(cprop_source),), dtype=cprop_source.dtype)
 
         for i, j in enumerate(iarr):
-            mask = (ctype_source[j] == ctype_out_full[i])
+            mask = ctype_source[j] == ctype_out_full[i]
             if mask.any():
                 cprop_out[i] = np.mean(cprop_source[j][mask])
             else:
@@ -774,22 +818,27 @@ class Aggregation:
         ctype_source = a.data
         ctype_source[(ctype_source == 1)] = 0
 
-        ctype_out_full = temporal_step(ctype_out_final, final_ti,
-                                       a.source_time_index)
+        ctype_out_full = temporal_step(
+            ctype_out_final, final_ti, a.source_time_index
+        )
 
         a = cls(var, data_fpath, nn, w, final_ti)
         cprop_source = a.data
 
-        cprop_out = a.cloud_property_avg(cprop_source, ctype_source,
-                                         ctype_out_full, w)
+        cprop_out = a.cloud_property_avg(
+            cprop_source, ctype_source, ctype_out_full, w
+        )
 
         cprop_out = a.reduce_timeseries(cprop_out)
         cprop_out = a.format_out_arr(cprop_out)
 
         if np.isnan(cprop_out).sum():
-            emsg = ('Aggregation of cloud property failed for site gid '
-                    '{}, {} NaN values persisted.'
-                    .format(gid, np.isnan(cprop_out).sum()))
+            emsg = (
+                'Aggregation of cloud property failed for site gid '
+                '{}, {} NaN values persisted.'.format(
+                    gid, np.isnan(cprop_out).sum()
+                )
+            )
             bad_locs = np.where(np.isnan(cprop_out))[0]
             logger.info('Bad locs: {}'.format(bad_locs))
             logger.info('Bad time index: {}'.format(final_ti[bad_locs]))
@@ -797,8 +846,9 @@ class Aggregation:
             logger.info('SZA: {}'.format(sza[bad_locs]))
             i0 = np.max(bad_locs[0], 0) - 5
             i1 = i0 + 10
-            logger.info('Cprop from {} to {}: {}'
-                        .format(i0, i1, cprop_out[i0:i1]))
+            logger.info(
+                'Cprop from {} to {}: {}'.format(i0, i1, cprop_out[i0:i1])
+            )
             logger.exception(emsg)
             raise ValueError(emsg)
 
@@ -842,35 +892,37 @@ class Manager:
 
     DEFAULT_METHOD = Aggregation.mean
 
-    AGG_METHODS = {'alpha': Aggregation.point,
-                   'aod': Aggregation.point,
-                   'asymmetry': Aggregation.point,
-                   'ozone': Aggregation.point,
-                   'ssa': Aggregation.point,
-                   'surface_albedo': Aggregation.point,
-                   'surface_pressure': Aggregation.point,
-                   'total_precipitable_water': Aggregation.point,
-                   'dew_point': Aggregation.point,
-                   'relative_humidity': Aggregation.point,
-                   'air_temperature': Aggregation.point,
-                   'wind_direction': Aggregation.point,
-                   'wind_speed': Aggregation.point,
-                   'cloud_type': Aggregation.cloud_type,
-                   'cld_opd_dcomp': Aggregation.cloud_property,
-                   'cld_reff_dcomp': Aggregation.cloud_property,
-                   'cld_press_acha': Aggregation.cloud_property,
-                   'solar_zenith_angle': Aggregation.point,
-                   'dhi': Aggregation.dhi,
-                   'dni': Aggregation.mean,
-                   'ghi': Aggregation.mean,
-                   'clearsky_dhi': Aggregation.dhi,
-                   'clearsky_dni': Aggregation.mean,
-                   'clearsky_ghi': Aggregation.mean,
-                   'fill_flag': Aggregation.fill_flag,
-                   }
+    AGG_METHODS: ClassVar = {
+        'alpha': Aggregation.point,
+        'aod': Aggregation.point,
+        'asymmetry': Aggregation.point,
+        'ozone': Aggregation.point,
+        'ssa': Aggregation.point,
+        'surface_albedo': Aggregation.point,
+        'surface_pressure': Aggregation.point,
+        'total_precipitable_water': Aggregation.point,
+        'dew_point': Aggregation.point,
+        'relative_humidity': Aggregation.point,
+        'air_temperature': Aggregation.point,
+        'wind_direction': Aggregation.point,
+        'wind_speed': Aggregation.point,
+        'cloud_type': Aggregation.cloud_type,
+        'cld_opd_dcomp': Aggregation.cloud_property,
+        'cld_reff_dcomp': Aggregation.cloud_property,
+        'cld_press_acha': Aggregation.cloud_property,
+        'solar_zenith_angle': Aggregation.point,
+        'dhi': Aggregation.dhi,
+        'dni': Aggregation.mean,
+        'ghi': Aggregation.mean,
+        'clearsky_dhi': Aggregation.dhi,
+        'clearsky_dni': Aggregation.mean,
+        'clearsky_ghi': Aggregation.mean,
+        'fill_flag': Aggregation.fill_flag,
+    }
 
-    def __init__(self, data, data_dir, meta_dir, year=2018,
-                 i_chunk=0, n_chunks=1):
+    def __init__(
+        self, data, data_dir, meta_dir, year=2018, i_chunk=0, n_chunks=1
+    ):
         """
         Parameters
         ----------
@@ -921,9 +973,11 @@ class Manager:
         if 'fpath' in self.data['final']:
             self.fout = self.data['final']['fpath']
         else:
-            self.fout = os.path.join(self.data_dir,
-                                     self.data['final']['data_sub_dir'] + '/',
-                                     self.data['final']['fout'])
+            self.fout = os.path.join(
+                self.data_dir,
+                self.data['final']['data_sub_dir'] + '/',
+                self.data['final']['fout'],
+            )
         self.fout = self.fout.replace('.h5', '_{}.h5'.format(self.i_chunk))
         self.data_sources = self.meta.source.unique()
 
@@ -933,8 +987,10 @@ class Manager:
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
 
-    def preflight(self, reqs=('data_sub_dir', 'tree_file', 'meta_file',
-                              'spatial', 'temporal')):
+    def preflight(
+        self,
+        reqs=('data_sub_dir', 'tree_file', 'meta_file', 'spatial', 'temporal'),
+    ):
         """Run validity checks on input data.
 
         Parameters
@@ -949,8 +1005,11 @@ class Manager:
                 warn('Need "{}" in the data input!'.format(source))
             for r in reqs:
                 if r not in self.data[source]:
-                    warn('Data input source "{}" needs field "{}"!'
-                         .format(source, r))
+                    warn(
+                        'Data input source "{}" needs field "{}"!'.format(
+                            source, r
+                        )
+                    )
 
     @property
     def time_index(self):
@@ -963,9 +1022,11 @@ class Manager:
             resolution.
         """
 
-        ti = pd.date_range('1-1-{}'.format(self.year),
-                           '1-1-{}'.format(self.year + 1),
-                           freq=self.final_tres)[:-1]
+        ti = pd.date_range(
+            '1-1-{}'.format(self.year),
+            '1-1-{}'.format(self.year + 1),
+            freq=self.final_tres,
+        )[:-1]
         return ti
 
     @property
@@ -979,8 +1040,9 @@ class Manager:
         """
 
         if self._meta is None:
-            final_meta_path = os.path.join(self.meta_dir,
-                                           self.data['final']['meta_file'])
+            final_meta_path = os.path.join(
+                self.meta_dir, self.data['final']['meta_file']
+            )
 
             source_tree_fpaths = {}
             for source_name, attrs in self.data.items():
@@ -997,8 +1059,10 @@ class Manager:
             else:
                 priority = self.data['final'].get('source_priority', None)
                 self._meta = MetaManager.meta_sources(
-                    final_meta_path, source_tree_fpaths,
-                    source_priority=priority)
+                    final_meta_path,
+                    source_tree_fpaths,
+                    source_priority=priority,
+                )
 
         return self._meta
 
@@ -1018,10 +1082,15 @@ class Manager:
             gid_chunk = np.array_split(gids_full, self.n_chunks)[self.i_chunk]
             self._meta_chunk = self._meta.iloc[gid_chunk, :]
             self._meta_chunk['gid'] = self._meta_chunk.index.values
-            logger.info('Working on meta chunk {} out of {} '
-                        'with GIDs {} through {}'
-                        .format(self.i_chunk + 1, self.n_chunks,
-                                np.min(gid_chunk), np.max(gid_chunk)))
+            logger.info(
+                'Working on meta chunk {} out of {} '
+                'with GIDs {} through {}'.format(
+                    self.i_chunk + 1,
+                    self.n_chunks,
+                    np.min(gid_chunk),
+                    np.max(gid_chunk),
+                )
+            )
         return self._meta_chunk
 
     @staticmethod
@@ -1044,8 +1113,10 @@ class Manager:
         if 'fill_flag' in dset:
             dset_attrs['units'] = 'percent of filled timesteps'
 
-        if ('scale_factor' in dset_attrs
-                and 'psm_scale_factor' not in dset_attrs):
+        if (
+            'scale_factor' in dset_attrs
+            and 'psm_scale_factor' not in dset_attrs
+        ):
             dset_attrs['psm_scale_factor'] = dset_attrs['scale_factor']
 
         if 'units' in dset_attrs and 'psm_units' not in dset_attrs:
@@ -1054,8 +1125,9 @@ class Manager:
         return dset_attrs
 
     @staticmethod
-    def get_dset_attrs(h5dir,
-                       ignore_dsets=('coordinates', 'time_index', 'meta')):
+    def get_dset_attrs(
+        h5dir, ignore_dsets=('coordinates', 'time_index', 'meta')
+    ):
         """Get output file dataset attributes for a set of datasets.
 
         Parameters
@@ -1093,23 +1165,28 @@ class Manager:
         else:
             h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
 
-        logger.info('Getting dataset attributes from the following files: {}'
-                    .format(h5_files))
+        logger.info(
+            'Getting dataset attributes from the following files: {}'.format(
+                h5_files
+            )
+        )
 
         for fn in h5_files:
             with NSRDBHandler(os.path.join(h5dir, fn)) as out:
                 ti = out.time_index
                 for d in out.dsets:
                     if d not in ignore_dsets and d not in attrs:
-
                         attrs[d] = Manager._special_attrs(
-                            d, out.get_attrs(dset=d))
+                            d, out.get_attrs(dset=d)
+                        )
 
                         try:
                             x = out.get_dset_properties(d)
                         except Exception as e:
-                            m = ('Could not get dataset "{}" properties from '
-                                 'file: {}'.format(d, os.path.join(h5dir, fn)))
+                            m = (
+                                'Could not get dataset "{}" properties from '
+                                'file: {}'.format(d, os.path.join(h5dir, fn))
+                            )
                             logger.error(m)
                             logger.exception(m)
                             raise e
@@ -1126,18 +1203,27 @@ class Manager:
         time index and meta"""
 
         if 'fpath' in self.data[self.data_sources[0]]:
-            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = (
                 self.get_dset_attrs(self.data[self.data_sources[0]]['fpath'])
+            )
         else:
             data_sub_dir = self.data[self.data_sources[0]]['data_sub_dir']
             data_sub_dir += '/'
-            self.dsets, self.attrs, self.chunks, self.dtypes, _ = \
+            self.dsets, self.attrs, self.chunks, self.dtypes, _ = (
                 self.get_dset_attrs(os.path.join(self.data_dir, data_sub_dir))
+            )
 
         if not os.path.exists(self.fout):
             logger.info('Initializing output file: {}'.format(self.fout))
-            Outputs.init_h5(self.fout, self.dsets, self.attrs, self.chunks,
-                            self.dtypes, self.time_index, self.meta_chunk)
+            Outputs.init_h5(
+                self.fout,
+                self.dsets,
+                self.attrs,
+                self.chunks,
+                self.dtypes,
+                self.time_index,
+                self.meta_chunk,
+            )
         else:
             logger.info('Output file exists: {}'.format(self.fout))
 
@@ -1151,10 +1237,12 @@ class Manager:
             t is the final time index and n is the number of sites in this
             meta chunk.
         """
-        arr = np.zeros((len(self.time_index), len(self.meta_chunk)),
-                       self.dtypes[var])
-        logger.debug('Initializing array for "{}" with shape {}'
-                     .format(var, arr.shape))
+        arr = np.zeros(
+            (len(self.time_index), len(self.meta_chunk)), self.dtypes[var]
+        )
+        logger.debug(
+            'Initializing array for "{}" with shape {}'.format(var, arr.shape)
+        )
         return arr
 
     @staticmethod
@@ -1181,10 +1269,12 @@ class Manager:
             try:
                 s1 = int(sres.replace('km', ''))
                 s2 = int(final_sres.replace('km', ''))
-                k = (s2 ** 2) / (s1 ** 2)
+                k = (s2**2) / (s1**2)
             except Exception as e:
-                msg = ('Could not parse spatial resolution from: '
-                       '"{}", "{}"'.format(sres, final_sres))
+                msg = (
+                    'Could not parse spatial resolution from: '
+                    '"{}", "{}"'.format(sres, final_sres)
+                )
                 logger.error(msg)
                 raise ValueError(msg) from e
             else:
@@ -1213,16 +1303,20 @@ class Manager:
             w = 1
 
         elif final_tres == '30min':
-            if tres == '15min' or tres == '10min':
+            if tres in ('15min', '10min'):
                 w = 3
             elif tres == '5min':
                 w = 7
             else:
-                raise ValueError('Did not recognize temporal resolution {}'
-                                 .format(tres))
+                raise ValueError(
+                    'Did not recognize temporal resolution {}'.format(tres)
+                )
         else:
-            raise ValueError('Did not recognize final temporal resolution: '
-                             '{}'.format(final_tres))
+            raise ValueError(
+                'Did not recognize final temporal resolution: ' '{}'.format(
+                    final_tres
+                )
+            )
 
         return w
 
@@ -1255,9 +1349,11 @@ class Manager:
                 if fn.endswith('.h5'):
                     fpath = os.path.join(data_dir, data_sub_dir, fn)
                     with NSRDBHandler(fpath) as out:
-                        if ((var == 'fill_flag' and var in out.dsets
-                                and 'irradiance' in fn) or
-                           (var != 'fill_flag' and var in out.dsets)):
+                        if (
+                            var == 'fill_flag'
+                            and var in out.dsets
+                            and 'irradiance' in fn
+                        ) or (var != 'fill_flag' and var in out.dsets):
                             break
             self.data[source][var] = fpath
         return fpath
@@ -1265,25 +1361,30 @@ class Manager:
     def add_temporal(self):
         """Get the temporal window sizes for all data sources."""
         for source in self.data_sources:
-            w = self._get_temporal_w(self.data[source]['temporal'],
-                                     self.final_tres)
+            w = self._get_temporal_w(
+                self.data[source]['temporal'], self.final_tres
+            )
             self.data[source]['window'] = w
-            logger.info('Data source {} has a window size of {}'
-                        .format(source, w))
+            logger.info(
+                'Data source {} has a window size of {}'.format(source, w)
+            )
 
     def run_nn(self):
         """Run nearest neighbor for all data sources against the final meta."""
         for source in self.data_sources:
+            k = self._get_spatial_k(
+                self.data[source]['spatial'], self.final_sres
+            )
+            logger.info(
+                'Data source {} will use {} neighbors'.format(source, k)
+            )
 
-            k = self._get_spatial_k(self.data[source]['spatial'],
-                                    self.final_sres)
-            logger.info('Data source {} will use {} neighbors'
-                        .format(source, k))
-
-            meta_fpath = os.path.join(self.meta_dir,
-                                      self.data[source]['meta_file'])
-            tree_fpath = os.path.join(self.meta_dir,
-                                      self.data[source]['tree_file'])
+            meta_fpath = os.path.join(
+                self.meta_dir, self.data[source]['meta_file']
+            )
+            tree_fpath = os.path.join(
+                self.meta_dir, self.data[source]['tree_file']
+            )
             _, i = self.knn(self.meta, tree_fpath, meta_fpath, k=k)
 
             self.data[source]['nn'] = i
@@ -1323,8 +1424,10 @@ class Manager:
                 pickle.dump(tree, pkl)
 
         else:
-            e = ('Missing both meta source tree file and meta source csv '
-                 'file: {}, {}'.format(tree_fpath, meta_fpath))
+            e = (
+                'Missing both meta source tree file and meta source csv '
+                'file: {}, {}'.format(tree_fpath, meta_fpath)
+            )
             logger.error(e)
             raise FileNotFoundError(e)
 
@@ -1348,12 +1451,7 @@ class Manager:
             Aggregation method for the input var from the Aggregation class
             above.
         """
-
-        if var in self.AGG_METHODS:
-            method = self.AGG_METHODS[var]
-        else:
-            method = self.DEFAULT_METHOD
-        return method
+        return self.AGG_METHODS.get(var, self.DEFAULT_METHOD)
 
     def _get_args(self, var, i):
         """Get an argument list for a given variable and site.
@@ -1384,12 +1482,14 @@ class Manager:
                 data_fpath = self.data[source]['fpath']
             else:
                 data_sub_dir = self.data[source]['data_sub_dir']
-                data_fpath = self._get_fpath(var, self.data_dir, data_sub_dir,
-                                             source)
+                data_fpath = self._get_fpath(
+                    var, self.data_dir, data_sub_dir, source
+                )
 
             if not os.path.exists(data_fpath) and '*' not in data_fpath:
-                e = ('Could not find source data filepath for "{}": {}'
-                     .format(var, data_fpath))
+                e = 'Could not find source data filepath for "{}": {}'.format(
+                    var, data_fpath
+                )
                 logger.error(e)
                 raise FileNotFoundError(e)
 
@@ -1458,8 +1558,11 @@ class Manager:
 
             for j, f in enumerate(as_completed(futures)):
                 if (j + 1) % 1000 == 0:
-                    logger.info('Futures completed: {} out of {}.'
-                                .format(j + 1, len(futures)))
+                    logger.info(
+                        'Futures completed: {} out of {}.'.format(
+                            j + 1, len(futures)
+                        )
+                    )
                 i = futures[f]
                 arr[:, i] = f.result()
 
@@ -1481,9 +1584,18 @@ class Manager:
             out[var] = arr
 
     @classmethod
-    def run_chunk(cls, data, data_dir, meta_dir, i_chunk, n_chunks,
-                  year=2018, ignore_dsets=None,
-                  parallel=True, log_level='INFO'):
+    def run_chunk(
+        cls,
+        data,
+        data_dir,
+        meta_dir,
+        i_chunk,
+        n_chunks,
+        year=2018,
+        ignore_dsets=None,
+        parallel=True,
+        log_level='INFO',
+    ):
         """
         Parameters
         ----------
@@ -1511,33 +1623,51 @@ class Manager:
         """
 
         if log_level:
-            log_file = os.path.join(data_dir,
-                                    data['final']['data_sub_dir'] + '/',
-                                    'agg_{}.log'.format(i_chunk))
+            log_file = os.path.join(
+                data_dir,
+                data['final']['data_sub_dir'] + '/',
+                'agg_{}.log'.format(i_chunk),
+            )
             init_logger(__name__, log_level=log_level, log_file=log_file)
 
-        logger.info('Working on site chunk {} out of {}'
-                    .format(i_chunk + 1, n_chunks))
+        logger.info(
+            'Working on site chunk {} out of {}'.format(i_chunk + 1, n_chunks)
+        )
 
-        m = cls(data, data_dir, meta_dir, year=year, i_chunk=i_chunk,
-                n_chunks=n_chunks)
+        m = cls(
+            data,
+            data_dir,
+            meta_dir,
+            year=year,
+            i_chunk=i_chunk,
+            n_chunks=n_chunks,
+        )
 
         if ignore_dsets is None:
             ignore_dsets = []
 
-        datasets = [d for d in m.dsets if 'dhi' not in d
-                    and 'cld_' not in d and d not in ignore_dsets]
-        delayed_datasets = [d for d in m.dsets if 'dhi' in d
-                            or 'cld_' in d and d not in ignore_dsets]
+        datasets = [
+            d
+            for d in m.dsets
+            if 'dhi' not in d and 'cld_' not in d and d not in ignore_dsets
+        ]
+        delayed_datasets = [
+            d
+            for d in m.dsets
+            if 'dhi' in d or ('cld_' in d and d not in ignore_dsets)
+        ]
         n_var = len(datasets) + len(delayed_datasets)
         i_var = 0
         for dsets in [datasets, delayed_datasets]:
             for var in dsets:
                 method = m._get_agg_method(var)
                 i_var += 1
-                logger.info('Aggregating variable "{}" '
-                            '({} out of {}). Using method: {}'
-                            .format(var, i_var, n_var, method))
+                logger.info(
+                    'Aggregating variable "{}" '
+                    '({} out of {}). Using method: {}'.format(
+                        var, i_var, n_var, method
+                    )
+                )
                 if parallel:
                     arr = m._agg_var_parallel(var, method)
                 else:
@@ -1548,9 +1678,20 @@ class Manager:
         logger.info('NSRDB aggregation complete!')
 
     @classmethod
-    def hpc(cls, data, data_dir, meta_dir, year, n_chunks, alloc='pxs',
-            memory=90, walltime=4, feature='--qos=normal', node_name='agg',
-            stdout_path=None):
+    def hpc(
+        cls,
+        data,
+        data_dir,
+        meta_dir,
+        year,
+        n_chunks,
+        alloc='pxs',
+        memory=90,
+        walltime=4,
+        feature='--qos=normal',
+        node_name='agg',
+        stdout_path=None,
+    ):
         """Run NSRDB aggregation on HPC with each agg chunk on a node.
 
         Parameters
@@ -1586,41 +1727,63 @@ class Manager:
         if stdout_path is None:
             stdout_path = os.getcwd()
 
-        cmd = ("python -c \'from nsrdb.aggregation.aggregation import Manager;"
-               "Manager.run_chunk({})\'")
+        cmd = (
+            "python -c 'from nsrdb.aggregation.aggregation import Manager;"
+            "Manager.run_chunk({})'"
+        )
 
         slurm_manager = SLURM()
 
         for i_chunk in range(n_chunks):
             i_node_name = node_name + '_{}'.format(i_chunk)
-            a = ('{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
-                 'parallel=True, log_level="INFO"'
-                 .format(json.dumps(data), data_dir, meta_dir,
-                         i_chunk, n_chunks, year))
+            a = (
+                '{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
+                'parallel=True, log_level="INFO"'.format(
+                    json.dumps(data),
+                    data_dir,
+                    meta_dir,
+                    i_chunk,
+                    n_chunks,
+                    year,
+                )
+            )
             icmd = cmd.format(a)
 
-            out = slurm_manager.sbatch(icmd,
-                                       alloc=alloc,
-                                       memory=memory,
-                                       walltime=walltime,
-                                       feature=feature,
-                                       name=i_node_name,
-                                       stdout_path=stdout_path)[0]
+            out = slurm_manager.sbatch(
+                icmd,
+                alloc=alloc,
+                memory=memory,
+                walltime=walltime,
+                feature=feature,
+                name=i_node_name,
+                stdout_path=stdout_path,
+            )[0]
 
             print('\ncmd:\n{}\n'.format(icmd))
 
             if out:
-                msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                       'HPC.'.format(i_node_name, out))
+                msg = (
+                    'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
+                        i_node_name, out
+                    )
+                )
             else:
-                msg = ('Was unable to kick off job "{}". '
-                       'Please see the stdout error messages'
-                       .format(i_node_name))
+                msg = (
+                    'Was unable to kick off job "{}". '
+                    'Please see the stdout error messages'.format(i_node_name)
+                )
             print(msg)
 
     @classmethod
-    def collect(cls, meta_final, collect_dir, collect_tag, fout,
-                dsets=None, max_workers=None):
+    def collect(
+        cls,
+        meta_final,
+        collect_dir,
+        collect_tag,
+        fout,
+        dsets=None,
+        max_workers=None,
+    ):
         """Perform final collection of chunk-aggregated files.
 
         Parameters
@@ -1645,23 +1808,31 @@ class Manager:
             meta_final = pd.read_csv(meta_final, index_col=0)
 
         fns = os.listdir(collect_dir)
-        flist = [fn for fn in fns if fn.endswith('.h5')
-                 and collect_tag in fn
-                 and os.path.join(collect_dir, fn) != fout]
+        flist = [
+            fn
+            for fn in fns
+            if fn.endswith('.h5')
+            and collect_tag in fn
+            and os.path.join(collect_dir, fn) != fout
+        ]
         flist = sorted(
-            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1]))
+            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1])
+        )
 
-        logger.info('Collecting aggregation chunks from {} files to: {}'
-                    .format(len(flist), fout))
+        logger.info(
+            'Collecting aggregation chunks from {} files to: {}'.format(
+                len(flist), fout
+            )
+        )
 
         dsets_all, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
         dsets = dsets_all if dsets is None else dsets
-        Outputs.init_h5(fout, dsets, attrs, chunks, dtypes,
-                        ti, meta_final)
+        Outputs.init_h5(fout, dsets, attrs, chunks, dtypes, ti, meta_final)
 
         for dset in dsets:
-            Collector.collect_flist(flist, collect_dir, fout, dset,
-                                    max_workers=max_workers)
+            Collector.collect_flist(
+                flist, collect_dir, fout, dset, max_workers=max_workers
+            )
 
 
 def run():
@@ -1670,22 +1841,37 @@ def run():
     meta_dir = '/projects/pxs/reference_grids/'
     n_chunks = 32
     year = 2018
-    Manager.hpc(NSRDB_2018, data_dir, meta_dir, year, n_chunks,
-                alloc='pxs', memory=90, walltime=40, feature='--qos=high',
-                node_name='agg',
-                stdout_path=os.path.join(data_dir, 'stdout/'))
+    Manager.hpc(
+        NSRDB_2018,
+        data_dir,
+        meta_dir,
+        year,
+        n_chunks,
+        alloc='pxs',
+        memory=90,
+        walltime=40,
+        feature='--qos=high',
+        node_name='agg',
+        stdout_path=os.path.join(data_dir, 'stdout/'),
+    )
 
 
 def collect():
     """2018 collection run script"""
-    log_file = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-                'nsrdb_4km_30min/nsrdb_2018.log')
+    log_file = (
+        '/projects/pxs/processing/2018/nsrdb_output_final/'
+        'nsrdb_4km_30min/nsrdb_2018.log'
+    )
     init_logger(__name__, log_level='DEBUG', log_file=log_file)
     init_logger('nsrdb.file_handlers', log_level='DEBUG', log_file=log_file)
     meta_final = '/projects/pxs/reference_grids/nsrdb_meta_4km.csv'
-    collect_dir = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-                   'nsrdb_4km_30min/chunks')
+    collect_dir = (
+        '/projects/pxs/processing/2018/nsrdb_output_final/'
+        'nsrdb_4km_30min/chunks'
+    )
     collect_tag = 'nsrdb_2018_'
-    fout = ('/projects/pxs/processing/2018/nsrdb_output_final/'
-            'nsrdb_4km_30min/nsrdb_2018.h5')
+    fout = (
+        '/projects/pxs/processing/2018/nsrdb_output_final/'
+        'nsrdb_4km_30min/nsrdb_2018.h5'
+    )
     Manager.collect(meta_final, collect_dir, collect_tag, fout)
