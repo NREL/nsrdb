@@ -1,4 +1,3 @@
-# pylint: skip-file
 """
 PyTest file for rest2.
 
@@ -27,13 +26,15 @@ RTOL = 1e-03
 ATOL = 0.001
 
 # h5 index to surfrad site code name
-SITE_CODES = {0: 'dra',  # desert rock nevada
-              2: 'tbl',  # table mountain boulder
-              3: 'fpk',  # fort peck Montana
-              5: 'sxf',  # sioux falls South Dakota
-              6: 'gwn',  # goodwin creek Mississippi
-              7: 'bon',  # Bondville illinois
-              8: 'psu'}  # Penn. State
+SITE_CODES = {
+    0: 'dra',  # desert rock nevada
+    2: 'tbl',  # table mountain boulder
+    3: 'fpk',  # fort peck Montana
+    5: 'sxf',  # sioux falls South Dakota
+    6: 'gwn',  # goodwin creek Mississippi
+    7: 'bon',  # Bondville illinois
+    8: 'psu',
+}  # Penn. State
 
 
 def get_measurement_data(surfrad_file):
@@ -49,23 +50,32 @@ def get_measurement_data(surfrad_file):
 
 
 def get_source_data(test_file, sites=list(range(9))):
-    """Retrieve the variables required to run all-sky for a given set of sites.
-    """
+    """Retrieve the variables required to run all-sky for a given set of
+    sites."""
     out = {}
-    var_list = ('surface_pressure', 'surface_albedo',
-                'ssa', 'aod', 'alpha', 'ozone', 'total_precipitable_water',
-                'asymmetry')
+    var_list = (
+        'surface_pressure',
+        'surface_albedo',
+        'ssa',
+        'aod',
+        'alpha',
+        'ozone',
+        'total_precipitable_water',
+        'asymmetry',
+    )
 
     with h5py.File(test_file, 'r') as f:
-
         # get unscaled source variables
         out['time_index'] = pd.to_datetime(f['time_index'][...].astype(str))
 
         # get meta
         meta = pd.DataFrame(f['meta'][...])
         meta = meta.iloc[sites, :]
-        print('Getting source data from "{}".'
-              .format(str(meta['state'].values[0])))
+        print(
+            'Getting source data from "{}".'.format(
+                str(meta['state'].values[0])
+            )
+        )
 
         for var in var_list:
             out[var] = f[var][:, sites] / f[var].attrs['psm_scale_factor']
@@ -75,14 +85,17 @@ def get_source_data(test_file, sites=list(range(9))):
         out['cld_reff_dcomp'] = (
             f['cld_reff_dcomp'][:, sites].astype(float)
             * f['cld_reff_dcomp'].attrs['psm_scale_factor']
-            + f['cld_reff_dcomp'].attrs['psm_add_offset'])
+            + f['cld_reff_dcomp'].attrs['psm_add_offset']
+        )
         out['cld_opd_dcomp'] = (
             f['cld_opd_dcomp'][:, sites].astype(float)
             * f['cld_opd_dcomp'].attrs['psm_scale_factor']
-            + f['cld_opd_dcomp'].attrs['psm_add_offset'])
+            + f['cld_opd_dcomp'].attrs['psm_add_offset']
+        )
 
     out['solar_zenith_angle'] = SolPos(
-        out['time_index'], meta[['latitude', 'longitude']].values).zenith
+        out['time_index'], meta[['latitude', 'longitude']].values
+    ).zenith
 
     return out
 
@@ -121,8 +134,11 @@ def plot_benchmark(sites, y_range=None):
         else:
             t0, t1 = y_range
 
-        print('\nIndices {} through {} with diff {} at {}'
-              .format(t0, t1, max_diff[site], loc_max_diff[site]))
+        print(
+            '\nIndices {} through {} with diff {} at {}'.format(
+                t0, t1, max_diff[site], loc_max_diff[site]
+            )
+        )
 
         plt.hist(ghi_diff[:, site], bins=50)
         plt.ylim([0, 100])
@@ -150,9 +166,13 @@ def plot_benchmark(sites, y_range=None):
         plt.close()
 
 
-def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
-                 surfrad='./data/validation_surfrad/{s}_{y}.h5',
-                 site=0, year=1998, bad_threshold=0.005):
+def test_all_sky(
+    res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
+    surfrad='./data/validation_surfrad/{s}_{y}.h5',
+    site=0,
+    year=1998,
+    bad_threshold=0.005,
+):
     """Run a numerical test of all_sky irradiance vs. benchmark NSRDB data."""
 
     site_code = SITE_CODES[site]
@@ -165,12 +185,15 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
         as_out, source_vars = run_all_sky(res_file, sites=[site], debug=False)
 
         nsrdb = pd.DataFrame(
-            {'dhi': as_out['dhi'].flatten(),
-             'dni': as_out['dni'].flatten(),
-             'ghi': as_out['ghi'].flatten(),
-             'cloud_type': source_vars['cloud_type'].flatten(),
-             'sza': source_vars['solar_zenith_angle'].flatten()},
-            index=source_vars['time_index'])
+            {
+                'dhi': as_out['dhi'].flatten(),
+                'dni': as_out['dni'].flatten(),
+                'ghi': as_out['ghi'].flatten(),
+                'cloud_type': source_vars['cloud_type'].flatten(),
+                'sza': source_vars['solar_zenith_angle'].flatten(),
+            },
+            index=source_vars['time_index'],
+        )
 
         # 1 hour filter for stats (take data at the top of the hour)
         nsrdb = nsrdb[(nsrdb.index.minute == 0)]
@@ -182,9 +205,14 @@ def test_all_sky(res='./data/validation_nsrdb/nsrdb_surfrad_{y}.h5',
     return None
 
 
-def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
-               flag='all', var_methods={'mbe_perc': mbe_perc,
-                                        'rmse_perc': rmse_perc}):
+def calc_stats(
+    nsrdb,
+    measurement,
+    stats=None,
+    var_list=('dni', 'ghi'),
+    flag='all',
+    var_methods={'mbe_perc': mbe_perc, 'rmse_perc': rmse_perc},
+):
     """Calculate the statistics for the NSRDB vs. Measurement irradiance."""
 
     if stats is None:
@@ -196,18 +224,23 @@ def calc_stats(nsrdb, measurement, stats=None, var_list=('dni', 'ghi'),
 
     for var in var_list:
         for k, method in var_methods.items():
-
             if flag == 'all':
                 # only take SZA < 80 degrees and positive irradiance
                 mask = (nsrdb['sza'] < 80) & (nsrdb[var] > 0)
 
             elif flag == 'cloudy':
-                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0)
-                        & (nsrdb['cloud_type'].isin(CLOUD_TYPES)))
+                mask = (
+                    (nsrdb['sza'] < 80)
+                    & (nsrdb[var] > 0)
+                    & (nsrdb['cloud_type'].isin(CLOUD_TYPES))
+                )
 
             elif flag == 'clear':
-                mask = ((nsrdb['sza'] < 80) & (nsrdb[var] > 0)
-                        & (nsrdb['cloud_type'].isin(CLEAR_TYPES)))
+                mask = (
+                    (nsrdb['sza'] < 80)
+                    & (nsrdb[var] > 0)
+                    & (nsrdb['cloud_type'].isin(CLEAR_TYPES))
+                )
 
             nsrdb_vals = nsrdb[var][mask].values
             measu_vals = measurement[var][mask].values
@@ -224,22 +257,24 @@ def normalize_stats(stats, N):
     return stats
 
 
-def stats_bar_chart(stats, var='dni', metric='mbe_perc', y_range=None,
-                    figsize=(10, 5)):
+def stats_bar_chart(
+    stats, var='dni', metric='mbe_perc', y_range=None, figsize=(10, 5)
+):
     """Make a bar chart of NSRDB statistics."""
 
-    COLORS = {"red": (0.7176, 0.1098, 0.1098),
-              "green": (0.65 * 0.298, 0.65 * 0.6863, 0.65 * 0.3137),
-              "blue": (0.9 * 0.0824, 0.9 * 0.3961, 0.9 * 0.7529),
-              "orange": (0.85 * 1.0, 0.85 * 0.5961, 0.0),
-              "purple": (0.49412, 0.3412, 0.7608),
-              "grey": (0.45, 0.45, 0.45),
-              "cyan": (0.0, 0.7373, 0.8314),
-              "teal": (0.0, 0.5882, 0.5333),
-              "lime": (0.8039, 0.8627, 0.2235),
-              "brown": (0.4745, 0.3333, 0.2824),
-              "black": (0.0, 0.0, 0.0)
-              }
+    COLORS = {
+        'red': (0.7176, 0.1098, 0.1098),
+        'green': (0.65 * 0.298, 0.65 * 0.6863, 0.65 * 0.3137),
+        'blue': (0.9 * 0.0824, 0.9 * 0.3961, 0.9 * 0.7529),
+        'orange': (0.85 * 1.0, 0.85 * 0.5961, 0.0),
+        'purple': (0.49412, 0.3412, 0.7608),
+        'grey': (0.45, 0.45, 0.45),
+        'cyan': (0.0, 0.7373, 0.8314),
+        'teal': (0.0, 0.5882, 0.5333),
+        'lime': (0.8039, 0.8627, 0.2235),
+        'brown': (0.4745, 0.3333, 0.2824),
+        'black': (0.0, 0.0, 0.0),
+    }
     f, ax = plt.subplots(figsize=figsize)
     n_bars = len(list(stats.keys()))
 
@@ -259,9 +294,15 @@ def stats_bar_chart(stats, var='dni', metric='mbe_perc', y_range=None,
     color_list = list(COLORS.keys())
 
     for i, (k, v) in enumerate(stats.items()):
-        plt.bar(r2[i], v.loc[var, metric], width=barWidth,
-                color=COLORS[color_list[in_set[i]]],
-                edgecolor='black', capsize=7, label=k)
+        plt.bar(
+            r2[i],
+            v.loc[var, metric],
+            width=barWidth,
+            color=COLORS[color_list[in_set[i]]],
+            edgecolor='black',
+            capsize=7,
+            label=k,
+        )
 
     plt.legend(['All-Sky', 'Cloudy', 'Clear'])
     plt.xticks(np.array(r2), stats.keys(), rotation=90)
@@ -280,10 +321,9 @@ def stats_bar_chart(stats, var='dni', metric='mbe_perc', y_range=None,
 
 
 if __name__ == '__main__':
-
     out = {}
-    for site in SITE_CODES:
-        print('Running for "{}"'.format(SITE_CODES[site]))
+    for site, val in SITE_CODES.items():
+        print('Running for "{}"'.format(val))
         stats = None
         cloudy_stats = None
         clear_stats = None
@@ -291,12 +331,15 @@ if __name__ == '__main__':
         for year in range(1998, 2018):
             result = test_all_sky(site=site, year=year)
             if result is not None:
-                stats = calc_stats(result[0], result[1],
-                                   stats=stats, flag='all')
-                cloudy_stats = calc_stats(result[0], result[1],
-                                          stats=cloudy_stats, flag='cloudy')
-                clear_stats = calc_stats(result[0], result[1],
-                                         stats=clear_stats, flag='clear')
+                stats = calc_stats(
+                    result[0], result[1], stats=stats, flag='all'
+                )
+                cloudy_stats = calc_stats(
+                    result[0], result[1], stats=cloudy_stats, flag='cloudy'
+                )
+                clear_stats = calc_stats(
+                    result[0], result[1], stats=clear_stats, flag='clear'
+                )
                 N += 1
         stats = normalize_stats(stats, N)
         cloudy_stats = normalize_stats(cloudy_stats, N)
@@ -306,9 +349,9 @@ if __name__ == '__main__':
         cloudy_df = pd.DataFrame(cloudy_stats)
         clear_df = pd.DataFrame(clear_stats)
 
-        out[SITE_CODES[site]] = df
-        out[SITE_CODES[site] + '_cloudy'] = cloudy_df
-        out[SITE_CODES[site] + '_clear'] = clear_df
+        out[val] = df
+        out[val + '_cloudy'] = cloudy_df
+        out[val + '_clear'] = clear_df
 
     print('\n')
     for k, v in out.items():

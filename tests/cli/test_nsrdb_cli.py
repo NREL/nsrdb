@@ -22,7 +22,7 @@ def runner():
     return CliRunner()
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='function')
 def run_config(tmpdir_factory):
     """Write configs for cli calls."""
     td = str(tmpdir_factory.mktemp('tmp'))
@@ -107,7 +107,7 @@ def test_cli_create_configs(runner):
             'spatial': '4km',
             'freq': '5min',
         }
-        result = runner.invoke(cli.create_configs, ['-kw', kwargs])
+        result = runner.invoke(cli.create_configs, ['-c', kwargs])
 
         if result.exit_code != 0:
             msg = 'Failed with error {}'.format(
