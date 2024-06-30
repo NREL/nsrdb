@@ -1,8 +1,10 @@
-# -*- coding: utf-8 -*-
 """NSRDB data mover and manipulation utilities.
 
 @author: gbuster
+
+FIXME: Is any of this still used?
 """
+
 import logging
 import os
 import time
@@ -70,12 +72,16 @@ def pull_data(fname, dset, slc=(slice(0, 8760), slice(0, 100))):
     with h5py.File(fname, 'r') as f:
         data = f[dset][slc]
         if 'psm_scale_factor' in f[dset].attrs:
-            data = data / f[dset].attrs['psm_scale_factor']
+            data /= f[dset].attrs['psm_scale_factor']
     return data
 
 
-def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
-                ignore=('config', 'stats', 'meta', 'time_index')):
+def check_dsets(
+    dir1,
+    dir2,
+    slc=(slice(0, 8760), slice(0, 100)),
+    ignore=('config', 'stats', 'meta', 'time_index'),
+):
     """Verify that dsets have the same contents for similar files in two dirs.
 
     Parameters
@@ -101,8 +107,7 @@ def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
             fname2 = os.path.join(dir2, fname)
             for f in [fname1, fname2]:
                 if not os.path.exists(f):
-                    warn('!!! Warning, does not exist: {}'
-                         .format(f))
+                    warn('!!! Warning, does not exist: {}'.format(f))
         else:
             logger.info('\n=====================\n{}'.format(fname))
             dsets = get_dset_list(fname1)
@@ -114,17 +119,19 @@ def check_dsets(dir1, dir2, slc=(slice(0, 8760), slice(0, 100)),
                     d1 = pull_data(fname1, dset, slc)
                     d2 = pull_data(fname2, dset, slc)
                     delta = d1 - d2
-                    del_per_num = (np.sum(delta)
-                                   / (d1.shape[0] * d1.shape[1]))
+                    del_per_num = np.sum(delta) / (d1.shape[0] * d1.shape[1])
 
                     logger.info(del_per_num)
 
                     if np.abs(del_per_num) > 1:
-                        raise ValueError('Error found in {} in {}. '
-                                         .format(dset, fname1))
-                    else:
-                        logger.info('Dataset "{}" is same between {} and '
-                                    '{}'.format(dset, fname1, fname2))
+                        raise ValueError(
+                            'Error found in {} in {}. '.format(dset, fname1)
+                        )
+                    logger.info(
+                        'Dataset "{}" is same between {} and ' '{}'.format(
+                            dset, fname1, fname2
+                        )
+                    )
 
 
 def interrogate_dset(fname, dset):
@@ -149,8 +156,15 @@ def interrogate_dset(fname, dset):
         logger.info(dict(f[dset].attrs))
 
 
-def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
-                  new_scale_factor=1000, new_dtype=np.int16):
+def change_dtypes(
+    source_f,
+    target_f,
+    source_dir,
+    target_dir,
+    dsets,
+    new_scale_factor=1000,
+    new_dtype=np.int16,
+):
     """Take datasets from source and write to target with new scale and dtype.
 
     Note that the source data will be unscaled then re-scaled.
@@ -183,22 +197,23 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
 
     with h5py.File(source_f, 'r') as source:
         with h5py.File(os.path.join(target_dir, target_f), 'a') as target:
-
             for dset in dsets:
-
                 interrogate_dset(source_f, dset)
                 shape = source[dset].shape
 
                 if dset in target:
                     logger.info('Deleting {} from {}'.format(dset, target_f))
                     del target[dset]
-                target.create_dataset(dset,
-                                      shape=shape,
-                                      dtype=new_dtype,
-                                      chunks=source[dset].chunks)
+                target.create_dataset(
+                    dset,
+                    shape=shape,
+                    dtype=new_dtype,
+                    chunks=source[dset].chunks,
+                )
                 target[dset].attrs['psm_scale_factor'] = new_scale_factor
-                target[dset].attrs['psm_units'] = \
-                    source[dset].attrs['psm_units']
+                target[dset].attrs['psm_units'] = source[dset].attrs[
+                    'psm_units'
+                ]
 
                 # get the old scale factor to unscale then rescale the data.
                 old_scale = 1
@@ -212,13 +227,18 @@ def change_dtypes(source_f, target_f, source_dir, target_dir, dsets,
                     start = end
                     end = np.min([start + chunk, shape[1]])
                     # make sure to unscale and re-scale the target data.
-                    target[dset][:, start:end] = (source[dset][:, start:end]
-                                                  / old_scale
-                                                  * new_scale_factor)
+                    target[dset][:, start:end] = (
+                        source[dset][:, start:end]
+                        / old_scale
+                        * new_scale_factor
+                    )
                     min_elapsed = (time.time() - t1) / 60
-                    logger.info('Rewrote {0} for {1} through {2} (chunk #{3}).'
-                                ' Time elapsed: {4:.2f} minutes.'
-                                .format(dset, start, end, i, min_elapsed))
+                    logger.info(
+                        'Rewrote {} for {} through {} (chunk #{}).'
+                        ' Time elapsed: {:.2f} minutes.'.format(
+                            dset, start, end, i, min_elapsed
+                        )
+                    )
 
                     if end == shape[1]:
                         break
@@ -263,75 +283,92 @@ def update_dset(source_f, target_f, dsets, start=0):
     # initialize a logger to the stdout
     init_logger(__name__, log_file=None, log_level='INFO')
 
-    logger.info('Updating dsets "{}" from source "{}" to target "{}" at '
-                'starting index {}.'
-                .format(dsets, source_f, target_f, start))
+    logger.info(
+        'Updating dsets "{}" from source "{}" to target "{}" at '
+        'starting index {}.'.format(dsets, source_f, target_f, start)
+    )
     t0 = time.time()
 
     source_meta = get_meta_df(source_f)
     target_meta = get_meta_df(target_f)
 
-    check = (all(source_meta['latitude'] != target_meta['latitude'])
-             or all(source_meta['longitude'] != target_meta['longitude']))
+    check = all(source_meta['latitude'] != target_meta['latitude']) or all(
+        source_meta['longitude'] != target_meta['longitude']
+    )
     if check:
-        raise ValueError('Meta data coordinate arrays do not match between '
-                         '{} and {}. Data updating should not be performed.'
-                         .format(source_f, target_f))
-    else:
-        logger.info('Lat/lon meta data test passed.')
+        raise ValueError(
+            'Meta data coordinate arrays do not match between '
+            '{} and {}. Data updating should not be performed.'.format(
+                source_f, target_f
+            )
+        )
+    logger.info('Lat/lon meta data test passed.')
 
     # check datasets present in files
     for f in [source_f, target_f]:
         with h5py.File(f, 'r') as fhandler:
             for dset in dsets:
                 if dset not in list(fhandler):
-                    raise KeyError('Dataset "{}" not found in {}. Contents: {}'
-                                   .format(dset, f, list(fhandler)))
-                else:
-                    logger.info('Dataset "{}" present in both files.'
-                                .format(dset))
+                    raise KeyError(
+                        'Dataset "{}" not found in {}. Contents: {}'.format(
+                            dset, f, list(fhandler)
+                        )
+                    )
+                logger.info('Dataset "{}" present in both files.'.format(dset))
 
     # check dataset dtypes in files
     for dset in dsets:
         source_dtype = get_dset_dtype(source_f, dset)
         target_dtype = get_dset_dtype(target_f, dset)
         if source_dtype != target_dtype:
-            raise TypeError('Datatype of dataset "{}" does not match between '
-                            '{} and {}. Respective dtypes are: {} and {}'
-                            .format(dset, source_f, target_f,
-                                    source_dtype, target_dtype))
-        else:
-            logger.info('Dataset "{}" has same dtype in both files: {}.'
-                        .format(dset, source_dtype))
+            raise TypeError(
+                'Datatype of dataset "{}" does not match between '
+                '{} and {}. Respective dtypes are: {} and {}'.format(
+                    dset, source_f, target_f, source_dtype, target_dtype
+                )
+            )
+        logger.info(
+            'Dataset "{}" has same dtype in both files: {}.'.format(
+                dset, source_dtype
+            )
+        )
 
         source_shape = get_dset_shape(source_f, dset)
         target_shape = get_dset_shape(target_f, dset)
         if source_shape != target_shape:
-            raise ValueError('Shapes of dataset "{}" does not match between '
-                             '{} and {}. Respective shapes are: {} and {}'
-                             .format(dset, source_f, target_f,
-                                     source_shape, target_shape))
-        else:
-            logger.info('Dataset "{}" has same shape in both files: {}.'
-                        .format(dset, source_shape))
+            raise ValueError(
+                'Shapes of dataset "{}" does not match between '
+                '{} and {}. Respective shapes are: {} and {}'.format(
+                    dset, source_f, target_f, source_shape, target_shape
+                )
+            )
+        logger.info(
+            'Dataset "{}" has same shape in both files: {}.'.format(
+                dset, source_shape
+            )
+        )
 
         # dataset dtypes match, proceed.
         t1 = time.time()
         with h5py.File(target_f, 'a') as target:
-
             # overwrite with new attributes.
-            for k in dict(target[dset].attrs).keys():
-                logger.info('Deleting attribute "{}" from dset "{}" in {}'
-                            .format(k, dset, target_f))
+            for k in dict(target[dset].attrs):
+                logger.info(
+                    'Deleting attribute "{}" from dset "{}" in {}'.format(
+                        k, dset, target_f
+                    )
+                )
                 del target[dset].attrs[k]
             attrs = get_dset_attrs(source_f, dset)
             for k, v in attrs.items():
-                logger.info('Setting attribute "{}" in dset "{}" to: {}'
-                            .format(k, dset, v))
+                logger.info(
+                    'Setting attribute "{}" in dset "{}" to: {}'.format(
+                        k, dset, v
+                    )
+                )
                 target[dset].attrs[k] = v
 
             with h5py.File(source_f, 'r') as source:
-
                 # number of columns to update at once
                 chunk = 10000
 
@@ -339,20 +376,29 @@ def update_dset(source_f, target_f, dsets, start=0):
                     end = np.min([start + chunk, source_shape[1]])
                     target[dset][:, start:end] = source[dset][:, start:end]
                     min_elapsed = (time.time() - t1) / 60
-                    logger.info('Rewrote "{0}" for {1} through {2} '
-                                '(chunk #{3}). Time elapsed: {4:.2f} minutes.'
-                                .format(dset, start, end, i, min_elapsed))
+                    logger.info(
+                        'Rewrote "{}" for {} through {} '
+                        '(chunk #{}). Time elapsed: {:.2f} minutes.'.format(
+                            dset, start, end, i, min_elapsed
+                        )
+                    )
                     start = end
 
                     if end == source_shape[1]:
-                        logger.info('Reached end of dataset "{}" (dataset '
-                                    'column index {} and dataset shape is {})'
-                                    .format(dset, end, source_shape))
+                        logger.info(
+                            'Reached end of dataset "{}" (dataset '
+                            'column index {} and dataset shape is {})'.format(
+                                dset, end, source_shape
+                            )
+                        )
                         break
     min_elapsed = (time.time() - t0) / 60
-    logger.info('Finished copying datasets from {0} to {1} in {2:.2f} min. '
-                'The following datasets were copied: {3}'
-                .format(source_f, target_f, min_elapsed, dsets))
+    logger.info(
+        'Finished copying datasets from {} to {} in {:.2f} min. '
+        'The following datasets were copied: {}'.format(
+            source_f, target_f, min_elapsed, dsets
+        )
+    )
 
 
 def rename_dset(h5_fpath, dset, new_dset):
@@ -374,8 +420,14 @@ def rename_dset(h5_fpath, dset, new_dset):
             del f[dset]
 
 
-def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
-              node_name='mover', stdout_path='/scratch/gbuster/stdout/'):
+def peregrine(
+    fun_str,
+    arg_str,
+    alloc='pxs',
+    queue='batch-h',
+    node_name='mover',
+    stdout_path='/scratch/gbuster/stdout/',
+):
     """Kick off a peregrine job to execute a mover function.
 
     Parameters
@@ -398,30 +450,46 @@ def peregrine(fun_str, arg_str, alloc='pxs', queue='batch-h',
         Path to dump the stdout/stderr files.
     """
 
-    cmd = ('python -c '
-           '\'from nsrdb.utilities.movers import {fun}; '
-           '{fun}({args})\'')
+    cmd = (
+        'python -c '
+        "'from nsrdb.utilities.movers import {fun}; "
+        "{fun}({args})'"
+    )
 
     cmd = cmd.format(fun=fun_str, args=arg_str)
 
-    pbs = PBS(cmd, alloc=alloc, queue=queue, name=node_name,
-              stdout_path=stdout_path, feature=None)
+    pbs = PBS(
+        cmd,
+        alloc=alloc,
+        queue=queue,
+        name=node_name,
+        stdout_path=stdout_path,
+        feature=None,
+    )
 
     print('\ncmd:\n{}\n'.format(cmd))
 
     if pbs.id:
-        msg = ('Kicked off job "{}" (PBS jobid #{}) on '
-               'Peregrine.'.format(node_name, pbs.id))
+        msg = 'Kicked off job "{}" (PBS jobid #{}) on ' 'Peregrine.'.format(
+            node_name, pbs.id
+        )
     else:
-        msg = ('Was unable to kick off job "{}". '
-               'Please see the stdout error messages'
-               .format(node_name))
+        msg = (
+            'Was unable to kick off job "{}". '
+            'Please see the stdout error messages'.format(node_name)
+        )
     print(msg)
 
 
-def hpc(fun_str, arg_str, alloc='pxs', memory=96,
-        walltime=10, node_name='mover',
-        stdout_path='//scratch/gbuster/data_movers/'):
+def hpc(
+    fun_str,
+    arg_str,
+    alloc='pxs',
+    memory=96,
+    walltime=10,
+    node_name='mover',
+    stdout_path='//scratch/gbuster/data_movers/',
+):
     """Kick off an hpc job to execute a mover function.
 
     Parameters
@@ -446,27 +514,33 @@ def hpc(fun_str, arg_str, alloc='pxs', memory=96,
         Path to dump the stdout/stderr files.
     """
 
-    cmd = ('python -c '
-           '\'from nsrdb.utilities.movers import {fun}; '
-           '{fun}({args})\'')
+    cmd = (
+        'python -c '
+        "'from nsrdb.utilities.movers import {fun}; "
+        "{fun}({args})'"
+    )
 
     cmd = cmd.format(fun=fun_str, args=arg_str)
 
     slurm_manager = SLURM()
-    out = slurm_manager.sbatch(cmd,
-                               alloc=alloc,
-                               memory=memory,
-                               walltime=walltime,
-                               name=node_name,
-                               stdout_path=stdout_path)[0]
+    out = slurm_manager.sbatch(
+        cmd,
+        alloc=alloc,
+        memory=memory,
+        walltime=walltime,
+        name=node_name,
+        stdout_path=stdout_path,
+    )[0]
 
     print('\ncmd:\n{}\n'.format(cmd))
 
     if out:
-        msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-               'HPC.'.format(node_name, out))
+        msg = 'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
+            node_name, out
+        )
     else:
-        msg = ('Was unable to kick off job "{}". '
-               'Please see the stdout error messages'
-               .format(node_name))
+        msg = (
+            'Was unable to kick off job "{}". '
+            'Please see the stdout error messages'.format(node_name)
+        )
     print(msg)

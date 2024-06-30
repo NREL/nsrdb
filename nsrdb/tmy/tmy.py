@@ -4,7 +4,10 @@
 Created on Wed Oct 23 10:55:23 2019
 
 @author: gbuster
+
+TODO: Refactor using new CLI. Don't need the hpc wrapper functions in here
 """
+
 import datetime
 import json
 import logging
@@ -55,8 +58,9 @@ class Cdf:
         self._my_time_index = deepcopy(my_time_index)
         self._years = sorted(self._my_time_index.year.unique())
 
-        self._my_arr, self._my_time_index = Tmy.drop_leap(self._my_arr,
-                                                          self._my_time_index)
+        self._my_arr, self._my_time_index = Tmy.drop_leap(
+            self._my_arr, self._my_time_index
+        )
 
         if time_masks is None:
             self._time_masks = Tmy._make_time_masks(self._my_time_index)
@@ -154,9 +158,9 @@ class Cdf:
         """
         years = time_index.year.unique()
         for y in years:
-            year_mask = (time_index.year == y)
+            year_mask = time_index.year == y
             for m in range(1, 13):
-                mask = (year_mask & (time_index.month == m))
+                mask = year_mask & (time_index.month == m)
                 arr[mask] = np.cumsum(arr[mask], axis=0)
 
         return arr
@@ -179,7 +183,7 @@ class Cdf:
         for y in self._years:
             year_mask = self._time_masks[y]
             for m in range(1, 13):
-                mask = (year_mask & self._time_masks[m])
+                mask = year_mask & self._time_masks[m]
                 arr[mask] = np.sort(arr[mask], axis=0)
 
         return arr
@@ -252,11 +256,13 @@ class Cdf:
         for m in range(1, 13):
             mask = self._time_masks[m]
             lt_frac[mask, :] = np.expand_dims(
-                np.linspace(0, 1, mask.sum()), axis=1)
+                np.linspace(0, 1, mask.sum()), axis=1
+            )
             for y in self._years:
                 mask = self._time_masks[y] & self._time_masks[m]
                 cdf_frac[mask, :] = np.expand_dims(
-                    np.linspace(0, 1, mask.sum()), axis=1)
+                    np.linspace(0, 1, mask.sum()), axis=1
+                )
 
         interp_frac = np.zeros(self._cdf.shape)
         for n in range(self._cdf.shape[1]):
@@ -265,9 +271,11 @@ class Cdf:
                     lt_mask = self._time_masks[m]
                     mask = self._time_masks[y] & self._time_masks[m]
 
-                    interp_frac[mask, n] = np.interp(self._cdf[mask, n],
-                                                     self._lt_cdf[lt_mask, n],
-                                                     lt_frac[lt_mask, n])
+                    interp_frac[mask, n] = np.interp(
+                        self._cdf[mask, n],
+                        self._lt_cdf[lt_mask, n],
+                        lt_frac[lt_mask, n],
+                    )
 
         return cdf_frac, lt_frac, interp_frac
 
@@ -319,9 +327,16 @@ class Cdf:
 
         return years, fs
 
-    def plot_tmy_selection(self, month=1, site=0, fig_size=(12, 9), fout=None,
-                           xlabel='Cumulative Value', ylabel='CDF',
-                           plot_years=None):
+    def plot_tmy_selection(
+        self,
+        month=1,
+        site=0,
+        fig_size=(12, 9),
+        fout=None,
+        xlabel='Cumulative Value',
+        ylabel='CDF',
+        plot_years=None,
+    ):
         """Plot a single site's TMY CDFs for one month.
 
         Parameters
@@ -345,6 +360,7 @@ class Cdf:
         tmy_years, _ = self._best_fs_year()
 
         import matplotlib.pyplot as plt
+
         fig = plt.figure(figsize=fig_size)
         ax = fig.add_subplot(111)
 
@@ -362,8 +378,12 @@ class Cdf:
         ax.plot(self.cdf[mask, site], self._interp_frac[mask, site], 'rx')
         ax.plot(self.cdf[mask, site], self._cdf_frac[mask, site], 'r-x')
 
-        legend = [*plot_years, 'Long Term CDF', 'Interpolated', 'Best FS ({})'
-                  .format(tmy_year)]
+        legend = [
+            *plot_years,
+            'Long Term CDF',
+            'Interpolated',
+            'Best FS ({})'.format(tmy_year),
+        ]
         plt.legend(legend)
         ax.set_title('TMY CDFs for Month {} and Site {}'.format(month, site))
         ax.set_xlabel(xlabel)
@@ -380,8 +400,14 @@ class Cdf:
 class Tmy:
     """NSRDB Typical Meteorological Year (TMY) calculation framework."""
 
-    def __init__(self, nsrdb_base_fp, years, weights, site_slice=None,
-                 supplemental_fp=None):
+    def __init__(
+        self,
+        nsrdb_base_fp,
+        years,
+        weights,
+        site_slice=None,
+        supplemental_fp=None,
+    ):
         """
         Parameters
         ----------
@@ -403,8 +429,9 @@ class Tmy:
             {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
         """
 
-        logger.debug('Initializing TMY algorithm for sites {}...'
-                     .format(site_slice))
+        logger.debug(
+            'Initializing TMY algorithm for sites {}...'.format(site_slice)
+        )
 
         self._nsrdb_base_fp = nsrdb_base_fp
         self._years = sorted([int(y) for y in years])
@@ -443,8 +470,9 @@ class Tmy:
                 dset = self._strip_dset_fun(dset)[0]
                 with Handler(fpath) as f:
                     if dset not in f.dsets:
-                        e = ('Weight dset "{}" not found in file: "{}"'
-                             .format(dset, os.path.basename(fpath)))
+                        e = 'Weight dset "{}" not found in file: "{}"'.format(
+                            dset, os.path.basename(fpath)
+                        )
                         raise KeyError(e)
 
     @staticmethod
@@ -610,7 +638,7 @@ class Tmy:
 
         if dset == 'sum_ghi' and self._d_total_ghi is not None:
             return self.daily_total_ghi
-        elif dset == 'mean_air_temperature' and self._d_mean_temp is not None:
+        if dset == 'mean_air_temperature' and self._d_mean_temp is not None:
             return self.daily_mean_temp
 
         dset, fun = self._strip_dset_fun(dset)
@@ -643,9 +671,9 @@ class Tmy:
         years = time_index.year.unique()
         months = time_index.month.unique()
         for y in years:
-            masks[y] = (time_index.year == y)
+            masks[y] = time_index.year == y
         for m in months:
-            masks[m] = (time_index.month == m)
+            masks[m] = time_index.month == m
         return masks
 
     def _init_daily_ghi_temp(self):
@@ -694,9 +722,9 @@ class Tmy:
         if self._my_time_index is None:
             start = '1-1-{}'.format(self.years[0])
             end = '1-1-{}'.format(self.years[-1] + 1)
-            self._my_time_index = pd_date_range(start=start, end=end,
-                                                freq=self.source_freq,
-                                                closed='left')
+            self._my_time_index = pd_date_range(
+                start=start, end=end, freq=self.source_freq, closed='left'
+            )
         return self._my_time_index
 
     @property
@@ -709,8 +737,9 @@ class Tmy:
             Multi-year datetime index corresponding to multi-year data arrays.
         """
         if self._my_daily_time_index is None:
-            df = pd.DataFrame(np.arange(len(self.my_time_index)),
-                              index=self.my_time_index)
+            df = pd.DataFrame(
+                np.arange(len(self.my_time_index)), index=self.my_time_index
+            )
             df = df.resample('1D').sum()
             self._my_daily_time_index = df.index
         return self._my_daily_time_index
@@ -727,12 +756,14 @@ class Tmy:
         if self._time_index is None:
             start = '1-1-{}'.format(self.years[-1])
             end = '1-1-{}'.format(self.years[-1] + 1)
-            self._time_index = pd_date_range(start=start, end=end,
-                                             freq='1h', closed='left')
+            self._time_index = pd_date_range(
+                start=start, end=end, freq='1h', closed='left'
+            )
             self._time_index += datetime.timedelta(minutes=30)
             if len(self._time_index) != 8760:
                 _, self._time_index = self.drop_leap(
-                    np.zeros((len(self._time_index), 1)), self._time_index)
+                    np.zeros((len(self._time_index), 1)), self._time_index
+                )
         return self._time_index
 
     @property
@@ -784,7 +815,8 @@ class Tmy:
         """
         if self._daily_time_masks is None:
             self._daily_time_masks = self._make_time_masks(
-                self.my_daily_time_index)
+                self.my_daily_time_index
+            )
         return self._daily_time_masks
 
     @property
@@ -860,8 +892,10 @@ class Tmy:
         elif ti_len % 8784 == 0:
             freq = f'{60 * 8784 // ti_len}min'
         else:
-            raise ValueError('Could not parse source temporal frequency '
-                             'from time index length {}'.format(ti_len))
+            raise ValueError(
+                'Could not parse source temporal frequency '
+                'from time index length {}'.format(ti_len)
+            )
         if freq == '60min':
             freq = '1h'
 
@@ -884,8 +918,11 @@ class Tmy:
             arr = self._get_my_arr(dset)
             ti = self.my_daily_time_index
             if len(arr) != len(ti):
-                raise ValueError('Bad array length of {} when daily ti is {}'
-                                 .format(len(arr), len(ti)))
+                raise ValueError(
+                    'Bad array length of {} when daily ti is {}'.format(
+                        len(arr), len(ti)
+                    )
+                )
             cdf = Cdf(arr, ti, time_masks=self.daily_time_masks)
             if not ws:
                 for m, fs in cdf.fs_all.items():
@@ -921,8 +958,10 @@ class Tmy:
             Shape is (n, sites).
         """
 
-        years = {m: np.zeros((n, len(self.meta)), dtype=np.uint16)
-                 for m in range(1, 13)}
+        years = {
+            m: np.zeros((n, len(self.meta)), dtype=np.uint16)
+            for m in range(1, 13)
+        }
         fs = {m: np.zeros((n, len(self.meta))) for m in range(1, 13)}
 
         for m, ranks in fs_all.items():
@@ -946,8 +985,9 @@ class Tmy:
         lt_mean = np.zeros((12, len(self.meta)), dtype=np.float32)
         for m in range(1, 13):
             mask = self.daily_time_masks[m]
-            lt_mean[(m - 1), :] = np.mean(self.daily_total_ghi[mask, :],
-                                          axis=0)
+            lt_mean[(m - 1), :] = np.mean(
+                self.daily_total_ghi[mask, :], axis=0
+            )
         return lt_mean
 
     def _get_lt_median_ghi(self):
@@ -963,8 +1003,9 @@ class Tmy:
         lt_median = np.zeros((12, len(self.meta)), dtype=np.float32)
         for m in range(1, 13):
             mask = self.daily_time_masks[m]
-            lt_median[(m - 1), :] = np.median(self.daily_total_ghi[mask, :],
-                                              axis=0)
+            lt_median[(m - 1), :] = np.median(
+                self.daily_total_ghi[mask, :], axis=0
+            )
         return lt_median
 
     def _lt_mm_diffs(self):
@@ -981,18 +1022,18 @@ class Tmy:
         lt_median = self._get_lt_median_ghi()
 
         shape = (len(self.years), len(self.meta))
-        diffs = {m: np.zeros(shape, dtype=np.float32)
-                 for m in range(1, 13)}
+        diffs = {m: np.zeros(shape, dtype=np.float32) for m in range(1, 13)}
 
         for i, y in enumerate(self.years):
             for m in range(1, 13):
-                mask = (self.daily_time_masks[m] & self.daily_time_masks[y])
+                mask = self.daily_time_masks[m] & self.daily_time_masks[y]
                 this_mean = np.mean(self.daily_total_ghi[mask, :], axis=0)
                 this_median = np.median(self.daily_total_ghi[mask, :], axis=0)
 
                 im = m - 1
-                diffs[m][i, :] = (np.abs(lt_mean[im, :] - this_mean)
-                                  + np.abs(lt_median[im, :] - this_median))
+                diffs[m][i, :] = np.abs(lt_mean[im, :] - this_mean) + np.abs(
+                    lt_median[im, :] - this_median
+                )
         return diffs
 
     def sort_years_mm(self, tmy_years_5):
@@ -1019,8 +1060,9 @@ class Tmy:
         """
 
         shape = (len(self.years), len(self.meta))
-        sorted_years = {m: np.zeros(shape, dtype=np.float32)
-                        for m in range(1, 13)}
+        sorted_years = {
+            m: np.zeros(shape, dtype=np.float32) for m in range(1, 13)
+        }
         diffs = self._lt_mm_diffs()
 
         for m in range(1, 13):
@@ -1028,8 +1070,11 @@ class Tmy:
 
         for site in range(len(self.meta)):
             for m in range(1, 13):
-                temp = [y for y in sorted_years[m][:, site]
-                        if y in tmy_years_5[m][:, site]]
+                temp = [
+                    y
+                    for y in sorted_years[m][:, site]
+                    if y in tmy_years_5[m][:, site]
+                ]
                 tmy_years_5[m][:, site] = temp
         return tmy_years_5, diffs
 
@@ -1094,9 +1139,9 @@ class Tmy:
             t67 = np.percentile(self.daily_mean_temp[m_mask, :], 67, axis=0)
             g33 = np.percentile(self.daily_total_ghi[m_mask, :], 33, axis=0)
 
-            t_low = (self.daily_mean_temp < t33)
-            t_high = (self.daily_mean_temp > t67)
-            g_low = (self.daily_total_ghi < g33)
+            t_low = self.daily_mean_temp < t33
+            t_high = self.daily_mean_temp > t67
+            g_low = self.daily_total_ghi < g33
 
             for j in range(len(self.meta)):
                 max_run_len[m][j] = [0] * tmy_years_5[m].shape[0]
@@ -1108,16 +1153,18 @@ class Tmy:
 
                     for arr in [t_low, t_high, g_low]:
                         m_temp, n_temp = self._count_runs(arr[mask, j])
-                        max_run_len[m][j][i] = np.max((max_run_len[m][j][i],
-                                                       m_temp))
+                        max_run_len[m][j][i] = np.max(
+                            (max_run_len[m][j][i], m_temp)
+                        )
                         n_runs[m][j][i] += n_temp
 
                 tmy_years[(m - 1), j] = tmy_years_5[m][0, j]
                 for i, y in enumerate(tmy_years_5[m][:, j]):
-                    screen_out = ((max(max_run_len[m][j])
-                                   == max_run_len[m][j][i])
-                                  | (max(n_runs[m][j]) == n_runs[m][j][i])
-                                  | (n_runs == 0))
+                    screen_out = (
+                        (max(max_run_len[m][j]) == max_run_len[m][j][i])
+                        | (max(n_runs[m][j]) == n_runs[m][j][i])
+                        | (n_runs == 0)
+                    )
                     if not screen_out:
                         tmy_years[(m - 1), j] = y
                         break
@@ -1165,19 +1212,22 @@ class Tmy:
             if self._tmy_years_long is None:
                 self._tmy_years_long = np.zeros(temp.shape, dtype=np.uint16)
 
-            mask = (tmy_years == year)
+            mask = tmy_years == year
             locs = np.where(mask)
             months = locs[0] + 1
             sites = locs[1]
 
             for month, site in zip(months, sites):
                 data[masks[month], site] = temp[masks[month], site]
-                self._tmy_years_long[masks[month], site] = \
-                    tmy_years[(month - 1), site]
+                self._tmy_years_long[masks[month], site] = tmy_years[
+                    (month - 1), site
+                ]
 
         step = len(data) // 8760
-        msg = ('Original TMY timeseries is not divisible by 8760 '
-               f'length = {len(data)}.')
+        msg = (
+            'Original TMY timeseries is not divisible by 8760 '
+            f'length = {len(data)}.'
+        )
         assert len(data) % 8760 == 0, msg
 
         data = data[1::step, :]
@@ -1222,21 +1272,30 @@ class Tmy:
         """
         if dset == 'tmy_year_short':
             return self.tmy_years_short
-        elif dset in ('tmy_year_long', 'tmy_year'):
+        if dset in ('tmy_year_long', 'tmy_year'):
             return self.tmy_years_long
-        else:
-            tmy_years = self.calculate_tmy_years()
-            data = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
-            return data
+        tmy_years = self.calculate_tmy_years()
+        data = self._make_tmy_timeseries(dset, tmy_years, unscale=unscale)
+        return data
 
 
 class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
-    def __init__(self, nsrdb_base_fp, years, weights, sites_per_worker=100,
-                 n_nodes=1, node_index=0, site_slice=None,
-                 out_dir='/tmp/scratch/tmy/', fn_out='tmy.h5',
-                 supplemental_fp=None, var_meta=None):
+    def __init__(
+        self,
+        nsrdb_base_fp,
+        years,
+        weights,
+        sites_per_worker=100,
+        n_nodes=1,
+        node_index=0,
+        site_slice=None,
+        out_dir='/tmp/scratch/tmy/',
+        fn_out='tmy.h5',
+        supplemental_fp=None,
+        var_meta=None,
+    ):
         """
         Parameters
         ----------
@@ -1302,35 +1361,56 @@ class TmyRunner:
         if not os.path.exists(self._out_dir):
             os.makedirs(self._out_dir)
 
-        self._tmy_obj = Tmy(self._nsrdb_base_fp, self._years, self._weights,
-                            site_slice=slice(0, 1),
-                            supplemental_fp=supplemental_fp)
+        self._tmy_obj = Tmy(
+            self._nsrdb_base_fp,
+            self._years,
+            self._weights,
+            site_slice=slice(0, 1),
+            supplemental_fp=supplemental_fp,
+        )
 
-        out = self._setup_job_chunks(self.meta, self._sites_per_worker,
-                                     self._n_nodes, self._node_index,
-                                     self._out_dir)
+        out = self._setup_job_chunks(
+            self.meta,
+            self._sites_per_worker,
+            self._n_nodes,
+            self._node_index,
+            self._out_dir,
+        )
         self._site_chunks, self._site_chunks_index, self._f_out_chunks = out
 
         logger.info('Node meta data is: \n{}'.format(self.meta))
-        logger.info('Node index {} with n_nodes {} running site chunks: '
-                    '{} ... {}'
-                    .format(node_index, n_nodes,
-                            str(self._site_chunks)[:100],
-                            str(self._site_chunks)[-100:]))
-        logger.info('Node index {} with n_nodes {} running site chunks '
-                    'indices: {} ... {}'
-                    .format(node_index, n_nodes,
-                            str(self._site_chunks_index)[:100],
-                            str(self._site_chunks_index)[-100:]))
-        logger.info('Node index {} with n_nodes {} running fout chunks: '
-                    '{} ... {}'
-                    .format(node_index, n_nodes,
-                            str(self._f_out_chunks)[:100],
-                            str(self._f_out_chunks)[-100:]))
+        logger.info(
+            'Node index {} with n_nodes {} running site chunks: '
+            '{} ... {}'.format(
+                node_index,
+                n_nodes,
+                str(self._site_chunks)[:100],
+                str(self._site_chunks)[-100:],
+            )
+        )
+        logger.info(
+            'Node index {} with n_nodes {} running site chunks '
+            'indices: {} ... {}'.format(
+                node_index,
+                n_nodes,
+                str(self._site_chunks_index)[:100],
+                str(self._site_chunks_index)[-100:],
+            )
+        )
+        logger.info(
+            'Node index {} with n_nodes {} running fout chunks: '
+            '{} ... {}'.format(
+                node_index,
+                n_nodes,
+                str(self._f_out_chunks)[:100],
+                str(self._f_out_chunks)[-100:],
+            )
+        )
 
     @staticmethod
-    def _setup_job_chunks(meta, sites_per_worker, n_nodes, node_index,
-                          out_dir):
+    def _setup_job_chunks(
+        meta, sites_per_worker, n_nodes, node_index, out_dir
+    ):
         """Setup chunks and file names for a multi-chunk multi-node job.
 
         Parameters
@@ -1362,10 +1442,12 @@ class TmyRunner:
         site_chunks = [slice(x.min(), x.max() + 1) for x in tmp]
         site_chunks_index = list(range(len(site_chunks)))
 
-        site_chunks = np.array_split(np.array(site_chunks),
-                                     n_nodes)[node_index].tolist()
-        site_chunks_index = np.array_split(np.array(site_chunks_index),
-                                           n_nodes)[node_index].tolist()
+        site_chunks = np.array_split(np.array(site_chunks), n_nodes)[
+            node_index
+        ].tolist()
+        site_chunks_index = np.array_split(
+            np.array(site_chunks_index), n_nodes
+        )[node_index].tolist()
 
         f_out_chunks = {}
         chunk_dir = os.path.join(out_dir, 'chunks/')
@@ -1382,9 +1464,8 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f:
-                with Handler(f) as res:
-                    self._meta = res.meta.iloc[self._site_slice, :]
+            with FS(fpath) as f, Handler(f) as res:
+                self._meta = res.meta.iloc[self._site_slice, :]
 
         return self._meta
 
@@ -1393,12 +1474,11 @@ class TmyRunner:
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f:
-                with Handler(f) as res:
-                    self._dsets = []
-                    for d in res.dsets:
-                        if res.shapes[d] == res.shape:
-                            self._dsets.append(d)
+            with FS(fpath) as f, Handler(f) as res:
+                self._dsets = []
+                for d in res.dsets:
+                    if res.shapes[d] == res.shape:
+                        self._dsets.append(d)
 
             if self._supplemental_fp is not None:
                 self._dsets += list(self._supplemental_fp.keys())
@@ -1465,30 +1545,38 @@ class TmyRunner:
                 site_slice = self.site_chunks[i]
 
                 if os.path.basename(f_out_chunk) in status:
-                    logger.info('Skipping file, already collected: {}'
-                                .format(os.path.basename(f_out_chunk)))
+                    logger.info(
+                        'Skipping file, already collected: {}'.format(
+                            os.path.basename(f_out_chunk)
+                        )
+                    )
                 else:
                     with Resource(f_out_chunk, unscale=True) as chunk:
                         for dset in self.dsets:
-
                             try:
                                 data = chunk[dset]
                             except Exception as e:
-                                m = ('Could not read file dataset "{}" from '
-                                     'file "{}". Received the following '
-                                     'exception: \n{}'
-                                     .format(dset,
-                                             os.path.basename(f_out_chunk), e))
+                                m = (
+                                    'Could not read file dataset "{}" from '
+                                    'file "{}". Received the following '
+                                    'exception: \n{}'.format(
+                                        dset, os.path.basename(f_out_chunk), e
+                                    )
+                                )
                                 logger.exception(m)
                                 raise e
                             else:
                                 out[dset, :, site_slice] = data
 
-                    logger.info('Finished collecting #{} out of {} for sites '
-                                '{} from file {}'
-                                .format(i + 1, len(self._f_out_chunks),
-                                        site_slice,
-                                        os.path.basename(f_out_chunk)))
+                    logger.info(
+                        'Finished collecting #{} out of {} for sites '
+                        '{} from file {}'.format(
+                            i + 1,
+                            len(self._f_out_chunks),
+                            site_slice,
+                            os.path.basename(f_out_chunk),
+                        )
+                    )
                     with open(status_file, 'a') as f:
                         f.write('{}\n'.format(os.path.basename(f_out_chunk)))
 
@@ -1511,15 +1599,15 @@ class TmyRunner:
         status : list
             List of filenames that have already been collected.
         """
-        missing = [fp for fp in self._f_out_chunks.values()
-                   if not os.path.exists(fp)]
+        missing = [
+            fp for fp in self._f_out_chunks.values() if not os.path.exists(fp)
+        ]
         if any(missing):
             emsg = 'Chunked file outputs are missing: {}'.format(missing)
             logger.error(emsg)
             raise FileNotFoundError(emsg)
-        else:
-            msg = 'All chunked files found. Running collection.'
-            logger.info(msg)
+        msg = 'All chunked files found. Running collection.'
+        logger.info(msg)
 
         status = []
         if os.path.exists(status_file):
@@ -1530,9 +1618,13 @@ class TmyRunner:
 
     def _init_final_fout(self):
         """Initialize the final output file."""
-        self._init_file(self._final_fpath, self.dsets,
-                        self._tmy_obj.time_index, self.meta,
-                        var_meta=self._var_meta)
+        self._init_file(
+            self._final_fpath,
+            self.dsets,
+            self._tmy_obj.time_index,
+            self.meta,
+            var_meta=self._var_meta,
+        )
 
     @staticmethod
     def _init_file(f_out, dsets, time_index, meta, var_meta=None):
@@ -1555,17 +1647,21 @@ class TmyRunner:
 
         if not os.path.isfile(f_out):
             dsets_mod = [d for d in dsets if 'tmy_year' not in d]
-            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(dsets_mod,
-                                                             var_meta=var_meta)
+            attrs, chunks, dtypes = TmyRunner.get_dset_attrs(
+                dsets_mod, var_meta=var_meta
+            )
             dsets_mod.append('tmy_year')
-            attrs['tmy_year'] = {'units': 'selected_year',
-                                 'scale_factor': 1,
-                                 'psm_units': 'selected_year',
-                                 'psm_scale_factor': 1}
+            attrs['tmy_year'] = {
+                'units': 'selected_year',
+                'scale_factor': 1,
+                'psm_units': 'selected_year',
+                'psm_scale_factor': 1,
+            }
             chunks['tmy_year'] = chunks['dni']
             dtypes['tmy_year'] = np.uint16
-            Outputs.init_h5(f_out, dsets_mod, attrs, chunks, dtypes,
-                            time_index, meta)
+            Outputs.init_h5(
+                f_out, dsets_mod, attrs, chunks, dtypes, time_index, meta
+            )
 
             with h5py.File(f_out, mode='a') as f:
                 d = 'tmy_year_short'
@@ -1596,8 +1692,9 @@ class TmyRunner:
 
         logger.debug('Saving TMY results to: {}'.format(f_out))
 
-        TmyRunner._init_file(f_out, list(data_dict.keys()), time_index, meta,
-                             var_meta=var_meta)
+        TmyRunner._init_file(
+            f_out, list(data_dict.keys()), time_index, meta, var_meta=var_meta
+        )
 
         with Outputs(f_out, mode='a') as f:
             for dset, arr in data_dict.items():
@@ -1616,8 +1713,16 @@ class TmyRunner:
         return run
 
     @staticmethod
-    def run_single(nsrdb_base_fp, years, weights, site_slice, dsets, f_out,
-                   supplemental_fp=None, var_meta=None):
+    def run_single(
+        nsrdb_base_fp,
+        years,
+        weights,
+        site_slice,
+        dsets,
+        f_out,
+        supplemental_fp=None,
+        var_meta=None,
+    ):
         """Run TMY for a single site chunk (slice) and save to disk.
 
         Parameters
@@ -1655,15 +1760,22 @@ class TmyRunner:
 
         if run:
             data_dict = {}
-            tmy = Tmy(nsrdb_base_fp, years, weights, site_slice,
-                      supplemental_fp=supplemental_fp)
+            tmy = Tmy(
+                nsrdb_base_fp,
+                years,
+                weights,
+                site_slice,
+                supplemental_fp=supplemental_fp,
+            )
             for dset in dsets:
                 data_dict[dset] = tmy.get_tmy_timeseries(dset)
-            TmyRunner._write_output(f_out, data_dict, tmy.time_index, tmy.meta,
-                                    var_meta=var_meta)
+            TmyRunner._write_output(
+                f_out, data_dict, tmy.time_index, tmy.meta, var_meta=var_meta
+            )
         else:
-            logger.info('Skipping chunk, f_out already exists: {}'
-                        .format(f_out))
+            logger.info(
+                'Skipping chunk, f_out already exists: {}'.format(f_out)
+            )
 
         return True
 
@@ -1674,108 +1786,201 @@ class TmyRunner:
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
             if self._run_file(f_out):
-                self.run_single(self._nsrdb_base_fp, self._years,
-                                self._weights, site_slice, self.dsets, f_out,
-                                supplemental_fp=self._supplemental_fp,
-                                var_meta=self._var_meta)
+                self.run_single(
+                    self._nsrdb_base_fp,
+                    self._years,
+                    self._weights,
+                    site_slice,
+                    self.dsets,
+                    f_out,
+                    supplemental_fp=self._supplemental_fp,
+                    var_meta=self._var_meta,
+                )
             else:
                 logger.info('Skipping, already exists: {}'.format(f_out))
 
-            logger.info('{} out of {} TMY chunks completed.'
-                        .format(i + 1, len(self.site_chunks)))
+            logger.info(
+                '{} out of {} TMY chunks completed.'.format(
+                    i + 1, len(self.site_chunks)
+                )
+            )
 
     def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
         futures = {}
         loggers = ['nsrdb']
         with SpawnProcessPool(loggers=loggers) as exe:
-            logger.info('Kicking off {} futures.'
-                        .format(len(self.site_chunks)))
+            logger.info(
+                'Kicking off {} futures.'.format(len(self.site_chunks))
+            )
             for i, site_slice in enumerate(self.site_chunks):
                 fi = self._site_chunks_index[i]
                 f_out = self._f_out_chunks[fi]
                 if self._run_file(f_out):
                     future = exe.submit(
-                        self.run_single, self._nsrdb_base_fp, self._years,
-                        self._weights, site_slice, self.dsets, f_out,
+                        self.run_single,
+                        self._nsrdb_base_fp,
+                        self._years,
+                        self._weights,
+                        site_slice,
+                        self.dsets,
+                        f_out,
                         supplemental_fp=self._supplemental_fp,
-                        var_meta=self._var_meta)
+                        var_meta=self._var_meta,
+                    )
                     futures[future] = i
                 else:
                     logger.info('Skipping, already exists: {}'.format(f_out))
 
-            logger.info('Finished kicking off {} futures.'
-                        .format(len(futures)))
+            logger.info(
+                'Finished kicking off {} futures.'.format(len(futures))
+            )
 
             for i, future in enumerate(as_completed(futures)):
                 if future.result():
-                    logger.info('{} out of {} futures completed.'
-                                .format(i + 1, len(futures)))
+                    logger.info(
+                        '{} out of {} futures completed.'.format(
+                            i + 1, len(futures)
+                        )
+                    )
                 else:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
-    def tgy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
-            n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_fp=None, var_meta=None):
+    def tgy(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        weights=None,
+        n_nodes=1,
+        node_index=0,
+        log=True,
+        log_level='INFO',
+        log_file=None,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+    ):
         """Run the TGY."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_ghi': 1.0}
-        tgy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
-                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_fp=supplemental_fp,
-                  var_meta=var_meta)
+        tgy = cls(
+            nsrdb_base_fp,
+            years,
+            weights,
+            out_dir=out_dir,
+            fn_out=fn_out,
+            n_nodes=n_nodes,
+            node_index=node_index,
+            site_slice=site_slice,
+            supplemental_fp=supplemental_fp,
+            var_meta=var_meta,
+        )
         tgy._run_parallel()
 
     @classmethod
-    def tdy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
-            n_nodes=1, node_index=0,
-            log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_fp=None, var_meta=None):
+    def tdy(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        weights=None,
+        n_nodes=1,
+        node_index=0,
+        log=True,
+        log_level='INFO',
+        log_file=None,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+    ):
         """Run the TDY."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         if weights is None:
             weights = {'sum_dni': 1.0}
-        tdy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
-                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_fp=supplemental_fp,
-                  var_meta=var_meta)
+        tdy = cls(
+            nsrdb_base_fp,
+            years,
+            weights,
+            out_dir=out_dir,
+            fn_out=fn_out,
+            n_nodes=n_nodes,
+            node_index=node_index,
+            site_slice=site_slice,
+            supplemental_fp=supplemental_fp,
+            var_meta=var_meta,
+        )
         tdy._run_parallel()
 
     @classmethod
-    def tmy(cls, nsrdb_base_fp, years, out_dir, fn_out, weights=None,
-            n_nodes=1, node_index=0, log=True, log_level='INFO', log_file=None,
-            site_slice=None, supplemental_fp=None, var_meta=None):
+    def tmy(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        weights=None,
+        n_nodes=1,
+        node_index=0,
+        log=True,
+        log_level='INFO',
+        log_file=None,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+    ):
         """Run the TMY. Option for custom weights."""
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
 
         if weights is None:
-            weights = {'max_air_temperature': 0.05,
-                       'min_air_temperature': 0.05,
-                       'mean_air_temperature': 0.1,
-                       'max_dew_point': 0.05,
-                       'min_dew_point': 0.05,
-                       'mean_dew_point': 0.1,
-                       'max_wind_speed': 0.05,
-                       'mean_wind_speed': 0.05,
-                       'sum_dni': 0.25,
-                       'sum_ghi': 0.25}
+            weights = {
+                'max_air_temperature': 0.05,
+                'min_air_temperature': 0.05,
+                'mean_air_temperature': 0.1,
+                'max_dew_point': 0.05,
+                'min_dew_point': 0.05,
+                'mean_dew_point': 0.1,
+                'max_wind_speed': 0.05,
+                'mean_wind_speed': 0.05,
+                'sum_dni': 0.25,
+                'sum_ghi': 0.25,
+            }
 
-        tmy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
-                  fn_out=fn_out, n_nodes=n_nodes, node_index=node_index,
-                  site_slice=site_slice, supplemental_fp=supplemental_fp,
-                  var_meta=var_meta)
+        tmy = cls(
+            nsrdb_base_fp,
+            years,
+            weights,
+            out_dir=out_dir,
+            fn_out=fn_out,
+            n_nodes=n_nodes,
+            node_index=node_index,
+            site_slice=site_slice,
+            supplemental_fp=supplemental_fp,
+            var_meta=var_meta,
+        )
         tmy._run_parallel()
 
     @classmethod
-    def collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
-                site_slice=None, supplemental_fp=None, var_meta=None,
-                log=True, log_level='INFO', log_file=None):
+    def collect(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+        log=True,
+        log_level='INFO',
+        log_file=None,
+    ):
         """Run TMY collection.
 
         Parameters
@@ -1809,15 +2014,31 @@ class TmyRunner:
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
         weights = {'sum_ghi': 1.0}
-        tgy = cls(nsrdb_base_fp, years, weights, out_dir=out_dir,
-                  fn_out=fn_out, n_nodes=1, node_index=0,
-                  site_slice=site_slice, supplemental_fp=supplemental_fp,
-                  var_meta=var_meta)
+        tgy = cls(
+            nsrdb_base_fp,
+            years,
+            weights,
+            out_dir=out_dir,
+            fn_out=fn_out,
+            n_nodes=1,
+            node_index=0,
+            site_slice=site_slice,
+            supplemental_fp=supplemental_fp,
+            var_meta=var_meta,
+        )
         tgy._collect()
 
     @staticmethod
-    def _hpc(fun_str, arg_str, alloc='pxs', memory=90, walltime=4,
-             feature='--qos=high', node_name='tmy', stdout_path=None):
+    def _hpc(
+        fun_str,
+        arg_str,
+        alloc='pxs',
+        memory=90,
+        walltime=4,
+        feature='--qos=high',
+        node_name='tmy',
+        stdout_path=None,
+    ):
         """Run a TmyRunner method on an HPC node.
 
         Format: TmyRunner.fun_str(arg_str)
@@ -1847,35 +2068,52 @@ class TmyRunner:
         if stdout_path is None:
             stdout_path = os.getcwd()
 
-        cmd = ("python -c 'from nsrdb.tmy.tmy import TmyRunner;"
-               "TmyRunner.{f}({a})'")
+        cmd = (
+            "python -c 'from nsrdb.tmy.tmy import TmyRunner;"
+            "TmyRunner.{f}({a})'"
+        )
 
         cmd = cmd.format(f=fun_str, a=arg_str)
 
         slurm_manager = SLURM()
-        out = slurm_manager.sbatch(cmd,
-                                   alloc=alloc,
-                                   memory=memory,
-                                   walltime=walltime,
-                                   feature=feature,
-                                   name=node_name,
-                                   stdout_path=stdout_path)[0]
+        out = slurm_manager.sbatch(
+            cmd,
+            alloc=alloc,
+            memory=memory,
+            walltime=walltime,
+            feature=feature,
+            name=node_name,
+            stdout_path=stdout_path,
+        )[0]
 
         print('\ncmd:\n{}\n'.format(cmd))
 
         if out:
-            msg = ('Kicked off job "{}" (SLURM jobid #{}) on '
-                   'HPC.'.format(node_name, out))
+            msg = 'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
+                node_name, out
+            )
         else:
-            msg = ('Was unable to kick off job "{}". '
-                   'Please see the stdout error messages'
-                   .format(node_name))
+            msg = (
+                'Was unable to kick off job "{}". '
+                'Please see the stdout error messages'.format(node_name)
+            )
         print(msg)
 
     @classmethod
-    def hpc_tmy(cls, fun_str, nsrdb_base_fp, years, out_dir, fn_out,
-                weights=None, n_nodes=1, site_slice=None,
-                supplemental_fp=None, var_meta=None, **kwargs):
+    def hpc_tmy(
+        cls,
+        fun_str,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        weights=None,
+        n_nodes=1,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+        **kwargs,
+    ):
         """Run a TMY/TDY/TGY job on an HPC node."""
 
         if isinstance(weights, dict):
@@ -1886,20 +2124,27 @@ class TmyRunner:
         node_name = kwargs.get('node_name', None)
 
         for node_index in range(n_nodes):
-            arg_str = ('"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
-                       'weights={weights}, '
-                       'n_nodes={n_nodes}, '
-                       'node_index={node_index}, '
-                       'site_slice={site_slice}, '
-                       'supplemental_fp={sfps}, '
-                       'var_meta="{var_meta}"')
-            arg_str = arg_str.format(nsrdb_base_fp=nsrdb_base_fp, years=years,
-                                     out_dir=out_dir, fn_out=fn_out,
-                                     weights=weights, n_nodes=n_nodes,
-                                     node_index=node_index,
-                                     site_slice=site_slice,
-                                     sfps=supplemental_fp,
-                                     var_meta=var_meta)
+            arg_str = (
+                '"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
+                'weights={weights}, '
+                'n_nodes={n_nodes}, '
+                'node_index={node_index}, '
+                'site_slice={site_slice}, '
+                'supplemental_fp={sfps}, '
+                'var_meta="{var_meta}"'
+            )
+            arg_str = arg_str.format(
+                nsrdb_base_fp=nsrdb_base_fp,
+                years=years,
+                out_dir=out_dir,
+                fn_out=fn_out,
+                weights=weights,
+                n_nodes=n_nodes,
+                node_index=node_index,
+                site_slice=site_slice,
+                sfps=supplemental_fp,
+                var_meta=var_meta,
+            )
             sig = signature(getattr(cls, fun_str))
             for k in sig.parameters:
                 if k in kwargs:
@@ -1915,9 +2160,17 @@ class TmyRunner:
             cls._hpc(fun_str, arg_str, **kwargs)
 
     @classmethod
-    def hpc_all(cls, nsrdb_base_fp, years, out_dir, n_nodes=1,
-                site_slice=None, supplemental_fp=None, var_meta=None,
-                **kwargs):
+    def hpc_all(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        n_nodes=1,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+        **kwargs,
+    ):
         """Submit three hpc jobs for TMY, TGY, and TDY.
 
         Parameters
@@ -1946,31 +2199,53 @@ class TmyRunner:
         """
 
         for fun_str in ('tmy', 'tgy', 'tdy'):
-            y = sorted(list(years))[-1]
+            y = sorted(years)[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.hpc_tmy(fun_str, nsrdb_base_fp, years, fun_out_dir,
-                        fun_fn_out, n_nodes=n_nodes, site_slice=site_slice,
-                        supplemental_fp=supplemental_fp,
-                        var_meta=var_meta, **kwargs)
+            cls.hpc_tmy(
+                fun_str,
+                nsrdb_base_fp,
+                years,
+                fun_out_dir,
+                fun_fn_out,
+                n_nodes=n_nodes,
+                site_slice=site_slice,
+                supplemental_fp=supplemental_fp,
+                var_meta=var_meta,
+                **kwargs,
+            )
 
     @classmethod
-    def hpc_collect(cls, nsrdb_base_fp, years, out_dir, fn_out,
-                    site_slice=None, supplemental_fp=None,
-                    var_meta=None, **kwargs):
+    def hpc_collect(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        fn_out,
+        site_slice=None,
+        supplemental_fp=None,
+        var_meta=None,
+        **kwargs,
+    ):
         """Run a TMY/TDY/TGY file collection job on an HPC node."""
 
         if isinstance(supplemental_fp, dict):
             supplemental_fp = json.dumps(supplemental_fp)
 
-        arg_str = ('"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
-                   'site_slice={site_slice}, supplemental_fp={supp_dirs}, '
-                   'var_meta="{var_meta}"')
-        arg_str = arg_str.format(nsrdb_base_fp=nsrdb_base_fp, years=years,
-                                 out_dir=out_dir, fn_out=fn_out,
-                                 site_slice=site_slice,
-                                 supp_dirs=supplemental_fp,
-                                 var_meta=var_meta)
+        arg_str = (
+            '"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
+            'site_slice={site_slice}, supplemental_fp={supp_dirs}, '
+            'var_meta="{var_meta}"'
+        )
+        arg_str = arg_str.format(
+            nsrdb_base_fp=nsrdb_base_fp,
+            years=years,
+            out_dir=out_dir,
+            fn_out=fn_out,
+            site_slice=site_slice,
+            supp_dirs=supplemental_fp,
+            var_meta=var_meta,
+        )
         sig = signature(cls.collect)
         for k in sig.parameters:
             if k in kwargs:
@@ -1979,14 +2254,22 @@ class TmyRunner:
         if 'stdout_path' not in kwargs:
             kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
         if 'node_name' not in kwargs:
-            kwargs['node_name'] = \
-                'col_{}'.format(os.path.basename(fn_out.replace('.h5', '')))
+            kwargs['node_name'] = 'col_{}'.format(
+                os.path.basename(fn_out.replace('.h5', ''))
+            )
 
         cls._hpc('collect', arg_str, **kwargs)
 
     @classmethod
-    def hpc_collect_all(cls, nsrdb_base_fp, years, out_dir,
-                        site_slice=None, var_meta=None, **kwargs):
+    def hpc_collect_all(
+        cls,
+        nsrdb_base_fp,
+        years,
+        out_dir,
+        site_slice=None,
+        var_meta=None,
+        **kwargs,
+    ):
         """Submit three hpc jobs to collect TMY, TGY, and TDY
         (directory setup depends on having run hpc_all() first)."""
 
@@ -1994,6 +2277,12 @@ class TmyRunner:
             y = sorted(years)[-1]
             fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
             fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.hpc_collect(nsrdb_base_fp, years, fun_out_dir,
-                            fun_fn_out, site_slice=site_slice,
-                            var_meta=var_meta, **kwargs)
+            cls.hpc_collect(
+                nsrdb_base_fp,
+                years,
+                fun_out_dir,
+                fun_fn_out,
+                site_slice=site_slice,
+                var_meta=var_meta,
+                **kwargs,
+            )

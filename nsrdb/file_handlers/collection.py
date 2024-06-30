@@ -5,7 +5,6 @@ import datetime
 import json
 import logging
 import os
-import time
 from concurrent.futures import as_completed
 
 import numpy as np
@@ -16,7 +15,6 @@ from rex.utilities.loggers import init_logger
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
-from nsrdb.pipeline import Status
 from nsrdb.utilities.file_utils import pd_date_range
 
 logger = logging.getLogger(__name__)
@@ -551,103 +549,6 @@ class Collector:
             )
         )
 
-    @staticmethod
-    def collect_flist_lowmem(
-        flist,
-        collect_dir,
-        f_out,
-        dset,
-        sort=False,
-        sort_key=None,
-        var_meta=None,
-        log_level=None,
-        log_file=None,
-        write_status=False,
-        job_name=None,
-    ):
-        """Collect a file list without data pre-init for low memory utilization
-
-        Collects data that can be chunked in both space and time as long as
-        f_out is pre-initialized.
-
-        Parameters
-        ----------
-        flist : list | str
-            List of chunked filenames in collect_dir to collect. Can also be a
-            json.dumps(flist).
-        collect_dir : str
-            Directory of chunked files (flist).
-        f_out : str
-            File path of final output file. Must already be initialized with
-            full time index and meta.
-        dset : str
-            Dataset name to collect.
-        sort : bool
-            flag to sort flist to determine meta data order.
-        sort_key : None | fun
-            Optional sort key to sort flist by (determines how meta is built
-            if f_out does not exist).
-        var_meta : str | pd.DataFrame | None
-            CSV file or dataframe containing meta data for all NSRDB variables.
-            Defaults to the NSRDB var meta csv in git repo.
-        log_level : str | None
-            Desired log level, None will not initialize logging.
-        log_file : str | None
-            Target log file. None logs to stdout.
-        write_status : bool
-            Flag to write status file once complete if running from pipeline.
-        job_name : str
-            Job name for status file if running from pipeline.
-        """
-        t0 = time.time()
-
-        if log_level is not None:
-            init_logger(
-                'nsrdb.file_handlers', log_file=log_file, log_level=log_level
-            )
-
-        if not os.path.exists(f_out):
-            time_index, meta, _, _ = Collector._get_collection_attrs(
-                flist, collect_dir, dset, sort=sort, sort_key=sort_key
-            )
-
-            Collector._init_collected_h5(f_out, time_index, meta)
-
-        Collector._ensure_dset_in_output(f_out, dset, var_meta=var_meta)
-
-        if isinstance(flist, str) and '[' in flist and ']' in flist:
-            flist = json.loads(flist)
-
-        with Outputs(f_out, mode='a') as f:
-            time_index = f.time_index
-            meta = f.meta
-            dtype = f.get_dset_properties(dset)[1]
-            scale_factor = f.get_scale_factor(dset)
-
-            for fname in flist:
-                logger.debug('Collecting file "{}".'.format(fname))
-                fpath = os.path.join(collect_dir, fname)
-
-                data, rows, cols = Collector.get_data(
-                    fpath, dset, time_index, meta, scale_factor, dtype
-                )
-                f[dset, rows, cols] = data
-
-        if write_status and job_name is not None:
-            status = {
-                'out_dir': os.path.dirname(f_out),
-                'fout': f_out,
-                'collect_dir': collect_dir,
-                'job_status': 'successful',
-                'runtime': (time.time() - t0) / 60,
-                'dset': dset,
-            }
-            Status.make_single_job_file(
-                os.path.dirname(f_out), 'collect-flist', job_name, status
-            )
-
-        logger.info('Finished file list collection.')
-
     @classmethod
     def collect_daily(
         cls,
@@ -660,8 +561,6 @@ class Collector:
         max_workers=None,
         log_level=None,
         log_file=None,
-        write_status=False,
-        job_name=None,
     ):
         """Collect daily data model files from a dir to one output file.
 
@@ -700,23 +599,16 @@ class Collector:
             Desired log level, None will not initialize logging.
         log_file : str | None
             Target log file. None logs to stdout.
-        write_status : bool
-            Flag to write status file once complete if running from pipeline.
-        job_name : str
-            Job name for status file if running from pipeline.
         """
-        t0 = time.time()
-
         if log_level is not None:
             init_logger(
                 'nsrdb.file_handlers', log_file=log_file, log_level=log_level
             )
 
         if isinstance(dsets, str):
-            if '[' in dsets and ']' in dsets:
-                dsets = json.loads(dsets)
-            else:
-                dsets = [dsets]
+            dsets = (
+                json.loads(dsets) if '[' in dsets and ']' in dsets else [dsets]
+            )
 
         logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
 
@@ -771,18 +663,5 @@ class Collector:
                         var_meta=var_meta,
                         max_workers=max_workers,
                     )
-
-        if write_status and job_name is not None:
-            status = {
-                'out_dir': os.path.dirname(f_out),
-                'fout': f_out,
-                'collect_dir': collect_dir,
-                'job_status': 'successful',
-                'runtime': (time.time() - t0) / 60,
-                'dsets': dsets,
-            }
-            Status.make_single_job_file(
-                os.path.dirname(f_out), 'collect-daily', job_name, status
-            )
 
         logger.info('Finished daily file collection.')
