@@ -87,9 +87,6 @@ class BaseCLI:
         ----------
         module_name : str
             Module name string from :class:`nsrdb.utilities.ModuleName`.
-        module_class : Object
-            Class object used to call get_node_cmd(config).
-            e.g. nsrdbQa.get_node_cmd(config)
         ctx : click.pass_context
             Click context object where ctx.obj is a dictionary
         config : str

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """A framework for handling MAIAC high-res AOD source data."""
+
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
@@ -92,10 +94,13 @@ class MaiacVar(AncillaryVarHandler):
 
         fps = NFS(self.pattern).glob()
         if not any(fps):
-            emsg = ('Could not find source files '
-                    'for dataset "{}" with glob pattern: "{}". '
-                    'Found {} files: {}'
-                    .format(self.name, self.pattern, len(fps), fps))
+            emsg = (
+                'Could not find source files '
+                'for dataset "{}" with glob pattern: "{}". '
+                'Found {} files: {}'.format(
+                    self.name, self.pattern, len(fps), fps
+                )
+            )
             logger.error(emsg)
             raise FileNotFoundError(emsg)
 
@@ -156,8 +161,9 @@ class MaiacVar(AncillaryVarHandler):
         data = []
         for fp in self.files:
             with NFS(fp, use_rex=True) as res:
-                logger.debug('Getting MAIAC aod from {}'
-                             .format(os.path.basename(fp)))
+                logger.debug(
+                    'Getting MAIAC aod from {}'.format(os.path.basename(fp))
+                )
                 data.append(res['aod', :, :, self.doy_index].flatten())
                 L += len(data[-1])
 
@@ -184,15 +190,18 @@ class MaiacVar(AncillaryVarHandler):
             for fp in self.files:
                 with NFS(fp, use_rex=True) as res:
                     temp = pd.DataFrame(
-                        {'longitude': res['longitude'].flatten(),
-                            'latitude': res['latitude'].flatten()})
+                        {
+                            'longitude': res['longitude'].flatten(),
+                            'latitude': res['latitude'].flatten(),
+                        }
+                    )
                     if self._grid is None:
                         self._grid = temp
                     else:
-                        self._grid = self._grid.append(temp,
-                                                       ignore_index=True)
+                        self._grid = self._grid.append(temp, ignore_index=True)
 
-            logger.debug('MAIAC AOD grid has {} coordinates'
-                         .format(len(self._grid)))
+            logger.debug(
+                'MAIAC AOD grid has {} coordinates'.format(len(self._grid))
+            )
 
         return self._grid
