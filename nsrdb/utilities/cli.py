@@ -107,34 +107,37 @@ class BaseCLI:
         config : dict
             Dictionary with module specifc inputs only.
         """
-        cls.check_module_name(module_name)
-        status_dir = (
-            config.get('status_dir', './')
-            if isinstance(config, dict)
-            else os.path.dirname(os.path.abspath(config))
-        )
-        config = config if isinstance(config, dict) else load_config(config)
         ctx.ensure_object(dict)
+        cls.check_module_name(module_name)
+
+        if not isinstance(config, dict):
+            status_dir = os.path.dirname(os.path.abspath(config))
+            config = load_config(config)
+        else:
+            status_dir = config.get('status_dir', './')
+
         ctx.obj['STATUS_DIR'] = status_dir
         ctx.obj['VERBOSE'] = verbose
         ctx.obj['OUT_DIR'] = status_dir
         ctx.obj['IMPORT_STR'] = IMPORT_STR
         ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
-        ctx.obj['LOG_DIR'] = os.makedirs(
-            os.path.join(status_dir, 'logs', module_name.replace('-', '_')),
-            exist_ok=True,
+        sanitized_mod = module_name.replace('-', '_')
+        ctx.obj['LOG_DIR'] = os.path.join(status_dir, 'logs', sanitized_mod)
+        os.makedirs(ctx.obj['LOG_DIR'], exist_ok=True)
+        name = f'nsrdb_{sanitized_mod}_{os.path.basename(status_dir)}'
+        name = config.get('job_name', name)
+        ctx.obj['NAME'] = name
+        ctx.obj['LOG_FILE'] = config.get(
+            'log_file', os.path.join(ctx.obj['LOG_DIR'], name + '.log')
         )
-        log_file = config.get('log_file', None)
         config_verbose = config.get('log_level', 'INFO')
         log_arg_str = f'"nsrdb", log_level="{config_verbose}"'
         config_verbose = config_verbose == 'DEBUG'
         verbose = any([verbose, config_verbose, ctx.obj['VERBOSE']])
         ctx.obj['LOG_ARG_BASE'] = log_arg_str
-
-        if log_file is not None:
-            log_arg_str += f', log_file="{log_file}"'
-
-        ctx.obj['LOG_ARG_STR'] = log_arg_str
+        ctx.obj['LOG_ARG_STR'] = (
+            f'{log_arg_str}, log_file="{ctx.obj["LOG_FILE"]}"'
+        )
         exec_kwargs = config.get('execution_control', {})
         direct_args = config.get('direct', {})
         cmd_args = config.get(module_name, {})
@@ -147,13 +150,9 @@ class BaseCLI:
             {k: v for k, v in cmd_args.items() if k in direct_args}
         )
 
-        log_dir = log_file if log_file is None else os.path.dirname(log_file)
-        if log_dir is not None:
-            os.makedirs(log_dir, exist_ok=True)
-
         init_mult(
-            f'nsrdb_{module_name.replace("-", "_")}',
-            log_dir,
+            f'nsrdb_{sanitized_mod}',
+            ctx.obj['LOG_DIR'],
             modules=[__name__, 'nsrdb'],
             verbose=verbose,
         )
@@ -163,10 +162,6 @@ class BaseCLI:
             f'Found execution kwargs {exec_kwargs} for {module_name} module'
         )
 
-        name = f'nsrdb_{module_name.replace("-", "_")}'
-        name += f'_{os.path.basename(status_dir)}'
-        name = config.get('job_name', name)
-        ctx.obj['NAME'] = name
         cmd_args['job_name'] = name
         cmd_args['status_dir'] = status_dir
         cmd_args['execution_control'] = exec_kwargs
@@ -211,14 +206,14 @@ class BaseCLI:
         walltime : float
             Node walltime request in hours.
         feature : str
-            Additional flags for SLURM job. Format is "--qos=high"
-            or "--depend=[state:job_id]". Default is None.
+            Additional flags for SLURM job. Format is "--qos=high" or
+            "--depend=[state:job_id]". Default is None.
         stdout_path : str
             Path to print .stdout and .stderr files.
         pipeline_step : str, optional
             Name of the pipeline step being run. If ``None``, the
-            ``pipeline_step`` will be set to the ``module_name``,
-            mimicking old reV behavior. By default, ``None``.
+            ``pipeline_step`` will be set to the ``module_name``, mimicking old
+            reV behavior. By default, ``None``.
         """
         cls.check_module_name(module_name)
         pipeline_step = ctx.obj['PIPELINE_STEP']
@@ -255,8 +250,7 @@ class BaseCLI:
             if pipeline_step != module_name:
                 job_info = f'{job_info} (pipeline step {pipeline_step!r})'
             logger.info(
-                f'Running nsrdb {job_info} on SLURM with node '
-                f'name "{name}".'
+                f'Running nsrdb {job_info} on SLURM with node name "{name}".'
             )
             out = slurm_manager.sbatch(
                 cmd,
@@ -269,8 +263,8 @@ class BaseCLI:
             )[0]
             if out:
                 msg = (
-                    f'Kicked off nsrdb {job_info} job "{name}" '
-                    f'(SLURM jobid #{out}).'
+                    f'Kicked off nsrdb {job_info} job "{name}" (SLURM jobid '
+                    f'#{out}).'
                 )
 
             # add job to nsrdb status file.
@@ -413,8 +407,7 @@ class BaseCLI:
             't_elap = time.time() - t0;\n'
         )
 
-        status_cmd = cls.get_status_cmd(config, pipeline_step)
-        cmd += status_cmd
+        cmd += cls.get_status_cmd(config, pipeline_step)
 
         if hardware_option == 'local':
             cls.kickoff_local_job(module_name, ctx, cmd)
@@ -467,18 +460,10 @@ class BaseCLI:
         name = ctx.obj['NAME']
         log_arg_str = ctx.obj['LOG_ARG_BASE']
         pipeline_step = ctx.obj['PIPELINE_STEP']
-        log_file = config_dict.get('log_file', None)
-        log_pattern = (
-            None if log_file is None else log_file.replace('.log', '_{}.log')
-        )
 
         for doy in doys:
-            log_file_d = None if log_file is None else log_pattern.format(doy)
-            ctx.obj['LOG_ARG_STR'] = (
-                log_arg_str
-                if log_file is None
-                else f'{log_arg_str}, log_file="{log_file_d}"'
-            )
+            log_file_d = ctx.obj['LOG_FILE'].replace('.log', f'_{doy}.log')
+            ctx.obj['LOG_ARG_STR'] = f'{log_arg_str}, log_file="{log_file_d}"'
 
             date = NSRDB.doy_to_datestr(config_dict['year'], doy)
             config_dict['date'] = date

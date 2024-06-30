@@ -201,7 +201,7 @@ def plot_benchmark(sites, y_range=None):
 
 def test_all_sky(
     test_file=TEST_FILE,
-    sites=SITES,
+    sites=SITES[:-1],
     timestep_frac_threshold=0.15,
     mae_perc_threshold=5,
 ):

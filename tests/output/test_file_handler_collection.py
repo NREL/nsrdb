@@ -163,7 +163,7 @@ def test_final_daily():
 
         test_data = {}
         for dsets in NSRDB.OUTS.values():
-            for (dset, doy) in itertools.product(dsets, doys):
+            for dset, doy in itertools.product(dsets, doys):
                 test_data[dset] = test_data.get(dset, {})
                 var_fac = VarFactory.get_base_handler(dset)
                 low = var_fac.physical_min
@@ -194,7 +194,6 @@ def test_final_daily():
                 i_fname=i_fname,
                 freq='5min',
                 max_workers=1,
-                job_name='nsrdb',
                 final_file_name='nsrdb',
                 n_writes=2,
                 final=True,
@@ -217,7 +216,7 @@ def test_final_daily():
                 assert all(d in doys for d in ti_doys)
 
                 dsets = [d for d in f.dsets if d not in ('time_index', 'meta')]
-                for (dset, doy) in itertools.product(dsets, doys):
+                for dset, doy in itertools.product(dsets, doys):
                     disk_data = f[dset]
                     dset_test_data = test_data[dset][doy]
                     if np.issubdtype(disk_data.dtype, np.integer):

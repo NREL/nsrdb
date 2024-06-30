@@ -177,21 +177,22 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     '-all_domains',
     '-ad',
     is_flag=True,
-    help='Flag to generate config files for all '
-    'domains. If True config files for east/west and '
-    'conus/full will be generated. (just full if year '
-    'is < 2018). satellite, extent, spatial, freq, and '
-    'meta_file will be auto populated. ',
+    help=(
+        'Flag to generate config files for all domains. If True config '
+        'files for east/west and conus/full will be generated. (just full if '
+        'year is < 2018). satellite, extent, spatial, freq, and meta_file '
+        'will be auto populated. '
+    ),
 )
 @click.pass_context
-def create_configs(ctx, kwargs, all_domains):
+def create_configs(ctx, config, all_domains=False):
     """Create config files for standard NSRDB runs using config templates."""
 
     ctx.ensure_object(dict)
     if all_domains:
-        NSRDB.create_configs_all_domains(kwargs)
+        NSRDB.create_configs_all_domains(config)
     else:
-        NSRDB.create_config_files(kwargs)
+        NSRDB.create_config_files(config)
 
 
 @main.group()
