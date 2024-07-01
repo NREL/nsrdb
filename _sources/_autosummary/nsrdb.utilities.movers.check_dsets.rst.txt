@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.check\_dsets
+===================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: check_dsets

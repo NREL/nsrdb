@@ -1,0 +1,6 @@
+nsrdb.cli.check\_if\_dummy\_run
+===============================
+
+.. currentmodule:: nsrdb.cli
+
+.. autofunction:: check_if_dummy_run

@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.interrogate\_dset
+========================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: interrogate_dset

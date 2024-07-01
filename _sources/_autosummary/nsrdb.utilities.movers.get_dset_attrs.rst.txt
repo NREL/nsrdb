@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.get\_dset\_attrs
+=======================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: get_dset_attrs

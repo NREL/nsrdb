@@ -1,0 +1,6 @@
+nsrdb.cli.str\_replace
+======================
+
+.. currentmodule:: nsrdb.cli
+
+.. autofunction:: str_replace

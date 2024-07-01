@@ -1,0 +1,6 @@
+nsrdb.aggregation.aggregation.collect
+=====================================
+
+.. currentmodule:: nsrdb.aggregation.aggregation
+
+.. autofunction:: collect

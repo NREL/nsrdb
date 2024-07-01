@@ -1,0 +1,6 @@
+nsrdb.utilities.movers.get\_dset\_shape
+=======================================
+
+.. currentmodule:: nsrdb.utilities.movers
+
+.. autofunction:: get_dset_shape

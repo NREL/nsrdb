@@ -1,0 +1,41 @@
+nsrdb.aggregation.aggregation
+=============================
+
+.. automodule:: nsrdb.aggregation.aggregation
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      collect
+      run
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      Aggregation
+      Manager
+      MetaManager
+   
+   
+
+   
+   
+   
+
+
+

@@ -1,0 +1,6 @@
+nsrdb.aggregation.aggregation.run
+=================================
+
+.. currentmodule:: nsrdb.aggregation.aggregation
+
+.. autofunction:: run

@@ -1,0 +1,6 @@
+nsrdb.albedo.cli.daterange
+==========================
+
+.. currentmodule:: nsrdb.albedo.cli
+
+.. autofunction:: daterange
