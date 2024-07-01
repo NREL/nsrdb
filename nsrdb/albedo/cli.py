@@ -5,6 +5,7 @@ MODIS dry-land albedo and IMS snow data.
 Mike Bannister
 1/29/2020
 """
+
 import logging
 import os
 import sys
@@ -35,9 +36,11 @@ class Date(click.ParamType):
             # E.g., 20150531
             date = dt.strptime(value, '%Y%m%d')
         else:
-            msg = ('Date must be provided in YYYYDDD or YYYYMMDD '
-                   f'format (e.g. 2015012 or 20150305). {value} '
-                   f'was provided. Param: {param}, ctx: {ctx}')
+            msg = (
+                'Date must be provided in YYYYDDD or YYYYMMDD '
+                f'format (e.g. 2015012 or 20150305). {value} '
+                f'was provided. Param: {param}, ctx: {ctx}'
+            )
             click.echo(msg)
             logger.error(msg)
             sys.exit(1)
@@ -47,13 +50,17 @@ class Date(click.ParamType):
 def _setup_paths(ctx):
     """Handle paths and path overrides"""
     # Verify path is set
-    if ctx.obj['path'] is None and (ctx.obj['mpath'] is None
-                                    or ctx.obj['ipath'] is None
-                                    or ctx.obj['apath'] is None):
-        msg = ('Paths for MODIS, IMS and composite albedo data '
-               'must be set together using --path, or '
-               'individually using --modis-path, --ims-path, and '
-               '--albedo-path.')
+    if ctx.obj['path'] is None and (
+        ctx.obj['mpath'] is None
+        or ctx.obj['ipath'] is None
+        or ctx.obj['apath'] is None
+    ):
+        msg = (
+            'Paths for MODIS, IMS and composite albedo data '
+            'must be set together using --path, or '
+            'individually using --modis-path, --ims-path, and '
+            '--albedo-path.'
+        )
         click.echo(msg)
         logger.error(msg)
         sys.exit(1)
@@ -69,30 +76,70 @@ def _setup_paths(ctx):
 
 
 @click.group()
-@click.option('--path', '-p', type=click.Path(exists=True),
-              help='Path for all data files. This may be partially '
-              'overridden by the other path arguments.')
-@click.option('--modis-path', '-m', type=click.Path(exists=True),
-              help='Path of/for MODIS data files')
-@click.option('--ims-path', '-i', type=click.Path(exists=True),
-              help='Path of/for IMS data/metadata files')
-@click.option('--albedo-path', '-a', type=click.Path(exists=True),
-              help='Path to save composite albedo data files')
-@click.option('--merra-path', '-me', type=click.Path(exists=True),
-              help='Path to MERRA temperature data files')
-@click.option('--log-level',
-              type=click.Choice(['DEBUG', 'INFO', 'WARNING',
-                                 'ERROR', 'CRITICAL'],
-                                case_sensitive=False),
-              default='INFO',
-              help='Logging level')
-@click.option('--log-file', type=click.Path(), default='log/nsrdb.albedo.log',
-              help='Logging output file.')
-@click.option('--tiff', '-t', is_flag=True, default=False,
-              help='Create TIFF and world file in addition to h5 file.')
+@click.option(
+    '--path',
+    '-p',
+    type=click.Path(exists=True),
+    help='Path for all data files. This may be partially '
+    'overridden by the other path arguments.',
+)
+@click.option(
+    '--modis-path',
+    '-m',
+    type=click.Path(exists=True),
+    help='Path of/for MODIS data files',
+)
+@click.option(
+    '--ims-path',
+    '-i',
+    type=click.Path(exists=True),
+    help='Path of/for IMS data/metadata files',
+)
+@click.option(
+    '--albedo-path',
+    '-a',
+    type=click.Path(exists=True),
+    help='Path to save composite albedo data files',
+)
+@click.option(
+    '--merra-path',
+    '-me',
+    type=click.Path(exists=True),
+    help='Path to MERRA temperature data files',
+)
+@click.option(
+    '--log-level',
+    type=click.Choice(
+        ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], case_sensitive=False
+    ),
+    default='INFO',
+    help='Logging level',
+)
+@click.option(
+    '--log-file',
+    type=click.Path(),
+    default='log/nsrdb.albedo.log',
+    help='Logging output file.',
+)
+@click.option(
+    '--tiff',
+    '-t',
+    is_flag=True,
+    default=False,
+    help='Create TIFF and world file in addition to h5 file.',
+)
 @click.pass_context
-def main(ctx, path, modis_path, ims_path, albedo_path, merra_path,
-         log_level, log_file, tiff):
+def main(
+    ctx,
+    path,
+    modis_path,
+    ims_path,
+    albedo_path,
+    merra_path,
+    log_level,
+    log_file,
+    tiff,
+):
     """
     Create composite albedo data for one day using MODIS and IMS data sets or
     convert existing albedo h5 file to TIFF with world file.
@@ -111,18 +158,31 @@ def main(ctx, path, modis_path, ims_path, albedo_path, merra_path,
     ctx.obj['tiff'] = tiff
 
     init_logger('nsrdb.albedo', log_file=log_file, log_level=log_level)
-    init_logger('nsrdb.utilities', log_file=log_file,
-                log_level=log_level)
+    init_logger('nsrdb.utilities', log_file=log_file, log_level=log_level)
 
 
 @main.command()
 @click.argument('date', type=Date())
-@click.option('--modis-shape', nargs=2, type=int, default=None,
-              help='Shape of MODIS data, in format: XXX YYY')
-@click.option('--ims-shape', nargs=2, type=int, default=None,
-              help='Shape of IMS data, in format: XXX YYY')
-@click.option('--max-workers', type=int, default=None,
-              help='Max workers to use. Defaults to number of cores.')
+@click.option(
+    '--modis-shape',
+    nargs=2,
+    type=int,
+    default=None,
+    help='Shape of MODIS data, in format: XXX YYY',
+)
+@click.option(
+    '--ims-shape',
+    nargs=2,
+    type=int,
+    default=None,
+    help='Shape of IMS data, in format: XXX YYY',
+)
+@click.option(
+    '--max-workers',
+    type=int,
+    default=None,
+    help='Max workers to use. Defaults to number of cores.',
+)
 @click.pass_context
 def singleday(ctx, date, modis_shape, ims_shape, max_workers):
     """
@@ -147,9 +207,14 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
         _kwargs['ims_shape'] = ims_shape
         logger.info(f'Using IMS data shape of {ims_shape}')
 
-    cad = CompositeAlbedoDay.run(date, ctx.obj['mpath'], ctx.obj['ipath'],
-                                 ctx.obj['apath'], ctx.obj['mepath'],
-                                 **_kwargs)
+    cad = CompositeAlbedoDay.run(
+        date,
+        ctx.obj['mpath'],
+        ctx.obj['ipath'],
+        ctx.obj['apath'],
+        ctx.obj['mepath'],
+        **_kwargs,
+    )
     cad.write_albedo()
     if ctx.obj['tiff']:
         cad.write_tiff()
@@ -158,17 +223,40 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
 @main.command()
 @click.argument('start', type=Date())
 @click.argument('end', type=Date())
-@click.option('--alloc', required=True, type=STR,
-              help='HPC allocation account name.')
-@click.option('--walltime', '-wt', default=1.0, type=float,
-              help='HPC walltime request in hours. Default is 1.0')
-@click.option('--feature', '-l', default=None, type=STR,
-              help=('Additional flags for SLURM job. Format is "--qos=high" '
-                    'or "--depend=[state:job_id]". Default is None.'))
-@click.option('--memory', '-mem', default=None, type=INT,
-              help='HPC node memory request in GB. Default is None')
-@click.option('--stdout_path', '-sout', default=None, type=STR,
-              help='Subprocess standard output path. Default is in out_dir.')
+@click.option(
+    '--alloc', required=True, type=STR, help='HPC allocation account name.'
+)
+@click.option(
+    '--walltime',
+    '-wt',
+    default=1.0,
+    type=float,
+    help='HPC walltime request in hours. Default is 1.0',
+)
+@click.option(
+    '--feature',
+    '-l',
+    default=None,
+    type=STR,
+    help=(
+        'Additional flags for SLURM job. Format is "--qos=high" '
+        'or "--depend=[state:job_id]". Default is None.'
+    ),
+)
+@click.option(
+    '--memory',
+    '-mem',
+    default=None,
+    type=INT,
+    help='HPC node memory request in GB. Default is None',
+)
+@click.option(
+    '--stdout_path',
+    '-sout',
+    default=None,
+    type=STR,
+    help='Subprocess standard output path. Default is in out_dir.',
+)
 @click.pass_context
 def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
     """Calculate composite albedo for a range of dates. Range is inclusive"""
@@ -187,33 +275,46 @@ def multiday(ctx, start, end, alloc, walltime, feature, memory, stdout_path):
 
     for date in daterange(start, end):
         log_file = ctx.obj['log_file']
-        if isinstance(log_file, str):
-            if log_file.endswith('.log'):
-                sdate = date.strftime('%Y%m%d')
-                log_file = log_file.replace('.log', f'_{sdate}.log')
+        if isinstance(log_file, str) and log_file.endswith('.log'):
+            sdate = date.strftime('%Y%m%d')
+            log_file = log_file.replace('.log', f'_{sdate}.log')
 
-        cmd = get_node_cmd(date, ctx.obj['ipath'], ctx.obj['mpath'],
-                           ctx.obj['apath'], ctx.obj['mepath'],
-                           ctx.obj['tiff'], log_file)
+        cmd = get_node_cmd(
+            date,
+            ctx.obj['ipath'],
+            ctx.obj['mpath'],
+            ctx.obj['apath'],
+            ctx.obj['mepath'],
+            ctx.obj['tiff'],
+            log_file,
+        )
 
         logger.debug(f'command for slurm: {cmd}')
 
         name = dt.strftime(date, 'a%Y%j')
-        logger.info('Running composite albedo processing on HPC with '
-                    f'name "{name}" for {date}')
-        out = slurm_manager.sbatch(cmd,
-                                   alloc=alloc,
-                                   memory=memory,
-                                   walltime=walltime,
-                                   feature=feature,
-                                   name=name,
-                                   stdout_path=stdout_path)[0]
+        logger.info(
+            'Running composite albedo processing on HPC with '
+            f'name "{name}" for {date}'
+        )
+        out = slurm_manager.sbatch(
+            cmd,
+            alloc=alloc,
+            memory=memory,
+            walltime=walltime,
+            feature=feature,
+            name=name,
+            stdout_path=stdout_path,
+        )[0]
         if out:
-            msg = (f'Kicked off NSRDB albedo job "{name}" (SLURM '
-                   f'jobid #{out}) on HPC.')
+            msg = (
+                f'Kicked off NSRDB albedo job "{name}" (SLURM '
+                f'jobid #{out}) on HPC.'
+            )
         else:
-            msg = (f'Was unable to kick off NSRDB albedo job "{name}". '
-                   'Please see the stdout error messages')
+            msg = (
+                f'Was unable to kick off NSRDB albedo job "{name}". '
+                'Please see the stdout error messages'
+            )
         click.echo(msg)
         logger.info(msg)
 

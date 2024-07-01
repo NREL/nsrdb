@@ -6,6 +6,7 @@ Created on Mon Oct 21 15:39:01 2019
 @author: gbuster
 """
 
+import itertools
 import json
 import logging
 import os
@@ -18,7 +19,6 @@ from rex.utilities.fun_utils import get_fun_call_str
 from rex.utilities.loggers import init_logger
 
 from nsrdb import __version__
-from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
 from nsrdb.utilities import ModuleName
 from nsrdb.utilities.cli import BaseCLI
@@ -367,10 +367,6 @@ def config(ctx, config, command, verbose=False):
         ctx.invoke(cloud_fill, config=config, verbose=verbose)
     elif command == 'all-sky':
         ctx.invoke(all_sky, config=config, verbose=verbose)
-    elif command == 'collect-daily':
-        ctx.invoke(collect_daily, config=config, verbose=verbose)
-    elif command == 'collect-flist':
-        ctx.invoke(collect_flist, config=config, verbose=verbose)
     elif command == 'collect-final':
         ctx.invoke(collect_final, config=config, verbose=verbose)
     else:
@@ -533,13 +529,12 @@ def all_sky(ctx, config, verbose=False, pipeline_step=None):
         pipeline_step=pipeline_step,
     )
 
-    log_level = config.get('log_level', 'INFO')
-    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    log_arg_str = ctx.obj['LOG_ARG_BASE']
     config['n_chunks'] = config.get('n_chunks', 1)
     name = ctx.obj['NAME']
 
     for i_chunk in range(config['n_chunks']):
-        log_file = f'{ctx.obj["out_dir"]}/all_sky/all_sky_{i_chunk}.log'
+        log_file = ctx.obj['LOG_FILE'].replace('.log', f'{i_chunk}.log')
         log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
         config['i_chunk'] = i_chunk
         config['job_name'] = f'{name}_{i_chunk}'
@@ -578,105 +573,40 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
         pipeline_step=pipeline_step,
     )
 
-    log_file = config.get('log_file', None)
-    log_level = config.get('log_level', 'INFO')
-    log_arg_str = f'"nsrdb", log_level="{log_level}"'
-
+    log_arg_str = ctx.obj['LOG_ARG_BASE']
     config['n_chunks'] = config.get('n_chunks', 1)
     config['n_writes'] = config.get('n_writes', 1)
     config['final'] = config.get('final', False)
-    n_files_tot = len(NSRDB.OUTS)
     n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
-    i_files = config.get('collect_files', n_files_default)
+    i_files = (
+        range(len(NSRDB.OUTS))
+        if config['final']
+        else config.get('collect_files', n_files_default)
+    )
     fnames = sorted(NSRDB.OUTS.keys())
     name = ctx.obj['NAME']
-    if config['final']:
-        i_files = range(n_files_tot)
 
     if config['final'] and config['n_chunks'] != 1:
         msg = 'collect-data-model was marked as final but n_chunks != 1'
         logger.error(msg)
         raise ValueError(msg)
 
-    for i_chunk in range(config['n_chunks']):
-        for i_fname in i_files:
-            if log_file is not None:
-                log_file_i = log_file.replace('.log', f'_{i_fname}.log')
-                log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
-                ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+    for i_chunk, i_fname in itertools.product(
+        range(config['n_chunks']), i_files
+    ):
+        log_file_i = ctx.obj['LOG_FILE'].replace('.log', f'_{i_fname}.log')
+        log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
+        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
+        config['final_file_name'] = name
+        config['i_chunk'] = i_chunk
+        config['i_fname'] = i_fname
+        config['job_name'] = (
+            f'{name}_{i_fname}_{fnames[i_fname].split("_")[1]}_{i_chunk}'
+        )
+        ctx.obj['NAME'] = config['job_name']
+        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_data_model, config)
 
-            config['final_file_name'] = name
-            config['i_chunk'] = i_chunk
-            config['i_fname'] = i_fname
-            fn_tag = fnames[i_fname].split('_')[1]
-            config['job_name'] = f'{name}_{i_fname}_{fn_tag}_{i_chunk}'
-            ctx.obj['NAME'] = config['job_name']
-            ctx.obj['FUN_STR'] = get_fun_call_str(
-                NSRDB.collect_data_model, config
-            )
-
-            BaseCLI.kickoff_job(ModuleName.COLLECT_DATA_MODEL, config, ctx)
-
-
-@main.group(invoke_without_command=True)
-@click.option(
-    '--config',
-    '-c',
-    type=CONFIG_TYPE,
-    required=True,
-    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-@click.pass_context
-def collect_daily(ctx, config, verbose=False, pipeline_step=None):
-    """Collect daily data model output files from a directory to a single
-    file"""
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_DAILY,
-        ctx=ctx,
-        config=config,
-        verbose=verbose,
-        pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(Collector.collect_daily, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_DAILY, config, ctx)
-
-
-@main.group(invoke_without_command=True)
-@click.option(
-    '--config',
-    '-c',
-    type=CONFIG_TYPE,
-    required=True,
-    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-@click.pass_context
-def collect_flist(ctx, config, verbose=False, pipeline_step=None):
-    """Run the file collection method with explicitly defined flist."""
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_FLIST,
-        ctx=ctx,
-        config=config,
-        verbose=verbose,
-        pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(Collector.collect_flist, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_FLIST, config, ctx)
+        BaseCLI.kickoff_job(ModuleName.COLLECT_DATA_MODEL, config, ctx)
 
 
 @main.group()
@@ -705,15 +635,17 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
         pipeline_step=pipeline_step,
     )
 
-    log_level = config.get('log_level', 'INFO')
-    log_arg_str = f'"nsrdb", log_level="{log_level}"'
+    fnames = sorted(NSRDB.OUTS.keys())
+    log_arg_str = ctx.obj['LOG_ARG_BASE']
     name = ctx.obj['NAME']
-    n_files = len(NSRDB.OUTS)
-    for i_fname in range(n_files):
-        log_file = f'{ctx.obj["out_dir"]}/final/final_collection_{i_fname}.log'
-        log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
+    for i_fname in range(len(NSRDB.OUTS)):
+        log_file_i = ctx.obj['LOG_FILE'].replace('.log', f'_{i_fname}.log')
+        log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
+        config['job_name'] = (
+            f'{name}_{i_fname}_{fnames[i_fname].split("_")[1]}'
+        )
+        config['i_fname'] = i_fname
         ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        config['job_name'] = f'{name}_{i_fname}'
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
         BaseCLI.kickoff_job(ModuleName.COLLECT_FINAL, config, ctx)
@@ -728,8 +660,6 @@ Pipeline.COMMANDS[ModuleName.BLEND] = blend
 Pipeline.COMMANDS[ModuleName.AGGREGATE] = aggregate
 Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.COLLECT_FINAL] = collect_final
-Pipeline.COMMANDS[ModuleName.COLLECT_FLIST] = collect_flist
-Pipeline.COMMANDS[ModuleName.COLLECT_DAILY] = collect_daily
 Pipeline.COMMANDS[ModuleName.COLLECT_BLENDED] = collect_blended
 Pipeline.COMMANDS[ModuleName.COLLECT_AGG] = collect_aggregation
 

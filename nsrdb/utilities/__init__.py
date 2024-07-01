@@ -18,8 +18,6 @@ class ModuleName(str, Enum):
     BLEND = 'blend'
     AGGREGATE = 'aggregate'
     COLLECT_DATA_MODEL = 'collect-data-model'
-    COLLECT_DAILY = 'collect-daily'
-    COLLECT_FLIST = 'collect-flist'
     COLLECT_FINAL = 'collect-final'
     COLLECT_BLENDED = 'collect-blended'
     COLLECT_AGG = 'collect-agg'

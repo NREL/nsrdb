@@ -366,23 +366,17 @@ class DataModel:
             logger.error(e)
             raise ValueError(e)
 
-        if 'NN' in interp_method.upper():
-            # always get 1 nearest neighbor for NN data copy
-            k = 1
-        elif 'IDW' in interp_method.upper():
-            # always get 4 nearest neighbors for dist interp interp_method
-            k = 4
-        elif 'AGG' in interp_method.upper():
-            # aggregation can be from any number of neighbors, default to 4
-            k = parse_method(interp_method)
-            if k is None:
-                k = 4
-        else:
-            e = 'Did not recognize spatial interp_method: "{}"'.format(
-                interp_method
-            )
-            logger.error(e)
-            raise ValueError(e)
+        k = (
+            1
+            if 'NN' in interp_method.upper()
+            else 4
+            if 'IDW' in interp_method.upper()
+            else (parse_method(interp_method) or 4)
+            if 'AGG' in interp_method.upper()
+            else None
+        )
+        msg = f'Did not recognize spatial interp_method: "{interp_method}"'
+        assert k is not None, msg
 
         # Do not cache results if the intended Cache directory isn't available
         if not NFS(self.CACHE_DIR).exists():

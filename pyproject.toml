@@ -105,3 +105,7 @@ packages = ["nsrdb"]
 
 [tool.setuptools_scm]
 version_file = "nsrdb/_version.py"
+
+[tool.pytest_env]
+CUDA_VISIBLE_DEVICES = "-1"
+TF_ENABLE_ONEDNN_OPTS = "0"

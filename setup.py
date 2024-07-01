@@ -29,9 +29,7 @@ class PostDevelopCommand(develop):
 
 setup(
     entry_points={
-        'console_scripts': [
-            'nsrdb=nsrdb.cli:main',
-        ],
+        'console_scripts': ['nsrdb=nsrdb.cli:main'],
     },
     package_data={
         'nsrdb': [
