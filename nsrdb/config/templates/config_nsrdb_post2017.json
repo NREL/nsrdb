@@ -69,8 +69,8 @@
     "max_workers": 32,
     "year": "%year%"
   },
-  "execution": {
-    "option": "hpc",
+  "execution_control": {
+    "option": "kestrel",
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 40

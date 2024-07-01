@@ -7,6 +7,7 @@ Created on Jan 23th 2020
 
 @author: mbannist
 """
+
 import logging
 import os
 import tempfile
@@ -21,7 +22,7 @@ from nsrdb.albedo import albedo
 from nsrdb.albedo import temperature_model as tm
 from nsrdb.utilities.pytest import execute_pytest
 
-pytest.importorskip("pyhdf")
+pytest.importorskip('pyhdf')
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 MERRATESTDATADIR = os.path.join(TESTDATADIR, 'merra2_source_files')
@@ -38,14 +39,16 @@ def test_merra_grid_mapping():
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            MERRATESTDATADIR,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120))
-    grid = tm.DataHandler.get_grid(
-        cad._modis.lat, cad._modis.lon, cad._mask)
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            MERRATESTDATADIR,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+        )
+    grid = tm.DataHandler.get_grid(cad._modis.lat, cad._modis.lon, cad._mask)
 
     cad_grid = np.zeros((len(cad._modis.lat), len(cad._modis.lon), 2))
 
@@ -67,12 +70,15 @@ def test_increasing_temp_decreasing_albedo():
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            MERRATESTDATADIR,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120))
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            MERRATESTDATADIR,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+        )
 
         T = cad._merra_data
         T.sort()
@@ -85,25 +91,28 @@ def test_increasing_temp_decreasing_albedo():
 
 def test_4km_data_with_temp_model():
     """Create composite albedo data with temperature dependent
-    albedo model using 4km IMS """
+    albedo model using 4km IMS"""
     test_file = os.path.join(ALBEDOTESTDATADIR, 'nsrdb_albedo_2013_001.h5')
     with h5py.File(test_file, 'r') as f:
         data = np.array(f['surface_albedo'])
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            MERRATESTDATADIR,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120))
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            MERRATESTDATADIR,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+        )
 
-        assert np.array_equal(
-            data[cad._mask == 0], cad.albedo[cad._mask == 0])
+        assert np.array_equal(data[cad._mask == 0], cad.albedo[cad._mask == 0])
 
         assert not np.array_equal(
-            data[cad._mask == 1], cad.albedo[cad._mask == 1])
+            data[cad._mask == 1], cad.albedo[cad._mask == 1]
+        )
 
         cad.write_albedo()
         new_albedo_file = os.path.join(td, 'nsrdb_albedo_2013_001.h5')
@@ -120,11 +129,14 @@ def test_4km_data():
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120))
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+        )
 
         assert np.array_equal(data, cad.albedo)
 
@@ -143,11 +155,14 @@ def test_1km_data():
 
     d = dt(2015, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            ims_shape=(64, 50),
-                                            modis_shape=(60, 61))
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            ims_shape=(64, 50),
+            modis_shape=(60, 61),
+        )
 
         assert np.array_equal(data, cad.albedo)
 
@@ -166,12 +181,15 @@ def test_single_worker():
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120),
-                                            max_workers=1)
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+            max_workers=1,
+        )
 
         assert np.array_equal(data, cad.albedo)
 
@@ -192,12 +210,15 @@ def test_five_workers():
 
     d = dt(2013, 1, 1)
     with tempfile.TemporaryDirectory() as td:
-        cad = albedo.CompositeAlbedoDay.run(d, ALBEDOTESTDATADIR,
-                                            ALBEDOTESTDATADIR,
-                                            td,
-                                            ims_shape=(32, 25),
-                                            modis_shape=(122, 120),
-                                            max_workers=5)
+        cad = albedo.CompositeAlbedoDay.run(
+            d,
+            ALBEDOTESTDATADIR,
+            ALBEDOTESTDATADIR,
+            td,
+            ims_shape=(32, 25),
+            modis_shape=(122, 120),
+            max_workers=5,
+        )
 
         assert np.array_equal(data, cad.albedo)
 

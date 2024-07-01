@@ -6,12 +6,15 @@ from datetime import datetime as dt
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 from scipy.spatial import cKDTree
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import albedo, ims, modis
 from nsrdb.albedo import temperature_model as tm
 from nsrdb.albedo.albedo import ALBEDO_NODATA, IMS_EDGE_BUFFFER, ModisClipper
+
+pytest.importorskip('pyhdf')
 
 ALBEDOTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 source_dir = os.path.join(TESTDATADIR, 'merra2_source_files')
@@ -28,7 +31,6 @@ def calc_albedo(cad):
     mc = ModisClipper(cad._modis, cad._ims)
 
     if not os.path.exists(snow_no_snow_file):
-
         # Find snow/no snow region boundaries of IMS
         ims_bin_mskd, ims_pts = cad._get_ims_boundary(buffer=IMS_EDGE_BUFFFER)
 
@@ -44,14 +46,14 @@ def calc_albedo(cad):
 
         # Project nearest neighbors from IMS to MODIS. Array is on same grid as
         # clipped MODIS, but has snow/no snow values from binary IMS.
-        snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
-                                                 len(mc.mlon_clip))
+        snow_no_snow = ims_bin_mskd[ind].reshape(
+            len(mc.mlat_clip), len(mc.mlon_clip)
+        )
 
         with open(snow_no_snow_file, 'wb') as f:
             np.save(f, snow_no_snow)
 
     else:
-
         with open(snow_no_snow_file, 'rb') as f:
             snow_no_snow = np.load(f)
 
@@ -62,12 +64,18 @@ def calc_albedo(cad):
 
     if cad._merra_path is not None:
         cad._merra_data = tm.DataHandler.get_data(
-            cad.date, cad._merra_path, snow_no_snow,
-            mc.mlat_clip, mc.mlon_clip, avg=False,
-            fp_out=f'{td}/merra_data.csv')
+            cad.date,
+            cad._merra_path,
+            snow_no_snow,
+            mc.mlat_clip,
+            mc.mlon_clip,
+            avg=False,
+            fp_out=f'{td}/merra_data.csv',
+        )
 
         mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-            mclip_albedo, snow_no_snow, cad._merra_data)
+            mclip_albedo, snow_no_snow, cad._merra_data
+        )
     else:
         mclip_albedo[snow_no_snow == 1] = 867
     # Merge clipped composite albedo with full MODIS data
@@ -93,15 +101,15 @@ def test_albedo_model(with_temp_model=True, plot=False):
     ims_shape = (32, 25)
 
     if with_temp_model:
-        cad = albedo.CompositeAlbedoDay(d, ALBEDOTESTDATADIR,
-                                        ALBEDOTESTDATADIR, td,
-                                        source_dir)
+        cad = albedo.CompositeAlbedoDay(
+            d, ALBEDOTESTDATADIR, ALBEDOTESTDATADIR, td, source_dir
+        )
     else:
-        cad = albedo.CompositeAlbedoDay(d, ALBEDOTESTDATADIR,
-                                        ALBEDOTESTDATADIR, td)
+        cad = albedo.CompositeAlbedoDay(
+            d, ALBEDOTESTDATADIR, ALBEDOTESTDATADIR, td
+        )
 
-    cad._modis = modis.ModisDay(cad.date, cad._modis_path,
-                                shape=modis_shape)
+    cad._modis = modis.ModisDay(cad.date, cad._modis_path, shape=modis_shape)
 
     cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
 

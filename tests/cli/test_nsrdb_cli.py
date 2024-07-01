@@ -178,13 +178,9 @@ def test_cli_steps(runner, modern_config):
     gap-fill, all-sky, and collection"""
 
     config_file, _ = modern_config
-    result = runner.invoke(
-        cli.config, ['-c', config_file, '--command', 'data-model']
-    )
+    result = runner.invoke(cli.data_model, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    result = runner.invoke(
-        cli.config, ['-c', config_file, '--command', 'ml-cloud-fill']
-    )
+    result = runner.invoke(cli.ml_cloud_fill, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
@@ -192,9 +188,7 @@ def test_cli_steps(runner, modern_config):
         DataModel.ALL_VARS_ML
     )
 
-    result = runner.invoke(
-        cli.config, ['-c', config_file, '--command', 'daily-all-sky']
-    )
+    result = runner.invoke(cli.daily_all_sky, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
@@ -202,9 +196,7 @@ def test_cli_steps(runner, modern_config):
         DataModel.MLCLOUDS_VARS
     ) + sum(len(v) for v in NSRDB.OUTS.values())
 
-    result = runner.invoke(
-        cli.config, ['-c', config_file, '--command', 'collect-data-model']
-    )
+    result = runner.invoke(cli.collect_data_model, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{os.path.dirname(config_file)}/final/*.h5')) == 7
 

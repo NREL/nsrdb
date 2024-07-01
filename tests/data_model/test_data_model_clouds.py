@@ -66,13 +66,13 @@ def cloud_data():
 def test_cloud_dir():
     """Test the basic CloudVar handler functions with an incomplete cloud data
     directory."""
-    date = datetime.date(2022, 1, 4)
+    date = datetime.date(2013, 1, 1)
 
     fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
-    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/004/')
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2013/001/')
     pattern = os.path.join(cdir, fn)
 
-    msg = 'Bad number of cloud data files for 2022-01-04. Counted 6 files'
+    msg = 'Bad number of cloud data files for 2013-01-01. Counted 6 files'
     with pytest.warns(UserWarning, match=msg):
         cv = CloudVar(
             'cloud_type',

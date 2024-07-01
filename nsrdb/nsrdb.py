@@ -13,6 +13,7 @@ import datetime
 import json
 import logging
 import os
+import pprint
 import shutil
 import sys
 import time
@@ -593,14 +594,25 @@ class NSRDB:
             CONFIGDIR, 'templates/config_pipeline.json'
         )
 
-        run_name = f"{user_input['basename']}_{user_input['satellite']}"
-        run_name += f"_{user_input['extent']}_{user_input['year']}"
-        run_name += f"_{user_input['spatial']}_{user_input['freq']}"
+        run_name = '_'.join(
+            str(user_input[k])
+            for k in [
+                'basename',
+                'satellite',
+                'extent',
+                'year',
+                'spatial',
+                'freq',
+            ]
+        )
 
         user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
-        logger.info(f'Creating NSRDB config files with {user_input}')
+        logger.info(
+            'Creating NSRDB config files with:\n'
+            f'{pprint.pformat(user_input, indent=2)}'
+        )
 
         if int(user_input['year']) < 2018:
             with open(PRE2018_CONFIG_TEMPLATE, encoding='utf-8') as s:

@@ -13,6 +13,7 @@ import os
 
 import click
 from gaps import Pipeline
+from gaps.batch import BatchJob
 from gaps.cli.pipeline import pipeline as gaps_pipeline
 from rex import safe_json_load
 from rex.utilities.fun_utils import get_fun_call_str
@@ -65,18 +66,18 @@ CONFIG_TYPE = DictOrFile()
 @click.option(
     '--config',
     '-c',
-    required=True,
-    type=click.Path(exists=True),
-    help='NSRDB config file json for a single module.',
+    required=False,
+    type=CONFIG_TYPE,
+    help='NSRDB config file json or dict for a single module.',
 )
 @click.option(
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
-def main(ctx, config_file, verbose):
+def main(ctx, config, verbose):
     """NSRDB command line interface.
 
     Try using the following commands to pull up the help pages for the
@@ -84,28 +85,31 @@ def main(ctx, config_file, verbose):
 
         $ nsrdb --help
 
-        $ nsrdb -c config.json pipeline --help
+        $ nsrdb pipeline --help
 
-        $ nsrdb -c config.json data-model --help
+        $ nsrdb data-model --help
 
-        $ nsrdb -c config.json ml-cloud-fill --help
+        $ nsrdb ml-cloud-fill --help
 
-        $ nsrdb -c config.json daily-all-sky --help
+        $ nsrdb daily-all-sky --help
 
-        $ nsrdb -c config.json collect-data-model --help
+        $ nsrdb collect-data-model --help
 
-    Typically, a good place to start is to set up a sup3r job with a pipeline
+    Typically, a good place to start is to set up an nsrdb job with a pipeline
     config that points to several NSRDB modules that you want to run in serial.
     You would call the NSRDB pipeline CLI using::
 
-        $ nsrdb -c config_pipeline.json pipeline
+        $ nsrdb pipeline -c config_pipeline.json
 
     See the help pages of the module CLIs for more details on the config files
     for each CLI.
     """
     ctx.ensure_object(dict)
-    ctx.obj['CONFIG_FILE'] = config_file
+    ctx.obj['CONFIG'] = config
     ctx.obj['VERBOSE'] = verbose
+    ctx.obj['LOG_LEVEL'] = 'DEBUG' if verbose else 'INFO'
+
+    init_logger('nsrdb.cli', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
 
 
 @main.group(invoke_without_command=True)
@@ -139,42 +143,79 @@ def main(ctx, config_file, verbose):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def pipeline(ctx, config, cancel, monitor, background, verbose):
-    """Run NSRDB pipeline from a pipeline config file."""
+    """Execute multiple steps in an NSRDB pipeline.
+
+    Typically, a good place to start is to set up an nsrdb job with a pipeline
+    config that points to several NSRDB modules that you want to run in serial.
+    You would call the nsrdb pipeline CLI using::
+
+        $ nsrdb -c config_pipeline.json pipeline
+
+    A typical nsrdb pipeline config.json file might look like this::
+
+        \b
+        {
+            "logging": {"log_level": "DEBUG"},
+            "pipeline": [
+                {"data-model": "./config_nsrdb.json"},
+                {"ml-cloud-fill": "./config_nsrdb.json"},
+                {"daily-all-sky": "./config_nsrdb.json"},
+                {"collect-data-model": "./config_nsrdb.json"},
+            ]
+        }
+
+    See the other CLI help pages for what the respective module configs
+    require.
+    """  # noqa: D301
 
     ctx.ensure_object(dict)
     ctx.obj['VERBOSE'] = verbose or ctx.obj.get('VERBOSE', False)
     gaps_pipeline(config, cancel, monitor, background)
 
 
+create_configs_help = """
+    Either a path to a .json config file or a dictionary.
+    Needs to include at least a "year" key. If input is a dictionary the
+    dictionary needs to provided in a string format::
+
+        $ '{"year": 2019, "freq": "5min"}'
+
+    \b
+    Available keys:
+        year (year to run),
+        freq (target time step. e.g. "5min"),
+        outdir (parent directory for run directory),
+        satellite (east/west),
+        spatial (meta file resolution, e.g. "2km" or "4km"),
+        extent (full/conus),
+        basename (string to prepend to files and job names),
+        meta_file (e.g. "surfrad_meta.csv". Auto populated if None.),
+        doy_range (All days of year if None).
+
+    \b
+    default_kwargs = {
+        "basename": "nsrdb",
+        "freq": "5min",
+        "satellite": "east",
+        "extent": "conus",
+        "outdir": "./",
+        "spatial": "4km",
+        "meta_file" : None,
+        "doy_range": None
+    }
+"""
+
+
 @main.command()
 @click.option(
-    '--config',
-    '-c',
-    required=True,
-    type=CONFIG_TYPE,
-    help='Either a path to a config file or a dictionary. '
-    'Needs to include year. If a dictionary it needs to be provided '
-    'in a string format. e.g. \'{"year":2019, "freq":"5min"}\'. '
-    '\n\nAvailable keys: '
-    'year, freq, outdir (parent directory for run directory), '
-    'satellite (east/west), '
-    'spatial (meta file resolution), '
-    'extent (full/conus), '
-    'basename (file prefix), '
-    'meta_file. (auto populated if None), '
-    'doy_range (all days of year if None).'
-    '\n\ndefault_kwargs = {"basename": "nsrdb", '
-    '"freq": "5min", "satellite": "east", '
-    '"extent": "conus", "outdir": "./", '
-    '"spatial": "4km", "meta_file" : None, '
-    '"doy_range": None}',
+    '--config', '-c', required=True, type=CONFIG_TYPE, help=create_configs_help
 )
 @click.option(
-    '-all_domains',
+    '--all_domains',
     '-ad',
     is_flag=True,
     help=(
@@ -199,61 +240,6 @@ def create_configs(ctx, config, all_domains=False):
 @click.option(
     '--config',
     '-c',
-    required=True,
-    type=CONFIG_TYPE,
-    help='Path to .json config file or str rep of dictionary.',
-)
-@click.option(
-    '--command',
-    '-cmd',
-    type=str,
-    required=True,
-    help='NSRDB CLI command string.',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-@click.pass_context
-def config(ctx, config, command, verbose=False):
-    """NSRDB processing CLI from config json file."""
-
-    ctx.ensure_object(dict)
-    config_dict = safe_json_load(config)
-    direct = config_dict.get('direct', {})
-    msg = 'Config must include "freq" key.'
-    assert 'freq' in config_dict or 'freq' in direct, msg
-    nsrdb_freq = config_dict.get('freq', direct['freq'])
-    ts_freq_check(nsrdb_freq)
-
-    ctx.obj['LOG_LEVEL'] = 'DEBUG' if verbose else 'INFO'
-
-    init_logger('nsrdb.cli', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
-
-    if command == 'data-model':
-        ctx.invoke(data_model, config=config, verbose=verbose)
-    elif command == 'ml-cloud-fill':
-        ctx.invoke(ml_cloud_fill, config=config, verbose=verbose)
-    elif command == 'daily-all-sky':
-        ctx.invoke(daily_all_sky, config=config, verbose=verbose)
-    elif command == 'collect-data-model':
-        ctx.invoke(collect_data_model, config=config, verbose=verbose)
-    elif command == 'cloud-fill':
-        ctx.invoke(cloud_fill, config=config, verbose=verbose)
-    elif command == 'all-sky':
-        ctx.invoke(all_sky, config=config, verbose=verbose)
-    elif command == 'collect-final':
-        ctx.invoke(collect_final, config=config, verbose=verbose)
-    else:
-        raise KeyError('Command not recognized: "{}"'.format(command))
-
-
-@main.group()
-@click.option(
-    '--config',
-    '-c',
     type=CONFIG_TYPE,
     required=True,
     help='Path to config file or dict of kwargs for NSRDB.run_data_model()',
@@ -262,22 +248,84 @@ def config(ctx, config, command, verbose=False):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def data_model(ctx, config, verbose=False, pipeline_step=None):
-    """Run daily data model and save output files."""
+    """Run daily data-model and save output files.
+
+    You would call the nsrdb data-model module using::
+
+        $ nsrdb -c config.json data-model
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "collect-data-model": {...},
+            "daily-all-sky": {...},
+            "data-model": {
+                "dist_lim": 2.0,
+                "doy_range": [1, 367],
+                "factory_kwargs": {
+                  "cld_opd_dcomp": ...
+                  "cld_press_acha": ...
+                  "cld_reff_dcomp": ...
+                  "cloud_fraction": ...
+                  "cloud_probability": ...
+                  "cloud_type": ...
+                  "refl_0_65um_nom": ...
+                  "refl_0_65um_nom_stddev_3x3": ...
+                  "refl_3_75um_nom": ...
+                  "surface_albedo": ...
+                  "temp_11_0um_nom": ...
+                  "temp_11_0um_nom_stddev_3x3": ...
+                  "temp_3_75um_nom": ...
+                },
+                "max_workers": null,
+                "max_workers_regrid": 16,
+                "mlclouds": true
+            },
+            "direct": {
+                "log_level": "INFO",
+                "name": ...
+                "freq": "5min"
+                "grid": "/projects/pxs/reference_grids/surfrad_meta.csv,
+                "out_dir": "./",
+                "max_workers": 32,
+                "year": "2018"
+            },
+            "execution_control": {
+                "option": "kestrel",
+                "alloc": "pxs",
+                "feature": "--qos=normal",
+                "walltime": 40
+            },
+            "ml-cloud-fill": {...}
+        }
+
+    See the other CLI help pages for what the respective module configs
+    require.
+    """  # noqa: D301
+
+    config_dict = safe_json_load(config) if isinstance(config, str) else config
+    direct = config_dict.get('direct', {})
+    msg = 'Config must include "freq" key.'
+    assert 'freq' in config_dict or 'freq' in direct, msg
+    nsrdb_freq = config_dict.get('freq', direct['freq'])
+    ts_freq_check(nsrdb_freq)
+
     BaseCLI.kickoff_multiday(
+        ctx=ctx,
         module_name=ModuleName.DATA_MODEL,
         func=NSRDB.run_data_model,
         config=config,
-        ctx=ctx,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -289,22 +337,51 @@ def data_model(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def ml_cloud_fill(ctx, config, verbose=False, pipeline_step=None):
-    """Gap fill cloud properties using mlclouds."""
+    """Gap fill cloud properties using mlclouds.
+
+    You would call the nsrdb ml-cloud-fill module using::
+
+        $ nsrdb -c config.json ml-cloud-fill
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "collect-data-model": {...},
+            "daily-all-sky": {...},
+            "data-model": {...},
+            "direct": {...},
+            "execution_control": {
+                "option": "kestrel",
+                "alloc": "pxs",
+                "feature": "--qos=normal",
+                "walltime": 40
+            },
+            "ml-cloud-fill": {
+                "col_chunk": 10000,
+                "fill_all": false,
+                "max_workers": 4
+            }
+        }
+
+    See the other CLI help pages for what the respective module configs
+    require.
+    """  # noqa: D301
     BaseCLI.kickoff_multiday(
+        ctx=ctx,
         module_name=ModuleName.ML_CLOUD_FILL,
         func=NSRDB.ml_cloud_fill,
         config=config,
-        ctx=ctx,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -319,22 +396,50 @@ def ml_cloud_fill(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def daily_all_sky(ctx, config, verbose=False, pipeline_step=None):
-    """Run all-sky physics model on daily data model output."""
+    """Run all-sky physics model on daily data-model output.
+
+    You would call the nsrdb daily-all-sky module using::
+
+        $ nsrdb -c config.json daily-all-sky
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "collect-data-model": {...},
+            "daily-all-sky": {
+                "disc_on": false,
+                "out_dir": "./all_sky",
+                "year": 2018,
+                "grid": "/projects/pxs/reference_grids/surfrad_meta.csv",
+                "freq": "5min"
+            },
+            "data-model": {...},
+            "direct": {...},
+            "execution_control": {
+                "option": "kestrel",
+                "alloc": "pxs",
+                "feature": "--qos=normal",
+                "walltime": 40
+            },
+            "ml-cloud-fill": {...}
+        }
+    """  # noqa : D301
     BaseCLI.kickoff_multiday(
-        ModuleName.DAILY_ALL_SKY,
+        ctx=ctx,
+        module_name=ModuleName.DAILY_ALL_SKY,
         func=NSRDB.run_daily_all_sky,
         config=config,
-        ctx=ctx,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -346,17 +451,17 @@ def daily_all_sky(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
-    """Gap fill cloud properties in a collect data model output file, using
+    """Gap fill cloud properties in a collect-data-model output file, using
     legacy gap-fill method."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.CLOUD_FILL,
-        config=config,
         ctx=ctx,
+        module_name=ModuleName.CLOUD_FILL,
+        config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
@@ -377,10 +482,12 @@ def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.gap_fill_clouds, config)
 
-        BaseCLI.kickoff_job(ModuleName.CLOUD_FILL, config, ctx)
+        BaseCLI.kickoff_job(
+            ctx=ctx, module_name=ModuleName.CLOUD_FILL, config=config
+        )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -392,15 +499,15 @@ def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def all_sky(ctx, config, verbose=False, pipeline_step=None):
     """Run all-sky physics model on collected data model output files."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.ALL_SKY,
         ctx=ctx,
+        module_name=ModuleName.ALL_SKY,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -419,10 +526,12 @@ def all_sky(ctx, config, verbose=False, pipeline_step=None):
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.run_all_sky, config)
 
-        BaseCLI.kickoff_job(ModuleName.ALL_SKY, config, ctx)
+        BaseCLI.kickoff_job(
+            ctx=ctx, module_name=ModuleName.ALL_SKY, config=config
+        )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -437,14 +546,43 @@ def all_sky(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
-    """Collect data model output files to a single site-chunked output file."""
+    """Collect data-model output files to a single site-chunked output file.
+
+    You would call the nsrdb collect-data-model module using::
+
+        $ nsrdb -c config.json collect-data-model
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "collect-data-model": {
+                "final": true,
+                "max_workers": 10,
+                "n_chunks": 1,
+                "memory": 178,
+                "n_writes": 1,
+                "walltime": 48
+            },
+            "daily-all-sky": {...},
+            "data-model": {...},
+            "direct": {...},
+            "execution_control": {
+                "option": "kestrel",
+                "alloc": "pxs",
+                "feature": "--qos=normal",
+                "walltime": 40
+            },
+            "ml-cloud-fill": {...}
+        }
+    """  # noqa : D301
     config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_DATA_MODEL,
         ctx=ctx,
+        module_name=ModuleName.COLLECT_DATA_MODEL,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -483,10 +621,12 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_data_model, config)
 
-        BaseCLI.kickoff_job(ModuleName.COLLECT_DATA_MODEL, config, ctx)
+        BaseCLI.kickoff_job(
+            ctx=ctx, module_name=ModuleName.COLLECT_DATA_MODEL, config=config
+        )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -498,15 +638,15 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def collect_final(ctx, config, verbose=False, pipeline_step=None):
     """Collect chunked files with final data into final full files."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_FINAL,
         ctx=ctx,
+        module_name=ModuleName.COLLECT_FINAL,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -525,10 +665,12 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
         ctx.obj['LOG_ARG_STR'] = log_arg_str_i
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
-        BaseCLI.kickoff_job(ModuleName.COLLECT_FINAL, config, ctx)
+        BaseCLI.kickoff_job(
+            ctx=ctx, module_name=ModuleName.COLLECT_FINAL, config=config
+        )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -540,7 +682,7 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def blend(ctx, config, verbose=False, pipeline_step=None):
@@ -548,13 +690,17 @@ def blend(ctx, config, verbose=False, pipeline_step=None):
     domain."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.BLEND, ctx, config, verbose, pipeline_step=pipeline_step
+        ctx=ctx,
+        module_name=ModuleName.BLEND,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
     )
     ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.blend_files, config)
-    BaseCLI.kickoff_job(ModuleName.BLEND, config, ctx)
+    BaseCLI.kickoff_job(ctx=ctx, module_name=ModuleName.BLEND, config=config)
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -566,24 +712,26 @@ def blend(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 def collect_blended(ctx, config, verbose=False, pipeline_step=None):
     """Collect blended data chunks into a single file."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_BLENDED,
-        ctx,
-        config,
-        verbose,
+        module_name=ModuleName.COLLECT_BLENDED,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
     ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_blended, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_BLENDED, config, ctx)
+    BaseCLI.kickoff_job(
+        ctx=ctx, module_name=ModuleName.COLLECT_BLENDED, config=config
+    )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -595,26 +743,30 @@ def collect_blended(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 @click.pass_context
 def aggregate(ctx, config, verbose=False, pipeline_step=None):
     """Aggregate data files to a lower resolution.
 
-    Note
-    ----
-    Used to create data files from high-resolution years (2018+) which match
-    resolution of low-resolution years (pre 2018)
+    NOTE: Used to create data files from high-resolution years (2018+) which
+    match resolution of low-resolution years (pre 2018)
     """
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.AGGREGATE, ctx, config, verbose, pipeline_step=pipeline_step
+        ctx=ctx,
+        module_name=ModuleName.AGGREGATE,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
     )
     ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.aggregate_files, config)
-    BaseCLI.kickoff_job(ModuleName.AGGREGATE, config, ctx)
+    BaseCLI.kickoff_job(
+        ctx=ctx, module_name=ModuleName.AGGREGATE, config=config
+    )
 
 
-@main.group()
+@main.command()
 @click.option(
     '--config',
     '-c',
@@ -626,21 +778,107 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None):
     '-v',
     '--verbose',
     is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
+    help='Flag to turn on debug logging. Default is False.',
 )
 def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
     """Collect aggregated data chunks."""
 
     config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_AGG,
-        ctx,
-        config,
-        verbose,
+        module_name=ModuleName.COLLECT_AGG,
+        ctx=ctx,
+        config=config,
+        verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
     ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_aggregation, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_AGG, config, ctx)
+    BaseCLI.kickoff_job(
+        ctx=ctx, module_name=ModuleName.COLLECT_AGG, config=config
+    )
+
+
+@main.group(invoke_without_command=True)
+@click.option(
+    '--config',
+    '-c',
+    required=True,
+    type=click.Path(exists=True),
+    help='NSRDB batch configuration json or csv file.',
+)
+@click.option(
+    '--dry-run',
+    is_flag=True,
+    help='Flag to do a dry run (make batch dirs without running).',
+)
+@click.option(
+    '--cancel',
+    is_flag=True,
+    help='Flag to cancel all jobs associated with a given pipeline.',
+)
+@click.option(
+    '--delete',
+    is_flag=True,
+    help='Flag to delete all batch job sub directories associated '
+    'with the batch_jobs.csv in the current batch config directory.',
+)
+@click.option(
+    '--monitor-background',
+    is_flag=True,
+    help='Flag to monitor all batch pipelines continuously '
+    'in the background using the nohup command. Note that the '
+    'stdout/stderr will not be captured, but you can set a '
+    'pipeline "log_file" to capture logs.',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is False.',
+)
+@click.pass_context
+def batch(
+    ctx, config, dry_run, cancel, delete, monitor_background, verbose=False
+):
+    """Create and run multiple NSRDB project directories based on batch
+    permutation logic.
+
+    The NSRDB batch module (built on the gaps batch functionality) is a way to
+    create and run many NSRDB pipeline projects based on permutations of
+    key-value pairs in the run config files. A user configures the batch file
+    by creating one or more "sets" that contain one or more arguments (keys
+    found in config files) that are to be parameterized. For example, in the
+    config below, two NSRDB pipelines will be created where year is set to
+    2020 and 2021 in config_nsrdb.json::
+
+        \b
+        {
+            "pipeline_config": "./config_pipeline.json",
+            "sets": [
+              {
+                "args": {
+                  "year": [2020, 2021],
+                },
+                "files": ["./config_nsrdb.json"],
+                "set_tag": "set1"
+              }
+        }
+
+    Run the batch module with::
+
+        $ nsrdb -c config_batch.json batch
+
+    Note that you can use multiple "sets" to isolate parameter permutations.
+    """  # noqa : D301
+    ctx.ensure_object(dict)
+    ctx.obj['VERBOSE'] = verbose or ctx.obj.get('VERBOSE', False)
+    batch = BatchJob(config)
+
+    if cancel:
+        batch.cancel()
+    elif delete:
+        batch.delete()
+    else:
+        batch.run(dry_run=dry_run, monitor_background=monitor_background)
 
 
 Pipeline.COMMANDS[ModuleName.DATA_MODEL] = data_model

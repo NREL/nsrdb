@@ -34,7 +34,7 @@ dependencies = [
   "NREL-farms>=1.0.5",
   "scikit-learn>=1.0",
   "NREL-rest2>=1.0.2",
-  "NREL-mlclouds>=0.0.2",
+  "NREL-mlclouds>=0.0.1",
 ]
 
 [project.optional-dependencies]

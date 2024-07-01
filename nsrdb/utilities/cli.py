@@ -17,7 +17,7 @@ from nsrdb import NSRDB
 from nsrdb.utilities import ModuleName
 
 logger = logging.getLogger(__name__)
-AVAILABLE_HARDWARE_OPTIONS = ('kestrel', 'eagle', 'slurm', 'hpc')
+AVAILABLE_HARDWARE_OPTIONS = ('kestrel', 'slurm', 'local')
 
 IMPORT_STR = (
     'from nsrdb.nsrdb import NSRDB;\n'
@@ -79,16 +79,16 @@ class BaseCLI:
 
     @classmethod
     def from_config_preflight(
-        cls, module_name, ctx, config, verbose, pipeline_step=None
+        cls, ctx, module_name, config, verbose, pipeline_step=None
     ):
         """Parse conifg file prior to running nsrdb module.
 
         Parameters
         ----------
-        module_name : str
-            Module name string from :class:`nsrdb.utilities.ModuleName`.
         ctx : click.pass_context
             Click context object where ctx.obj is a dictionary
+        module_name : str
+            Module name string from :class:`nsrdb.utilities.ModuleName`.
         config : str
             Path to config file or dictionary providing all needed inputs to
             module_class
@@ -176,9 +176,10 @@ class BaseCLI:
     @classmethod
     def kickoff_slurm_job(
         cls,
-        module_name,
         ctx,
+        module_name,
         cmd,
+        option='kestrel',
         alloc='nsrdb',
         memory=None,
         walltime=4,
@@ -189,13 +190,15 @@ class BaseCLI:
 
         Parameters
         ----------
-        module_name : str
-            Module name string from :class:`nsrdb.utilities.ModuleName`.
         ctx : click.pass_context
             Click context object where ctx.obj is a dictionary
+        module_name : str
+            Module name string from :class:`nsrdb.utilities.ModuleName`.
         cmd : str
             Command to be submitted in SLURM shell script. Example:
                 'python -m nsrdb.cli <module_name> -c <config>'
+        option : str
+            Hardware option. e.g. "kestrel" or "slurm".
         alloc : str
             HPC project (allocation) handle. Example: 'nsrdb'.
         memory : int
@@ -270,22 +273,22 @@ class BaseCLI:
                 pipeline_step=pipeline_step,
                 job_name=name,
                 replace=True,
-                job_attrs={'job_id': out, 'hardware': 'hpc'},
+                job_attrs={'job_id': out, 'hardware': option},
             )
 
         click.echo(msg)
         logger.info(msg)
 
     @classmethod
-    def kickoff_local_job(cls, module_name, ctx, cmd):
+    def kickoff_local_job(cls, ctx, module_name, cmd):
         """Run nsrdb module locally.
 
         Parameters
         ----------
-        module_name : str
-            Module name string from :class:`nsrdb.utilities.ModuleName`.
         ctx : click.pass_context
             Click context object where ctx.obj is a dictionary
+        module_name : str
+            Module name string from :class:`nsrdb.utilities.ModuleName`.
         cmd : str
             Command to be submitted in shell script. Example:
                 'python -m nsrdb.cli <module_name> -c <config>'
@@ -377,18 +380,18 @@ class BaseCLI:
         return cmd.replace('\\', '/')
 
     @classmethod
-    def kickoff_job(cls, module_name, config, ctx):
+    def kickoff_job(cls, ctx, module_name, config):
         """Run nsrdb module either locally or on HPC.
 
         Parameters
         ----------
+        ctx : click.pass_context
+            Click context object where ctx.obj is a dictionary
         module_name : str
             Module name string from :class:`nsrdb.utilities.ModuleName`.
         config : dict
             nsrdb config with all necessary args and kwargs to run given
             module.
-        ctx : click.pass_context
-            Click context object where ctx.obj is a dictionary
         """
         import_str = ctx.obj['IMPORT_STR']
         log_arg_str = ctx.obj['LOG_ARG_STR']
@@ -396,6 +399,7 @@ class BaseCLI:
         pipeline_step = ctx.obj['PIPELINE_STEP']
         exec_kwargs = config.get('execution_control', {})
         hardware_option = exec_kwargs.get('option', 'local')
+
         cmd = (
             f"python -c '{import_str}\n"
             't0 = time.time();\n'
@@ -407,18 +411,20 @@ class BaseCLI:
         cmd += cls.get_status_cmd(config, pipeline_step)
 
         if hardware_option == 'local':
-            cls.kickoff_local_job(module_name, ctx, cmd)
+            cls.kickoff_local_job(ctx, module_name, cmd)
         else:
-            cls.kickoff_slurm_job(module_name, ctx, cmd, **exec_kwargs)
+            cls.kickoff_slurm_job(ctx, module_name, cmd, **exec_kwargs)
 
     @classmethod
     def kickoff_multiday(
-        cls, module_name, func, config, ctx, verbose, pipeline_step=None
+        cls, ctx, module_name, func, config, verbose, pipeline_step=None
     ):
         """Kick off jobs for multiple days.
 
         Parameters
         ----------
+        ctx : click.pass_context
+            Click context object where ctx.obj is a dictionary
         module_name : str
             Module name string from :class:`nsrdb.utilities.ModuleName`.
         func : Callable
@@ -426,8 +432,6 @@ class BaseCLI:
         config : str | dict
             Path to nsrdb config file or a dictionary with all necessary args
             and kwargs to run given module
-        ctx : click.pass_context
-            Click context object where ctx.obj is a dictionary
         verbose : bool
             Flag to turn on debug logging
         pipeline_step : str, optional
@@ -469,4 +473,4 @@ class BaseCLI:
             ctx.obj['FUN_STR'] = get_fun_call_str(func, config_dict)
             ctx.obj['NAME'] = config_dict['job_name']
 
-            cls.kickoff_job(module_name, config_dict, ctx)
+            cls.kickoff_job(ctx, module_name, config_dict)

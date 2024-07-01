@@ -5,6 +5,7 @@ Created on Jan 17th 2020
 
 @author: mbannist
 """
+
 import os
 import tempfile
 from datetime import datetime as dt
@@ -13,7 +14,7 @@ import pytest
 
 from nsrdb.utilities.pytest import execute_pytest
 
-pytest.importorskip("pyhdf")
+pytest.importorskip('pyhdf')
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import modis
 from nsrdb.albedo.ims import get_dt
@@ -36,27 +37,42 @@ def test_first_year():
     with tempfile.TemporaryDirectory() as td:
         # Grab 62/2001 for 62/2000
         mfa = modis.ModisFileAcquisition(d1, td)
-        assert mfa.filename == ('MCD43GF_wsa_shortwave_{}_{}_V006.hdf'
-                                ''.format(early_day_str, modis.FIRST_YEAR + 1))
+        assert mfa.filename == (
+            'MCD43GF_wsa_shortwave_{}_{}_V006.hdf' ''.format(
+                early_day_str, modis.FIRST_YEAR + 1
+            )
+        )
 
         # Grab 62/2001 for 62/1999
         mfa = modis.ModisFileAcquisition(d2, td)
-        assert mfa.filename == ('MCD43GF_wsa_shortwave_{}_{}_V006.hdf'
-                                ''.format(early_day_str, modis.FIRST_YEAR + 1))
+        assert mfa.filename == (
+            'MCD43GF_wsa_shortwave_{}_{}_V006.hdf' ''.format(
+                early_day_str, modis.FIRST_YEAR + 1
+            )
+        )
 
         # Grab 63/2000 for 63/1999
         mfa = modis.ModisFileAcquisition(d3, td)
-        assert mfa.filename == ('MCD43GF_wsa_shortwave_{}_{}_V006.hdf'
-                                ''.format(first_day_str, modis.FIRST_YEAR))
+        assert mfa.filename == (
+            'MCD43GF_wsa_shortwave_{}_{}_V006.hdf' ''.format(
+                first_day_str, modis.FIRST_YEAR
+            )
+        )
 
         # Grab 63/2000 for 63/2000
         mfa = modis.ModisFileAcquisition(d4, td)
-        assert mfa.filename == ('MCD43GF_wsa_shortwave_{}_{}_V006.hdf'
-                                ''.format(first_day_str, modis.FIRST_YEAR))
+        assert mfa.filename == (
+            'MCD43GF_wsa_shortwave_{}_{}_V006.hdf' ''.format(
+                first_day_str, modis.FIRST_YEAR
+            )
+        )
         # Grab 100/2000 for 100/2000
         mfa = modis.ModisFileAcquisition(d5, td)
-        assert mfa.filename == ('MCD43GF_wsa_shortwave_{}_{}_V006.hdf'
-                                ''.format(100, modis.FIRST_YEAR))
+        assert mfa.filename == (
+            'MCD43GF_wsa_shortwave_{}_{}_V006.hdf' ''.format(
+                100, modis.FIRST_YEAR
+            )
+        )
 
 
 def test_last_year():
@@ -70,25 +86,35 @@ def test_last_year():
         assert mfa.filename == 'MCD43GF_wsa_shortwave_233_2016_V006.hdf'
 
         mfa = modis.ModisFileAcquisition(d2, td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_123_' + \
-                               f'{modis.LAST_YEAR}_V006.hdf'
+        assert (
+            mfa.filename
+            == 'MCD43GF_wsa_shortwave_123_' + f'{modis.LAST_YEAR}_V006.hdf'
+        )
 
         mfa = modis.ModisFileAcquisition(d3, td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_110_' + \
-                               f'{modis.LAST_YEAR}_V006.hdf'
+        assert (
+            mfa.filename
+            == 'MCD43GF_wsa_shortwave_110_' + f'{modis.LAST_YEAR}_V006.hdf'
+        )
 
         # Verify leap years after 2017 are handled properly
         mfa = modis.ModisFileAcquisition(get_dt(2020, 1), td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_001_' + \
-                               f'{modis.LAST_YEAR}_V006.hdf'
+        assert (
+            mfa.filename
+            == 'MCD43GF_wsa_shortwave_001_' + f'{modis.LAST_YEAR}_V006.hdf'
+        )
 
         mfa = modis.ModisFileAcquisition(get_dt(2020, 365), td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_365_' + \
-                               f'{modis.LAST_YEAR}_V006.hdf'
+        assert (
+            mfa.filename
+            == 'MCD43GF_wsa_shortwave_365_' + f'{modis.LAST_YEAR}_V006.hdf'
+        )
 
         mfa = modis.ModisFileAcquisition(get_dt(2020, 366), td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_365_' + \
-                               f'{modis.LAST_YEAR}_V006.hdf'
+        assert (
+            mfa.filename
+            == 'MCD43GF_wsa_shortwave_365_' + f'{modis.LAST_YEAR}_V006.hdf'
+        )
 
 
 def test_not_implemented_dl():

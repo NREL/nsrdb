@@ -66,8 +66,8 @@
     "out_dir": "./",
     "year": "%year%"
   },
-  "execution": {
-    "option": "hpc",
+  "execution_control": {
+    "option": "kestrel",
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 4
