@@ -195,129 +195,6 @@ def create_configs(ctx, config, all_domains=False):
         NSRDB.create_config_files(config)
 
 
-@main.group()
-@click.option(
-    '--config',
-    '-c',
-    type=str,
-    required=True,
-    help='Path to config file with kwargs for NSRDB.blend_files()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-@click.pass_context
-def blend(ctx, config, verbose=False, pipeline_step=None):
-    """Blend files from separate domains (e.g. east / west) into a single
-    domain."""
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.BLEND, ctx, config, verbose, pipeline_step=pipeline_step
-    )
-    log_level = config.get('log_level', 'INFO')
-    log_arg_str = f'"nsrdb", log_level="{log_level}"'
-    log_file = config.get('log_file', None)
-
-    if log_file is not None:
-        log_arg_str += f', log_file="{log_file}"'
-
-    ctx.obj['LOG_ARG_STR'] = log_arg_str
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.blend_files, config)
-    BaseCLI.kickoff_job(ModuleName.BLEND, config, ctx)
-
-
-@main.group()
-@click.option(
-    '--config',
-    '-c',
-    type=str,
-    required=True,
-    help='Path to config file with kwargs for NSRDB.collect_blended()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-def collect_blended(ctx, config, verbose=False, pipeline_step=None):
-    """Collect blended data chunks into a single file."""
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_BLENDED,
-        ctx,
-        config,
-        verbose,
-        pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_blended, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_BLENDED, config, ctx)
-
-
-@main.group()
-@click.option(
-    '--config',
-    '-c',
-    type=str,
-    required=True,
-    help='Path to config file with kwargs for NSRDB.aggregate_files()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-@click.pass_context
-def aggregate(ctx, config, verbose=False, pipeline_step=None):
-    """Aggregate data files to a lower resolution.
-
-    Note
-    ----
-    Used to create data files from high-resolution years (2018+) which match
-    resolution of low-resolution years (pre 2018)
-    """
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.AGGREGATE, ctx, config, verbose, pipeline_step=pipeline_step
-    )
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.aggregate_files, config)
-    BaseCLI.kickoff_job(ModuleName.AGGREGATE, config, ctx)
-
-
-@main.group()
-@click.option(
-    '--config',
-    '-c',
-    type=str,
-    required=True,
-    help='Path to config file with kwargs for NSRDB.collect_aggregation()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is not verbose.',
-)
-def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
-    """Collect aggregated data chunks."""
-
-    config = BaseCLI.from_config_preflight(
-        ModuleName.COLLECT_AGG,
-        ctx,
-        config,
-        verbose,
-        pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_aggregation, config)
-    BaseCLI.kickoff_job(ModuleName.COLLECT_AGG, config, ctx)
-
-
 @main.command()
 @click.option(
     '--config',
@@ -649,6 +526,121 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
         ctx.obj['NAME'] = config['job_name']
         ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
         BaseCLI.kickoff_job(ModuleName.COLLECT_FINAL, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.blend_files()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def blend(ctx, config, verbose=False, pipeline_step=None):
+    """Blend files from separate domains (e.g. east / west) into a single
+    domain."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.BLEND, ctx, config, verbose, pipeline_step=pipeline_step
+    )
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.blend_files, config)
+    BaseCLI.kickoff_job(ModuleName.BLEND, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.collect_blended()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+def collect_blended(ctx, config, verbose=False, pipeline_step=None):
+    """Collect blended data chunks into a single file."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_BLENDED,
+        ctx,
+        config,
+        verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_blended, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_BLENDED, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.aggregate_files()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+@click.pass_context
+def aggregate(ctx, config, verbose=False, pipeline_step=None):
+    """Aggregate data files to a lower resolution.
+
+    Note
+    ----
+    Used to create data files from high-resolution years (2018+) which match
+    resolution of low-resolution years (pre 2018)
+    """
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.AGGREGATE, ctx, config, verbose, pipeline_step=pipeline_step
+    )
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.aggregate_files, config)
+    BaseCLI.kickoff_job(ModuleName.AGGREGATE, config, ctx)
+
+
+@main.group()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for NSRDB.collect_aggregation()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is not verbose.',
+)
+def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
+    """Collect aggregated data chunks."""
+
+    config = BaseCLI.from_config_preflight(
+        ModuleName.COLLECT_AGG,
+        ctx,
+        config,
+        verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_aggregation, config)
+    BaseCLI.kickoff_job(ModuleName.COLLECT_AGG, config, ctx)
 
 
 Pipeline.COMMANDS[ModuleName.DATA_MODEL] = data_model
