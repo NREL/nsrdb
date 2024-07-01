@@ -178,31 +178,28 @@ def test_cli_steps(runner, modern_config):
     gap-fill, all-sky, and collection"""
 
     config_file, _ = modern_config
+    out_dir = os.path.dirname(config_file)
     result = runner.invoke(cli.data_model, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     result = runner.invoke(cli.ml_cloud_fill, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
-    assert len(glob(f'{os.path.dirname(config_file)}/daily/*.h5')) == 2 + len(
-        DataModel.ALL_VARS_ML
-    )
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(DataModel.ALL_VARS_ML)
 
     result = runner.invoke(cli.daily_all_sky, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
-    assert len(glob(f'{os.path.dirname(config_file)}/daily/*.h5')) == 1 + len(
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 1 + len(
         DataModel.MLCLOUDS_VARS
     ) + sum(len(v) for v in NSRDB.OUTS.values())
 
     result = runner.invoke(cli.collect_data_model, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    assert len(glob(f'{os.path.dirname(config_file)}/final/*.h5')) == 7
+    assert len(glob(f'{out_dir}/final/*.h5')) == 7
 
-    status_files = glob(
-        os.path.dirname(config_file) + '/.gaps/jobstatus*.json'
-    )
+    status_files = glob(out_dir + '/.gaps/jobstatus*.json')
     status_dicts = [safe_json_load(sf) for sf in status_files]
     for sd in status_dicts:
         assert all('successful' in str(vals) for vals in sd.values())
@@ -211,7 +208,9 @@ def test_cli_steps(runner, modern_config):
 def test_cli_pipeline(runner, modern_config):
     """Test cli for pipeline, run using cli.pipeline"""
 
-    _, pipeline_file = modern_config
+    config_file, pipeline_file = modern_config
+    config = safe_json_load(config_file)
+    out_dir = os.path.dirname(pipeline_file)
 
     # data-model
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
@@ -222,30 +221,34 @@ def test_cli_pipeline(runner, modern_config):
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
-    assert len(
-        glob(f'{os.path.dirname(pipeline_file)}/daily/*.h5')
-    ) == 2 + len(DataModel.ALL_VARS_ML)
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(DataModel.ALL_VARS_ML)
 
     # all-sky
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
-    assert len(
-        glob(f'{os.path.dirname(pipeline_file)}/daily/*.h5')
-    ) == 1 + len(DataModel.MLCLOUDS_VARS) + sum(
-        len(v) for v in NSRDB.OUTS.values()
-    )
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 1 + len(
+        DataModel.MLCLOUDS_VARS
+    ) + sum(len(v) for v in NSRDB.OUTS.values())
 
     # data collection
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7
+    final_files = glob(f'{out_dir}/final/*.h5')
+    final_files = sorted([os.path.basename(f) for f in final_files])
+    assert (
+        sorted(
+            f.format(y=config['direct']['year'])
+            for f in sorted(NSRDB.OUTS.keys())
+        )
+        == final_files
+    )
 
     # final status file update
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
 
-    status_file = glob(os.path.dirname(pipeline_file) + '/.gaps/*.json')[0]
+    status_file = glob(out_dir + '/.gaps/*.json')[0]
     status_dict = safe_json_load(status_file)
     assert all('successful' in str(vals) for vals in status_dict.values())
 
@@ -254,7 +257,9 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     """Test cli for pipeline, run using cli.pipeline. Uses legacy gap-fill
     method"""
 
-    _, pipeline_file = legacy_config
+    config_file, pipeline_file = legacy_config
+    config = safe_json_load(config_file)
+    out_dir = os.path.dirname(pipeline_file)
 
     # data-model
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
@@ -270,7 +275,7 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     ) == 1 + len(DataModel.ALL_VARS)
 
     # collected data doesn't include all-sky files yet (irradiance / clearsky)
-    assert len(glob(f'{os.path.dirname(pipeline_file)}/collect/*.h5')) == 5
+    assert len(glob(f'{out_dir}/collect/*.h5')) == 5
 
     # gap-fill
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
@@ -281,17 +286,28 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # irrad and clearsky now in collect directory
-    assert len(glob(f'{os.path.dirname(pipeline_file)}/collect/*.h5')) == 7
+    assert (
+        len(glob(f'{out_dir}/collect/*.h5'))
+        == config['collect-data-model']['n_chunks'] * 7
+    )
 
     # final collection
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7
+    final_files = glob(f'{out_dir}/final/*.h5')
+    final_files = sorted([os.path.basename(f) for f in final_files])
+    assert (
+        sorted(
+            f.format(y=config['direct']['year'])
+            for f in sorted(NSRDB.OUTS.keys())
+        )
+        == final_files
+    )
 
     # final status file update
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
 
-    status_file = glob(os.path.dirname(pipeline_file) + '/.gaps/*.json')[0]
+    status_file = glob(out_dir + '/.gaps/*.json')[0]
     status_dict = safe_json_load(status_file)
     assert all('successful' in str(vals) for vals in status_dict.values())
 

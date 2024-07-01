@@ -39,6 +39,16 @@ from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
 from nsrdb.utilities.file_utils import clean_meta, pd_date_range, ts_freq_check
 
+PRE2018_CONFIG_TEMPLATE = os.path.join(
+    CONFIGDIR, 'templates/config_nsrdb_pre2018.json'
+)
+POST2017_CONFIG_TEMPLATE = os.path.join(
+    CONFIGDIR, 'templates/config_nsrdb_post2017.json'
+)
+PIPELINE_CONFIG_TEMPLATE = os.path.join(
+    CONFIGDIR, 'templates/config_pipeline.json'
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -584,16 +594,6 @@ class NSRDB:
         user_input['start_doy'] = user_input['doy_range'][0]
         user_input['end_doy'] = user_input['doy_range'][1]
 
-        PRE2018_CONFIG_TEMPLATE = os.path.join(
-            CONFIGDIR, 'templates/config_nsrdb_pre2018.json'
-        )
-        POST2017_CONFIG_TEMPLATE = os.path.join(
-            CONFIGDIR, 'templates/config_nsrdb_post2017.json'
-        )
-        PIPELINE_CONFIG_TEMPLATE = os.path.join(
-            CONFIGDIR, 'templates/config_pipeline.json'
-        )
-
         run_name = '_'.join(
             str(user_input[k])
             for k in [
@@ -614,12 +614,13 @@ class NSRDB:
             f'{pprint.pformat(user_input, indent=2)}'
         )
 
-        if int(user_input['year']) < 2018:
-            with open(PRE2018_CONFIG_TEMPLATE, encoding='utf-8') as s:
-                s = s.read()
-        else:
-            with open(POST2017_CONFIG_TEMPLATE, encoding='utf-8') as s:
-                s = s.read()
+        template = (
+            PRE2018_CONFIG_TEMPLATE
+            if int(user_input['year']) < 2018
+            else POST2017_CONFIG_TEMPLATE
+        )
+        with open(template, encoding='utf-8') as s:
+            s = s.read()
 
         for k, v in user_input.items():
             if isinstance(v, int):
@@ -1243,8 +1244,7 @@ class NSRDB:
             this will collect the data to the out_dir/final/ directory instead
             of the out_dir/collect Directory.
         final_file_name : str | None
-            Final file name for filename outputs if this is the
-            terminal job.
+            Final file name for filename outputs if this is the terminal job.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)

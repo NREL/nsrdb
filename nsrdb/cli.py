@@ -16,7 +16,6 @@ from gaps import Pipeline
 from gaps.batch import BatchJob
 from gaps.cli.pipeline import pipeline as gaps_pipeline
 from rex import safe_json_load
-from rex.utilities.fun_utils import get_fun_call_str
 from rex.utilities.loggers import init_logger
 
 from nsrdb import __version__
@@ -458,33 +457,14 @@ def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
     """Gap fill cloud properties in a collect-data-model output file, using
     legacy gap-fill method."""
 
-    config = BaseCLI.from_config_preflight(
+    BaseCLI.kickoff_multichunk(
         ctx=ctx,
         module_name=ModuleName.CLOUD_FILL,
+        func=NSRDB.gap_fill_clouds,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
-
-    log_file = config.get('log_file', None)
-    log_level = config.get('log_level', 'INFO')
-    log_arg_str = f'"nsrdb", log_level="{log_level}"'
-    config['n_chunks'] = config.get('n_chunks', 1)
-    name = ctx.obj['NAME']
-
-    for i_chunk in range(config['n_chunks']):
-        if log_file is not None:
-            log_file_i = log_file.replace('.log', f'_{i_chunk}.log')
-            log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
-            ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        config['i_chunk'] = i_chunk
-        config['job_name'] = f'{name}_{i_chunk}'
-        ctx.obj['NAME'] = config['job_name']
-        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.gap_fill_clouds, config)
-
-        BaseCLI.kickoff_job(
-            ctx=ctx, module_name=ModuleName.CLOUD_FILL, config=config
-        )
 
 
 @main.command()
@@ -505,30 +485,14 @@ def cloud_fill(ctx, config, verbose=False, pipeline_step=None):
 def all_sky(ctx, config, verbose=False, pipeline_step=None):
     """Run all-sky physics model on collected data model output files."""
 
-    config = BaseCLI.from_config_preflight(
+    BaseCLI.kickoff_multichunk(
         ctx=ctx,
         module_name=ModuleName.ALL_SKY,
+        func=NSRDB.run_all_sky,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
-
-    log_arg_str = ctx.obj['LOG_ARG_BASE']
-    config['n_chunks'] = config.get('n_chunks', 1)
-    name = ctx.obj['NAME']
-
-    for i_chunk in range(config['n_chunks']):
-        log_file = ctx.obj['LOG_FILE'].replace('.log', f'{i_chunk}.log')
-        log_arg_str_i = f'{log_arg_str}, log_file="{log_file}"'
-        config['i_chunk'] = i_chunk
-        config['job_name'] = f'{name}_{i_chunk}'
-        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        ctx.obj['NAME'] = config['job_name']
-        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.run_all_sky, config)
-
-        BaseCLI.kickoff_job(
-            ctx=ctx, module_name=ModuleName.ALL_SKY, config=config
-        )
 
 
 @main.command()
@@ -588,7 +552,6 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
         pipeline_step=pipeline_step,
     )
 
-    log_arg_str = ctx.obj['LOG_ARG_BASE']
     config['n_chunks'] = config.get('n_chunks', 1)
     config['n_writes'] = config.get('n_writes', 1)
     config['final'] = config.get('final', False)
@@ -599,7 +562,6 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
         else config.get('collect_files', n_files_default)
     )
     fnames = sorted(NSRDB.OUTS.keys())
-    name = ctx.obj['NAME']
 
     if config['final'] and config['n_chunks'] != 1:
         msg = 'collect-data-model was marked as final but n_chunks != 1'
@@ -609,20 +571,17 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
     for i_chunk, i_fname in itertools.product(
         range(config['n_chunks']), i_files
     ):
-        log_file_i = ctx.obj['LOG_FILE'].replace('.log', f'_{i_fname}.log')
-        log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
-        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        config['final_file_name'] = name
+        log_id = f'{fnames[i_fname].split("_")[1]}_{i_chunk}'
         config['i_chunk'] = i_chunk
         config['i_fname'] = i_fname
-        config['job_name'] = (
-            f'{name}_{i_fname}_{fnames[i_fname].split("_")[1]}_{i_chunk}'
-        )
-        ctx.obj['NAME'] = config['job_name']
-        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_data_model, config)
+        config['job_name'] = f'{ctx.obj["NAME"]}_{i_fname}_{log_id}'
 
         BaseCLI.kickoff_job(
-            ctx=ctx, module_name=ModuleName.COLLECT_DATA_MODEL, config=config
+            ctx=ctx,
+            module_name=ModuleName.COLLECT_DATA_MODEL,
+            func=NSRDB.collect_data_model,
+            config=config,
+            log_id=log_id,
         )
 
 
@@ -652,21 +611,16 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
         pipeline_step=pipeline_step,
     )
 
-    fnames = sorted(NSRDB.OUTS.keys())
-    log_arg_str = ctx.obj['LOG_ARG_BASE']
-    name = ctx.obj['NAME']
-    for i_fname in range(len(NSRDB.OUTS)):
-        log_file_i = ctx.obj['LOG_FILE'].replace('.log', f'_{i_fname}.log')
-        log_arg_str_i = f'{log_arg_str}, log_file="{log_file_i}"'
-        config['job_name'] = (
-            f'{name}_{i_fname}_{fnames[i_fname].split("_")[1]}'
-        )
+    for i_fname, fname in enumerate(sorted(NSRDB.OUTS.keys())):
+        log_id = fname.split('_')[1]
+        config['job_name'] = f'{ctx.obj["NAME"]}_{i_fname}_{log_id}'
         config['i_fname'] = i_fname
-        ctx.obj['LOG_ARG_STR'] = log_arg_str_i
-        ctx.obj['NAME'] = config['job_name']
-        ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_final, config)
         BaseCLI.kickoff_job(
-            ctx=ctx, module_name=ModuleName.COLLECT_FINAL, config=config
+            ctx=ctx,
+            module_name=ModuleName.COLLECT_FINAL,
+            func=NSRDB.collect_final,
+            config=config,
+            log_id=log_id,
         )
 
 
@@ -689,15 +643,14 @@ def blend(ctx, config, verbose=False, pipeline_step=None):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    config = BaseCLI.from_config_preflight(
+    BaseCLI.kickoff_single(
         ctx=ctx,
         module_name=ModuleName.BLEND,
+        func=NSRDB.blend_files,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.blend_files, config)
-    BaseCLI.kickoff_job(ctx=ctx, module_name=ModuleName.BLEND, config=config)
 
 
 @main.command()
@@ -717,17 +670,13 @@ def blend(ctx, config, verbose=False, pipeline_step=None):
 def collect_blended(ctx, config, verbose=False, pipeline_step=None):
     """Collect blended data chunks into a single file."""
 
-    config = BaseCLI.from_config_preflight(
-        module_name=ModuleName.COLLECT_BLENDED,
+    BaseCLI.kickoff_single(
         ctx=ctx,
+        module_name=ModuleName.COLLECT_BLENDED,
+        func=NSRDB.collect_blended,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_blended, config)
-    BaseCLI.kickoff_job(
-        ctx=ctx, module_name=ModuleName.COLLECT_BLENDED, config=config
     )
 
 
@@ -753,16 +702,13 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None):
     match resolution of low-resolution years (pre 2018)
     """
 
-    config = BaseCLI.from_config_preflight(
+    BaseCLI.kickoff_single(
         ctx=ctx,
         module_name=ModuleName.AGGREGATE,
+        func=NSRDB.aggregate_files,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
-    )
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.aggregate_files, config)
-    BaseCLI.kickoff_job(
-        ctx=ctx, module_name=ModuleName.AGGREGATE, config=config
     )
 
 
@@ -783,17 +729,13 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None):
 def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
     """Collect aggregated data chunks."""
 
-    config = BaseCLI.from_config_preflight(
-        module_name=ModuleName.COLLECT_AGG,
+    BaseCLI.kickoff_single(
         ctx=ctx,
+        module_name=ModuleName.COLLECT_AGG,
+        func=NSRDB.collect_aggregation,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
-    )
-
-    ctx.obj['FUN_STR'] = get_fun_call_str(NSRDB.collect_aggregation, config)
-    BaseCLI.kickoff_job(
-        ctx=ctx, module_name=ModuleName.COLLECT_AGG, config=config
     )
 
 

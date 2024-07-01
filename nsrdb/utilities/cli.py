@@ -115,8 +115,7 @@ class BaseCLI:
 
         ctx.obj['STATUS_DIR'] = status_dir
         ctx.obj['VERBOSE'] = verbose
-        ctx.obj['OUT_DIR'] = status_dir
-        ctx.obj['IMPORT_STR'] = IMPORT_STR
+        ctx.obj['OUT_DIR'] = config.get('outdir', status_dir)
         ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
         sanitized_mod = module_name.replace('-', '_')
         ctx.obj['LOG_DIR'] = os.path.join(status_dir, 'logs', sanitized_mod)
@@ -127,14 +126,10 @@ class BaseCLI:
         ctx.obj['LOG_FILE'] = config.get(
             'log_file', os.path.join(ctx.obj['LOG_DIR'], name + '.log')
         )
-        config_verbose = config.get('log_level', 'INFO')
-        log_arg_str = f'"nsrdb", log_level="{config_verbose}"'
-        config_verbose = config_verbose == 'DEBUG'
-        verbose = any([verbose, config_verbose, ctx.obj['VERBOSE']])
-        ctx.obj['LOG_ARG_BASE'] = log_arg_str
-        ctx.obj['LOG_ARG_STR'] = (
-            f'{log_arg_str}, log_file="{ctx.obj["LOG_FILE"]}"'
-        )
+        log_level = config.get('log_level', 'INFO')
+        ctx.obj['LOG_ARG_STR'] = f'"nsrdb", log_level="{log_level}"'
+        log_level = log_level == 'DEBUG'
+        verbose = any([verbose, log_level, ctx.obj['VERBOSE']])
         exec_kwargs = config.get('execution_control', {})
         direct_args = config.get('direct', {})
         cmd_args = config.get(module_name, {})
@@ -158,7 +153,7 @@ class BaseCLI:
         logger.debug(
             f'Found execution kwargs {exec_kwargs} for {module_name} module'
         )
-
+        cmd_args['log_file'] = ctx.obj['LOG_FILE']
         cmd_args['job_name'] = name
         cmd_args['status_dir'] = status_dir
         cmd_args['execution_control'] = exec_kwargs
@@ -217,8 +212,7 @@ class BaseCLI:
         """
         cls.check_module_name(module_name)
         pipeline_step = ctx.obj['PIPELINE_STEP']
-
-        name = ctx.obj['NAME']
+        name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
         slurm_manager = ctx.obj.get('SLURM_MANAGER', None)
         if slurm_manager is None:
@@ -273,7 +267,12 @@ class BaseCLI:
                 pipeline_step=pipeline_step,
                 job_name=name,
                 replace=True,
-                job_attrs={'job_id': out, 'hardware': option},
+                job_attrs={
+                    'job_id': out,
+                    'outdir': ctx.obj['OUT_DIR'],
+                    'log_file': ctx.obj['LOG_FILE'],
+                    'hardware': option,
+                },
             )
 
         click.echo(msg)
@@ -295,7 +294,7 @@ class BaseCLI:
         """
         cls.check_module_name(module_name)
         pipeline_step = ctx.obj['PIPELINE_STEP']
-        name = ctx.obj['NAME']
+        name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
         subprocess_manager = SubprocessManager
 
@@ -380,7 +379,7 @@ class BaseCLI:
         return cmd.replace('\\', '/')
 
     @classmethod
-    def kickoff_job(cls, ctx, module_name, config):
+    def kickoff_job(cls, ctx, module_name, func, config, log_id=None):
         """Run nsrdb module either locally or on HPC.
 
         Parameters
@@ -389,19 +388,29 @@ class BaseCLI:
             Click context object where ctx.obj is a dictionary
         module_name : str
             Module name string from :class:`nsrdb.utilities.ModuleName`.
+        func : Callable
+            Function used to run module. e.g. `NSRDB.run_data_model()`
         config : dict
             nsrdb config with all necessary args and kwargs to run given
             module.
+        log_id : str | None
+            String id to append to base log file if this job is part of a multi
+            job kickoff. None is used is this is just a single job.
         """
-        import_str = ctx.obj['IMPORT_STR']
-        log_arg_str = ctx.obj['LOG_ARG_STR']
-        fun_str = ctx.obj['FUN_STR']
+        log_file = (
+            ctx.obj['LOG_FILE']
+            if log_id is None
+            else ctx.obj['LOG_FILE'].replace('.log', f'_{log_id}.log')
+        )
+        log_arg_str = f'{ctx.obj["LOG_ARG_STR"]}, log_file="{log_file}"'
         pipeline_step = ctx.obj['PIPELINE_STEP']
         exec_kwargs = config.get('execution_control', {})
         hardware_option = exec_kwargs.get('option', 'local')
+        config['log_file'] = log_file
+        fun_str = get_fun_call_str(func, config)
 
         cmd = (
-            f"python -c '{import_str}\n"
+            f"python -c '{IMPORT_STR}\n"
             't0 = time.time();\n'
             f'logger = init_logger({log_arg_str});\n'
             f'{fun_str};\n'
@@ -410,10 +419,47 @@ class BaseCLI:
 
         cmd += cls.get_status_cmd(config, pipeline_step)
 
+        ctx.obj['JOB_NAME'] = config['job_name']
         if hardware_option == 'local':
             cls.kickoff_local_job(ctx, module_name, cmd)
         else:
             cls.kickoff_slurm_job(ctx, module_name, cmd, **exec_kwargs)
+
+    @classmethod
+    def kickoff_single(
+        cls, ctx, module_name, func, config, verbose, pipeline_step=None
+    ):
+        """Kick off single job.
+
+        Parameters
+        ----------
+        ctx : click.pass_context
+            Click context object where ctx.obj is a dictionary
+        module_name : str
+            Module name string from :class:`nsrdb.utilities.ModuleName`.
+        func : Callable
+            Function used to run module. e.g. `NSRDB.run_data_model()`
+        config : str | dict
+            Path to nsrdb config file or a dictionary with all necessary args
+            and kwargs to run given module
+        verbose : bool
+            Flag to turn on debug logging
+        pipeline_step : str, optional
+            Name of the pipeline step being run. If ``None``, the
+            ``pipeline_step`` will be set to the ``module_name``,
+            mimicking old reV behavior. By default, ``None``.
+        """
+
+        config = cls.from_config_preflight(
+            ctx=ctx,
+            module_name=module_name,
+            config=config,
+            verbose=verbose,
+            pipeline_step=pipeline_step,
+        )
+        cls.kickoff_job(
+            ctx=ctx, module_name=module_name, func=func, config=config
+        )
 
     @classmethod
     def kickoff_multiday(
@@ -441,8 +487,8 @@ class BaseCLI:
         """
 
         config_dict = cls.from_config_preflight(
-            module_name=module_name,
             ctx=ctx,
+            module_name=module_name,
             config=config,
             verbose=verbose,
             pipeline_step=pipeline_step,
@@ -458,19 +504,61 @@ class BaseCLI:
             logger.error(msg)
             raise KeyError(msg)
 
-        name = ctx.obj['NAME']
-        log_arg_str = ctx.obj['LOG_ARG_BASE']
-        pipeline_step = ctx.obj['PIPELINE_STEP']
-
         for doy in doys:
-            log_file_d = ctx.obj['LOG_FILE'].replace('.log', f'_{doy}.log')
-            ctx.obj['LOG_ARG_STR'] = f'{log_arg_str}, log_file="{log_file_d}"'
-
             date = NSRDB.doy_to_datestr(config_dict['year'], doy)
             config_dict['date'] = date
-            config_dict['job_name'] = f'{name}_{doy}_{date}'
+            config_dict['job_name'] = f'{ctx.obj["NAME"]}_{doy}_{date}'
             config_dict['doy'] = doy
-            ctx.obj['FUN_STR'] = get_fun_call_str(func, config_dict)
-            ctx.obj['NAME'] = config_dict['job_name']
 
-            cls.kickoff_job(ctx, module_name, config_dict)
+            cls.kickoff_job(
+                ctx,
+                module_name=module_name,
+                func=func,
+                config=config_dict,
+                log_id=doy,
+            )
+
+    @classmethod
+    def kickoff_multichunk(
+        cls, ctx, module_name, func, config, verbose, pipeline_step=None
+    ):
+        """Kick off jobs for multiple chunks.
+
+        Parameters
+        ----------
+        ctx : click.pass_context
+            Click context object where ctx.obj is a dictionary
+        module_name : str
+            Module name string from :class:`nsrdb.utilities.ModuleName`.
+        func : Callable
+            Function used to run module. e.g. `NSRDB.gap_fill_clouds()`
+        config : str | dict
+            Path to nsrdb config file or a dictionary with all necessary args
+            and kwargs to run given module
+        verbose : bool
+            Flag to turn on debug logging
+        pipeline_step : str, optional
+            Name of the pipeline step being run. If ``None``, the
+            ``pipeline_step`` will be set to the ``module_name``,
+            mimicking old reV behavior. By default, ``None``.
+        """
+        config = cls.from_config_preflight(
+            ctx=ctx,
+            module_name=module_name,
+            config=config,
+            verbose=verbose,
+            pipeline_step=pipeline_step,
+        )
+        config['n_chunks'] = config.get('n_chunks', 1)
+
+        for i_chunk in range(config['n_chunks']):
+            config['i_chunk'] = i_chunk
+            config['job_name'] = f'{ctx.obj["NAME"]}_{i_chunk}'
+
+            cls.kickoff_job(
+                ctx=ctx,
+                module_name=module_name,
+                func=func,
+                config=config,
+                log_id=i_chunk,
+            )
