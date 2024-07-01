@@ -3,6 +3,7 @@
 
 @author: gbuster
 """
+
 import gzip
 import logging
 import os
@@ -24,8 +25,9 @@ from rex.utilities.loggers import init_logger
 logger = logging.getLogger(__name__)
 
 DIR = os.path.dirname(os.path.realpath(__file__))
-TOOL = os.path.join(DIR, '_h4h5tools-2.2.2-linux-x86_64-static',
-                    'bin', 'h4toh5')
+TOOL = os.path.join(
+    DIR, '_h4h5tools-2.2.2-linux-x86_64-static', 'bin', 'h4toh5'
+)
 
 
 def pd_date_range(*args, **kwargs):
@@ -110,15 +112,19 @@ def repack_h5(fpath, f_new=None, inplace=True):
     t1 = time.time()
     cmd = 'h5repack -i {i} -o {o}'.format(i=fpath, o=f_new)
     cmd = shlex.split(cmd)
-    logger.info('Submitting the following cmd as a subprocess:\n\t{}'
-                .format(cmd))
+    logger.info(
+        'Submitting the following cmd as a subprocess:\n\t{}'.format(cmd)
+    )
 
     # use subprocess to submit command and wait until it is done
     x = run(cmd, check=True)
     if x.returncode != 0:
-        e = ('H5Repack process terminated with return code of {}.'
-             '\nSTDOUT: \n{}\nSTDERR: \n{}'
-             .format(x.returncode, x.stdout, x.stderr))
+        e = (
+            'H5Repack process terminated with return code of {}.'
+            '\nSTDOUT: \n{}\nSTDERR: \n{}'.format(
+                x.returncode, x.stdout, x.stderr
+            )
+        )
         logger.error(e)
         raise RuntimeError(e)
 
@@ -128,8 +134,11 @@ def repack_h5(fpath, f_new=None, inplace=True):
         os.rename(f_new, fpath)
 
     min_elapsed = (time.time() - t1) / 60
-    logger.info('Finished repacking {0} to {1}. Time elapsed: {2:.2f} minutes.'
-                .format(fpath, f_new, min_elapsed))
+    logger.info(
+        'Finished repacking {} to {}. Time elapsed: {:.2f} minutes.'.format(
+            fpath, f_new, min_elapsed
+        )
+    )
 
 
 def unzip_gz(target_path):
@@ -140,15 +149,17 @@ def unzip_gz(target_path):
     flist = os.listdir(target_path)
     for i, f in enumerate(flist):
         if f.endswith('.gz'):
-            logger.info('Unzipping file #{} (out of {}): "{}"'
-                        .format(i, len(flist), f))
+            logger.info(
+                'Unzipping file #{} (out of {}): "{}"'.format(i, len(flist), f)
+            )
             gz_file = os.path.join(target_path, f)
-            target_file = os.path.join(target_path,
-                                       f.replace('.gz', ''))
+            target_file = os.path.join(target_path, f.replace('.gz', ''))
 
-            with gzip.open(gz_file, 'rb') as f_in:
-                with open(target_file, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
+            with (
+                gzip.open(gz_file, 'rb') as f_in,
+                open(target_file, 'wb') as f_out,
+            ):
+                shutil.copyfileobj(f_in, f_out)
 
             os.remove(gz_file)
 
@@ -169,14 +180,12 @@ def url_download(url, target):
     logger.debug('URL downloading: {}'.format(url))
 
     try:
-        with urlopen(url) as req:
-            with open(target, 'wb') as dfile:
-                # gz archive must be written as a binary file
-                dfile.write(req.read())
+        with urlopen(url) as req, open(target, 'wb') as dfile:
+            # gz archive must be written as a binary file
+            dfile.write(req.read())
 
     except URLError as e:
-        logger.info('Skipping: {} was not downloaded'
-                    .format(url))
+        logger.info('Skipping: {} was not downloaded'.format(url))
         logger.exception(e)
         failed = url
 
@@ -199,8 +208,10 @@ def convert_h4(path4, f_h4, path5, f_h5):
     """
 
     if not f_h4.endswith('.h4') and not f_h4.endswith('.hdf'):
-        raise TypeError('Specified h4 file not recognized as an .hdf or .h4: '
-                        '"{}"'.format(f_h4))
+        raise TypeError(
+            'Specified h4 file not recognized as an .hdf or .h4: '
+            '"{}"'.format(f_h4)
+        )
     if not f_h5.endswith('.h5'):
         f_h5 += '.h5'
 
@@ -208,11 +219,14 @@ def convert_h4(path4, f_h4, path5, f_h5):
     h5 = os.path.join(path5, f_h5)
 
     if not os.path.exists(h4):
-        raise OSError('Could not locate file for conversion to h5: {}'
-                      .format(h4))
+        raise OSError(
+            'Could not locate file for conversion to h5: {}'.format(h4)
+        )
     if os.path.exists(h5):
-        logger.info('Target h5 file already exists, may have already been '
-                    'converted, skipping: {}'.format(h5))
+        logger.info(
+            'Target h5 file already exists, may have already been '
+            'converted, skipping: {}'.format(h5)
+        )
         stdout = 'File already exists: {}'.format(h5)
         stderr = ''
     else:
@@ -225,8 +239,11 @@ def convert_h4(path4, f_h4, path5, f_h5):
             stderr = stderr.decode('ascii').rstrip()
             stdout = stdout.decode('ascii').rstrip()
             if stderr:
-                logger.warning('Conversion of "{}" returned a stderr: "{}"'
-                               .format(cmd, stderr))
+                logger.warning(
+                    'Conversion of "{}" returned a stderr: "{}"'.format(
+                        cmd, stderr
+                    )
+                )
             else:
                 logger.debug('Finished conversion of: "{}"'.format(f_h5))
 
@@ -261,7 +278,6 @@ def get_conversion_list(path4, path5):
         # walk through the directory tree.
         for name in files:
             if name.endswith('.h4') or name.endswith('.hdf'):
-
                 # get just the sub directory without the source path4
                 sub = root.replace(path4, '')
                 source_path = root
@@ -269,8 +285,9 @@ def get_conversion_list(path4, path5):
                 target_path = os.path.join(path5, sub)
                 target_file = name.replace('.h4', '.h5').replace('.hdf', '.h5')
 
-                conversion_list.append([source_path, source_file,
-                                        target_path, target_file])
+                conversion_list.append(
+                    [source_path, source_file, target_path, target_file]
+                )
 
     return conversion_list
 
@@ -285,8 +302,9 @@ def convert_list_serial(conversion_list):
         Format is: conversion_list = [[path4, f_h4, path5, f_h5], ...]
     """
 
-    logger.info('Converting {} hdf files in serial.'
-                .format(len(conversion_list)))
+    logger.info(
+        'Converting {} hdf files in serial.'.format(len(conversion_list))
+    )
     for [path4, f_h4, path5, f_h5] in conversion_list:
         convert_h4(path4, f_h4, path5, f_h5)
 
@@ -305,23 +323,22 @@ def convert_list_parallel(conversion_list, n_workers=2):
 
     futures = []
     # start client with n_workers to use
-    logger.info('Starting a concurrent futures executor with {} workers '
-                'to convert {} hdf files.'
-                .format(n_workers, len(conversion_list)))
+    logger.info(
+        'Starting a concurrent futures executor with {} workers '
+        'to convert {} hdf files.'.format(n_workers, len(conversion_list))
+    )
     with SpawnProcessPool(loggers='nsrdb', max_workers=n_workers) as exe:
-        logger.debug('Submitting {} futures.'
-                     .format(len(futures)))
+        logger.debug('Submitting {} futures.'.format(len(futures)))
         # iterate through list to convert
         for [path4, f_h4, path5, f_h5] in conversion_list:
             # kick off conversion on a worker without caring about result.
-            futures.append(exe.submit(
-                convert_h4, path4, f_h4, path5, f_h5))
-        logger.debug('Finished submitting {} futures.'
-                     .format(len(futures)))
+            futures.append(exe.submit(convert_h4, path4, f_h4, path5, f_h5))
+        logger.debug('Finished submitting {} futures.'.format(len(futures)))
 
         for i, _ in enumerate(as_completed(futures)):
-            logger.info('{} out of {} futures completed.'
-                        .format(i + 1, len(futures)))
+            logger.info(
+                '{} out of {} futures completed.'.format(i + 1, len(futures))
+            )
 
 
 def convert_directory(path4, path5, n_workers=1):
@@ -340,8 +357,9 @@ def convert_directory(path4, path5, n_workers=1):
         worker convert a file. None uses all available workers on the node.
     """
 
-    logger.info('Converting h4 files in directory "{}" to "{}"'
-                .format(path4, path5))
+    logger.info(
+        'Converting h4 files in directory "{}" to "{}"'.format(path4, path5)
+    )
 
     # get the list of paths/files to convert
     conversion_list = get_conversion_list(path4, path5)
@@ -357,13 +375,15 @@ def convert_directory(path4, path5, n_workers=1):
     else:
         convert_list_parallel(conversion_list, n_workers=n_workers)
 
-    logger.info('Finished converting h4 files in "{}" to "{}"'
-                .format(path4, path5))
+    logger.info(
+        'Finished converting h4 files in "{}" to "{}"'.format(path4, path5)
+    )
 
 
 if __name__ == '__main__':
     path4 = '/projects/pxs/uwisc/2018_west/'
     path5 = '/projects/pxs/uwisc/2018_west_h5/'
-    init_logger(__name__, log_level='INFO',
-                log_file=os.path.join(path5, 'convert.log'))
+    init_logger(
+        __name__, log_level='INFO', log_file=os.path.join(path5, 'convert.log')
+    )
     convert_directory(path4, path5, n_workers=36)

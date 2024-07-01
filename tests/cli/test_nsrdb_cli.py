@@ -23,7 +23,83 @@ def runner():
 
 
 @pytest.fixture(scope='function')
-def run_config(tmpdir_factory):
+def legacy_config(tmpdir_factory):
+    """Write configs for cli calls. Uses legacy gap fill method"""
+    td = str(tmpdir_factory.mktemp('tmp'))
+    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
+    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/{doy}/')
+    pattern = os.path.join(cdir, fn)
+    albedo_file = tmpdir_factory.mktemp('albedo').join('albedo_2020_004.h5')
+    shutil.copy(
+        os.path.join(TESTDATADIR, 'albedo', 'nsrdb_albedo_2013_001.h5'),
+        albedo_file,
+    )
+    var_meta = DEFAULT_VAR_META
+
+    kwargs = {
+        'pattern': pattern,
+        'parallax_correct': False,
+        'solar_shading': False,
+        'remap_pc': False,
+    }
+    cloud_vars = list(DataModel.CLOUD_VARS)
+    factory_kwargs = dict.fromkeys(cloud_vars, kwargs)
+    factory_kwargs['surface_albedo'] = {
+        'source_dir': os.path.dirname(albedo_file),
+        'cache_file': False,
+    }
+    nsrdb_grid = os.path.join(TESTDATADIR, 'meta', 'surfrad_meta.csv')
+    config_file = os.path.join(td, 'config_nsrdb.json')
+    pipeline_file = os.path.join(td, 'config_pipeline.json')
+    config_dict = {
+        'direct': {
+            'out_dir': td,
+            'year': 2020,
+            'grid': nsrdb_grid,
+            'freq': '30min',
+            'var_meta': var_meta,
+        },
+        'data-model': {
+            'doy_range': [4, 5],
+            'max_workers': 1,
+            'max_workers_regrid': 1,
+            'dist_lim': 1.0,
+            'mlclouds': False,
+            'factory_kwargs': factory_kwargs,
+        },
+        'collect-data-model': {
+            'max_workers': 1,
+            'n_chunks': 1,
+            'final': False,
+        },
+        'cloud-fill': {},
+        'all-sky': {'n_chunks': 1},
+        'collect-final': {'collect_dir': f'{td}/collect'},
+        'execution_control': {'option': 'local'},
+    }
+    with open(config_file, 'w') as f:
+        f.write(json.dumps(config_dict))
+
+    with open(pipeline_file, 'w') as f:
+        f.write(
+            json.dumps(
+                {
+                    'logging': {'log_file': None, 'log_level': 'INFO'},
+                    'pipeline': [
+                        {'data-model': config_file},
+                        {'collect-data-model': config_file},
+                        {'cloud-fill': config_file},
+                        {'all-sky': config_file},
+                        {'collect-final': config_file},
+                    ],
+                }
+            )
+        )
+    return config_file, pipeline_file
+
+
+@pytest.fixture(scope='function')
+def modern_config(tmpdir_factory):
     """Write configs for cli calls."""
     td = str(tmpdir_factory.mktemp('tmp'))
     fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
@@ -121,11 +197,11 @@ def test_cli_create_configs(runner):
         assert os.path.exists(os.path.join(out_dir, 'run.sh'))
 
 
-def test_cli_steps(runner, run_config):
+def test_cli_steps(runner, modern_config):
     """Test cli for full pipeline, using separate config calls to data-model,
     gap-fill, all-sky, and collection"""
 
-    config_file, _ = run_config
+    config_file, _ = modern_config
     result = runner.invoke(
         cli.config, ['-c', config_file, '--command', 'data-model']
     )
@@ -164,10 +240,10 @@ def test_cli_steps(runner, run_config):
         assert all('successful' in str(vals) for vals in sd.values())
 
 
-def test_cli_pipeline(runner, run_config):
+def test_cli_pipeline(runner, modern_config):
     """Test cli for pipeline, run using cli.pipeline"""
 
-    _, pipeline_file = run_config
+    _, pipeline_file = modern_config
 
     # data-model
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
@@ -194,6 +270,52 @@ def test_cli_pipeline(runner, run_config):
     )
 
     # data collection
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7
+
+    # final status file update
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+
+    status_file = glob(os.path.dirname(pipeline_file) + '/.gaps/*.json')[0]
+    status_dict = safe_json_load(status_file)
+    assert all('successful' in str(vals) for vals in status_dict.values())
+
+
+def test_cli_pipeline_legacy(runner, legacy_config):
+    """Test cli for pipeline, run using cli.pipeline. Uses legacy gap-fill
+    method"""
+
+    _, pipeline_file = legacy_config
+
+    # data-model
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # pre gap-fill collection
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # specific humidity not included in ALL_VARS
+    assert len(
+        glob(f'{os.path.dirname(pipeline_file)}/daily/*.h5')
+    ) == 1 + len(DataModel.ALL_VARS)
+
+    # collected data doesn't include all-sky files yet (irradiance / clearsky)
+    assert len(glob(f'{os.path.dirname(pipeline_file)}/collect/*.h5')) == 5
+
+    # gap-fill
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # all-sky
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+
+    # irrad and clearsky now in collect directory
+    assert len(glob(f'{os.path.dirname(pipeline_file)}/collect/*.h5')) == 7
+
+    # final collection
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{os.path.dirname(pipeline_file)}/final/*.h5')) == 7

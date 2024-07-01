@@ -6,19 +6,19 @@
   "name": "west_conus",
   "pipeline": [
     {
-      "data-model": "/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
+      "data-model": "./config_west_conus_nsrdb.json"
     },
     {
-      "collect-data-model": "/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
+      "collect-data-model": "./config_west_conus_nsrdb.json"
     },
     {
-      "cloud-fill": "/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
+      "cloud-fill": "./config_west_conus_nsrdb.json"
     },
     {
-      "all-sky": "/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
+      "all-sky": "./config_west_conus_nsrdb.json"
     },
     {
-      "collect-final": "/projects/pxs/processing/2019/west_conus/config_nsrdb_west_conus.json"
+      "collect-final": "./config_west_conus_nsrdb.json"
     }
   ]
 }
