@@ -2,7 +2,6 @@
 
 import json
 import os
-import shutil
 import tempfile
 import traceback
 from glob import glob
@@ -11,9 +10,27 @@ import pytest
 from click.testing import CliRunner
 from rex import safe_json_load
 
-from nsrdb import DEFAULT_VAR_META, NSRDB, TESTDATADIR, cli
+from nsrdb import NSRDB, TESTDATADIR, cli
 from nsrdb.data_model import DataModel
 from nsrdb.utilities.pytest import execute_pytest
+
+VAR_META = os.path.join(TESTDATADIR, 'nsrdb_vars.csv')
+CDIR = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2013/{doy}/')
+CPATTERN = os.path.join(CDIR, 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc')
+ALBEDO_FILE = os.path.join(TESTDATADIR, 'albedo', 'nsrdb_albedo_2013_001.h5')
+kwargs = {
+    'pattern': CPATTERN,
+    'parallax_correct': False,
+    'solar_shading': False,
+    'remap_pc': False,
+}
+NSRDB_GRID = os.path.join(TESTDATADIR, 'meta', 'surfrad_meta.csv')
+DATA_MODEL_CONFIG = {
+    'doy_range': [1, 2],
+    'max_workers': 1,
+    'max_workers_regrid': 1,
+    'dist_lim': 1.0,
+}
 
 
 @pytest.fixture(scope='module')
@@ -26,44 +43,23 @@ def runner():
 def legacy_config(tmpdir_factory):
     """Write configs for cli calls. Uses legacy gap fill method"""
     td = str(tmpdir_factory.mktemp('tmp'))
-    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
-    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/{doy}/')
-    pattern = os.path.join(cdir, fn)
-    albedo_file = tmpdir_factory.mktemp('albedo').join('albedo_2020_004.h5')
-    shutil.copy(
-        os.path.join(TESTDATADIR, 'albedo', 'nsrdb_albedo_2013_001.h5'),
-        albedo_file,
-    )
-    var_meta = DEFAULT_VAR_META
-
-    kwargs = {
-        'pattern': pattern,
-        'parallax_correct': False,
-        'solar_shading': False,
-        'remap_pc': False,
-    }
-    cloud_vars = list(DataModel.CLOUD_VARS)
-    factory_kwargs = dict.fromkeys(cloud_vars, kwargs)
-    factory_kwargs['surface_albedo'] = {
-        'source_dir': os.path.dirname(albedo_file),
-        'cache_file': False,
-    }
-    nsrdb_grid = os.path.join(TESTDATADIR, 'meta', 'surfrad_meta.csv')
     config_file = os.path.join(td, 'config_nsrdb.json')
     pipeline_file = os.path.join(td, 'config_pipeline.json')
+    factory_kwargs = dict.fromkeys(list(DataModel.CLOUD_VARS), kwargs)
+    factory_kwargs['surface_albedo'] = {
+        'source_dir': os.path.dirname(ALBEDO_FILE),
+        'cache_file': False,
+    }
     config_dict = {
         'direct': {
             'out_dir': td,
-            'year': 2020,
-            'grid': nsrdb_grid,
+            'year': 2013,
+            'grid': NSRDB_GRID,
             'freq': '30min',
-            'var_meta': var_meta,
+            'var_meta': VAR_META,
         },
         'data-model': {
-            'doy_range': [4, 5],
-            'max_workers': 1,
-            'max_workers_regrid': 1,
-            'dist_lim': 1.0,
+            **DATA_MODEL_CONFIG,
             'mlclouds': False,
             'factory_kwargs': factory_kwargs,
         },
@@ -102,44 +98,24 @@ def legacy_config(tmpdir_factory):
 def modern_config(tmpdir_factory):
     """Write configs for cli calls."""
     td = str(tmpdir_factory.mktemp('tmp'))
-    fn = 'clavrx_OR_ABI-L1b-RadC-M6C01_G16_s*.level2.nc'
-    cdir = os.path.join(TESTDATADIR, 'uw_test_cloud_data_nc/2022/{doy}/')
-    pattern = os.path.join(cdir, fn)
-    albedo_file = tmpdir_factory.mktemp('albedo').join('albedo_2020_004.h5')
-    shutil.copy(
-        os.path.join(TESTDATADIR, 'albedo', 'nsrdb_albedo_2013_001.h5'),
-        albedo_file,
-    )
-    var_meta = DEFAULT_VAR_META
-
-    kwargs = {
-        'pattern': pattern,
-        'parallax_correct': False,
-        'solar_shading': False,
-        'remap_pc': False,
-    }
+    config_file = os.path.join(td, 'config_nsrdb.json')
+    pipeline_file = os.path.join(td, 'config_pipeline.json')
     cloud_vars = list(DataModel.CLOUD_VARS) + list(DataModel.MLCLOUDS_VARS)
     factory_kwargs = dict.fromkeys(cloud_vars, kwargs)
     factory_kwargs['surface_albedo'] = {
-        'source_dir': os.path.dirname(albedo_file),
+        'source_dir': os.path.dirname(ALBEDO_FILE),
         'cache_file': False,
     }
-    nsrdb_grid = os.path.join(TESTDATADIR, 'meta', 'surfrad_meta.csv')
-    config_file = os.path.join(td, 'config_nsrdb.json')
-    pipeline_file = os.path.join(td, 'config_pipeline.json')
     config_dict = {
         'direct': {
             'out_dir': td,
-            'year': 2020,
-            'grid': nsrdb_grid,
+            'year': 2013,
+            'grid': NSRDB_GRID,
             'freq': '30min',
-            'var_meta': var_meta,
+            'var_meta': VAR_META,
         },
         'data-model': {
-            'doy_range': [4, 5],
-            'max_workers': 1,
-            'max_workers_regrid': 1,
-            'dist_lim': 1.0,
+            **DATA_MODEL_CONFIG,
             'mlclouds': True,
             'factory_kwargs': factory_kwargs,
         },
