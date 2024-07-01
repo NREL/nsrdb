@@ -2,6 +2,7 @@ name: Pytests
 
 on: pull_request
 
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -36,3 +37,4 @@ jobs:
     - name: Run pytest
       run: |
         python -m pytest -v --disable-warnings
+
