@@ -127,10 +127,9 @@ class VarFactory:
             handler = kwargs.pop('handler')
             if handler not in cls.HANDLER_NAMES:
                 e = (
-                    'Did not recognize "{}" as an available NSRDB variable '
-                    'data handler. The following handlers are available: {}'.format(
-                        handler, list(cls.HANDLER_NAMES.keys())
-                    )
+                    f'Did not recognize "{handler}" as an available NSRDB '
+                    'variable data handler. The following handlers are '
+                    f'available: {cls.HANDLER_NAMES.keys()}'
                 )
                 logger.error(e)
                 raise KeyError(e)

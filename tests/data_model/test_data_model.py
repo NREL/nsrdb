@@ -18,7 +18,7 @@ import pytest
 from rex import Resource
 from rex.utilities.loggers import init_logger
 
-from nsrdb import DATADIR, DEFAULT_VAR_META, TESTDATADIR
+from nsrdb import DEFAULT_VAR_META, TESTDATADIR
 from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.utilities.pytest import execute_pytest
 
@@ -31,7 +31,7 @@ def test_data_model_dump(var='asymmetry'):
         out_file = os.path.join(td, var + '.h5')
         date = datetime.date(year=2017, month=1, day=1)
         var_meta = pd.read_csv(DEFAULT_VAR_META)
-        var_meta['source_directory'] = DATADIR
+        var_meta['source_directory'] = os.path.join(TESTDATADIR, 'asymmetry')
         grid = os.path.join(
             TESTDATADIR, 'reference_grids/', 'west_psm_extent.csv'
         )
@@ -57,7 +57,7 @@ def test_asym(var='asymmetry'):
 
     # set test directory
     var_meta = pd.read_csv(DEFAULT_VAR_META)
-    var_meta['source_directory'] = DATADIR
+    var_meta['source_directory'] = os.path.join(TESTDATADIR, 'asymmetry')
 
     data = DataModel.run_single(var, date, grid, var_meta=var_meta)
 
@@ -66,15 +66,14 @@ def test_asym(var='asymmetry'):
         with h5py.File(baseline_path, 'w') as f:
             f.create_dataset(var, data=data)
         msg = 'Output file for "{}" did not exist, created'.format(var)
-        assert False, msg
-    else:
-        with h5py.File(baseline_path, 'r') as f:
-            data_baseline = f[var][...]
-            var_obj = VarFactory.get_base_handler(
-                var, var_meta=var_meta, date=date
-            )
-            data_baseline = var_obj.scale_data(data_baseline)
-        assert np.allclose(data_baseline, data, atol=0, rtol=0.01)
+        raise AssertionError(msg)
+    with h5py.File(baseline_path, 'r') as f:
+        data_baseline = f[var][...]
+        var_obj = VarFactory.get_base_handler(
+            var, var_meta=var_meta, date=date
+        )
+        data_baseline = var_obj.scale_data(data_baseline)
+    assert np.allclose(data_baseline, data, atol=0, rtol=0.01)
 
 
 @pytest.mark.parametrize(
