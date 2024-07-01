@@ -13,7 +13,7 @@ import farms
 import netCDF4
 import numpy as np
 import rest2
-from reV.handlers.outputs import Outputs as RevOutputs
+from rex.outputs import Outputs as RexOutputs
 from rex.rechunk_h5.chunk_size import ArrayChunkSize
 from rex.utilities.loggers import create_dirs
 
@@ -36,7 +36,7 @@ if spec is not None:
 logger = logging.getLogger(__name__)
 
 
-class Outputs(RevOutputs):
+class Outputs(RexOutputs):
     """Base class to handle NSRDB output data in .h5 format"""
 
     def set_version_attr(self):
