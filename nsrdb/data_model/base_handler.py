@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
+
 import datetime as dt
 import logging
 from abc import ABC, abstractmethod
@@ -77,8 +78,10 @@ class AncillaryVarHandler:
             var_meta = inp
 
         if var_meta is None:
-            raise TypeError('Could not parse meta data for NSRDB variables '
-                            'from: {}'.format(inp))
+            raise TypeError(
+                'Could not parse meta data for NSRDB variables '
+                'from: {}'.format(inp)
+            )
 
         var_meta['var'] = var_meta['var'].str.strip(' ')
 
@@ -94,19 +97,20 @@ class AncillaryVarHandler:
             Namespace of attributes to define the dataset.
         """
 
-        attrs = dict({'units': self.units,
-                      'scale_factor': self.scale_factor,
-                      'physical_min': self.physical_min,
-                      'physical_max': self.physical_max,
-                      'elevation_correction': self.elevation_correct,
-                      'temporal_interp_method': self.temporal_method,
-                      'spatial_interp_method': self.spatial_method,
-                      'data_source': self.data_source,
-                      'source_dir': self.source_dir,
-                      'psm_units': self.units,
-                      'psm_scale_factor': self.scale_factor,
-                      'chunks': self.chunks,
-                      })
+        attrs = {
+            'units': self.units,
+            'scale_factor': self.scale_factor,
+            'physical_min': self.physical_min,
+            'physical_max': self.physical_max,
+            'elevation_correction': self.elevation_correct,
+            'temporal_interp_method': self.temporal_method,
+            'spatial_interp_method': self.spatial_method,
+            'data_source': self.data_source,
+            'source_dir': self.source_dir,
+            'psm_units': self.units,
+            'psm_scale_factor': self.scale_factor,
+            'chunks': self.chunks,
+        }
         return attrs
 
     @property
@@ -138,14 +142,14 @@ class AncillaryVarHandler:
 
     @property
     def mask(self):
-        """Get a boolean mask to locate the current variable in the meta data.
-        """
+        """Get a boolean mask to locate the current variable in the meta data."""
         if self._mask is None:
             if self._name in self.var_meta['var'].values:
                 self._mask = self.var_meta['var'] == self._name
             else:
-                raise KeyError('Variable "{}" not found in NSRDB meta.'
-                               .format(self._name))
+                raise KeyError(
+                    'Variable "{}" not found in NSRDB meta.'.format(self._name)
+                )
 
         return self._mask
 
@@ -308,8 +312,7 @@ class AncillaryVarHandler:
         """
         sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
         if not sd:
-            warn('Using default data directory for "{}"'
-                 .format(self.name))
+            warn('Using default data directory for "{}"'.format(self.name))
             sd = self.DEFAULT_DIR
 
         return str(sd)
@@ -331,10 +334,11 @@ class AncillaryVarHandler:
         pat = getattr(self, key)
         fps = NFS(pat).glob()
         if not any(fps) or len(fps) > 1:
-            emsg = ('Could not find or found too many source files '
-                    'for dataset "{}" with glob pattern: "{}". '
-                    'Found {} files: {}'
-                    .format(self.name, pat, len(fps), fps))
+            emsg = (
+                'Could not find or found too many source files '
+                'for dataset "{}" with glob pattern: "{}". '
+                'Found {} files: {}'.format(self.name, pat, len(fps), fps)
+            )
             logger.error(emsg)
             raise FileNotFoundError(emsg)
 
@@ -508,19 +512,20 @@ class AncillaryVarHandler:
 
         # check to make sure variable is in NSRDB meta config
         if self._name in self.var_meta['var'].values:
-
             # if the data is not in the final dtype yet
             if not np.issubdtype(self.final_dtype, array.dtype):
-
                 # Warning if nan values are present. Will assign d_min below.
                 if np.sum(np.isnan(array)) != 0:
                     d_min = ''
                     if np.issubdtype(self.final_dtype, np.integer):
                         d_min = np.iinfo(self.final_dtype).min
 
-                    w = ('NaN values found in "{}" before dtype conversion '
-                         'to "{}". Will be assigned value of: "{}"'
-                         .format(self.name, self.final_dtype, d_min))
+                    w = (
+                        'NaN values found in "{}" before dtype conversion '
+                        'to "{}". Will be assigned value of: "{}"'.format(
+                            self.name, self.final_dtype, d_min
+                        )
+                    )
                     logger.warning(w)
                     warn(w)
 
@@ -568,10 +573,8 @@ class AncillaryVarHandler:
 
         # check to make sure variable is in NSRDB meta config
         if self._name in self.var_meta['var'].values:
-
             # if the data is not in the desired dtype yet
             if not np.issubdtype(np.float32, array.dtype):
-
                 # increase precision to float32
                 array = array.astype(np.float32)
 
@@ -597,9 +600,11 @@ class AncillaryVarHandler:
             Pandas datetime index for the current day.
         """
 
-        ti = pd.date_range('1-1-{y}'.format(y=date.year),
-                           '1-1-{y}'.format(y=date.year + 1),
-                           freq=freq)[:-1]
+        ti = pd.date_range(
+            '1-1-{y}'.format(y=date.year),
+            '1-1-{y}'.format(y=date.year + 1),
+            freq=freq,
+        )[:-1]
         # pylint: disable=no-member
         mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
