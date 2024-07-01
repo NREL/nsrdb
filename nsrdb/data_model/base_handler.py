@@ -142,7 +142,8 @@ class AncillaryVarHandler:
 
     @property
     def mask(self):
-        """Get a boolean mask to locate the current variable in the meta data."""
+        """Get a boolean mask to locate the current variable in the meta
+        data."""
         if self._mask is None:
             if self._name in self.var_meta['var'].values:
                 self._mask = self.var_meta['var'] == self._name
@@ -481,10 +482,13 @@ class AncillaryVarHandler:
 
         missing = ''
         # empty cell (no source dir) evaluates to 'nan'.
-        if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
-            if not NFS(self.source_dir).exists():
-                # source dir is not nan and does not exist
-                missing = self.source_dir
+        if (
+            self.source_dir != 'nan'
+            and ~np.isnan(self.source_dir)
+            and not NFS(self.source_dir).exists()
+        ):
+            # source dir is not nan and does not exist
+            missing = self.source_dir
 
         return missing
 
@@ -511,49 +515,49 @@ class AncillaryVarHandler:
         """
 
         # check to make sure variable is in NSRDB meta config
-        if self._name in self.var_meta['var'].values:
-            # if the data is not in the final dtype yet
-            if not np.issubdtype(self.final_dtype, array.dtype):
-                # Warning if nan values are present. Will assign d_min below.
-                if np.sum(np.isnan(array)) != 0:
-                    d_min = ''
-                    if np.issubdtype(self.final_dtype, np.integer):
-                        d_min = np.iinfo(self.final_dtype).min
-
-                    w = (
-                        'NaN values found in "{}" before dtype conversion '
-                        'to "{}". Will be assigned value of: "{}"'.format(
-                            self.name, self.final_dtype, d_min
-                        )
-                    )
-                    logger.warning(w)
-                    warn(w)
-
-                # truncate unscaled array at physical min/max values
-                array[array < self.physical_min] = self.physical_min
-                array[array > self.physical_max] = self.physical_max
-
-                if self.scale_factor != 1:
-                    # apply scale factor
-                    array *= self.scale_factor
-
-                # if int, round at decimal precision determined by scale factor
+        if self._name in self.var_meta['var'].values and not np.issubdtype(
+            self.final_dtype, array.dtype
+        ):
+            # Warning if nan values are present. Will assign d_min below.
+            if np.sum(np.isnan(array)) != 0:
+                d_min = ''
                 if np.issubdtype(self.final_dtype, np.integer):
-                    array = np.round(array)
-
-                    # Get the min/max of the bit range
                     d_min = np.iinfo(self.final_dtype).min
-                    d_max = np.iinfo(self.final_dtype).max
 
-                    # set any nan values to the min of the bit range
-                    array[np.isnan(array)] = d_min
+                w = (
+                    'NaN values found in "{}" before dtype conversion '
+                    'to "{}". Will be assigned value of: "{}"'.format(
+                        self.name, self.final_dtype, d_min
+                    )
+                )
+                logger.warning(w)
+                warn(w)
 
-                    # Truncate scaled array at bit range min/max
-                    array[array < d_min] = d_min
-                    array[array > d_max] = d_max
+            # truncate unscaled array at physical min/max values
+            array[array < self.physical_min] = self.physical_min
+            array[array > self.physical_max] = self.physical_max
 
-                # perform type conversion to final dtype
-                array = array.astype(self.final_dtype)
+            if self.scale_factor != 1:
+                # apply scale factor
+                array *= self.scale_factor
+
+            # if int, round at decimal precision determined by scale factor
+            if np.issubdtype(self.final_dtype, np.integer):
+                array = np.round(array)
+
+                # Get the min/max of the bit range
+                d_min = np.iinfo(self.final_dtype).min
+                d_max = np.iinfo(self.final_dtype).max
+
+                # set any nan values to the min of the bit range
+                array[np.isnan(array)] = d_min
+
+                # Truncate scaled array at bit range min/max
+                array[array < d_min] = d_min
+                array[array > d_max] = d_max
+
+            # perform type conversion to final dtype
+            array = array.astype(self.final_dtype)
 
         return array
 
@@ -572,14 +576,14 @@ class AncillaryVarHandler:
         """
 
         # check to make sure variable is in NSRDB meta config
-        if self._name in self.var_meta['var'].values:
-            # if the data is not in the desired dtype yet
-            if not np.issubdtype(np.float32, array.dtype):
-                # increase precision to float32
-                array = array.astype(np.float32)
+        if self._name in self.var_meta['var'].values and not np.issubdtype(
+            np.float32, array.dtype
+        ):
+            # increase precision to float32
+            array = array.astype(np.float32)
 
-                # apply scale factor
-                array /= self.scale_factor
+            # apply scale factor
+            array /= self.scale_factor
 
         return array
 
@@ -617,7 +621,7 @@ class BaseDerivedVar(ABC):
 
     # Class variable to store list of strings that are datasets interpolated
     # from source data like MERRA that are used to derive this variable
-    DEPENDENCIES = tuple()
+    DEPENDENCIES = ()
 
     @abstractmethod
     def derive(self):

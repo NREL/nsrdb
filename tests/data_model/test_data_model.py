@@ -120,66 +120,63 @@ def test_ancillary_single(var):
         with h5py.File(baseline_path, 'w') as f:
             f.create_dataset(var, data=data)
         msg = 'Output file for "{}" did not exist, created'.format(var)
-        assert False, msg
-    else:
-        with h5py.File(baseline_path, 'r') as f:
-            data_baseline = f[var][...]
+        raise AssertionError(msg)
+    with h5py.File(baseline_path, 'r') as f:
+        data_baseline = f[var][...]
 
-            # make sure baseline data is in integer precision
-            var_obj = VarFactory.get_base_handler(
-                var, var_meta=var_meta, date=date
-            )
-            data_baseline = var_obj.scale_data(data_baseline)
-
-            # set data type to prevent overflow when doing error metrics
-            data_baseline = data_baseline.astype(float)
-            data = data.astype(float)
-
-        bad = ~np.isclose(data_baseline, data, atol=1.0, rtol=0.0)
-        diff = np.abs(data_baseline - data)
-        rel_diff = np.abs(data_baseline - data) / data_baseline
-        mean_baseline = np.mean(data_baseline)
-        mean_test = np.mean(data)
-        msg = (
-            'Data for "{}" has {} values not close out of {} '
-            'with abs diff of: max {:.3f}, mean {:.3f}, min {:.3f}, '
-            'relative abs diff of: max {:.3f}, mean {:.3f}, min {:.3f} '
-            'with a mean baseline data value of: {:.3f} and mean test data '
-            'value of: {:.3f}. '
-            '\nBad baseline values: {}, '
-            '\nbad test values: {}'.format(
-                var,
-                bad.sum(),
-                bad.shape[0] * bad.shape[1],
-                diff.max(),
-                diff.mean(),
-                diff.min(),
-                rel_diff.max(),
-                rel_diff.mean(),
-                rel_diff.min(),
-                mean_baseline,
-                mean_test,
-                data_baseline[bad],
-                data[bad],
-            )
+        # make sure baseline data is in integer precision
+        var_obj = VarFactory.get_base_handler(
+            var, var_meta=var_meta, date=date
         )
+        data_baseline = var_obj.scale_data(data_baseline)
 
-        # abs tolerance has to be >=1 because we're comparing integer precision
-        # still some small relative tolerance issues so also use rtol=1%
-        # test only the data without the last interpolated time steps
-        baseline_no_end = data_baseline[:-12]
-        data_no_end = data[:-12]
-        assert np.allclose(
-            baseline_no_end, data_no_end, atol=1.0, rtol=0.01
-        ), msg
-        # make sure the last interpolated time steps are within an acceptable
-        # range but not constant
-        baseline_end = data_baseline[-12:]
-        data_end = data[-12:]
-        assert not all(np.array_equal(x, data_end[0]) for x in data_end)
-        assert np.allclose(
-            [np.mean(data_end)], [np.mean(baseline_end)], atol=1.0, rtol=0.05
+        # set data type to prevent overflow when doing error metrics
+        data_baseline = data_baseline.astype(float)
+        data = data.astype(float)
+
+    bad = ~np.isclose(data_baseline, data, atol=1.0, rtol=0.0)
+    diff = np.abs(data_baseline - data)
+    rel_diff = np.abs(data_baseline - data) / data_baseline
+    mean_baseline = np.mean(data_baseline)
+    mean_test = np.mean(data)
+    msg = (
+        'Data for "{}" has {} values not close out of {} '
+        'with abs diff of: max {:.3f}, mean {:.3f}, min {:.3f}, '
+        'relative abs diff of: max {:.3f}, mean {:.3f}, min {:.3f} '
+        'with a mean baseline data value of: {:.3f} and mean test data '
+        'value of: {:.3f}. '
+        '\nBad baseline values: {}, '
+        '\nbad test values: {}'.format(
+            var,
+            bad.sum(),
+            bad.shape[0] * bad.shape[1],
+            diff.max(),
+            diff.mean(),
+            diff.min(),
+            rel_diff.max(),
+            rel_diff.mean(),
+            rel_diff.min(),
+            mean_baseline,
+            mean_test,
+            data_baseline[bad],
+            data[bad],
         )
+    )
+
+    # abs tolerance has to be >=1 because we're comparing integer precision
+    # still some small relative tolerance issues so also use rtol=1%
+    # test only the data without the last interpolated time steps
+    baseline_no_end = data_baseline[:-12]
+    data_no_end = data[:-12]
+    assert np.allclose(baseline_no_end, data_no_end, atol=1.0, rtol=0.01), msg
+    # make sure the last interpolated time steps are within an acceptable
+    # range but not constant
+    baseline_end = data_baseline[-12:]
+    data_end = data[-12:]
+    assert not all(np.array_equal(x, data_end[0]) for x in data_end)
+    assert np.allclose(
+        [np.mean(data_end)], [np.mean(baseline_end)], atol=1.0, rtol=0.05
+    )
 
 
 def test_parallel(
@@ -222,18 +219,17 @@ def test_parallel(
                 with h5py.File(baseline_path, 'w') as f:
                     f.create_dataset(key, data=value)
                 msg = 'Output file for "{}" did not exist, created'.format(key)
-                assert False, msg
-            else:
-                with h5py.File(baseline_path, 'r') as f:
-                    data_baseline = f[key][...]
-                    var_obj = VarFactory.get_base_handler(
-                        key, var_meta=var_meta, date=date
-                    )
-                    data_baseline = var_obj.scale_data(data_baseline)
-                # comparing all but the last interpolated time steps
-                assert np.allclose(
-                    data_baseline[:-12], value[:-12], atol=0.0, rtol=0.01
+                raise AssertionError(msg)
+            with h5py.File(baseline_path, 'r') as f:
+                data_baseline = f[key][...]
+                var_obj = VarFactory.get_base_handler(
+                    key, var_meta=var_meta, date=date
                 )
+                data_baseline = var_obj.scale_data(data_baseline)
+            # comparing all but the last interpolated time steps
+            assert np.allclose(
+                data_baseline[:-12], value[:-12], atol=0.0, rtol=0.01
+            )
 
 
 @pytest.mark.parametrize(('interp_method', 'nn_method'), [('NN', 'haversine')])

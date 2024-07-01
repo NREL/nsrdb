@@ -13,6 +13,7 @@ import shutil
 import tempfile
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -159,16 +160,15 @@ def test_regrid(max_workers_regrid):
             with h5py.File(baseline_path, 'w') as f:
                 f.create_dataset(key, data=value)
             msg = 'Output file for "{}" did not exist, created'.format(key)
-            assert False, msg
-        else:
-            with h5py.File(baseline_path, 'r') as f:
-                data_baseline = f[key][...]
-                var_obj = VarFactory.get_base_handler(
-                    key, var_meta=var_meta, date=date
-                )
-                data_baseline = var_obj.scale_data(data_baseline)
+            raise AssertionError(msg)
+        with h5py.File(baseline_path, 'r') as f:
+            data_baseline = f[key][...]
+            var_obj = VarFactory.get_base_handler(
+                key, var_meta=var_meta, date=date
+            )
+            data_baseline = var_obj.scale_data(data_baseline)
 
-            assert np.allclose(data_baseline, value, atol=ATOL, rtol=RTOL)
+        assert np.allclose(data_baseline, value, atol=ATOL, rtol=RTOL)
 
 
 def test_regrid_duplicates():
@@ -371,8 +371,6 @@ def test_parallax_shading_correct(plot=False):
     assert not np.allclose(cv_remap.grid, cv_pc.grid)
 
     if plot:
-        import matplotlib.pyplot as plt
-
         jobs = {'raw': cv_raw, 'pc': cv_pc, 'remap': cv_remap}
 
         for name, cv_obj in jobs.items():
