@@ -26,7 +26,7 @@ classifiers=[
   "Programming Language :: Python :: 3.10",
 ]
 dependencies = [
-  "netCDF4>=1.6",
+  "netCDF4>=1.6,<1.7",
   "matplotlib",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.5",
