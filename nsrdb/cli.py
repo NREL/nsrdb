@@ -83,27 +83,47 @@ def main(ctx, config, verbose):
     Try using the following commands to pull up the help pages for the
     respective NSRDB CLIs::
 
-        $ nsrdb --help
+        $ python -m nsrdb.cli --help
 
-        $ nsrdb pipeline --help
+        $ python -m nsrdb.cli pipeline --help
 
-        $ nsrdb data-model --help
+        $ python -m nsrdb.cli data-model --help
 
-        $ nsrdb ml-cloud-fill --help
+        $ python -m nsrdb.cli ml-cloud-fill --help
 
-        $ nsrdb daily-all-sky --help
+        $ python -m nsrdb.cli daily-all-sky --help
 
-        $ nsrdb collect-data-model --help
+        $ python -m nsrdb.cli collect-data-model --help
 
-    Typically, a good place to start is to set up an nsrdb job with a pipeline
-    config that points to several NSRDB modules that you want to run in serial.
-    You would call the NSRDB pipeline CLI using::
+        $ python -m nsrdb.cli tmy --help
 
-        $ nsrdb pipeline -c config_pipeline.json
+        $ python -m nsrdb.cli blend --help
+
+        $ python -m nsrdb.cli aggregate --help
+
+    Each of these commands can be run with a config_file provided through the
+    `-c` argument. A typical config file might look like::
+
+        \b
+        {
+            "logging": {"log_level": "DEBUG"},
+            "<command name>": {kwargs},
+            "direct": {more kwargs},
+            "execution_control": {"option": "kestrel", ...}
+            "another command": {...},
+            ...
+            ]
+        }
+
+    The "direct" key is used to provide arguments to multiple commands. This
+    removes the need for duplication in the case of multiple commands having
+    the same argument values. "execution_control" is used to provide arguments
+    to the SLURM manager for HPC submissions or to select local execution with
+    {"option": "local"}
 
     See the help pages of the module CLIs for more details on the config files
     for each CLI.
-    """
+    """  # noqa: D301
     ctx.ensure_object(dict)
     ctx.obj['CONFIG'] = config
     ctx.obj['VERBOSE'] = verbose

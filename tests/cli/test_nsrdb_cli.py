@@ -291,7 +291,10 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     ) == 1 + len(DataModel.ALL_VARS)
 
     # collected data doesn't include all-sky files yet (irradiance / clearsky)
-    assert len(glob(f'{out_dir}/collect/*.h5')) == 5
+    assert len(glob(f'{out_dir}/collect/*.h5')) == n_chunks * 5
+    assert (
+        len(glob(out_dir + '/logs/collect_data_model/*.log')) == n_chunks * 5
+    )
 
     # gap-fill
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
@@ -316,9 +319,7 @@ def test_cli_pipeline_legacy(runner, legacy_config):
         )
         == final_files
     )
-    assert len(
-        glob(out_dir + '/logs/collect_data_model/*.log')
-    ) == n_chunks * len(NSRDB.OUTS)
+    assert len(glob(out_dir + '/logs/collect_final/*.log')) == len(NSRDB.OUTS)
 
     # final status file update
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
