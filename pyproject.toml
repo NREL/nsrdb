@@ -117,9 +117,11 @@ ignore = [
   "N802", # invalid-function-name
   "N803", # invalid-argument-name
   "N806", # non-lowercase-variable-in-function
+  "N811", # constant imported as non constant
   "PERF102", # incorrect-dict-iterator
   "PERF203", # try-except-in-loop
   "PERF401", # manual-list-comprehension
+  "PLC0415", # import not at top of file
   "PLR0904", # too-many-public-methods
   "PLR0912", # too-many-branches
   "PLR0913", # too-many-arguments

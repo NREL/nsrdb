@@ -891,7 +891,7 @@ class Tmy:
 
         return freq
 
-    def get_weighted_FileSystem(self):
+    def get_weighted_fs(self):
         """Get the FS metric for all datasets and weight and combine.
 
         This is part of STEP #1 of the NSRDB TMY.
@@ -1234,7 +1234,7 @@ class Tmy:
             Shape is (months, sites).
         """
 
-        ws = self.get_weighted_FileSystem()
+        ws = self.get_weighted_fs()
         tmy_years_5, _ = self.select_fs_years(ws)
         tmy_years_5, _ = self.sort_years_mm(tmy_years_5)
         tmy_years, _, _ = self.persistence_filter(tmy_years_5)
