@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A framework for handling MAIAC high-res AOD source data."""
 
 import logging

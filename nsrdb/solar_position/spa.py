@@ -13,10 +13,11 @@ with h5py.File(nsrdb_file, 'r') as f:
 apparent_zenith_angle = SPA.zenith(time_index, lat_lon, elev=elev,
                                    pressure=P, temperature=T)
 """
+
 import numpy as np
 import pandas as pd
 
-from nsrdb.solar_position.spa_tables import SPAtables, DeltaTable
+from nsrdb.solar_position.spa_tables import DeltaTable, SPAtables
 
 SPA_TABLES = SPAtables()
 DELTA_TABLE = DeltaTable()
@@ -170,8 +171,10 @@ class SPA:
             heliocentric value for each input timestep
         """
         jme = np.expand_dims(jme, axis=0)
-        out = np.sum(arr[:, :, [0]]
-                     * np.cos(arr[:, :, [1]] + arr[:, :, [2]] * jme), axis=1)
+        out = np.sum(
+            arr[:, :, [0]] * np.cos(arr[:, :, [1]] + arr[:, :, [2]] * jme),
+            axis=1,
+        )
         out = np.sum(out * np.power(jme.T, range(len(arr))).T, axis=0) / 10**8
         return out
 
@@ -282,8 +285,12 @@ class SPA:
         x0 : ndarray
             Mean elogation for all timesteps
         """
-        x0 = (297.85036 + 445267.111480 * jce - 0.0019142 * jce**2 + jce**3
-              / 189474)
+        x0 = (
+            297.85036
+            + 445267.111480 * jce
+            - 0.0019142 * jce**2
+            + jce**3 / 189474
+        )
         return x0
 
     @staticmethod
@@ -301,8 +308,12 @@ class SPA:
         x1 : ndarray
             Mean sun anomaly for all timesteps
         """
-        x1 = (357.52772 + 35999.050340 * jce - 0.0001603 * jce**2 - jce**3
-              / 300000)
+        x1 = (
+            357.52772
+            + 35999.050340 * jce
+            - 0.0001603 * jce**2
+            - jce**3 / 300000
+        )
         return x1
 
     @staticmethod
@@ -320,8 +331,12 @@ class SPA:
         x2 : ndarray
             Mean moon anomaly for all timesteps
         """
-        x2 = (134.96298 + 477198.867398 * jce + 0.0086972 * jce**2 + jce**3
-              / 56250)
+        x2 = (
+            134.96298
+            + 477198.867398 * jce
+            + 0.0086972 * jce**2
+            + jce**3 / 56250
+        )
         return x2
 
     @staticmethod
@@ -339,8 +354,12 @@ class SPA:
         x3 : ndarray
             Moon latitude for all timesteps
         """
-        x3 = (93.27191 + 483202.017538 * jce - 0.0036825 * jce**2 + jce**3
-              / 327270)
+        x3 = (
+            93.27191
+            + 483202.017538 * jce
+            - 0.0036825 * jce**2
+            + jce**3 / 327270
+        )
         return x3
 
     @staticmethod
@@ -358,8 +377,12 @@ class SPA:
         x4 : ndarray
             Moon ascending longitude for all timesteps
         """
-        x4 = (125.04452 - 1934.136261 * jce + 0.0020708 * jce**2 + jce**3
-              / 450000)
+        x4 = (
+            125.04452
+            - 1934.136261 * jce
+            + 0.0020708 * jce**2
+            + jce**3 / 450000
+        )
         return x4
 
     @staticmethod
@@ -414,13 +437,15 @@ class SPA:
         d = abcd[:, 3]
 
         argsin = np.sin(nut_arr)
-        delta_psi = np.sum((a + b * np.expand_dims(jce, axis=0).T).T * argsin,
-                           axis=0)
+        delta_psi = np.sum(
+            (a + b * np.expand_dims(jce, axis=0).T).T * argsin, axis=0
+        )
         delta_psi = delta_psi / 36000000
 
         argcos = np.cos(nut_arr)
-        delta_eps = np.sum((c + d * np.expand_dims(jce, axis=0).T).T * argcos,
-                           axis=0)
+        delta_eps = np.sum(
+            (c + d * np.expand_dims(jce, axis=0).T).T * argcos, axis=0
+        )
         delta_eps = delta_eps / 36000000
 
         return delta_psi, delta_eps
@@ -441,8 +466,21 @@ class SPA:
             Mean ecliptic obliquity for all timesteps
         """
         U = np.expand_dims(jme, axis=0).T / 10
-        e0_coeff = np.array([84381.448, -4680.93, -1.55, 1999.25, -51.38,
-                             -249.67, -39.05, 7.12, 27.87, 5.79, 2.45])
+        e0_coeff = np.array(
+            [
+                84381.448,
+                -4680.93,
+                -1.55,
+                1999.25,
+                -51.38,
+                -249.67,
+                -39.05,
+                7.12,
+                27.87,
+                5.79,
+                2.45,
+            ]
+        )
 
         e0 = np.sum(e0_coeff * np.power(U, range(11)), axis=1)
         return e0
@@ -522,8 +560,12 @@ class SPA:
         v0 : ndarray
             Mean sidereal time in degrees
         """
-        v0 = (280.46061837 + 360.98564736629 * (jd - 2451545)
-              + 0.000387933 * jc**2 - jc**3 / 38710000)
+        v0 = (
+            280.46061837
+            + 360.98564736629 * (jd - 2451545)
+            + 0.000387933 * jc**2
+            - jc**3 / 38710000
+        )
         return v0 % 360.0
 
     @staticmethod
@@ -545,8 +587,7 @@ class SPA:
         v : ndarray
             Apparent sidereal time degrees
         """
-        v = v0 + delta_psi * np.cos(
-            np.radians(e))
+        v = v0 + delta_psi * np.cos(np.radians(e))
         return v
 
     @staticmethod
@@ -573,12 +614,13 @@ class SPA:
         lamd = np.radians(lamd)
         e = np.radians(e)
         beta = np.radians(beta)
-        num = (np.sin(lamd) * np.cos(e) - np.tan(beta) * np.sin(e))
+        num = np.sin(lamd) * np.cos(e) - np.tan(beta) * np.sin(e)
         denom = np.cos(lamd)
         alpha = np.degrees(np.arctan2(num, denom)) % 360
 
-        delta = (np.sin(beta) * np.cos(e) + np.cos(beta) * np.sin(e)
-                 * np.sin(lamd))
+        delta = np.sin(beta) * np.cos(e) + np.cos(beta) * np.sin(e) * np.sin(
+            lamd
+        )
         delta = np.degrees(np.arcsin(delta))
 
         return alpha, delta
@@ -644,8 +686,8 @@ class SPA:
         """
         obs_lat = np.radians(obs_lat)
         u = np.arctan(0.99664719 * np.tan(obs_lat))
-        obs_x = (np.cos(u) + obs_elev / 6378140 * np.cos(obs_lat))
-        obs_y = (0.99664719 * np.sin(u) + obs_elev / 6378140 * np.sin(obs_lat))
+        obs_x = np.cos(u) + obs_elev / 6378140 * np.cos(obs_lat)
+        obs_y = 0.99664719 * np.sin(u) + obs_elev / 6378140 * np.sin(obs_lat)
         return obs_x, obs_y
 
     @staticmethod
@@ -672,8 +714,8 @@ class SPA:
         xi = np.radians(xi)
         H = np.radians(H)
         delta = np.radians(delta)
-        num = (-obs_x * np.sin(xi) * np.sin(H))
-        denom = (np.cos(delta) - obs_x * np.sin(xi) * np.cos(H))
+        num = -obs_x * np.sin(xi) * np.sin(H)
+        denom = np.cos(delta) - obs_x * np.sin(xi) * np.cos(H)
         delta_alpha = np.degrees(np.arctan2(num, denom))
         return delta_alpha
 
@@ -709,8 +751,8 @@ class SPA:
         xi = np.radians(xi)
         H = np.radians(H)
         delta_alpha = np.radians(delta_alpha)
-        num = ((np.sin(delta) - obs_y * np.sin(xi)) * np.cos(delta_alpha))
-        denom = (np.cos(delta) - obs_x * np.sin(xi) * np.cos(H))
+        num = (np.sin(delta) - obs_y * np.sin(xi)) * np.cos(delta_alpha)
+        denom = np.cos(delta) - obs_x * np.sin(xi) * np.cos(H)
         delta_prime = np.degrees(np.arctan2(num, denom))
         return delta_prime
 
@@ -762,20 +804,23 @@ class SPA:
         """
         obs_x, obs_y = SPA.observer_xy(obs_lat, obs_elev)
         delta_alpha = SPA.parallax_sun_right_ascension(obs_x, xi, H, delta)
-        delta_prime = SPA.topocentric_sun_declination(obs_x, obs_y, xi, H,
-                                                      delta, delta_alpha)
+        delta_prime = SPA.topocentric_sun_declination(
+            obs_x, obs_y, xi, H, delta, delta_alpha
+        )
         H_prime = SPA.topocentric_local_hour_angle(H, delta_alpha)
 
         obs_lat = np.radians(obs_lat)
         delta_prime = np.radians(delta_prime)
         H_prime = np.radians(H_prime)
-        e0 = (np.sin(obs_lat) * np.sin(delta_prime) + np.cos(obs_lat)
-              * np.cos(delta_prime) * np.cos(H_prime))
+        e0 = np.sin(obs_lat) * np.sin(delta_prime) + np.cos(obs_lat) * np.cos(
+            delta_prime
+        ) * np.cos(H_prime)
         e0 = np.degrees(np.arcsin(e0))
 
         num = np.sin(H_prime)
-        denom = (np.cos(H_prime) * np.sin(obs_lat) - np.tan(delta_prime)
-                 * np.cos(obs_lat))
+        denom = np.cos(H_prime) * np.sin(obs_lat) - np.tan(
+            delta_prime
+        ) * np.cos(obs_lat)
         gamma = np.degrees(np.arctan2(num, denom)) % 360
         phi = (gamma + 180) % 360
         return e0, phi
@@ -806,15 +851,17 @@ class SPA:
                 arr = arr.reshape(shape)
 
         if arr.shape != shape:
-            raise ValueError("Cannot convert array of shape {} to "
-                             "desired final shape {}"
-                             .format(arr.shape, shape))
+            raise ValueError(
+                'Cannot convert array of shape {} to '
+                'desired final shape {}'.format(arr.shape, shape)
+            )
 
         return arr
 
     @staticmethod
-    def atmospheric_refraction_correction(e0, pres=1013.25, temp=12,
-                                          atmos_refract=0.5667):
+    def atmospheric_refraction_correction(
+        e0, pres=1013.25, temp=12, atmos_refract=0.5667
+    ):
         """
         Compute the atmospheric refraction correction value for all
         sites
@@ -844,13 +891,18 @@ class SPA:
         # switch sets delta_e when the sun is below the horizon
         switch = e0 >= -1.0 * (0.26667 + atmos_refract)
         angle = np.radians(e0 + 10.3 / (e0 + 5.11))
-        delta_e = ((pres / 1010.0) * (283.0 / (273 + temp))
-                   * 1.02 / (60 * np.tan(angle))) * switch
+        delta_e = (
+            (pres / 1010.0)
+            * (283.0 / (273 + temp))
+            * 1.02
+            / (60 * np.tan(angle))
+        ) * switch
         return delta_e
 
     @staticmethod
-    def apparent_elevation_angle(e0, pres=1013.25, temp=12,
-                                 atmos_refract=0.5667):
+    def apparent_elevation_angle(
+        e0, pres=1013.25, temp=12, atmos_refract=0.5667
+    ):
         """
         The apparent topocentric elevation angle after refraction
 
@@ -871,9 +923,9 @@ class SPA:
             Apparent topocentric elevation angle after refraction
         """
         a = atmos_refract
-        delta_e = SPA.atmospheric_refraction_correction(e0, pres=pres,
-                                                        temp=temp,
-                                                        atmos_refract=a)
+        delta_e = SPA.atmospheric_refraction_correction(
+            e0, pres=pres, temp=temp, atmos_refract=a
+        )
         e = e0 + delta_e
         return e
 
@@ -910,8 +962,14 @@ class SPA:
         M : ndarray
             Mean sun longitude
         """
-        M = (280.4664567 + 360007.6982779 * jme + 0.03032028 * jme**2
-             + jme**3 / 49931 - jme**4 / 15300 - jme**5 / 2000000)
+        M = (
+            280.4664567
+            + 360007.6982779 * jme
+            + 0.03032028 * jme**2
+            + jme**3 / 49931
+            - jme**4 / 15300
+            - jme**5 / 2000000
+        )
         return M
 
     @staticmethod
@@ -920,7 +978,7 @@ class SPA:
         Equation of time
 
         Parameters
-        ---------
+        ----------
         jme : ndarray
             Julian ephemeris millennium
         alpha : ndarray
@@ -936,7 +994,7 @@ class SPA:
             Equation of time values for all timesteps
         """
         M = SPA.sun_mean_longitude(jme)
-        E = (M - 0.0057183 - alpha + delta_psi * np.cos(np.radians(e)))
+        E = M - 0.0057183 - alpha + delta_psi * np.cos(np.radians(e))
         # limit between 0 and 360
         E = E % 360
         # convert to minutes
@@ -1013,8 +1071,9 @@ class SPA:
         """
         v, alpha, delta, xi, _ = self._temporal_params(delta_t=delta_t)
         H = self.local_hour_angle(v, self.longitude, alpha)
-        e0, phi = self.topocentric_solar_position(self.latitude,
-                                                  self.altitude, xi, H, delta)
+        e0, phi = self.topocentric_solar_position(
+            self.latitude, self.altitude, xi, H, delta
+        )
         return e0, phi
 
     def solar_position(self, delta_t=None):
@@ -1044,9 +1103,13 @@ class SPA:
         theta0 = self.topocentric_zenith_angle(e0)
         return e0.T, phi.T, theta0.T
 
-    def apparent_solar_position(self, pressure=1013.25, temperature=12,
-                                atmospheric_refraction=0.5667,
-                                delta_t=None):
+    def apparent_solar_position(
+        self,
+        pressure=1013.25,
+        temperature=12,
+        atmospheric_refraction=0.5667,
+        delta_t=None,
+    ):
         """
         Compute the apparent (atmospheric refraction corrected) solar position
         for all locations and times:
@@ -1073,8 +1136,12 @@ class SPA:
             Solar zenith after atmospheric refraction correction in degrees
         """
         e0, _ = self._elevation_azimuth(delta_t=delta_t)
-        e = self.apparent_elevation_angle(e0, pres=pressure, temp=temperature,
-                                          atmos_refract=atmospheric_refraction)
+        e = self.apparent_elevation_angle(
+            e0,
+            pres=pressure,
+            temp=temperature,
+            atmos_refract=atmospheric_refraction,
+        )
         theta = self.topocentric_zenith_angle(e)
         return e.T, theta.T
 
@@ -1190,9 +1257,16 @@ class SPA:
         return theta
 
     @classmethod
-    def apparent_position(cls, time_index, lat_lon, elev=0, pressure=1013.25,
-                          temperature=12, atmospheric_refraction=0.5667,
-                          delta_t=None):
+    def apparent_position(
+        cls,
+        time_index,
+        lat_lon,
+        elev=0,
+        pressure=1013.25,
+        temperature=12,
+        atmospheric_refraction=0.5667,
+        delta_t=None,
+    ):
         """
         Compute the solar position after atmospheric refraction correction
         - elevation
@@ -1225,16 +1299,25 @@ class SPA:
         """
         spa = cls(time_index, lat_lon, elev=elev)
         a = atmospheric_refraction
-        e, theta = spa.apparent_solar_position(pressure=pressure,
-                                               temperature=temperature,
-                                               atmospheric_refraction=a,
-                                               delta_t=delta_t)
+        e, theta = spa.apparent_solar_position(
+            pressure=pressure,
+            temperature=temperature,
+            atmospheric_refraction=a,
+            delta_t=delta_t,
+        )
         return e, theta
 
     @classmethod
-    def apparent_elevation(cls, time_index, lat_lon, elev=0, pressure=1013.25,
-                           temperature=12, atmospheric_refraction=0.5667,
-                           delta_t=None):
+    def apparent_elevation(
+        cls,
+        time_index,
+        lat_lon,
+        elev=0,
+        pressure=1013.25,
+        temperature=12,
+        atmospheric_refraction=0.5667,
+        delta_t=None,
+    ):
         """
         Compute the solar elevation after atmospheric refraction correction
 
@@ -1263,16 +1346,25 @@ class SPA:
         """
         spa = cls(time_index, lat_lon, elev=elev)
         a = atmospheric_refraction
-        e, _ = spa.apparent_solar_position(pressure=pressure,
-                                           temperature=temperature,
-                                           atmospheric_refraction=a,
-                                           delta_t=delta_t)
+        e, _ = spa.apparent_solar_position(
+            pressure=pressure,
+            temperature=temperature,
+            atmospheric_refraction=a,
+            delta_t=delta_t,
+        )
         return e
 
     @classmethod
-    def apparent_zenith(cls, time_index, lat_lon, elev=0, pressure=1013.25,
-                        temperature=12, atmospheric_refraction=0.5667,
-                        delta_t=None):
+    def apparent_zenith(
+        cls,
+        time_index,
+        lat_lon,
+        elev=0,
+        pressure=1013.25,
+        temperature=12,
+        atmospheric_refraction=0.5667,
+        delta_t=None,
+    ):
         """
         Compute the solar zenith angle after atmospheric refraction correction
 
@@ -1301,8 +1393,10 @@ class SPA:
         """
         spa = cls(time_index, lat_lon, elev=elev)
         a = atmospheric_refraction
-        _, theta = spa.apparent_solar_position(pressure=pressure,
-                                               temperature=temperature,
-                                               atmospheric_refraction=a,
-                                               delta_t=delta_t)
+        _, theta = spa.apparent_solar_position(
+            pressure=pressure,
+            temperature=temperature,
+            atmospheric_refraction=a,
+            delta_t=delta_t,
+        )
         return theta

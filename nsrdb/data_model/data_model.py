@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """The data model handles NSRDB data sources, with the end goal of preparing
 data inputs to the NSRDB all-sky irradiance models.
 

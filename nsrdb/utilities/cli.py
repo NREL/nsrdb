@@ -107,28 +107,50 @@ class BaseCLI:
         ctx.ensure_object(dict)
         cls.check_module_name(module_name)
 
+        cmd_args = cls.get_cmd_args(module_name=module_name, config=config)
+        ctx.obj['STATUS_DIR'] = cmd_args['status_dir']
+        ctx.obj['VERBOSE'] = verbose
+        ctx.obj['OUT_DIR'] = cmd_args.get('outdir', cmd_args['status_dir'])
+        ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
+        mod_name = module_name.replace('-', '_')
+        ctx.obj['LOG_DIR'] = os.path.join(
+            cmd_args['status_dir'], 'logs', mod_name
+        )
+        os.makedirs(ctx.obj['LOG_DIR'], exist_ok=True)
+        job_name = cmd_args.get('run_name', None)
+        job_name = (
+            f'{job_name}_{mod_name}' if job_name is not None else mod_name
+        )
+        ctx.obj['RUN_NAME'] = job_name
+        ctx.obj['LOG_FILE'] = cmd_args.get(
+            'log_file', os.path.join(ctx.obj['LOG_DIR'], job_name + '.log')
+        )
+        log_level = cmd_args.get('log_level', 'INFO')
+        ctx.obj['LOG_ARG_STR'] = f'"nsrdb", log_level="{log_level}"'
+        log_level = log_level == 'DEBUG'
+        verbose = any([verbose, log_level, ctx.obj['VERBOSE']])
+
+        init_mult(
+            f'nsrdb_{mod_name}',
+            ctx.obj['LOG_DIR'],
+            modules=[__name__, 'nsrdb'],
+            verbose=verbose,
+        )
+
+        cmd_args['log_file'] = ctx.obj['LOG_FILE']
+        cmd_args['job_name'] = job_name
+        return cmd_args
+
+    @staticmethod
+    def get_cmd_args(module_name, config):
+        """Get module specific kwargs."""
+
         if not isinstance(config, dict):
             status_dir = os.path.dirname(os.path.abspath(config))
             config = load_config(config)
         else:
             status_dir = config.get('status_dir', './')
 
-        ctx.obj['STATUS_DIR'] = status_dir
-        ctx.obj['VERBOSE'] = verbose
-        ctx.obj['OUT_DIR'] = config.get('outdir', status_dir)
-        ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
-        mod_name = module_name.replace('-', '_')
-        ctx.obj['MOD_NAME'] = mod_name
-        ctx.obj['LOG_DIR'] = os.path.join(status_dir, 'logs', mod_name)
-        os.makedirs(ctx.obj['LOG_DIR'], exist_ok=True)
-        ctx.obj['NAME'] = name = config.get('job_name', mod_name)
-        ctx.obj['LOG_FILE'] = config.get(
-            'log_file', os.path.join(ctx.obj['LOG_DIR'], name + '.log')
-        )
-        log_level = config.get('log_level', 'INFO')
-        ctx.obj['LOG_ARG_STR'] = f'"nsrdb", log_level="{log_level}"'
-        log_level = log_level == 'DEBUG'
-        verbose = any([verbose, log_level, ctx.obj['VERBOSE']])
         exec_kwargs = config.get('execution_control', {})
         direct_args = config.get('direct', {})
         cmd_args = config.get(module_name, {})
@@ -140,23 +162,13 @@ class BaseCLI:
         direct_args.update(
             {k: v for k, v in cmd_args.items() if k in direct_args}
         )
-
-        init_mult(
-            f'nsrdb_{mod_name}',
-            ctx.obj['LOG_DIR'],
-            modules=[__name__, 'nsrdb'],
-            verbose=verbose,
-        )
-
         exec_kwargs['stdout_path'] = os.path.join(status_dir, 'stdout/')
         logger.debug(
             f'Found execution kwargs {exec_kwargs} for {module_name} module'
         )
-        cmd_args['log_file'] = ctx.obj['LOG_FILE']
-        cmd_args['job_name'] = name
+        cmd_args.update(direct_args)
         cmd_args['status_dir'] = status_dir
         cmd_args['execution_control'] = exec_kwargs
-        cmd_args.update(direct_args)
         return cmd_args
 
     @classmethod
@@ -507,7 +519,7 @@ class BaseCLI:
             date = NSRDB.doy_to_datestr(config_dict['year'], doy)
             log_id = f'{date}_{str(doy).zfill(3)}'
             config_dict['date'] = date
-            config_dict['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
+            config_dict['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
             config_dict['doy'] = doy
 
             cls.kickoff_job(
@@ -553,7 +565,7 @@ class BaseCLI:
 
         for i_chunk in range(config['n_chunks']):
             config['i_chunk'] = i_chunk
-            config['job_name'] = f'{ctx.obj["NAME"]}_{i_chunk}'
+            config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{i_chunk}'
 
             cls.kickoff_job(
                 ctx=ctx,

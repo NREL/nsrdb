@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 """A framework for handling source data in the NREL resource format: .h5 source
 files with meta and time_index datasets, all data is (n_time, n_sites).
 """
-import os
+
 import logging
+import os
+
 import numpy as np
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
@@ -76,9 +77,11 @@ class NrelVar(AncillaryVarHandler):
             with NFS(self.file, use_rex=True) as f:
                 ti = f.time_index
 
-            self._row_mask = ((ti.year == self._date.year)
-                              & (ti.month == self._date.month)
-                              & (ti.day == self._date.day))
+            self._row_mask = (
+                (ti.year == self._date.year)
+                & (ti.month == self._date.month)
+                & (ti.day == self._date.day)
+            )
 
         return self._row_mask
 

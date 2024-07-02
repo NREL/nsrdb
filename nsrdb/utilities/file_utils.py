@@ -12,6 +12,7 @@ import shlex
 import shutil
 import time
 from concurrent.futures import as_completed
+from datetime import timedelta
 from subprocess import PIPE, Popen, run
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -28,6 +29,17 @@ DIR = os.path.dirname(os.path.realpath(__file__))
 TOOL = os.path.join(
     DIR, '_h4h5tools-2.2.2-linux-x86_64-static', 'bin', 'h4toh5'
 )
+
+
+def daterange(start_date, end_date):
+    """
+    Create a range of dates.
+
+    From https://stackoverflow.com/questions/1060279/
+    iterating-through-a-range-of-dates-in-python
+    """
+    for n in range(int((end_date - start_date).days) + 1):
+        yield start_date + timedelta(n)
 
 
 def pd_date_range(*args, **kwargs):

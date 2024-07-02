@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Classes to handle NSRSDB h5 output files.
-"""
+"""Classes to handle NSRSDB h5 output files."""
 
 import importlib
 import json

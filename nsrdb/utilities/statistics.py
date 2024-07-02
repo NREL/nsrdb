@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Created on Fri Dec 21 10:29:51 2018
 
 @author: gbuster
 """
+
 import numpy as np
 
 
@@ -58,7 +58,7 @@ def rmse(x, x_true):
 def rmse_perc(x, x_true):
     """Calculate the root mean square error (percentage of true)."""
     rmse_val = rmse(x, x_true)
-    denom = np.nanmean(x_true ** 2) ** 0.5
+    denom = np.nanmean(x_true**2) ** 0.5
     rmse_perc_out = 100 * rmse_val / denom
 
     return rmse_perc_out

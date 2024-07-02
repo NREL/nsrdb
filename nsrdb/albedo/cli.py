@@ -4,13 +4,14 @@ MODIS dry-land albedo and IMS snow data.
 
 Mike Bannister
 1/29/2020
+
+TODO: Refactor with new CLI. Setup to use config file instead of lots of args
 """
 
 import logging
 import os
 import sys
 from datetime import datetime as dt
-from datetime import timedelta
 
 import click
 from rex.utilities.cli_dtypes import INT, STR
@@ -19,6 +20,7 @@ from rex.utilities.loggers import init_logger
 
 from nsrdb.albedo.albedo import CompositeAlbedoDay
 from nsrdb.albedo.ims import get_dt
+from nsrdb.utilities.file_utils import daterange
 
 logger = logging.getLogger(__name__)
 
@@ -338,17 +340,6 @@ def get_node_cmd(date, ipath, mpath, apath, mepath, tiff, log_file):
 
     cmd = f'python -m nsrdb.albedo.cli {args}'
     return cmd
-
-
-def daterange(start_date, end_date):
-    """
-    Create a range of dates.
-
-    From https://stackoverflow.com/questions/1060279/
-    iterating-through-a-range-of-dates-in-python
-    """
-    for n in range(int((end_date - start_date).days) + 1):
-        yield start_date + timedelta(n)
 
 
 if __name__ == '__main__':

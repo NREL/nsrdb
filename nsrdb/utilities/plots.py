@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 # flake8: noqa: C901
 """Test data extraction.
 
 Created on Tue Dec  10 08:22:26 2018
 
 @author: gbuster
+
+TODO: Integrate into cli as a QA module.
 """
 
 import datetime

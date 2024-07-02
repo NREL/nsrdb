@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Factory pattern for retrieving NSRDB data source handlers."""
 
 import logging

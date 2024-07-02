@@ -4,7 +4,7 @@
     "max_workers": 10,
     "n_writes": 1,
     "n_chunks": 1,
-    "final_file_name": "%basename%_%satellite%_%extent%_%spatial%"
+    "final_file_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%"
   },
   "daily-all-sky": {},
   "data-model": {
@@ -61,6 +61,7 @@
   "direct": {
     "log_level": "INFO",
     "freq": "%freq%",
+    "run_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%_%year%",
     "grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",
     "year": "%year%"

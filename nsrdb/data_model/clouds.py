@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """A framework for handling UW/GOES source data."""
+
 import datetime
 import logging
 import os
@@ -30,13 +30,14 @@ class CloudCoords:
     DEFAULT_NADIR_E = -75
     DEFAULT_NADIR_W = -135
 
-    REQUIRED = ('latitude',
-                'longitude',
-                'solar_zenith_angle',
-                'solar_azimuth_angle',
-                'sensor_zenith_angle',
-                'cld_height_acha',
-                )
+    REQUIRED = (
+        'latitude',
+        'longitude',
+        'solar_zenith_angle',
+        'solar_azimuth_angle',
+        'sensor_zenith_angle',
+        'cld_height_acha',
+    )
 
     @staticmethod
     def check_file(fp):
@@ -51,8 +52,10 @@ class CloudCoords:
                 dsets = list(f)
 
         else:
-            e = ('Could not parse cloud file, expecting .h5 or .nc but '
-                 'received: {}'.format(os.path.basename(fp)))
+            e = (
+                'Could not parse cloud file, expecting .h5 or .nc but '
+                'received: {}'.format(os.path.basename(fp))
+            )
             logger.error(e)
             raise OSError(e)
 
@@ -160,8 +163,16 @@ class CloudCoords:
         return sen_azi
 
     @classmethod
-    def correct_coords(cls, lat, lon, zen, azi, cld_height, zen_threshold=85,
-                       option='parallax'):
+    def correct_coords(
+        cls,
+        lat,
+        lon,
+        zen,
+        azi,
+        cld_height,
+        zen_threshold=85,
+        option='parallax',
+    ):
         """Adjust cloud coordinates for parallax correction using the viewing
         geometry from the sensor or for shading geometry based on the sun's
         position. Height data for clearsky pixels should be NaN or zero, which
@@ -204,14 +215,20 @@ class CloudCoords:
             coordinates they are shading (option == "shading").
         """
 
-        shapes = {'lat': lat.shape, 'lon': lon.shape,
-                  'zen': zen.shape, 'azi': azi.shape,
-                  'cld_height': cld_height.shape}
+        shapes = {
+            'lat': lat.shape,
+            'lon': lon.shape,
+            'zen': zen.shape,
+            'azi': azi.shape,
+            'cld_height': cld_height.shape,
+        }
         shapes_list = list(shapes.values())
         check = [shapes_list[0] == x for x in shapes_list[1:]]
         if not all(check):
-            e = ('Cannot run cloud coordinate shading adjustment. '
-                 'Input shapes: {}'.format(shapes))
+            e = (
+                'Cannot run cloud coordinate shading adjustment. '
+                'Input shapes: {}'.format(shapes)
+            )
             logger.error(e)
             raise ValueError(e)
 
@@ -252,9 +269,18 @@ class CloudVarSingle:
 
     GRID_LABELS = ['latitude', 'longitude']
 
-    def __init__(self, fpath, pre_proc_flag=True, index=None,
-                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha')):
+    def __init__(
+        self,
+        fpath,
+        pre_proc_flag=True,
+        index=None,
+        dsets=(
+            'cloud_type',
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+        ),
+    ):
         """
         Parameters
         ----------
@@ -293,8 +319,9 @@ class CloudVarSingle:
 
     def get_dset(self, dset):
         """Abstract placeholder for data retrieval method"""
-        raise NotImplementedError('get_dset() must be defined for H5 or NC '
-                                  'file types.')
+        raise NotImplementedError(
+            'get_dset() must be defined for H5 or NC ' 'file types.'
+        )
 
     @property
     def dsets(self):
@@ -362,8 +389,9 @@ class CloudVarSingle:
         pc_grid = self._grid.copy()
         self._grid = self._raw_grid
 
-        self._raw_cloud_mask = np.isin(self.get_dset('cloud_type'),
-                                       CLOUD_TYPES)
+        self._raw_cloud_mask = np.isin(
+            self.get_dset('cloud_type'), CLOUD_TYPES
+        )
 
         # this fills in all gaps in the original raw coordinate system created
         # by the parallax correction using simple nearest neighbor
@@ -376,7 +404,8 @@ class CloudVarSingle:
         # original raw coordinate system overriding any existing clear
         # conditions
         self._remap_pc_index_clouds = self.tree.query(
-            pc_grid.values[self._raw_cloud_mask])[1].astype(np.int32)
+            pc_grid.values[self._raw_cloud_mask]
+        )[1].astype(np.int32)
 
         # try to reduce memory usage
         del pc_tree
@@ -444,17 +473,19 @@ class CloudVarSingle:
             rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
             grid.loc[dup_mask, 'longitude'] *= rand_mult
 
-            wmsg = ('Cloud file had {} duplicate coordinates out of {} '
-                    '({:.2f}%)'.format(dup_mask.sum(), len(grid),
-                                       100 * dup_mask.sum() / len(grid)))
+            wmsg = (
+                'Cloud file had {} duplicate coordinates out of {} '
+                '({:.2f}%)'.format(
+                    dup_mask.sum(), len(grid), 100 * dup_mask.sum() / len(grid)
+                )
+            )
             warn(wmsg)
             logger.warning(wmsg)
 
         return grid
 
     def clean_attrs(self):
-        """Try to clean unnecessary object attributes to reduce memory usage
-        """
+        """Try to clean unnecessary object attributes to reduce memory usage"""
         self._tree = None
         self._raw_grid = None
         self._raw_cloud_mask = None
@@ -465,10 +496,21 @@ class CloudVarSingle:
 class CloudVarSingleH5(CloudVarSingle):
     """Framework for .h5 single-file/single-timestep cloud data extraction."""
 
-    def __init__(self, fpath, pre_proc_flag=True, index=None,
-                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'),
-                 parallax_correct=True, solar_shading=True, remap_pc=True):
+    def __init__(
+        self,
+        fpath,
+        pre_proc_flag=True,
+        index=None,
+        dsets=(
+            'cloud_type',
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+        ),
+        parallax_correct=True,
+        solar_shading=True,
+        remap_pc=True,
+    ):
         """
         Parameters
         ----------
@@ -491,18 +533,22 @@ class CloudVarSingleH5(CloudVarSingle):
             data back onto the original semi-regular GOES coordinates
         """
 
-        super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
-                         dsets=dsets)
+        super().__init__(
+            fpath, pre_proc_flag=pre_proc_flag, index=index, dsets=dsets
+        )
 
-        grids = self._parse_grid(self._fpath,
-                                 solar_shading=solar_shading,
-                                 parallax_correct=parallax_correct,
-                                 pre_proc_flag=pre_proc_flag)
+        grids = self._parse_grid(
+            self._fpath,
+            solar_shading=solar_shading,
+            parallax_correct=parallax_correct,
+            pre_proc_flag=pre_proc_flag,
+        )
         self._grid, self._raw_grid = grids
 
         if self.pre_proc_flag:
             self._grid, self._raw_grid, self._sparse_mask = self.make_sparse(
-                self._grid, self._raw_grid)
+                self._grid, self._raw_grid
+            )
 
         if remap_pc and (parallax_correct or solar_shading):
             self.remap_pc_coords()
@@ -518,8 +564,13 @@ class CloudVarSingleH5(CloudVarSingle):
         return self._available_dsets
 
     @classmethod
-    def _parse_grid(cls, fpath, parallax_correct=True, solar_shading=True,
-                    pre_proc_flag=True):
+    def _parse_grid(
+        cls,
+        fpath,
+        parallax_correct=True,
+        solar_shading=True,
+        pre_proc_flag=True,
+    ):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -549,21 +600,25 @@ class CloudVarSingleH5(CloudVarSingle):
         grid = {}
         with NFS(fpath, use_h5py=True) as f:
             for dset in cls.GRID_LABELS:
-
                 if dset not in list(f):
-                    msg = ('Could not find "{}" in file: "{}"'
-                           .format(dset, fpath))
+                    msg = 'Could not find "{}" in file: "{}"'.format(
+                        dset, fpath
+                    )
                     logger.error(msg)
                     raise KeyError(msg)
 
-                grid[dset] = cls.pre_process(dset, f[dset][...],
-                                             dict(f[dset].attrs))
+                grid[dset] = cls.pre_process(
+                    dset, f[dset][...], dict(f[dset].attrs)
+                )
 
         if grid and (parallax_correct or solar_shading):
             raw_grid = pd.DataFrame(grid)
-            grid = cls.correct_coordinates(fpath, grid,
-                                           parallax_correct=parallax_correct,
-                                           solar_shading=solar_shading)
+            grid = cls.correct_coordinates(
+                fpath,
+                grid,
+                parallax_correct=parallax_correct,
+                solar_shading=solar_shading,
+            )
 
         grid = pd.DataFrame(grid)
 
@@ -578,8 +633,9 @@ class CloudVarSingleH5(CloudVarSingle):
         return grid, raw_grid
 
     @classmethod
-    def correct_coordinates(cls, fpath, grid, parallax_correct=True,
-                            solar_shading=True):
+    def correct_coordinates(
+        cls, fpath, grid, parallax_correct=True, solar_shading=True
+    ):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -608,28 +664,40 @@ class CloudVarSingleH5(CloudVarSingle):
         with NFS(fpath, use_h5py=True) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f]
             if any(missing):
-                msg = ('Could not correct cloud coordinates, missing datasets '
-                       '{} from source file: {}'.format(missing, fpath))
+                msg = (
+                    'Could not correct cloud coordinates, missing datasets '
+                    '{} from source file: {}'.format(missing, fpath)
+                )
                 logger.error(msg)
                 raise KeyError(msg)
 
             sen_zen = cls.pre_process(
-                'sensor_zenith_angle', f['sensor_zenith_angle'][...],
-                dict(f['sensor_zenith_angle'].attrs))
+                'sensor_zenith_angle',
+                f['sensor_zenith_angle'][...],
+                dict(f['sensor_zenith_angle'].attrs),
+            )
             sol_zen = cls.pre_process(
-                'solar_zenith_angle', f['solar_zenith_angle'][...],
-                dict(f['solar_zenith_angle'].attrs))
+                'solar_zenith_angle',
+                f['solar_zenith_angle'][...],
+                dict(f['solar_zenith_angle'].attrs),
+            )
             sol_azi = cls.pre_process(
-                'solar_azimuth_angle', f['solar_azimuth_angle'][...],
-                dict(f['solar_azimuth_angle'].attrs))
+                'solar_azimuth_angle',
+                f['solar_azimuth_angle'][...],
+                dict(f['solar_azimuth_angle'].attrs),
+            )
             cld_height = cls.pre_process(
-                'cld_height_acha', f['cld_height_acha'][...],
-                dict(f['cld_height_acha'].attrs))
+                'cld_height_acha',
+                f['cld_height_acha'][...],
+                dict(f['cld_height_acha'].attrs),
+            )
 
             if 'sensor_azimuth_angle' in f:
                 sen_azi = cls.pre_process(
-                    'sensor_azimuth_angle', f['sensor_azimuth_angle'][...],
-                    dict(f['sensor_azimuth_angle'].attrs))
+                    'sensor_azimuth_angle',
+                    f['sensor_azimuth_angle'][...],
+                    dict(f['sensor_azimuth_angle'].attrs),
+                )
             else:
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
 
@@ -637,20 +705,23 @@ class CloudVarSingleH5(CloudVarSingle):
             if parallax_correct:
                 logger.debug('Running sensor parallax correction.')
                 sen_azi = CloudCoords.calc_sensor_azimuth(lat, lon, sen_zen)
-                lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
-                                                      sen_azi, cld_height,
-                                                      option='parallax')
+                lat, lon = CloudCoords.correct_coords(
+                    lat, lon, sen_zen, sen_azi, cld_height, option='parallax'
+                )
             if solar_shading:
                 logger.debug('Running cloud shading coordinate correction.')
-                lat, lon = CloudCoords.correct_coords(lat, lon, sol_zen,
-                                                      sol_azi, cld_height,
-                                                      option='shading')
+                lat, lon = CloudCoords.correct_coords(
+                    lat, lon, sol_zen, sol_azi, cld_height, option='shading'
+                )
             grid['latitude'], grid['longitude'] = lat, lon
 
         except Exception as e:
-            logger.warning('Could not perform cloud coordinate adjustment '
-                           'for: {}, received error: {}'
-                           .format(os.path.basename(fpath), e))
+            logger.warning(
+                'Could not perform cloud coordinate adjustment '
+                'for: {}, received error: {}'.format(
+                    os.path.basename(fpath), e
+                )
+            )
 
         return grid
 
@@ -702,9 +773,12 @@ class CloudVarSingleH5(CloudVarSingle):
 
         if sparse_mask is not None:
             if data.shape != sparse_mask.shape:
-                msg = ('Data model failed while processing "{}" which has '
-                       'shape {} while the coordinate grid mask has shape {}'
-                       .format(dset, data.shape, sparse_mask.shape))
+                msg = (
+                    'Data model failed while processing "{}" which has '
+                    'shape {} while the coordinate grid mask has shape {}'.format(
+                        dset, data.shape, sparse_mask.shape
+                    )
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
             data = data[sparse_mask]
@@ -764,13 +838,20 @@ class CloudVarSingleH5(CloudVarSingle):
 
         with NFS(self._fpath, use_h5py=True) as f:
             if dset not in list(f):
-                raise KeyError('Could not find "{}" in the cloud file: {}'
-                               .format(dset, self._fpath))
+                raise KeyError(
+                    'Could not find "{}" in the cloud file: {}'.format(
+                        dset, self._fpath
+                    )
+                )
 
             if self.pre_proc_flag:
                 data = self.pre_process(
-                    dset, f[dset][...], dict(f[dset].attrs),
-                    sparse_mask=self._sparse_mask, index=self._index)
+                    dset,
+                    f[dset][...],
+                    dict(f[dset].attrs),
+                    sparse_mask=self._sparse_mask,
+                    index=self._index,
+                )
             else:
                 data = f[dset][...].ravel()
 
@@ -783,10 +864,21 @@ class CloudVarSingleH5(CloudVarSingle):
 class CloudVarSingleNC(CloudVarSingle):
     """Framework for .nc single-file/single-timestep cloud data extraction."""
 
-    def __init__(self, fpath, pre_proc_flag=True, index=None,
-                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'),
-                 parallax_correct=True, solar_shading=True, remap_pc=True):
+    def __init__(
+        self,
+        fpath,
+        pre_proc_flag=True,
+        index=None,
+        dsets=(
+            'cloud_type',
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+        ),
+        parallax_correct=True,
+        solar_shading=True,
+        remap_pc=True,
+    ):
         """
         Parameters
         ----------
@@ -809,13 +901,16 @@ class CloudVarSingleNC(CloudVarSingle):
             data back onto the original semi-regular GOES coordinates
         """
 
-        super().__init__(fpath, pre_proc_flag=pre_proc_flag, index=index,
-                         dsets=dsets)
+        super().__init__(
+            fpath, pre_proc_flag=pre_proc_flag, index=index, dsets=dsets
+        )
 
         self._grid, self._raw_grid, self._sparse_mask = self._parse_grid(
-            self._fpath, parallax_correct=parallax_correct,
+            self._fpath,
+            parallax_correct=parallax_correct,
             solar_shading=solar_shading,
-            pre_proc_flag=pre_proc_flag)
+            pre_proc_flag=pre_proc_flag,
+        )
 
         if remap_pc and (parallax_correct or solar_shading):
             self.remap_pc_coords()
@@ -831,8 +926,13 @@ class CloudVarSingleNC(CloudVarSingle):
         return self._available_dsets
 
     @classmethod
-    def _parse_grid(cls, fpath, parallax_correct=True, solar_shading=True,
-                    pre_proc_flag=True):
+    def _parse_grid(
+        cls,
+        fpath,
+        parallax_correct=True,
+        solar_shading=True,
+        pre_proc_flag=True,
+    ):
         """Extract the cloud data grid for the current timestep.
 
         Parameters
@@ -865,10 +965,10 @@ class CloudVarSingleNC(CloudVarSingle):
         grid = {}
         with NFS(fpath) as f:
             for dset in cls.GRID_LABELS:
-
                 if dset not in f.variables.keys():
-                    msg = ('Could not find "{}" in file: "{}"'
-                           .format(dset, fpath))
+                    msg = 'Could not find "{}" in file: "{}"'.format(
+                        dset, fpath
+                    )
                     logger.error(msg)
                     raise KeyError(msg)
 
@@ -877,8 +977,9 @@ class CloudVarSingleNC(CloudVarSingle):
                     try:
                         sparse_mask = ~f[dset][:].mask
                     except Exception as e:
-                        msg = ('Exception masking {} in {}: {}'
-                               .format(dset, fpath, e))
+                        msg = 'Exception masking {} in {}: {}'.format(
+                            dset, fpath, e
+                        )
                         logger.error(msg)
                         raise RuntimeError(msg) from e
 
@@ -889,9 +990,13 @@ class CloudVarSingleNC(CloudVarSingle):
 
         if grid and (parallax_correct or solar_shading):
             raw_grid = pd.DataFrame(grid)
-            grid = cls.correct_coordinates(fpath, grid, sparse_mask,
-                                           parallax_correct=parallax_correct,
-                                           solar_shading=solar_shading)
+            grid = cls.correct_coordinates(
+                fpath,
+                grid,
+                sparse_mask,
+                parallax_correct=parallax_correct,
+                solar_shading=solar_shading,
+            )
 
         grid = pd.DataFrame(grid)
 
@@ -904,16 +1009,19 @@ class CloudVarSingleNC(CloudVarSingle):
             raw_grid = cls._clean_dup_coords(raw_grid)
 
         if sparse_mask.sum() == 0:
-            msg = ('Cloud data handler had a completely empty sparse mask '
-                   'for: {}'.format(fpath))
+            msg = (
+                'Cloud data handler had a completely empty sparse mask '
+                'for: {}'.format(fpath)
+            )
             logger.warning(msg)
             warn(msg)
 
         return grid, raw_grid, sparse_mask
 
     @staticmethod
-    def correct_coordinates(fpath, grid, sparse_mask, parallax_correct=True,
-                            solar_shading=True):
+    def correct_coordinates(
+        fpath, grid, sparse_mask, parallax_correct=True, solar_shading=True
+    ):
         """Adjust grid lat/lon values based on solar position
 
         Parameters
@@ -944,8 +1052,10 @@ class CloudVarSingleNC(CloudVarSingle):
         with NFS(fpath) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f.variables]
             if any(missing):
-                msg = ('Could not correct cloud coordinates, missing datasets '
-                       '{} from source file: {}'.format(missing, fpath))
+                msg = (
+                    'Could not correct cloud coordinates, missing datasets '
+                    '{} from source file: {}'.format(missing, fpath)
+                )
                 logger.error(msg)
                 raise KeyError(msg)
 
@@ -961,19 +1071,22 @@ class CloudVarSingleNC(CloudVarSingle):
 
         try:
             if parallax_correct:
-                lat, lon = CloudCoords.correct_coords(lat, lon, sen_zen,
-                                                      sen_azi, cld_height,
-                                                      option='parallax')
+                lat, lon = CloudCoords.correct_coords(
+                    lat, lon, sen_zen, sen_azi, cld_height, option='parallax'
+                )
             if solar_shading:
-                lat, lon = CloudCoords.correct_coords(lat, lon, sol_zen,
-                                                      sol_azi, cld_height,
-                                                      option='shading')
+                lat, lon = CloudCoords.correct_coords(
+                    lat, lon, sol_zen, sol_azi, cld_height, option='shading'
+                )
             grid['latitude'], grid['longitude'] = lat, lon
 
         except Exception as e:
-            logger.warning('Could not perform cloud coordinate adjustment '
-                           'for: {}, received error: {}'
-                           .format(os.path.basename(fpath), e))
+            logger.warning(
+                'Could not perform cloud coordinate adjustment '
+                'for: {}, received error: {}'.format(
+                    os.path.basename(fpath), e
+                )
+            )
 
         return grid
 
@@ -1012,9 +1125,12 @@ class CloudVarSingleNC(CloudVarSingle):
 
         if sparse_mask is not None:
             if data.shape != sparse_mask.shape:
-                msg = ('Data model failed while processing "{}" which has '
-                       'shape {} while the coordinate grid mask has shape {}'
-                       .format(dset, data.shape, sparse_mask.shape))
+                msg = (
+                    'Data model failed while processing "{}" which has '
+                    'shape {} while the coordinate grid mask has shape {}'.format(
+                        dset, data.shape, sparse_mask.shape
+                    )
+                )
                 logger.error(msg)
                 raise RuntimeError(msg)
             data = data[sparse_mask]
@@ -1049,8 +1165,11 @@ class CloudVarSingleNC(CloudVarSingle):
         """
         with NFS(self._fpath) as f:
             if dset not in list(f.variables.keys()):
-                raise KeyError('Could not find "{}" in the cloud file: {}'
-                               .format(dset, self._fpath))
+                raise KeyError(
+                    'Could not find "{}" in the cloud file: {}'.format(
+                        dset, self._fpath
+                    )
+                )
 
             if self.pre_proc_flag:
                 fill_value = None
@@ -1058,8 +1177,12 @@ class CloudVarSingleNC(CloudVarSingle):
                     fill_value = f.variables[dset]._FillValue
 
                 data = self.pre_process(
-                    dset, f[dset][:].data, fill_value=fill_value,
-                    sparse_mask=self._sparse_mask, index=self._index)
+                    dset,
+                    f[dset][:].data,
+                    fill_value=fill_value,
+                    sparse_mask=self._sparse_mask,
+                    index=self._index,
+                )
             else:
                 data = f[dset][:].data.ravel()
 
@@ -1072,11 +1195,23 @@ class CloudVarSingleNC(CloudVarSingle):
 class CloudVar(AncillaryVarHandler):
     """Framework for cloud data extraction (GOES data processed by UW)."""
 
-    def __init__(self, name, var_meta, date, freq=None,
-                 dsets=('cloud_type', 'cld_opd_dcomp', 'cld_reff_dcomp',
-                        'cld_press_acha'),
-                 parallax_correct=True, solar_shading=True, remap_pc=True,
-                 **kwargs):
+    def __init__(
+        self,
+        name,
+        var_meta,
+        date,
+        freq=None,
+        dsets=(
+            'cloud_type',
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cld_press_acha',
+        ),
+        parallax_correct=True,
+        solar_shading=True,
+        remap_pc=True,
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -1118,17 +1253,25 @@ class CloudVar(AncillaryVarHandler):
         self._remap_pc = remap_pc
         self._obj_cache = {}
 
-        logger.info('Cloud coordinate parallax correction: {}, solar '
-                    'shading adjustment: {}, coordinate remapping: {}'
-                    .format(parallax_correct, solar_shading, remap_pc))
+        logger.info(
+            'Cloud coordinate parallax correction: {}, solar '
+            'shading adjustment: {}, coordinate remapping: {}'.format(
+                parallax_correct, solar_shading, remap_pc
+            )
+        )
 
         self._check_freq()
 
         if len(self.file_df) != len(self.flist):
-            msg = ('Bad number of cloud data files for {}. Counted {} files '
-                   'in {} but expected: {}'
-                   .format(self._date, len(self.flist), self.pattern,
-                           len(self.file_df)))
+            msg = (
+                'Bad number of cloud data files for {}. Counted {} files '
+                'in {} but expected: {}'.format(
+                    self._date,
+                    len(self.flist),
+                    self.pattern,
+                    len(self.file_df),
+                )
+            )
             warn(msg)
             logger.warning(msg)
 
@@ -1139,8 +1282,11 @@ class CloudVar(AncillaryVarHandler):
     def __iter__(self):
         """Initialize this instance as an iter object."""
         self._i = 0
-        logger.info('Iterating through {} cloud data files located in "{}"'
-                    .format(len(self.file_df), self.pattern))
+        logger.info(
+            'Iterating through {} cloud data files located in "{}"'.format(
+                len(self.file_df), self.pattern
+            )
+        )
 
         return self
 
@@ -1157,7 +1303,6 @@ class CloudVar(AncillaryVarHandler):
 
         # iterate through all timesteps (one file per timestep)
         if self._i < len(self.file_df):
-
             obj = None
             timestamp = self.file_df.index[self._i]
             fpath = self.file_df.iloc[self._i, 0]
@@ -1167,8 +1312,10 @@ class CloudVar(AncillaryVarHandler):
                 logger.debug('Found cached object {}'.format(obj))
 
             elif not isinstance(fpath, str) or not NFS(fpath).exists():
-                msg = ('Cloud data timestep {} is missing its '
-                       'source file.'.format(timestamp))
+                msg = (
+                    'Cloud data timestep {} is missing its '
+                    'source file.'.format(timestamp)
+                )
                 warn(msg)
                 logger.warning(msg)
 
@@ -1177,11 +1324,16 @@ class CloudVar(AncillaryVarHandler):
                 obj = self.get_handler(fpath, **self.single_handler_kwargs)
 
                 mem = psutil.virtual_memory()
-                logger.info('Cloud data timestep {} has source file: {}. '
-                            'Memory usage is {:.3f} GB out of '
-                            '{:.3f} GB total.'
-                            .format(timestamp, os.path.basename(fpath),
-                                    mem.used / 1e9, mem.total / 1e9))
+                logger.info(
+                    'Cloud data timestep {} has source file: {}. '
+                    'Memory usage is {:.3f} GB out of '
+                    '{:.3f} GB total.'.format(
+                        timestamp,
+                        os.path.basename(fpath),
+                        mem.used / 1e9,
+                        mem.total / 1e9,
+                    )
+                )
 
             self._i += 1
 
@@ -1194,14 +1346,18 @@ class CloudVar(AncillaryVarHandler):
         test_freq_1 = self.freq.lower().replace('T', 'min')
         test_freq_2 = self.inferred_freq.lower().replace('T', 'min')
         if test_freq_1 != test_freq_2:
-            w = ('CloudVar handler has an input frequency of "{}" but '
-                 'inferred a frequency of "{}" for pattern: {}'
-                 .format(self.freq, self.inferred_freq, self.pattern))
+            w = (
+                'CloudVar handler has an input frequency of "{}" but '
+                'inferred a frequency of "{}" for pattern: {}'.format(
+                    self.freq, self.inferred_freq, self.pattern
+                )
+            )
             logger.warning(w)
             warn(w)
         else:
-            m = ('CloudVar handler has a frequency of "{}" for pattern: {}'
-                 .format(self.freq, self.pattern))
+            m = 'CloudVar handler has a frequency of "{}" for pattern: {}'.format(
+                self.freq, self.pattern
+            )
             logger.debug(m)
 
     @property
@@ -1224,8 +1380,10 @@ class CloudVar(AncillaryVarHandler):
         """
         pat = super().pattern
         if pat is None:
-            msg = ('Need "pattern" input kwarg to initialize CloudVar data '
-                   'handler. Can have {doy} format key.')
+            msg = (
+                'Need "pattern" input kwarg to initialize CloudVar data '
+                'handler. Can have {doy} format key.'
+            )
             logger.error(msg)
             raise KeyError(msg)
 
@@ -1269,13 +1427,13 @@ class CloudVar(AncillaryVarHandler):
         """
 
         # YYYYDDDHHMMSSS
-        match_nc = re.match(r".*s([1-2][0-9]{13})", fstr)
+        match_nc = re.match(r'.*s([1-2][0-9]{13})', fstr)
 
         # YYYY_DDD_HHMM
-        match_h5 = re.match(r".*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})", fstr)
+        match_h5 = re.match(r'.*([1-2][0-9]{3}_[0-9]{3}_[0-9]{4})', fstr)
 
         # YYYYMMDD_HHMM_
-        s = r".*([1-2][0-9]{3}[0-1][0-9]{3}_[0-2][0-9][0-5][0-9]_)"
+        s = r'.*([1-2][0-9]{3}[0-1][0-9]{3}_[0-2][0-9][0-5][0-9]_)'
         match_himawari = re.match(s, fstr)
 
         if match_nc:
@@ -1284,9 +1442,9 @@ class CloudVar(AncillaryVarHandler):
             time = match_h5.group(1).replace('_', '')
         elif match_himawari:
             time = str(match_himawari.group(1).replace('_', ''))
-            date = datetime.date(year=int(time[0:4]),
-                                 month=int(time[4:6]),
-                                 day=int(time[6:8]))
+            date = datetime.date(
+                year=int(time[0:4]), month=int(time[4:6]), day=int(time[6:8])
+            )
             doy = date.timetuple().tm_yday
             time = time[0:4] + str(doy).zfill(3) + time[8:]
         else:
@@ -1328,11 +1486,13 @@ class CloudVar(AncillaryVarHandler):
         if self._flist is None:
             self._flist = NFS(self.pattern).glob()
             if not any(self._flist):
-                emsg = ('Could not find or found too many source files '
-                        'for dataset "{}" with glob pattern: "{}". '
-                        'Found {} files: {}'
-                        .format(self.name, self.pattern,
-                                len(self._flist), self._flist))
+                emsg = (
+                    'Could not find or found too many source files '
+                    'for dataset "{}" with glob pattern: "{}". '
+                    'Found {} files: {}'.format(
+                        self.name, self.pattern, len(self._flist), self._flist
+                    )
+                )
                 logger.error(emsg)
                 raise FileNotFoundError(emsg)
 
@@ -1359,8 +1519,9 @@ class CloudVar(AncillaryVarHandler):
 
         for fp in flist:
             if NFS(fp).size() < 1e6:
-                msg = ('Cloud data source file is less than 1MB, skipping: {}'
-                       .format(fp))
+                msg = 'Cloud data source file is less than 1MB, skipping: {}'.format(
+                    fp
+                )
                 warn(msg)
                 logger.warning(msg)
 
@@ -1422,26 +1583,41 @@ class CloudVar(AncillaryVarHandler):
             df_nominal = pd.DataFrame(index=nominal_index)
             tolerance = pd.Timedelta(self.freq) / 2
 
-            logger.debug('Using a file to timestep matching tolerance of {}'
-                         .format(tolerance))
+            logger.debug(
+                'Using a file to timestep matching tolerance of {}'.format(
+                    tolerance
+                )
+            )
 
-            self._file_df = pd.merge_asof(df_nominal, df_actual,
-                                          left_index=True, right_index=True,
-                                          direction='nearest',
-                                          tolerance=tolerance)
+            self._file_df = pd.merge_asof(
+                df_nominal,
+                df_actual,
+                left_index=True,
+                right_index=True,
+                direction='nearest',
+                tolerance=tolerance,
+            )
 
             # make sure that flist still matches
-            not_used = [fp for fp in self.flist
-                        if fp not in self._file_df['flist'].values.tolist()]
+            not_used = [
+                fp
+                for fp in self.flist
+                if fp not in self._file_df['flist'].values.tolist()
+            ]
             if any(not_used):
                 file_names = self._file_df['flist'].values
-                file_names = [os.path.basename(fp) if isinstance(fp, str)
-                              else fp for fp in file_names]
+                file_names = [
+                    os.path.basename(fp) if isinstance(fp, str) else fp
+                    for fp in file_names
+                ]
                 temp_df = self._file_df.copy()
                 temp_df['flist'] = file_names
-                msg = ('Some available cloud source data files were not used: '
-                       '{}\nCloud file mapping table:\n{}'
-                       .format(not_used, temp_df))
+                msg = (
+                    'Some available cloud source data files were not used: '
+                    '{}\nCloud file mapping table:\n{}'.format(
+                        not_used, temp_df
+                    )
+                )
                 logger.warning(msg)
 
         return self._file_df
@@ -1461,8 +1637,9 @@ class CloudVar(AncillaryVarHandler):
             Pandas datetime index based on the actual file timestamps.
         """
 
-        strtime = [CloudVar.get_timestamp(fstr, integer=False)
-                   for fstr in flist]
+        strtime = [
+            CloudVar.get_timestamp(fstr, integer=False) for fstr in flist
+        ]
         time_index = pd.to_datetime(strtime, format='%Y%j%H%M')
 
         return time_index
@@ -1497,16 +1674,20 @@ class CloudVar(AncillaryVarHandler):
                 try:
                     ti_delta_minutes = int(mode(ti_deltas_minutes).mode)
                 except Exception as e:
-                    msg = ('Could not get mode of time index deltas: {}'
-                           .format(ti_deltas_minutes))
+                    msg = 'Could not get mode of time index deltas: {}'.format(
+                        ti_deltas_minutes
+                    )
                     logger.error(msg)
                     raise ValueError(msg) from e
 
                 freq = '{}T'.format(ti_delta_minutes)
                 if len(flist) < 5:
-                    w = ('File list contains less than 5 files. Inferred '
-                         'frequency of "{}", but may not be accurate'
-                         .format(freq))
+                    w = (
+                        'File list contains less than 5 files. Inferred '
+                        'frequency of "{}", but may not be accurate'.format(
+                            freq
+                        )
+                    )
                     logger.warning(w)
                     warn(w)
 
@@ -1533,11 +1714,12 @@ class CloudVar(AncillaryVarHandler):
         -------
         dict
         """
-        kwargs = {'dsets': self._dsets,
-                  'parallax_correct': self._parallax_correct,
-                  'solar_shading': self._solar_shading,
-                  'remap_pc': self._remap_pc,
-                  }
+        kwargs = {
+            'dsets': self._dsets,
+            'parallax_correct': self._parallax_correct,
+            'solar_shading': self._solar_shading,
+            'remap_pc': self._remap_pc,
+        }
         return kwargs
 
     @staticmethod

@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 """A framework for handling global forecasting system (GFS) source data as a
 real-time replacement for GFS."""
+
 import logging
-import numpy as np
 import os
-import pandas as pd
 import re
 import time
+
+import numpy as np
+import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
@@ -21,6 +22,7 @@ class GfsFiles:
     """
     Class to handle Gfs file selection
     """
+
     def __init__(self, source_dir, time_index):
         """
         Parameters
@@ -82,9 +84,9 @@ class GfsFiles:
         date : str
             Date stamp that should be in the GFS file, format is YYYY_MMDD
         """
-        date = '{y}_{m:02d}{d:02d}'.format(y=date.year,
-                                           m=date.month,
-                                           d=date.day)
+        date = '{y}_{m:02d}{d:02d}'.format(
+            y=date.year, m=date.month, d=date.day
+        )
 
         return date
 
@@ -186,8 +188,11 @@ class GfsFiles:
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
                 timestamp, offset = cls._get_file_time(f, start_time)
-                files.append(pd.Series({'timestamp': timestamp,
-                                        'offset': offset}, name=fpath))
+                files.append(
+                    pd.Series(
+                        {'timestamp': timestamp, 'offset': offset}, name=fpath
+                    )
+                )
 
         if files:
             files = pd.concat(files, axis=1).T
@@ -212,16 +217,18 @@ class GfsFiles:
 
         start_time = self.time_index[0] - pd.Timedelta('1D')
         files2 = self._search_files(source_dir, start_time)
-        both_df_check = (isinstance(files, pd.DataFrame)
-                         and isinstance(files2, pd.DataFrame))
+        both_df_check = isinstance(files, pd.DataFrame) and isinstance(
+            files2, pd.DataFrame
+        )
         if both_df_check:
             files = pd.concat([files, files2])
         elif isinstance(files2, pd.DataFrame):
             files = files2
 
         if isinstance(files, list):
-            msg = ("Could not find any GFS files for {} in {}"
-                   .format(self.time_index[0], source_dir))
+            msg = 'Could not find any GFS files for {} in {}'.format(
+                self.time_index[0], source_dir
+            )
             logger.error(msg)
             raise FileNotFoundError(msg)
 
@@ -237,9 +244,12 @@ class GfsFiles:
                 missing.append(timestamp)
 
         if missing:
-            m = ('Could not find the required GFS file with date stamp "{}" '
-                 'in directory {}, the following timestamps were missing:\n{}'
-                 .format(self.date_stamp, source_dir, missing))
+            m = (
+                'Could not find the required GFS file with date stamp "{}" '
+                'in directory {}, the following timestamps were missing:\n{}'.format(
+                    self.date_stamp, source_dir, missing
+                )
+            )
             logger.error(m)
             raise FileNotFoundError(m)
 
@@ -366,8 +376,9 @@ class GfsVarSingle:
         """
         if self._timestep is None:
             self._timestep = self['time'][0]
-            self._timestep = time.strftime('%Y-%m-%d %H:%M:%S',
-                                           time.gmtime(self._timestep))
+            self._timestep = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.gmtime(self._timestep)
+            )
             self._timestep = pd.to_datetime(self._timestep)
 
         return self._timestep
@@ -444,9 +455,9 @@ class GfsVar(AncillaryVarHandler):
         date : str
             Date stamp that should be in the GFS file, format is YYYY_MMDD
         """
-        date = '{y}_{m:02d}{d:02d}'.format(y=self._date.year,
-                                           m=self._date.month,
-                                           d=self._date.day)
+        date = '{y}_{m:02d}{d:02d}'.format(
+            y=self._date.year, m=self._date.month, d=self._date.day
+        )
 
         return date
 
@@ -502,9 +513,13 @@ class GfsVar(AncillaryVarHandler):
                 lon2d, lat2d = np.meshgrid(f['longitude'][:], f['latitude'][:])
                 elev = f['HGT_surface'][:]
 
-            self._grid = pd.DataFrame({'longitude': lon2d.ravel(),
-                                       'latitude': lat2d.ravel(),
-                                       'elevation': elev.ravel()})
+            self._grid = pd.DataFrame(
+                {
+                    'longitude': lon2d.ravel(),
+                    'latitude': lat2d.ravel(),
+                    'elevation': elev.ravel(),
+                }
+            )
 
         return self._grid
 
@@ -551,8 +566,9 @@ class GfsVar(AncillaryVarHandler):
         time_index = pd.to_datetime(time_index)
         missing = ~self.time_index.isin(time_index)
         if np.any(missing):
-            missing = ("The following GFS time-steps are missing: {}"
-                       .format(self.time_index[missing]))
+            missing = 'The following GFS time-steps are missing: {}'.format(
+                self.time_index[missing]
+            )
         else:
             missing = ''
 
@@ -580,8 +596,9 @@ class GfsDewPoint(BaseDerivedVar):
         dp : np.ndarray
             Dew point in Celsius.
         """
-        logger.info('Deriving Dew Point from temperature, '
-                    'and relative humidity')
+        logger.info(
+            'Deriving Dew Point from temperature, ' 'and relative humidity'
+        )
 
         # ensure that Temperature is in C (scale from Kelvin if not)
         convert_t = False
@@ -591,7 +608,7 @@ class GfsDewPoint(BaseDerivedVar):
 
         arg1 = np.log(relative_humidity / 100.0)
         arg2 = (17.625 * air_temperature) / (243.04 + air_temperature)
-        dp = (243.04 * (arg1 + arg2) / (17.625 - arg1 - arg2))
+        dp = 243.04 * (arg1 + arg2) / (17.625 - arg1 - arg2)
 
         # ensure that temeprature is reconverted to Kelvin
         if convert_t:

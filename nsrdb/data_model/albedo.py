@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A framework for handling Albedo data.
 
 Current framework will extract albedo data from a directory of daily 2018

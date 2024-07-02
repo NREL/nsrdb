@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-Cloud Properties filling using phgynn
-"""
+"""Cloud Properties filling using phgynn"""
 
 import logging
 import os

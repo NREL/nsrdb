@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
 
 import datetime as dt

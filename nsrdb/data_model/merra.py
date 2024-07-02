@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """A framework for handling MERRA2 source data."""
 
 import logging

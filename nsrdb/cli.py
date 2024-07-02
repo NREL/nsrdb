@@ -152,7 +152,7 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     config that points to several NSRDB modules that you want to run in serial.
     You would call the nsrdb pipeline CLI using::
 
-        $ nsrdb -c config_pipeline.json pipeline
+        $ python -m nsrdb.cli -c config_pipeline.json pipeline
 
     A typical nsrdb pipeline config.json file might look like this::
 
@@ -255,7 +255,7 @@ def data_model(ctx, config, verbose=False, pipeline_step=None):
 
     You would call the nsrdb data-model module using::
 
-        $ nsrdb -c config.json data-model
+        $ python -m nsrdb.cli -c config.json data-model
 
     A typical config.json file might look like this::
 
@@ -344,7 +344,7 @@ def ml_cloud_fill(ctx, config, verbose=False, pipeline_step=None):
 
     You would call the nsrdb ml-cloud-fill module using::
 
-        $ nsrdb -c config.json ml-cloud-fill
+        $ python -m nsrdb.cli -c config.json ml-cloud-fill
 
     A typical config.json file might look like this::
 
@@ -403,7 +403,7 @@ def daily_all_sky(ctx, config, verbose=False, pipeline_step=None):
 
     You would call the nsrdb daily-all-sky module using::
 
-        $ nsrdb -c config.json daily-all-sky
+        $ python -m nsrdb.cli -c config.json daily-all-sky
 
     A typical config.json file might look like this::
 
@@ -518,7 +518,7 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
 
     You would call the nsrdb collect-data-model module using::
 
-        $ nsrdb -c config.json collect-data-model
+        $ python -m nsrdb.cli -c config.json collect-data-model
 
     A typical config.json file might look like this::
 
@@ -570,7 +570,7 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
         log_id = '_'.join(fname.split('_')[1:-1] + [str(i_chunk)])
         config['i_chunk'] = i_chunk
         config['i_fname'] = fnames.index(fname)
-        config['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
+        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
 
         BaseCLI.kickoff_job(
             ctx=ctx,
@@ -609,7 +609,7 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
 
     for i_fname, fname in enumerate(sorted(NSRDB.OUTS.keys())):
         log_id = '_'.join(fname.split('_')[1:-1])
-        config['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
+        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
         config['i_fname'] = i_fname
         BaseCLI.kickoff_job(
             ctx=ctx,
@@ -803,7 +803,7 @@ def batch(
 
     Run the batch module with::
 
-        $ nsrdb -c config_batch.json batch
+        $ python -m nsrdb.cli -c config_batch.json batch
 
     Note that you can use multiple "sets" to isolate parameter permutations.
     """  # noqa : D301

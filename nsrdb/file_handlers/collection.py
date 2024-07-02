@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """NSRDB chunked file collection tools."""
 
 import datetime

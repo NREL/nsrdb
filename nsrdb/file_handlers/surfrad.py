@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """Surfrad ground measurement file handler
 
 Created on Tue Jul  9 10:52:44 2019
 
 @author: gbuster
 """
+
 import numpy as np
 import pandas as pd
 
@@ -54,9 +54,9 @@ class Surfrad(Resource):
             Number of index values that the window will be over
         """
 
-        one_hr_mask = ((df.index.hour < 1)
-                       & (df.index.day == 1)
-                       & (df.index.month == 1))
+        one_hr_mask = (
+            (df.index.hour < 1) & (df.index.day == 1) & (df.index.month == 1)
+        )
         n_steps = len(np.where(one_hr_mask)[0])
         window = int(np.ceil((window_minutes / 60) * n_steps))
 
@@ -81,8 +81,10 @@ class Surfrad(Resource):
         dni_msr[dni_msr < 0] = np.nan
         ghi_msr[ghi_msr < 0] = np.nan
 
-        native_df = pd.DataFrame({'dhi': dhi_msr, 'dni': dni_msr,
-                                  'ghi': ghi_msr}, index=self.time_index)
+        native_df = pd.DataFrame(
+            {'dhi': dhi_msr, 'dni': dni_msr, 'ghi': ghi_msr},
+            index=self.time_index,
+        )
         native_df = native_df.sort_index()
         return native_df
 
@@ -112,15 +114,19 @@ class Surfrad(Resource):
         year = self.native_df.index.year[0]
 
         # final time index
-        ti = pd.date_range('1-1-{y}'.format(y=year),
-                           '1-1-{y}'.format(y=year + 1),
-                           freq=dt_out, tz='UTC')[:-1]
+        ti = pd.date_range(
+            '1-1-{y}'.format(y=year),
+            '1-1-{y}'.format(y=year + 1),
+            freq=dt_out,
+            tz='UTC',
+        )[:-1]
         df_out = pd.DataFrame(index=ti)
         df_temp = pd.DataFrame(index=ti).join(self.native_df, how='outer')
 
         for var in df_temp:
-            window = self.get_window_size(df_temp[var],
-                                          window_minutes=window_minutes)
+            window = self.get_window_size(
+                df_temp[var], window_minutes=window_minutes
+            )
 
             df_var = self.get_rolling(df_temp[var], window)
 

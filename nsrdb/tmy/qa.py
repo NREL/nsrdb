@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Created on Mon Dec  9 09:11:49 2019
 
 @author: gbuster
 """
+
 import logging
 import time
 from warnings import warn
@@ -39,8 +39,10 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
     """
 
     logger.info(
-        'Running QA on {} from {} to {} with step size {} and interval {}'
-        .format(fp, i0, iend, step, interval))
+        'Running QA on {} from {} to {} with step size {} and interval {}'.format(
+            fp, i0, iend, step, interval
+        )
+    )
 
     n_split = int(np.ceil((iend - i0) / step))
     chunks = np.array_split(np.arange(i0, iend), n_split)
@@ -48,7 +50,6 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
     chunks = chunks[::interval]
 
     with NFS(fp, use_rex=True) as res:
-
         ti = res.time_index
         meta = res.meta
 
@@ -69,13 +70,15 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
         dsets = [d for d in res.dsets if d not in ['meta', 'time_index']]
 
         for dset in dsets:
-
             logger.info('Starting on "{}"'.format(dset))
             var = VarFactory.get_base_handler(dset)
 
             if dset in var.var_meta['var'].values:
-                logger.info('Expected physical min/max: {} / {}'
-                            .format(var.physical_min, var.physical_max))
+                logger.info(
+                    'Expected physical min/max: {} / {}'.format(
+                        var.physical_min, var.physical_max
+                    )
+                )
 
             attrs = res.get_attrs(dset=dset)
             if 'psm_scale_factor' not in attrs:
@@ -85,23 +88,29 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
 
             for site_slice in chunks:
                 data = res[dset, :, site_slice]
-                logger.info('\tSite {} min/max: {}/{}'
-                            .format(site_slice, data.min(), data.max()))
+                logger.info(
+                    '\tSite {} min/max: {}/{}'.format(
+                        site_slice, data.min(), data.max()
+                    )
+                )
 
-                if (dset in var.var_meta['var'].values
-                        and (data.min() < var.physical_min
-                             or data.max() > var.physical_max)):
-                    m = ('Out of physical range: {} / {}!'
-                         .format(var.physical_min, var.physical_max))
+                if dset in var.var_meta['var'].values and (
+                    data.min() < var.physical_min
+                    or data.max() > var.physical_max
+                ):
+                    m = 'Out of physical range: {} / {}!'.format(
+                        var.physical_min, var.physical_max
+                    )
                     logger.info(m)
                     warn(m)
-                    time.sleep(.2)
+                    time.sleep(0.2)
 
                 all_zeros = (data == 0).all(axis=0)
 
                 if any(all_zeros):
-                    m = ('Sites have full timeseries of zeros: {} in: {}'
-                         .format(np.where(all_zeros)[0], site_slice))
+                    m = 'Sites have full timeseries of zeros: {} in: {}'.format(
+                        np.where(all_zeros)[0], site_slice
+                    )
                     logger.info(m)
                     warn(m)
-                    time.sleep(.2)
+                    time.sleep(0.2)

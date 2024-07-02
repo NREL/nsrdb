@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """NSRDB Typical Meteorological Year (TMY) code.
 
 Created on Wed Oct 23 10:55:23 2019
