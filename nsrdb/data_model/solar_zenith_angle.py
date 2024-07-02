@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
-"""A framework for handling MERRA2 source data."""
+"""solar zenith angle class for use as a derived variable."""
+
 import logging
+
 import numpy as np
 
 from nsrdb.data_model.base_handler import BaseDerivedVar
@@ -15,8 +16,15 @@ class SolarZenithAngle(BaseDerivedVar):
     DEPENDENCIES = ('surface_pressure', 'air_temperature')
 
     @staticmethod
-    def derive(time_index, lat_lon, elev, surface_pressure, air_temperature,
-               big_meta_threshold=1e6, n_chunks=10):
+    def derive(
+        time_index,
+        lat_lon,
+        elev,
+        surface_pressure,
+        air_temperature,
+        big_meta_threshold=1e6,
+        n_chunks=10,
+    ):
         """
         Compute the solar zenith angle after atmospheric refraction correction
 
@@ -56,10 +64,13 @@ class SolarZenithAngle(BaseDerivedVar):
 
         if len(elev) > big_meta_threshold:
             # SPA is memory intensive so do chunk compute for large grids
-            logger.debug('Calculation of SZA is running in {} chunks '
-                         'due to large meta data.'.format(n_chunks))
-            apparent_sza = np.zeros((len(time_index), len(elev)),
-                                    dtype=np.float32)
+            logger.debug(
+                'Calculation of SZA is running in {} chunks '
+                'due to large meta data.'.format(n_chunks)
+            )
+            apparent_sza = np.zeros(
+                (len(time_index), len(elev)), dtype=np.float32
+            )
             chunks_index = np.array_split(np.arange(len(elev)), n_chunks)
             chunks_lat_lon = np.array_split(lat_lon, n_chunks)
             chunks_elev = np.array_split(elev, n_chunks)
@@ -67,21 +78,30 @@ class SolarZenithAngle(BaseDerivedVar):
             chunks_t = np.array_split(air_temperature, n_chunks, axis=1)
 
             for i, index in enumerate(chunks_index):
-
                 chunk_sza = SPA.apparent_zenith(
-                    time_index, chunks_lat_lon[i], elev=chunks_elev[i],
-                    pressure=chunks_p[i], temperature=chunks_t[i])
+                    time_index,
+                    chunks_lat_lon[i],
+                    elev=chunks_elev[i],
+                    pressure=chunks_p[i],
+                    temperature=chunks_t[i],
+                )
 
                 islice = slice(index[0], index[-1] + 1)
                 apparent_sza[:, islice] = chunk_sza
-                logger.debug('Calculation chunk {} of {} complete for SZA.'
-                             .format(i + 1, n_chunks))
+                logger.debug(
+                    'Calculation chunk {} of {} complete for SZA.'.format(
+                        i + 1, n_chunks
+                    )
+                )
 
         else:
-            apparent_sza = SPA.apparent_zenith(time_index, lat_lon,
-                                               elev=elev,
-                                               pressure=surface_pressure,
-                                               temperature=air_temperature)
+            apparent_sza = SPA.apparent_zenith(
+                time_index,
+                lat_lon,
+                elev=elev,
+                pressure=surface_pressure,
+                temperature=air_temperature,
+            )
             apparent_sza = apparent_sza.astype(np.float32)
 
         if convert_pressure:

@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """A framework for handling Asymmetry source data."""
+
 import datetime
 import logging
 import os
@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 class AsymVar(AncillaryVarHandler):
     """Framework for Asymmetry variable data extraction."""
 
-    def __init__(self, name='asymmetry', var_meta=None,
-                 date=datetime.date(year=2017, month=1, day=1),
-                 fname='asymmetry_clim.h5', **kwargs):
+    def __init__(
+        self,
+        name='asymmetry',
+        var_meta=None,
+        date=datetime.date(year=2017, month=1, day=1),
+        fname='asymmetry_clim.h5',
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -108,10 +113,14 @@ class AsymVar(AncillaryVarHandler):
             with NFS(self.file, use_rex=True) as f:
                 self._asym_grid = f.meta
 
-            if ('latitude' not in self._asym_grid
-                    or 'longitude' not in self._asym_grid):
-                raise ValueError('Asymmetry file did not have '
-                                 'latitude/longitude meta data. '
-                                 'Please check: {}'.format(self.file))
+            if (
+                'latitude' not in self._asym_grid
+                or 'longitude' not in self._asym_grid
+            ):
+                raise ValueError(
+                    'Asymmetry file did not have '
+                    'latitude/longitude meta data. '
+                    'Please check: {}'.format(self.file)
+                )
 
         return self._asym_grid

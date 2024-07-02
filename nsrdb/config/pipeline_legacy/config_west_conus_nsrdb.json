@@ -45,7 +45,7 @@
     "out_dir": "/projects/pxs/processing/2019/west_conus/",
     "year": 2019
   },
-  "hpc": {
+  "eagle": {
     "alloc": "pxs",
     "feature": "--qos=normal",
     "memory": 83,

@@ -1,6 +1,7 @@
 """
 SolPos solar position calculator
 """
+
 import numpy as np
 import pandas as pd
 
@@ -11,6 +12,7 @@ class SolPos:
     Based off of SAM Solar Position Function:
     https://github.com/NREL/ssc/blob/develop/shared/lib_irradproc.cpp
     """
+
     def __init__(self, time_index, lat_lon):
         """
         Parameters
@@ -200,8 +202,9 @@ class SolPos:
             Solar elevation in radians
         """
         lat = np.radians(lat)
-        arg = (np.sin(dec) * np.sin(lat)
-               + np.cos(dec) * np.cos(lat) * np.cos(ha))
+        arg = np.sin(dec) * np.sin(lat) + np.cos(dec) * np.cos(lat) * np.cos(
+            ha
+        )
         elv = np.arcsin(arg)
 
         elv[arg > 1] = np.pi / 2
@@ -250,8 +253,11 @@ class SolPos:
             Atmospheric corrected elevation in radians
         """
         elv = np.degrees(elv)
-        refrac = (3.51561 * (0.1594 + 0.0196 * elv + 0.00002 * elv**2)
-                  / (1 + 0.505 * elv + 0.0845 * elv**2))
+        refrac = (
+            3.51561
+            * (0.1594 + 0.0196 * elv + 0.00002 * elv**2)
+            / (1 + 0.505 * elv + 0.0845 * elv**2)
+        )
         refrac[elv < -0.56] = 0.56
 
         elv = np.radians(elv + refrac)
@@ -280,8 +286,9 @@ class SolPos:
         """
         elv = SolPos._calc_elevation(dec, ha, lat)
         lat = np.radians(lat)
-        arg = ((np.sin(elv) * np.sin(lat) - np.sin(dec))
-               / (np.cos(elv) * np.cos(lat)))
+        arg = (np.sin(elv) * np.sin(lat) - np.sin(dec)) / (
+            np.cos(elv) * np.cos(lat)
+        )
 
         azm = np.arccos(arg)
         # Assign azzimuth = 180 deg if elv == 90 or -90
@@ -415,8 +422,9 @@ class SolPos:
         elevation : ndarray
             Solar elevation angle in degrees
         """
-        elevation = self._elevation(self.time_index, self.latitude,
-                                    self.longitude)
+        elevation = self._elevation(
+            self.time_index, self.latitude, self.longitude
+        )
 
         return self._format_output(elevation)
 
@@ -430,8 +438,9 @@ class SolPos:
         elevation : ndarray
             Solar elevation angle in degrees
         """
-        elevation = self._elevation(self.time_index, self.latitude,
-                                    self.longitude)
+        elevation = self._elevation(
+            self.time_index, self.latitude, self.longitude
+        )
         elevation = self._atm_correction(elevation)
 
         return self._format_output(elevation)

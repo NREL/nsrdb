@@ -55,9 +55,17 @@ class DataHandler:
         return pd.DataFrame({'latitude': lats, 'longitude': lons})
 
     @staticmethod
-    def get_data(date, merra_path, mask, lat, lon,
-                 avg=True, fp_out=None,
-                 max_workers=None, n_chunks=64):
+    def get_data(
+        date,
+        merra_path,
+        mask,
+        lat,
+        lon,
+        avg=True,
+        fp_out=None,
+        max_workers=None,
+        n_chunks=64,
+    ):
         """Get temperature data from MERRA
 
         Parameters
@@ -86,8 +94,10 @@ class DataHandler:
             temperature data array on lat/lon grid
         """
 
-        kwargs = {'source_directory': merra_path,
-                  'air_temperature': {'elevation_correct': False}}
+        kwargs = {
+            'source_directory': merra_path,
+            'air_temperature': {'elevation_correct': False},
+        }
         var_meta = pd.read_csv(DEFAULT_VAR_META)
         var_meta['source_directory'] = merra_path
         grid = DataHandler.get_grid(lat, lon, mask)
@@ -96,17 +106,18 @@ class DataHandler:
         grid_chunks = np.array_split(grid, n_chunks)
         now = dt.now()
         loggers = ['nsrdb']
-        with SpawnProcessPool(loggers=loggers,
-                              max_workers=max_workers) as exe:
+        with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             for i, chunk in enumerate(grid_chunks):
-                future = exe.submit(DataModel.run_single,
-                                    var='air_temperature',
-                                    date=date,
-                                    nsrdb_grid=chunk,
-                                    var_meta=var_meta,
-                                    nsrdb_freq='60min',
-                                    scale=False,
-                                    factory_kwargs=kwargs)
+                future = exe.submit(
+                    DataModel.run_single,
+                    var='air_temperature',
+                    date=date,
+                    nsrdb_grid=chunk,
+                    var_meta=var_meta,
+                    nsrdb_freq='60min',
+                    scale=False,
+                    factory_kwargs=kwargs,
+                )
                 meta = {'id': i}
                 ct = chunk
                 meta['lon_min'] = ct['longitude'].min()
@@ -117,13 +128,17 @@ class DataHandler:
                 futures[future] = meta
 
             logger.info(
-                f'Started fetching all merra data chunks in {dt.now() - now}')
+                f'Started fetching all merra data chunks in {dt.now() - now}'
+            )
 
             for i, future in enumerate(as_completed(futures)):
-                logger.info(f'Future {futures[future]} completed in '
-                            f'{dt.now() - now}.')
-                logger.info(f'{i+1} out of {len(futures)} futures '
-                            'completed')
+                logger.info(
+                    f'Future {futures[future]} completed in '
+                    f'{dt.now() - now}.'
+                )
+                logger.info(
+                    f'{i + 1} out of {len(futures)} futures ' 'completed'
+                )
         logger.info('done processing')
 
         logger.info('Combining chunks into full temperature array')
@@ -135,7 +150,7 @@ class DataHandler:
             else:
                 res = key.result().max(axis=0)
             size = len(res)
-            T[pos:pos + size] = res
+            T[pos : pos + size] = res
             pos += size
 
         if fp_out is not None:

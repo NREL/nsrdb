@@ -1,15 +1,19 @@
-# -*- coding: utf-8 -*-
 """Factory pattern for retrieving NSRDB data source handlers."""
-import logging
 
-from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
-from nsrdb.data_model.clouds import (CloudVar, CloudVarSingleH5,
-                                     CloudVarSingleNC)
+import logging
+from typing import ClassVar
+
 from nsrdb.data_model.albedo import AlbedoVar
 from nsrdb.data_model.asymmetry import AsymVar
-from nsrdb.data_model.gfs import GfsVar, GfsDewPoint
+from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
+from nsrdb.data_model.clouds import (
+    CloudVar,
+    CloudVarSingleH5,
+    CloudVarSingleNC,
+)
+from nsrdb.data_model.gfs import GfsDewPoint, GfsVar
 from nsrdb.data_model.maiac_aod import MaiacVar
-from nsrdb.data_model.merra import MerraVar, DewPoint, RelativeHumidity
+from nsrdb.data_model.merra import DewPoint, MerraVar, RelativeHumidity
 from nsrdb.data_model.nrel_data import NrelVar
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 
@@ -20,47 +24,49 @@ class VarFactory:
     """Factory pattern to retrieve ancillary variable helper objects."""
 
     # mapping of NSRDB variable names to helper objects
-    MAPPING = {'asymmetry': AsymVar,
-               'air_temperature': MerraVar,
-               'surface_albedo': AlbedoVar,
-               'alpha': MerraVar,
-               'aod': MerraVar,
-               'cloud_type': CloudVar,
-               'cld_opd_dcomp': CloudVar,
-               'cld_reff_dcomp': CloudVar,
-               'cld_press_acha': CloudVar,
-               'cloud_fraction': CloudVar,
-               'cloud_probability': CloudVar,
-               'temp_3_75um_nom': CloudVar,
-               'temp_11_0um_nom': CloudVar,
-               'temp_11_0um_nom_stddev_3x3': CloudVar,
-               'refl_0_65um_nom': CloudVar,
-               'refl_0_65um_nom_stddev_3x3': CloudVar,
-               'refl_3_75um_nom': CloudVar,
-               'dew_point': DewPoint,
-               'ozone': MerraVar,
-               'relative_humidity': RelativeHumidity,
-               'solar_zenith_angle': SolarZenithAngle,
-               'specific_humidity': MerraVar,
-               'ssa': MerraVar,
-               'surface_pressure': MerraVar,
-               'total_precipitable_water': MerraVar,
-               'wind_speed': MerraVar,
-               'wind_direction': MerraVar,
-               }
+    MAPPING: ClassVar = {
+        'asymmetry': AsymVar,
+        'air_temperature': MerraVar,
+        'surface_albedo': AlbedoVar,
+        'alpha': MerraVar,
+        'aod': MerraVar,
+        'cloud_type': CloudVar,
+        'cld_opd_dcomp': CloudVar,
+        'cld_reff_dcomp': CloudVar,
+        'cld_press_acha': CloudVar,
+        'cloud_fraction': CloudVar,
+        'cloud_probability': CloudVar,
+        'temp_3_75um_nom': CloudVar,
+        'temp_11_0um_nom': CloudVar,
+        'temp_11_0um_nom_stddev_3x3': CloudVar,
+        'refl_0_65um_nom': CloudVar,
+        'refl_0_65um_nom_stddev_3x3': CloudVar,
+        'refl_3_75um_nom': CloudVar,
+        'dew_point': DewPoint,
+        'ozone': MerraVar,
+        'relative_humidity': RelativeHumidity,
+        'solar_zenith_angle': SolarZenithAngle,
+        'specific_humidity': MerraVar,
+        'ssa': MerraVar,
+        'surface_pressure': MerraVar,
+        'total_precipitable_water': MerraVar,
+        'wind_speed': MerraVar,
+        'wind_direction': MerraVar,
+    }
 
-    HANDLER_NAMES = {'AsymVar': AsymVar,
-                     'AlbedoVar': AlbedoVar,
-                     'CloudVar': CloudVar,
-                     'GfsVar': GfsVar,
-                     'GfsDewPoint': GfsDewPoint,
-                     'MerraVar': MerraVar,
-                     'MaiacVar': MaiacVar,
-                     'NrelVar': NrelVar,
-                     'DewPoint': DewPoint,
-                     'RelativeHumidity': RelativeHumidity,
-                     'SolarZenithAngle': SolarZenithAngle,
-                     }
+    HANDLER_NAMES: ClassVar = {
+        'AsymVar': AsymVar,
+        'AlbedoVar': AlbedoVar,
+        'CloudVar': CloudVar,
+        'GfsVar': GfsVar,
+        'GfsDewPoint': GfsDewPoint,
+        'MerraVar': MerraVar,
+        'MaiacVar': MaiacVar,
+        'NrelVar': NrelVar,
+        'DewPoint': DewPoint,
+        'RelativeHumidity': RelativeHumidity,
+        'SolarZenithAngle': SolarZenithAngle,
+    }
 
     @classmethod
     def get_instance(cls, var_name, *args, **kwargs):
@@ -89,8 +95,9 @@ class VarFactory:
         try:
             instance = HandlerClass(*args, **kwargs)
         except Exception as e:
-            m = ('Received an exception trying to instantiate "{}":\n{}'
-                 .format(var_name, e))
+            m = 'Received an exception trying to instantiate "{}":\n{}'.format(
+                var_name, e
+            )
             logger.exception(m)
             raise RuntimeError(m) from e
 
@@ -118,29 +125,36 @@ class VarFactory:
         if 'handler' in kwargs:
             handler = kwargs.pop('handler')
             if handler not in cls.HANDLER_NAMES:
-                e = ('Did not recognize "{}" as an available NSRDB variable '
-                     'data handler. The following handlers are available: {}'
-                     .format(handler, list(cls.HANDLER_NAMES.keys())))
+                e = (
+                    f'Did not recognize "{handler}" as an available NSRDB '
+                    'variable data handler. The following handlers are '
+                    f'available: {cls.HANDLER_NAMES.keys()}'
+                )
                 logger.error(e)
                 raise KeyError(e)
-            else:
-                HandlerClass = cls.HANDLER_NAMES[handler]
+            HandlerClass = cls.HANDLER_NAMES[handler]
 
         elif var_name in cls.MAPPING:
             HandlerClass = cls.MAPPING[var_name]
 
         else:
-            e = ('Did not recognize "{}" as an available NSRDB '
-                 'variable. The following variables are available: '
-                 '{}'.format(var_name, list(cls.MAPPING.keys())))
+            e = (
+                'Did not recognize "{}" as an available NSRDB '
+                'variable. The following variables are available: '
+                '{}'.format(var_name, list(cls.MAPPING.keys()))
+            )
             logger.error(e)
             raise KeyError(e)
 
         return HandlerClass
 
     @classmethod
-    def _clean_kwargs(cls, HandlerClass, kwargs,
-                      cld_list=('extent', 'cloud_dir', 'dsets', 'freq')):
+    def _clean_kwargs(
+        cls,
+        HandlerClass,
+        kwargs,
+        cld_list=('extent', 'cloud_dir', 'dsets', 'freq'),
+    ):
         """Clean a kwargs namespace for cloud var specific kwargs.
 
         Parameters
@@ -172,8 +186,7 @@ class VarFactory:
                 kwargs['source_dir'] = kwargs.pop('cloud_dir')
 
         else:
-            kwargs = {k: v for k, v in kwargs.items()
-                      if k not in cld_list}
+            kwargs = {k: v for k, v in kwargs.items() if k not in cld_list}
 
         return kwargs
 
@@ -274,19 +287,26 @@ class VarFactory:
         """
 
         if kwargs:
-            logger.debug('Initializing cloud handler for datasets "{}" '
-                         'with kwargs: {} and fpath: {}'
-                         .format(dsets, kwargs, fpath))
+            logger.debug(
+                'Initializing cloud handler for datasets "{}" '
+                'with kwargs: {} and fpath: {}'.format(dsets, kwargs, fpath)
+            )
 
-        kwarg_ignore = ('handler', 'source_dir', 'source_directory',
-                        'cloud_dir', 'pattern')
-        kwargs = {k: v for k, v in kwargs.items()
-                  if k not in kwarg_ignore}
+        kwarg_ignore = (
+            'handler',
+            'source_dir',
+            'source_directory',
+            'cloud_dir',
+            'pattern',
+        )
+        kwargs = {k: v for k, v in kwargs.items() if k not in kwarg_ignore}
 
         if fpath.endswith('.h5'):
             return CloudVarSingleH5(fpath, dsets=dsets, **kwargs)
-        elif fpath.endswith('.nc'):
+        if fpath.endswith('.nc'):
             return CloudVarSingleNC(fpath, dsets=dsets, **kwargs)
-        else:
-            raise TypeError('Did not recognize cloud file type as .nc or '
-                            '.h5: {}'.format(fpath))
+        raise TypeError(
+            'Did not recognize cloud file type as .nc or ' '.h5: {}'.format(
+                fpath
+            )
+        )

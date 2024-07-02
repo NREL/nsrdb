@@ -1,25 +1,26 @@
-"""
-Lambda function handler
-"""
-from cloud_fs import FileSystem
-from datetime import datetime
-import h5py
+"""Lambda function handler"""
+
+import contextlib
 import json
-from nsrdb import NSRDB
-from nsrdb.data_model.clouds import CloudVar
-import numpy as np
 import os
-import pandas as pd
-from rex import init_logger, safe_json_load
 import sys
 import tempfile
 import time
+from datetime import datetime
+
+import h5py
+import numpy as np
+import pandas as pd
+from cloud_fs import FileSystem
+from rex import init_logger, safe_json_load
+
+from nsrdb import NSRDB
+from nsrdb.data_model.clouds import CloudVar
 
 
 class LambdaHandler(dict):
-    """
-    Lambda Handler class
-    """
+    """Lambda Handler class"""
+
     def __init__(self, event):
         """
         Parameters
@@ -27,8 +28,9 @@ class LambdaHandler(dict):
         event : dict
             Event or test dictionary
         """
-        self.update({k.lower(): self._parse_env_var(v)
-                     for k, v in os.environ.items()})
+        self.update(
+            {k.lower(): self._parse_env_var(v) for k, v in os.environ.items()}
+        )
 
         if isinstance(event, str):
             event = safe_json_load(event)
@@ -37,14 +39,12 @@ class LambdaHandler(dict):
 
         rfd = self.get('run_full_day', False)
         self._var_meta, self._timestep = self.load_var_meta(
-            self['var_meta'], self.day, run_full_day=rfd)
+            self['var_meta'], self.day, run_full_day=rfd
+        )
         self._fpath_out = None
         self._data_model = None
 
-        if self.get('verbose', False):
-            log_level = 'DEBUG'
-        else:
-            log_level = 'INFO'
+        log_level = 'DEBUG' if self.get('verbose', False) else 'INFO'
 
         self.logger = init_logger('nsrdb', log_level=log_level)
         self.logger.propagate = False
@@ -60,7 +60,7 @@ class LambdaHandler(dict):
         """
         day = self.get('date', None)
         if not day:
-            day = datetime.utcnow().strftime("%Y%m%d")
+            day = datetime.utcnow().strftime('%Y%m%d')
 
         return day
 
@@ -116,7 +116,7 @@ class LambdaHandler(dict):
         -------
         str
         """
-        temp_dir = self.get('temp_dir', "/tmp")
+        temp_dir = self.get('temp_dir', '/tmp')
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
@@ -179,19 +179,20 @@ class LambdaHandler(dict):
         -------
         dict
         """
-        factory_kwargs = {'air_temperature': {'handler': 'GfsVar'},
-                          'alpha': {'handler': 'NrelVar'},
-                          'aod': {'handler': 'NrelVar'},
-                          'dew_point': {'handler': 'GfsDewPoint'},
-                          'ozone': {'handler': 'GfsVar'},
-                          'relative_humidity': {'handler': 'GfsVar'},
-                          'ssa': {'handler': 'NrelVar'},
-                          'surface_pressure': {'handler': 'GfsVar'},
-                          'total_precipitable_water': {'handler': 'GfsVar'},
-                          'wind_direction': {'handler': 'GfsVar'},
-                          'wind_speed': {'handler': 'GfsVar'},
-                          }
-        factory_kwargs = self.get("factory_kwargs", factory_kwargs)
+        factory_kwargs = {
+            'air_temperature': {'handler': 'GfsVar'},
+            'alpha': {'handler': 'NrelVar'},
+            'aod': {'handler': 'NrelVar'},
+            'dew_point': {'handler': 'GfsDewPoint'},
+            'ozone': {'handler': 'GfsVar'},
+            'relative_humidity': {'handler': 'GfsVar'},
+            'ssa': {'handler': 'NrelVar'},
+            'surface_pressure': {'handler': 'GfsVar'},
+            'total_precipitable_water': {'handler': 'GfsVar'},
+            'wind_direction': {'handler': 'GfsVar'},
+            'wind_speed': {'handler': 'GfsVar'},
+        }
+        factory_kwargs = self.get('factory_kwargs', factory_kwargs)
         if isinstance(factory_kwargs, str):
             factory_kwargs = json.loads(factory_kwargs)
 
@@ -219,13 +220,16 @@ class LambdaHandler(dict):
         """
         if self._data_model is None:
             self._data_model = NSRDB.run_full(
-                self.day, self.grid, self.freq,
+                self.day,
+                self.grid,
+                self.freq,
                 var_meta=self.var_meta,
                 factory_kwargs=self.factory_kwargs,
                 fill_all=self.get('fill_all', False),
                 low_mem=self.get('low_mem', False),
                 max_workers=self.get('max_workers', 1),
-                log_level=None)
+                log_level=None,
+            )
 
         return self._data_model
 
@@ -244,10 +248,8 @@ class LambdaHandler(dict):
         v : obj
             ENV variable value converted to proper type
         """
-        try:
+        with contextlib.suppress(json.JSONDecodeError):
             v = json.loads(v)
-        except json.JSONDecodeError:
-            pass
 
         return v
 
@@ -277,15 +279,18 @@ class LambdaHandler(dict):
         date = NSRDB.to_datetime(date)
         year = date.strftime('%Y')
         cloud_vars = var_meta['data_source'] == 'UW-GOES'
-        var_meta.loc[cloud_vars, 'pattern'] = \
-            var_meta.loc[cloud_vars, 'source_directory'].apply(
-            lambda d: os.path.join(d, year, '{doy}', '*.nc')).values
+        var_meta.loc[cloud_vars, 'pattern'] = (
+            var_meta.loc[cloud_vars, 'source_directory']
+            .apply(lambda d: os.path.join(d, year, '{doy}', '*.nc'))
+            .values
+        )
         if not run_full_day:
             name = var_meta.loc[cloud_vars, 'var'].values[0]
             cloud_files = CloudVar(name, var_meta, date).file_df
             timestep = np.where(~cloud_files['flist'].isna())[0].max()
-            var_meta.loc[cloud_vars, 'pattern'] = \
-                cloud_files.iloc[timestep].values[0]
+            var_meta.loc[cloud_vars, 'pattern'] = cloud_files.iloc[
+                timestep
+            ].values[0]
         else:
             timestep = None
 
@@ -306,8 +311,9 @@ class LambdaHandler(dict):
             Position of timestep to update
         """
         with h5py.File(out_fpath, mode='a') as f:
-            dump_vars = [v for v in f
-                         if v not in ['time_index', 'meta', 'coordinates']]
+            dump_vars = [
+                v for v in f if v not in ['time_index', 'meta', 'coordinates']
+            ]
             for v in dump_vars:
                 ds = f[v]
                 ds[timestep] = data_model[v][timestep]
@@ -327,13 +333,21 @@ class LambdaHandler(dict):
             List of NSRDB variables to dump to .h5
         """
         if not self.get('debug_dsets', False):
-            out_vars = ['ghi', 'dni', 'dhi',
-                        'clearsky_ghi', 'clearsky_dni',
-                        'clearsky_dhi', 'fill_flag']
+            out_vars = [
+                'ghi',
+                'dni',
+                'dhi',
+                'clearsky_ghi',
+                'clearsky_dni',
+                'clearsky_dhi',
+                'fill_flag',
+            ]
         else:
-            out_vars = [d for d
-                        in list(data_model.processed_data.keys())
-                        if d not in ('time_index', 'meta', 'flag')]
+            out_vars = [
+                d
+                for d in list(data_model.processed_data.keys())
+                if d not in ('time_index', 'meta', 'flag')
+            ]
 
         return out_vars
 
@@ -351,41 +365,55 @@ class LambdaHandler(dict):
         data_model : NSRDB.DataModel
             Completed NSRDB data model
         """
-        with tempfile.TemporaryDirectory(prefix=f'NSRDB_{self.day}_',
-                                         dir=self.temp_dir) as temp_dir:
+        with tempfile.TemporaryDirectory(
+            prefix=f'NSRDB_{self.day}_', dir=self.temp_dir
+        ) as temp_dir:
             local_out = os.path.join(temp_dir, self.fname)
             out_vars = self.get_out_vars(data_model)
-            self.logger.info('Dumping data for {} to {}'
-                             .format(out_vars, local_out))
+            self.logger.info(
+                'Dumping data for {} to {}'.format(out_vars, local_out)
+            )
 
             if not self.get('run_full_day', False):
                 if FileSystem(self.fpath_out).exists():
-                    self.logger.debug('Copying {} to {} to fill in newest '
-                                      'timestep'
-                                      .format(self.fpath_out, local_out))
+                    self.logger.debug(
+                        'Copying {} to {} to fill in newest '
+                        'timestep'.format(self.fpath_out, local_out)
+                    )
                     FileSystem.copy(self.fpath_out, local_out)
                 else:
                     self.logger.debug('Initializing {}'.format(local_out))
-                    nsrdb = NSRDB(temp_dir, self.year, self.grid,
-                                  freq=self.freq,
-                                  var_meta=self.var_meta,
-                                  make_out_dirs=False)
-                    nsrdb._init_output_h5(local_out, out_vars,
-                                          data_model.nsrdb_ti,
-                                          data_model.nsrdb_grid)
+                    nsrdb = NSRDB(
+                        temp_dir,
+                        self.year,
+                        self.grid,
+                        freq=self.freq,
+                        var_meta=self.var_meta,
+                        make_out_dirs=False,
+                    )
+                    nsrdb._init_output_h5(
+                        local_out,
+                        out_vars,
+                        data_model.nsrdb_ti,
+                        data_model.nsrdb_grid,
+                    )
 
-                self.logger.debug('Updating varible data in {} at timestep {}'
-                                  .format(local_out, self.timestep))
+                self.logger.debug(
+                    'Updating varible data in {} at timestep {}'.format(
+                        local_out, self.timestep
+                    )
+                )
                 self.update_timestep(local_out, data_model, self.timestep)
             else:
-                self.logger.debug('Dumping the entire days worth of data for '
-                                  '{} in {}'.format(out_vars, local_out))
+                self.logger.debug(
+                    'Dumping the entire days worth of data for '
+                    '{} in {}'.format(out_vars, local_out)
+                )
                 for v in out_vars:
                     try:
                         data_model.dump(v, local_out, None, mode='a')
                     except Exception as e:
-                        msg = ('Could not write "{}" to disk, got error: {}'
-                               .format(v, e))
+                        msg = f'Could not write "{v}" to disk, got error: {e}'
                         self.logger.warning(msg)
 
             FileSystem.copy(local_out, self.fpath_out)
@@ -408,12 +436,14 @@ class LambdaHandler(dict):
         nsrdb.logger.debug(f'event: {event}')
         nsrdb.logger.debug(f'context: {context}')
         var_meta = nsrdb['var_meta']
-        nsrdb.logger.debug(f'NSRDB inputs:'
-                           f'\nday = {nsrdb.day}'
-                           f'\ngrid = {nsrdb.grid}'
-                           f'\nfreq = {nsrdb.freq}'
-                           f'\nvar_meta = {var_meta}'
-                           f'\nfactory_kwargs = {nsrdb.factory_kwargs}')
+        nsrdb.logger.debug(
+            f'NSRDB inputs:'
+            f'\nday = {nsrdb.day}'
+            f'\ngrid = {nsrdb.grid}'
+            f'\nfreq = {nsrdb.freq}'
+            f'\nvar_meta = {var_meta}'
+            f'\nfactory_kwargs = {nsrdb.factory_kwargs}'
+        )
 
         try:
             nsrdb.dump_to_h5(nsrdb.data_model)
@@ -421,25 +451,29 @@ class LambdaHandler(dict):
             nsrdb.logger.exception('Failed to run NSRDB!')
             raise
 
-        success = {'statusCode': 200,
-                   'body': json.dumps('NSRDB ran successfully and '
-                                      f'create/updated {nsrdb.fpath_out}')}
+        success = {
+            'statusCode': 200,
+            'body': json.dumps(
+                'NSRDB ran successfully and '
+                f'create/updated {nsrdb.fpath_out}'
+            ),
+        }
 
         return success
 
 
 def handler(event, context):
     """
-        Wrapper for NSRDB to allow AWS Lambda invocation
+    Wrapper for NSRDB to allow AWS Lambda invocation
 
-        Parameters
-        ----------
-        event : dict
-            The event dict that contains the parameters sent when the function
-            is invoked.
-        context : dict
-            The context in which the function is called.
-        """
+    Parameters
+    ----------
+    event : dict
+        The event dict that contains the parameters sent when the function
+        is invoked.
+    context : dict
+        The context in which the function is called.
+    """
     return LambdaHandler.run(event, context=context)
 
 
@@ -448,5 +482,8 @@ if __name__ == '__main__':
         event = safe_json_load(sys.argv[1])
         ts = time.time()
         LambdaHandler.run(event)
-        print('NSRDB lambda runtime: {:.4f} minutes'
-              .format((time.time() - ts) / 60))
+        print(
+            'NSRDB lambda runtime: {:.4f} minutes'.format(
+                (time.time() - ts) / 60
+            )
+        )

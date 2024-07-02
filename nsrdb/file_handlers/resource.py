@@ -1,9 +1,10 @@
 """
 Classes to handle reading NSRDB resource data.
 """
-from rex.resource import ResourceDataset
-from rex.resource import Resource as rexResource
+
 from rex.multi_file_resource import MultiFileResource as rexMultiFileResource
+from rex.resource import Resource as rexResource
+from rex.resource import ResourceDataset
 from rex.utilities.exceptions import ResourceKeyError
 from rex.utilities.parse_keys import parse_slice
 
@@ -48,8 +49,9 @@ class Resource(rexResource):
             If unscale, returned in native units else in scaled units
         """
         if ds_name not in self.datasets:
-            raise ResourceKeyError('{} not in {}'
-                                   .format(ds_name, self.datasets))
+            raise ResourceKeyError(
+                '{} not in {}'.format(ds_name, self.datasets)
+            )
 
         ds = self.h5[ds_name]
         ds_slice = parse_slice(ds_slice)
@@ -63,9 +65,13 @@ class Resource(rexResource):
         if self.ADD_ATTR in attrs:
             add_attr = self.ADD_ATTR
 
-        out = ResourceDataset.extract(ds, ds_slice, scale_attr=scale_attr,
-                                      add_attr=add_attr,
-                                      unscale=self._unscale)
+        out = ResourceDataset.extract(
+            ds,
+            ds_slice,
+            scale_attr=scale_attr,
+            add_attr=add_attr,
+            unscale=self._unscale,
+        )
 
         if ds_name == 'cloud_type':
             out = out.astype('int8')
@@ -76,5 +82,5 @@ class Resource(rexResource):
 
 
 class MultiFileResource(rexMultiFileResource, Resource):
-    """Multi file resource handler with handling of legacy nsrdb scale factors
-    """
+    """Multi file resource handler with handling of legacy nsrdb scale
+    factors"""

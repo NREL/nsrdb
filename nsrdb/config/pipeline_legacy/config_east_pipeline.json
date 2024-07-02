@@ -6,19 +6,19 @@
   "name": "east",
   "pipeline": [
     {
-      "data-model": "/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+      "data-model": "./config_east_nsrdb.json"
     },
     {
-      "collect-data-model": "/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+      "collect-data-model": "./config_east_nsrdb.json"
     },
     {
-      "cloud-fill": "/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+      "cloud-fill": "./config_east_nsrdb.json"
     },
     {
-      "all-sky": "/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+      "all-sky": "./config_east_nsrdb.json"
     },
     {
-      "collect-final": "/projects/pxs/processing/2019/east/config_nsrdb_east.json"
+      "collect-final": "./config_east_nsrdb.json"
     }
   ]
 }

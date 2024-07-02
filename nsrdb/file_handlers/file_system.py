@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Utility to abstractly handle filesystem operations locally and in the cloud
 """
+
 from warnings import warn
 
 import h5py
@@ -17,8 +17,9 @@ class NSRDBFileSystem(FileSystem):
     files in AWS S3
     """
 
-    def __init__(self, path, anon=False, profile=None, use_rex=False,
-                 **kwargs):
+    def __init__(
+        self, path, anon=False, profile=None, use_rex=False, **kwargs
+    ):
         """
         Parameters
         ----------
@@ -90,8 +91,9 @@ class NSRDBFileSystem(FileSystem):
             if isinstance(self._fs_handler, str):
                 self._file_handler = nc.Dataset(self._fs_handler, mode='r')
             else:
-                self._file_handler = nc.Dataset('inmemory.nc', mode='r',
-                                                memory=self._fs_handler.read())
+                self._file_handler = nc.Dataset(
+                    'inmemory.nc', mode='r', memory=self._fs_handler.read()
+                )
         elif self.path.endswith('.h5'):
             if self._use_rex:
                 self._file_handler = Resource(self._fs_handler)

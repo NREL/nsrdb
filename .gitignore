@@ -64,6 +64,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+lcov.info
 
 # Translations
 *.mo
@@ -136,3 +137,6 @@ scratch
 # Docs
 docs/_build
 docs/source/_autosummary
+
+# notebooks
+examples

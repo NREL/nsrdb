@@ -3,7 +3,8 @@
     "final": true,
     "max_workers": 10,
     "n_writes": 1,
-    "n_chunks": 100
+    "n_chunks": 1,
+    "final_file_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%"
   },
   "daily-all-sky": {},
   "data-model": {
@@ -57,16 +58,16 @@
     "max_workers_regrid": null,
     "mlclouds": true
   },
-  "debug_day": null,
   "direct": {
     "log_level": "INFO",
-    "name": "%basename%_%satellite%_%extent%_%year%_%spatial%",
-    "nsrdb_freq": "%freq%",
-    "nsrdb_grid": "/projects/pxs/reference_grids/%meta_file%",
+    "freq": "%freq%",
+    "run_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%_%year%",
+    "grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",
     "year": "%year%"
   },
-  "hpc": {
+  "execution_control": {
+    "option": "kestrel",
     "alloc": "pxs",
     "feature": "--qos=normal",
     "walltime": 4

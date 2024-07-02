@@ -10,12 +10,12 @@ import shutil
 import tempfile
 
 import numpy as np
-import pytest
 from rex import NSRDB
 from scipy.stats import mode
 
 from nsrdb import TESTDATADIR
 from nsrdb.aggregation.aggregation import Aggregation, Manager
+from nsrdb.utilities.pytest import execute_pytest
 
 meta_dir = os.path.join(TESTDATADIR, 'meta/')
 
@@ -246,21 +246,5 @@ def test_multi_file():
             assert all(d in f for d in dsets)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

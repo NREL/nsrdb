@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 """NSRDB multi-year mean calculation methods.
 @author: gbuster
 """
+
 import logging
-import numpy as np
 import os
 import re
 from warnings import warn
 
+import numpy as np
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.utilities import split_sites_slice
 
@@ -36,8 +36,10 @@ class MyMean:
             Flag to run in parallel.
         """
 
-        logger.info('Initializing Multi Year Mean calculation for "{}" with '
-                    'output file: {}'.format(dset, fout))
+        logger.info(
+            'Initializing Multi Year Mean calculation for "{}" with '
+            'output file: {}'.format(dset, fout)
+        )
 
         self._flist = flist
         self._fout = fout
@@ -49,11 +51,13 @@ class MyMean:
         self._units, self._shape, self._scale, self._dtype = self._preflight()
         self._years = self._parse_years()
 
-        self._attrs = {'scale_factor': self._scale,
-                       'psm_scale_factor': self._scale,
-                       'units': self._units,
-                       'psm_units': self._units,
-                       'years': self._years}
+        self._attrs = {
+            'scale_factor': self._scale,
+            'psm_scale_factor': self._scale,
+            'units': self._units,
+            'psm_units': self._units,
+            'years': self._years,
+        }
 
         self._data = np.zeros((len(self),), dtype=np.float32)
 
@@ -76,7 +80,7 @@ class MyMean:
         years = []
         for f in self._flist:
             fname = os.path.basename(f)
-            regex = r".*[^0-9]([1-2][0-9]{3})($|[^0-9])"
+            regex = r'.*[^0-9]([1-2][0-9]{3})($|[^0-9])'
             match = re.match(regex, fname)
 
             if match:
@@ -87,8 +91,11 @@ class MyMean:
                 logger.error(e)
                 raise ValueError(e)
         years = sorted(years)
-        logger.info('Running multi year mean over {} years: {}'
-                    .format(len(years), years))
+        logger.info(
+            'Running multi year mean over {} years: {}'.format(
+                len(years), years
+            )
+        )
         return years
 
     def _preflight(self):
@@ -125,31 +132,34 @@ class MyMean:
             elif base_shape is not None:
                 # pylint: disable=unsubscriptable-object
                 if base_shape[1] != shape[1]:
-                    e = ('Dataset "{}" has inconsistent shapes! '
-                         'Base shape was {}, but found new shape '
-                         'of {} in fpath: {}'
-                         .format(self._dset, base_shape, shape, fpath))
+                    e = (
+                        'Dataset "{}" has inconsistent shapes! '
+                        'Base shape was {}, but found new shape '
+                        'of {} in fpath: {}'.format(
+                            self._dset, base_shape, shape, fpath
+                        )
+                    )
                     logger.error(e)
                     raise ValueError(e)
 
             if base_units is None:
                 base_units = units
-            else:
-                if base_units != units:
-                    e = ('Found inconsistent units for dataset "{}": {} and {}'
-                         .format(self._dset, base_units, units))
-                    logger.error(e)
-                    raise ValueError(e)
+            elif base_units != units:
+                e = 'Found inconsistent units for dataset "{}": {} and {}'.format(
+                    self._dset, base_units, units
+                )
+                logger.error(e)
+                raise ValueError(e)
 
             if base_scale is None:
                 base_scale = scale
-            else:
-                if base_scale != scale:
-                    w = ('Found inconsistent scale factor for dataset '
-                         '"{}": {} and {}'
-                         .format(self._dset, base_scale, scale))
-                    logger.warning(w)
-                    warn(w)
+            elif base_scale != scale:
+                w = (
+                    'Found inconsistent scale factor for dataset '
+                    '"{}": {} and {}'.format(self._dset, base_scale, scale)
+                )
+                logger.warning(w)
+                warn(w)
 
         logger.info('Preflight passed.')
 
@@ -162,7 +172,7 @@ class MyMean:
 
     @staticmethod
     def to_kwh_m2_day(arr):
-        """connvert irradiance to mean units (kwh/m2/day).
+        """Connvert irradiance to mean units (kwh/m2/day).
 
         Parameters
         ----------
@@ -197,14 +207,20 @@ class MyMean:
         """Run the MY Mean calculation in serial."""
 
         for i, f in enumerate(self._flist):
-            logger.info('Processing file {} out of {}: {}'
-                        .format(i + 1, len(self._flist), f))
+            logger.info(
+                'Processing file {} out of {}: {}'.format(
+                    i + 1, len(self._flist), f
+                )
+            )
             with NFS(f, use_rex=True) as res:
                 for j, site_slice in enumerate(self._site_slices):
                     new_data = res[self._dset, :, site_slice].mean(axis=0)
                     self._data[site_slice] += new_data
-                    logger.info('Finished site slice {} out of {}'
-                                .format(j + 1, len(self._site_slices)))
+                    logger.info(
+                        'Finished site slice {} out of {}'.format(
+                            j + 1, len(self._site_slices)
+                        )
+                    )
 
         self._data /= len(self._flist)
         self._data = self.to_kwh_m2_day(self._data)
@@ -214,14 +230,18 @@ class MyMean:
 
         logger.info('Running MY Mean calculation in parallel.')
         for i, f in enumerate(self._flist):
-            logger.info('Processing file {} out of {}: {}'
-                        .format(i + 1, len(self._flist), f))
+            logger.info(
+                'Processing file {} out of {}: {}'.format(
+                    i + 1, len(self._flist), f
+                )
+            )
             futures = []
             loggers = ['nsrdb']
             with SpawnProcessPool(loggers=loggers) as exe:
                 for site_slice in self._site_slices:
-                    future = exe.submit(self._retrieve_data, f, self._dset,
-                                        site_slice)
+                    future = exe.submit(
+                        self._retrieve_data, f, self._dset, site_slice
+                    )
                     futures.append(future)
 
                 for j, future in enumerate(futures):
@@ -229,8 +249,11 @@ class MyMean:
                     new_data = future.result()
                     self._data[site_slice] += new_data
                     if (j + 1) % 10 == 0:
-                        logger.info('Finished site slice {} out of {}'
-                                    .format(j + 1, len(self._site_slices)))
+                        logger.info(
+                            'Finished site slice {} out of {}'.format(
+                                j + 1, len(self._site_slices)
+                            )
+                        )
 
         self._data /= len(self._flist)
         self._data = self.to_kwh_m2_day(self._data)
@@ -259,8 +282,9 @@ class MyMean:
 
     def _write(self):
         """Write MY Mean data to disk"""
-        logger.info('Writing "{}" data to disk: {}'
-                    .format(self._dset, self._fout))
+        logger.info(
+            'Writing "{}" data to disk: {}'.format(self._dset, self._fout)
+        )
 
         out_dir = os.path.dirname(self._fout)
         if not os.path.exists(out_dir):
@@ -269,12 +293,20 @@ class MyMean:
         with Outputs(self._fout, mode='a') as out:
             out['meta'] = self.meta
             if self._dset not in out.dsets:
-                out._create_dset(self._dset, self._data.shape, self._dtype,
-                                 attrs=self._attrs, data=self._data)
+                out._create_dset(
+                    self._dset,
+                    self._data.shape,
+                    self._dtype,
+                    attrs=self._attrs,
+                    data=self._data,
+                )
             else:
                 out[self._dset] = self._data
-        logger.info('Finished writing "{}" data to disk: {}'
-                    .format(self._dset, self._fout))
+        logger.info(
+            'Finished writing "{}" data to disk: {}'.format(
+                self._dset, self._fout
+            )
+        )
 
     @classmethod
     def run(cls, flist, fout, dset, process_chunk=10000, parallel=True):
@@ -293,8 +325,9 @@ class MyMean:
         parallel : bool
             Flag to run in parallel.
         """
-        mymean = cls(flist, fout, dset, process_chunk=process_chunk,
-                     parallel=parallel)
+        mymean = cls(
+            flist, fout, dset, process_chunk=process_chunk, parallel=parallel
+        )
         mymean._run()
         mymean._write()
         logger.info('MY Mean compute complete for "{}".'.format(dset))

@@ -7,13 +7,15 @@ Created on Jan 17th 2020
 @author: mbannist
 """
 import os
-import pytest
 import tempfile
 from datetime import datetime as dt
+
+import pytest
 
 from nsrdb import TESTDATADIR
 from nsrdb.albedo import ims
 from nsrdb.albedo.ims import get_dt
+from nsrdb.utilities.pytest import execute_pytest
 
 IMSTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 
@@ -23,7 +25,7 @@ METAFILES = ['IMS1kmLats.24576x24576x1.double',
 
 
 def test_too_early_date():
-    """ Try a day before data is available """
+    """Try a day before data is available"""
     d = dt(1997, 2, 3)
     with pytest.raises(ims.ImsError):
         ims.ImsDay(d, '.')
@@ -47,7 +49,7 @@ def test_version_1_3_date_shift():
 
 
 def test_ims_res():
-    """ Verify correct resolution is selected by date """
+    """Verify correct resolution is selected by date"""
     d = get_dt(2014, 336)
     ifa = ims.ImsFileAcquisition(d, '.')
     assert ifa.res == '1km'
@@ -77,7 +79,7 @@ def test_missing_data():
         with pytest.raises(ims.ImsDataNotFound):
             for mf in METAFILES:
                 with open(os.path.join(td, mf),
-                          'wt', encoding='utf-8') as f:
+                          "w", encoding='utf-8') as f:
                     f.write('fake metafile data')
 
             d = get_dt(2015, 108)
@@ -86,7 +88,7 @@ def test_missing_data():
 
 
 def test_data_loading():
-    """ Test data loading """
+    """Test data loading"""
     d = get_dt(2015, 1)
     ims_day = ims.ImsDay(d, IMSTESTDATADIR, shape=(64, 50))
     assert ims_day.data.shape == (64, 50)
@@ -100,21 +102,5 @@ def test_data_loading():
     assert ims_day.lat.shape == (32 * 25,)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

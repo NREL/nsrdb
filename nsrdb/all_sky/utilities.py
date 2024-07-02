@@ -1,5 +1,5 @@
-"""Common utilities for NSRDB all-sky module.
-"""
+"""Common utilities for NSRDB all-sky module."""
+
 from nsrdb.data_model import VarFactory
 
 
