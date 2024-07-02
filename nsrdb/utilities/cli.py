@@ -117,12 +117,11 @@ class BaseCLI:
         ctx.obj['VERBOSE'] = verbose
         ctx.obj['OUT_DIR'] = config.get('outdir', status_dir)
         ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
-        sanitized_mod = module_name.replace('-', '_')
-        ctx.obj['LOG_DIR'] = os.path.join(status_dir, 'logs', sanitized_mod)
+        mod_name = module_name.replace('-', '_')
+        ctx.obj['MOD_NAME'] = mod_name
+        ctx.obj['LOG_DIR'] = os.path.join(status_dir, 'logs', mod_name)
         os.makedirs(ctx.obj['LOG_DIR'], exist_ok=True)
-        name = f'nsrdb_{sanitized_mod}_{os.path.basename(status_dir)}'
-        name = config.get('job_name', name)
-        ctx.obj['NAME'] = name
+        ctx.obj['NAME'] = name = config.get('job_name', mod_name)
         ctx.obj['LOG_FILE'] = config.get(
             'log_file', os.path.join(ctx.obj['LOG_DIR'], name + '.log')
         )
@@ -143,7 +142,7 @@ class BaseCLI:
         )
 
         init_mult(
-            f'nsrdb_{sanitized_mod}',
+            f'nsrdb_{mod_name}',
             ctx.obj['LOG_DIR'],
             modules=[__name__, 'nsrdb'],
             verbose=verbose,
@@ -506,8 +505,9 @@ class BaseCLI:
 
         for doy in doys:
             date = NSRDB.doy_to_datestr(config_dict['year'], doy)
+            log_id = f'{date}_{str(doy).zfill(3)}'
             config_dict['date'] = date
-            config_dict['job_name'] = f'{ctx.obj["NAME"]}_{doy}_{date}'
+            config_dict['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
             config_dict['doy'] = doy
 
             cls.kickoff_job(

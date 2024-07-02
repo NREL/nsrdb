@@ -555,26 +555,22 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
     config['n_chunks'] = config.get('n_chunks', 1)
     config['n_writes'] = config.get('n_writes', 1)
     config['final'] = config.get('final', False)
-    n_files_default = (0, 1, 3, 4, 6)  # all files minus irrad and clearsky
-    i_files = (
-        range(len(NSRDB.OUTS))
-        if config['final']
-        else config.get('collect_files', n_files_default)
-    )
     fnames = sorted(NSRDB.OUTS.keys())
+    min_files = [
+        f for f in fnames if f.split('_')[1] not in ('clearsky', 'irradiance')
+    ]
+    collect_files = fnames if config['final'] else min_files
 
-    if config['final'] and config['n_chunks'] != 1:
-        msg = 'collect-data-model was marked as final but n_chunks != 1'
-        logger.error(msg)
-        raise ValueError(msg)
+    msg = 'collect-data-model was marked as final but n_chunks != 1'
+    assert not (config['final'] and config['n_chunks'] != 1), msg
 
-    for i_chunk, i_fname in itertools.product(
-        range(config['n_chunks']), i_files
+    for i_chunk, fname in itertools.product(
+        range(config['n_chunks']), collect_files
     ):
-        log_id = f'{fnames[i_fname].split("_")[1]}_{i_chunk}'
+        log_id = '_'.join(fname.split('_')[1:-1] + [i_chunk])
         config['i_chunk'] = i_chunk
-        config['i_fname'] = i_fname
-        config['job_name'] = f'{ctx.obj["NAME"]}_{i_fname}_{log_id}'
+        config['i_fname'] = fnames.index(fname)
+        config['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
 
         BaseCLI.kickoff_job(
             ctx=ctx,
@@ -612,8 +608,8 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
     )
 
     for i_fname, fname in enumerate(sorted(NSRDB.OUTS.keys())):
-        log_id = fname.split('_')[1]
-        config['job_name'] = f'{ctx.obj["NAME"]}_{i_fname}_{log_id}'
+        log_id = '_'.join(fname.split('_')[1:-1])
+        config['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
         config['i_fname'] = i_fname
         BaseCLI.kickoff_job(
             ctx=ctx,

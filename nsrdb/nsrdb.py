@@ -452,32 +452,32 @@ class NSRDB:
         logger = init_logger('nsrdb.cli', stream=True)
         logger.info(f'Blending NSRDB data files with {user_input}')
 
-        all_tags = [
-            'ancillary_a',
-            'ancillary_b',
-            'clearsky',
-            'clouds',
-            'csp',
-            'irradiance',
-            'pv',
-        ]
-
-        cmd = f'python -m nsrdb.blend.cli -n {name}'
-        cmd += '_{tag}'
-        cmd += f' -m {user_input["meta_file"]} -od {out_dir}'
-        cmd += f' -ed {east_dir} -wd {west_dir}'
-        cmd += ' -t "{tag}"'
-        cmd += f' -mc {map_col} -ls {meta_lon}'
-        cmd += f' -cs {user_input["chunk_size"]}'
-        cmd += f' -ld "{log_dir}"'
-        cmd += f' slurm -a {user_input["alloc"]}'
-        cmd += f' -wt {user_input["walltime"]}'
-        cmd += f' -mem {user_input["memory"]}'
-        cmd += f' -sout "{out_dir}/stdout"'
-        cmd += ' -l "--qos=normal"'
+        cmd = (
+            'python -m nsrdb.blend.cli '
+            '-n {name} -m {meta} -od {out_dir} -ed {east_dir} -wd {west_dir} '
+            '-mc {map_col} -ls {lon_seam} -cs {chunk_size} -ld {log_dir} '
+            'slurm -a {alloc} -wt {walltime} -mem {memory} -sout {stdout_path}'
+            ' -l --qos=normal'
+        )
+        cmd = cmd.format(
+            name=name,
+            meta=user_input['meta_file'],
+            out_dir=out_dir,
+            east_dir=east_dir,
+            west_dir=west_dir,
+            map_col=map_col,
+            lon_seam=meta_lon,
+            chunk_size=user_input['chunk_size'],
+            log_dir=log_dir,
+            alloc=user_input['alloc'],
+            walltime=user_input['walltime'],
+            memory=user_input['memory'],
+            stdout_path=f'{out_dir}/stdout',
+        )
+        cmd += ' -t {file_tag}'
 
         if user_input['file_tag'] == 'all':
-            for tag in all_tags:
+            for tag in ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]:
                 logger.debug(f'Running command: {cmd.format(tag=tag)}')
                 os.system(cmd.format(tag=tag))
         else:
