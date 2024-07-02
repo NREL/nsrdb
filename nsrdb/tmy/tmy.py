@@ -1769,6 +1769,7 @@ class TmyRunner:
     def _run_serial(self):
         """Run serial tmy futures and save temp chunks to disk."""
 
+        logger.info('Running in serial.')
         for i, site_slice in enumerate(self.site_chunks):
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
@@ -1796,6 +1797,8 @@ class TmyRunner:
         """Run parallel tmy futures and save temp chunks to disk."""
         futures = {}
         loggers = ['nsrdb']
+
+        logger.info('Running in parallel.')
         with SpawnProcessPool(loggers=loggers) as exe:
             logger.info(
                 'Kicking off {} futures.'.format(len(self.site_chunks))
@@ -1833,6 +1836,13 @@ class TmyRunner:
                 else:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
+    def _run(self):
+        """Run in serial or parallel depending on number of chunks."""
+        if len(self.site_chunks) > 1:
+            self._run_parallel()
+        else:
+            self._run_serial()
+
     @classmethod
     def tgy(
         cls,
@@ -1869,7 +1879,7 @@ class TmyRunner:
             supplemental_fp=supplemental_fp,
             var_meta=var_meta,
         )
-        tgy._run_parallel()
+        tgy._run()
 
     @classmethod
     def tdy(
@@ -1907,7 +1917,7 @@ class TmyRunner:
             supplemental_fp=supplemental_fp,
             var_meta=var_meta,
         )
-        tdy._run_parallel()
+        tdy._run()
 
     @classmethod
     def tmy(
@@ -1958,7 +1968,7 @@ class TmyRunner:
             supplemental_fp=supplemental_fp,
             var_meta=var_meta,
         )
-        tmy._run_parallel()
+        tmy._run()
 
     @classmethod
     def collect(
