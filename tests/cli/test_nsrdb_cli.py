@@ -125,7 +125,11 @@ def modern_config(tmpdir_factory):
             'col_chunk': 100,
         },
         'daily-all-sky': {},
-        'collect-data-model': {'max_workers': 1, 'final': True},
+        'collect-data-model': {
+            'max_workers': 1,
+            'final': True,
+            'final_file_name': 'test',
+        },
         'execution_control': {'option': 'local'},
     }
     with open(config_file, 'w') as f:
@@ -237,13 +241,17 @@ def test_cli_pipeline(runner, modern_config):
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     final_files = glob(f'{out_dir}/final/*.h5')
     final_files = sorted([os.path.basename(f) for f in final_files])
-    assert (
-        sorted(
-            f.format(y=config['direct']['year'])
-            for f in sorted(NSRDB.OUTS.keys())
-        )
-        == final_files
+    target_files = sorted(
+        f.format(y=config['direct']['year']) for f in sorted(NSRDB.OUTS.keys())
     )
+    target_files = [
+        f.replace(
+            'nsrdb_',
+            f"{config['collect-data-model'].get('final_file_name', '')}_",
+        )
+        for f in target_files
+    ]
+    assert target_files == final_files
 
     # final status file update
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])

@@ -369,8 +369,8 @@ class NSRDB:
             ),
         )
 
-    @staticmethod
-    def blend_files(kwargs):
+    @classmethod
+    def blend_files(cls, kwargs):
         """Blend all data files
 
         Parameters
@@ -477,7 +477,7 @@ class NSRDB:
         cmd += ' -t {file_tag}'
 
         if user_input['file_tag'] == 'all':
-            for tag in ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]:
+            for tag in ['_'.join(k.split('_')[1:-1]) for k in cls.OUTS]:
                 logger.debug(f'Running command: {cmd.format(tag=tag)}')
                 os.system(cmd.format(tag=tag))
         else:
@@ -1316,7 +1316,6 @@ class NSRDB:
         tmp=False,
         log_level='DEBUG',
         log_file='final_collection.log',
-        job_name=None,
     ):
         """Collect chunked files to single final output files.
 
@@ -1348,8 +1347,6 @@ class NSRDB:
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Doesn't seem to be faster than collecting to normal
             scratch on hpc.
-        job_name : str
-            Optional name for pipeline and status identification.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
@@ -1384,14 +1381,7 @@ class NSRDB:
                 )
                 raise FileNotFoundError(emsg)
 
-            if job_name is not None:
-                if job_name.endswith('_{}'.format(i_fname)):
-                    jns = job_name[:-2]
-                    fname = fname.replace('nsrdb_', '{}_'.format(jns))
-                else:
-                    fname = fname.replace('nsrdb_', '{}_'.format(job_name))
-
-                f_out = os.path.join(dir_out, fname)
+            f_out = os.path.join(dir_out, fname)
 
             if any(flist):
                 nsrdb.init_output_h5(

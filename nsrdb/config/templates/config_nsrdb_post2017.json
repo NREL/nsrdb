@@ -1,6 +1,7 @@
 {
   "collect-data-model": {
     "final": true,
+    "final_file_name": "%basename%_%satellite%_%extent%_%spatial%",
     "max_workers": 10,
     "n_chunks": 1,
     "memory": 178,
@@ -61,7 +62,6 @@
   },
   "direct": {
     "log_level": "INFO",
-    "name": "%basename%_%satellite%_%extent%_%year%_%spatial%",
     "freq": "%freq%",
     "grid": "/projects/pxs/reference_grids/%meta_file%",
     "out_dir": "./",

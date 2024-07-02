@@ -567,7 +567,7 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
     for i_chunk, fname in itertools.product(
         range(config['n_chunks']), collect_files
     ):
-        log_id = '_'.join(fname.split('_')[1:-1] + [i_chunk])
+        log_id = '_'.join(fname.split('_')[1:-1] + [str(i_chunk)])
         config['i_chunk'] = i_chunk
         config['i_fname'] = fnames.index(fname)
         config['job_name'] = f'{ctx.obj["MOD_NAME"]}_{log_id}'
