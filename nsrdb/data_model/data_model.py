@@ -1448,6 +1448,32 @@ class DataModel:
         return data
 
     @classmethod
+    def _get_var_lists(cls, var_list, data_model):
+        # default multiple compute
+        if var_list is None:
+            var_list = cls.ALL_VARS
+
+        deps = ()
+        for var in var_list:
+            deps += data_model.get_dependencies(var)
+
+        var_list += deps
+        var_list = tuple(set(var_list))
+
+        # remove cloud variables from var_list to be processed together
+        # (most efficient to process all cloud variables together to minimize
+        # number of kdtrees during regrid)
+        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
+        var_list = [v for v in var_list if v not in cloud_vars]
+
+        # remove derived (dependent) variables from var_list to be processed
+        # last (most efficient to process depdencies first, dependents last)
+        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
+        var_list = [v for v in var_list if v not in derived_vars]
+
+        return var_list, cloud_vars, derived_vars
+
+    @classmethod
     def _process_multiple(
         cls,
         var_list,
@@ -1522,27 +1548,9 @@ class DataModel:
             max_workers=max_workers,
         )
 
-        # default multiple compute
-        if var_list is None:
-            var_list = cls.ALL_VARS
-
-        deps = ()
-        for var in var_list:
-            deps += data_model.get_dependencies(var)
-
-        var_list += deps
-        var_list = tuple(set(var_list))
-
-        # remove cloud variables from var_list to be processed together
-        # (most efficient to process all cloud variables together to minimize
-        # number of kdtrees during regrid)
-        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
-        var_list = [v for v in var_list if v not in cloud_vars]
-
-        # remove derived (dependent) variables from var_list to be processed
-        # last (most efficient to process depdencies first, dependents last)
-        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
-        var_list = [v for v in var_list if v not in derived_vars]
+        var_list, cloud_vars, derived_vars = cls._get_var_lists(
+            var_list=var_list, data_model=data_model
+        )
 
         temp = cls.check_merra_cloud_source(
             var_list, cloud_vars, date, var_meta, factory_kwargs
@@ -1558,42 +1566,18 @@ class DataModel:
         data_model.run_pre_flight(derived_vars)
 
         logger.info(
-            'First processing data for variable list: {}'.format(var_list)
-        )
-        logger.info(
-            'Then processing cloud data for variable list: {}'.format(
-                cloud_vars
-            )
-        )
-        logger.info(
-            'Finally, processing derived data for variable list: {}'.format(
-                derived_vars
-            )
+            f'First processing data for variable list: {var_list}. Then '
+            f'processing cloud data for variable list: {cloud_vars}. Finally, '
+            f'processing derived data for variable list: {derived_vars}'
         )
 
-        if var_list:
-            # run in serial
-            if max_workers == 1:
-                data = {}
-                for var in var_list:
-                    data_model[var] = cls.run_single(
-                        var,
-                        date,
-                        nsrdb_grid,
-                        nsrdb_freq=nsrdb_freq,
-                        var_meta=var_meta,
-                        fpath_out=fpath_out,
-                        scale=scale,
-                        factory_kwargs=factory_kwargs,
-                    )
-
-            # run in parallel
-            else:
-                data = cls._process_parallel(
-                    var_list,
+        if var_list and max_workers == 1:
+            data = {}
+            for var in var_list:
+                data_model[var] = cls.run_single(
+                    var,
                     date,
                     nsrdb_grid,
-                    max_workers=max_workers,
                     nsrdb_freq=nsrdb_freq,
                     var_meta=var_meta,
                     fpath_out=fpath_out,
@@ -1601,8 +1585,22 @@ class DataModel:
                     factory_kwargs=factory_kwargs,
                 )
 
-                for k, v in data.items():
-                    data_model[k] = v
+        # run in parallel
+        elif var_list:
+            data = cls._process_parallel(
+                var_list,
+                date,
+                nsrdb_grid,
+                max_workers=max_workers,
+                nsrdb_freq=nsrdb_freq,
+                var_meta=var_meta,
+                fpath_out=fpath_out,
+                scale=scale,
+                factory_kwargs=factory_kwargs,
+            )
+
+            for k, v in data.items():
+                data_model[k] = v
 
         # process cloud variables together
         if cloud_vars:
@@ -1914,6 +1912,26 @@ class DataModel:
         return data
 
     @classmethod
+    def _check_cloud_output(cls, data, data_model):
+        for k, v in data.items():
+            if v.shape != data_model.nsrdb_data_shape:
+                raise ValueError(
+                    'Expected NSRDB data shape of {}, but received shape {} '
+                    'for "{}"'.format(data_model.nsrdb_data_shape, v.shape, k)
+                )
+
+    @classmethod
+    def _write_cloud_output(cls, data, data_model, fpath_out):
+        if fpath_out is not None:
+            for var, arr in data.items():
+                fpath_out_var = fpath_out.format(
+                    var=var, i=data_model.nsrdb_grid.index[0]
+                )
+                data[var] = data_model.dump(
+                    var, fpath_out_var, arr, purge=True
+                )
+
+    @classmethod
     def run_clouds(
         cls,
         cloud_vars,
@@ -2022,23 +2040,11 @@ class DataModel:
             )
             raise e
 
-        for k, v in data.items():
-            if v.shape != data_model.nsrdb_data_shape:
-                raise ValueError(
-                    'Expected NSRDB data shape of {}, but '
-                    'received shape {} for "{}"'.format(
-                        data_model.nsrdb_data_shape, v.shape, k
-                    )
-                )
+        cls._check_cloud_output(data=data, data_model=data_model)
 
-        if fpath_out is not None:
-            for var, arr in data.items():
-                fpath_out_var = fpath_out.format(
-                    var=var, i=data_model.nsrdb_grid.index[0]
-                )
-                data[var] = data_model.dump(
-                    var, fpath_out_var, arr, purge=True
-                )
+        cls._write_cloud_output(
+            data=data, data_model=data_model, fpath_out=fpath_out
+        )
 
         logger.info('Finished "{}".'.format(cloud_vars))
 

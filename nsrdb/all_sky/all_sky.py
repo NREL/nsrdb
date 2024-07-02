@@ -368,6 +368,72 @@ def all_sky_h5(f_source, rows=slice(None), cols=slice(None), disc_on=False):
     return out
 
 
+def _all_sky_h5_parallel(
+    f_source,
+    rows=slice(None),
+    cols=slice(None),
+    col_chunk=10,
+    max_workers=None,
+    disc_on=False,
+):
+    out_shape = (rows.stop - rows.start, cols.stop - cols.start)
+    c_range = range(cols.start, cols.stop, col_chunk)
+    c_slices_all = {}
+    for c in c_range:
+        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
+        c_slices_all[c] = c_slice
+
+    out = {}
+    completed = 0
+
+    logger.info('Running all-sky in parallel on %s workers.', max_workers)
+
+    loggers = ['farms', 'nsrdb', 'rest2', 'rex']
+    with SpawnProcessPool(max_workers=max_workers, loggers=loggers) as exe:
+        futures = {
+            exe.submit(
+                all_sky_h5,
+                f_source,
+                rows=rows,
+                disc_on=disc_on,
+                cols=c_slices_all[c],
+            ): c
+            for c in c_range
+        }
+
+        for future in as_completed(futures):
+            c = futures[future]
+            c_slice = c_slices_all[c]
+            all_sky_out = future.result()
+
+            for var, arr in all_sky_out.items():
+                if var not in out:
+                    logger.info(
+                        'Initializing output array for "%s" with shape %s '
+                        'and dtype %s.',
+                        var,
+                        out_shape,
+                        arr.dtype,
+                    )
+                    out[var] = np.ndarray(out_shape, dtype=arr.dtype)
+                out[var][:, c_slice] = arr
+
+            completed += 1
+            mem = psutil.virtual_memory()
+
+            if completed % 10 == 0:
+                logger.info(
+                    'All-sky futures completed: {} out of {}. Current memory '
+                    'usage is {:.3f} GB out of {:.3f} GB total.'.format(
+                        completed,
+                        len(futures),
+                        mem.used / 1e9,
+                        mem.total / 1e9,
+                    )
+                )
+    return out
+
+
 def all_sky_h5_parallel(
     f_source,
     rows=slice(None),
@@ -436,60 +502,11 @@ def all_sky_h5_parallel(
     logger.info('Running all-sky for rows: %s', rows)
     logger.info('Running all-sky for cols: %s', cols)
 
-    out_shape = (rows.stop - rows.start, cols.stop - cols.start)
-    c_range = range(cols.start, cols.stop, col_chunk)
-    c_slices_all = {}
-    for c in c_range:
-        c_slice = slice(c, np.min((c + col_chunk, cols.stop)))
-        c_slices_all[c] = c_slice
-
-    out = {}
-    completed = 0
-
-    logger.info('Running all-sky in parallel on %s workers.', max_workers)
-
-    loggers = ['farms', 'nsrdb', 'rest2', 'rex']
-    with SpawnProcessPool(max_workers=max_workers, loggers=loggers) as exe:
-        futures = {
-            exe.submit(
-                all_sky_h5,
-                f_source,
-                rows=rows,
-                disc_on=disc_on,
-                cols=c_slices_all[c],
-            ): c
-            for c in c_range
-        }
-
-        for future in as_completed(futures):
-            c = futures[future]
-            c_slice = c_slices_all[c]
-            all_sky_out = future.result()
-
-            for var, arr in all_sky_out.items():
-                if var not in out:
-                    logger.info(
-                        'Initializing output array for "%s" with shape %s '
-                        'and dtype %s.',
-                        var,
-                        out_shape,
-                        arr.dtype,
-                    )
-                    out[var] = np.ndarray(out_shape, dtype=arr.dtype)
-                out[var][:, c_slice] = arr
-
-            completed += 1
-            mem = psutil.virtual_memory()
-
-            if completed % 10 == 0:
-                logger.info(
-                    'All-sky futures completed: {} out of {}. Current memory '
-                    'usage is {:.3f} GB out of {:.3f} GB total.'.format(
-                        completed,
-                        len(futures),
-                        mem.used / 1e9,
-                        mem.total / 1e9,
-                    )
-                )
-
-    return out
+    return _all_sky_h5_parallel(
+        f_source=f_source,
+        rows=rows,
+        cols=cols,
+        col_chunk=col_chunk,
+        max_workers=max_workers,
+        disc_on=disc_on,
+    )

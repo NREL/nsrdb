@@ -5,7 +5,7 @@ Utility to abstractly handle filesystem operations locally and in the cloud
 from warnings import warn
 
 import h5py
-import netCDF4 as nc
+import netCDF4
 from cloud_fs import FileSystem
 
 from nsrdb.file_handlers.resource import Resource
@@ -89,9 +89,11 @@ class NSRDBFileSystem(FileSystem):
         if self.path.endswith(('.nc', '.nc4')):
             # pylint: disable=no-member
             if isinstance(self._fs_handler, str):
-                self._file_handler = nc.Dataset(self._fs_handler, mode='r')
+                self._file_handler = netCDF4.Dataset(
+                    self._fs_handler, mode='r'
+                )
             else:
-                self._file_handler = nc.Dataset(
+                self._file_handler = netCDF4.Dataset(
                     'inmemory.nc', mode='r', memory=self._fs_handler.read()
                 )
         elif self.path.endswith('.h5'):

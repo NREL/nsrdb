@@ -107,8 +107,9 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
                 all_zeros = (data == 0).all(axis=0)
 
                 if any(all_zeros):
-                    m = 'Sites have full timeseries of zeros: {} in: {}'.format(
-                        np.where(all_zeros)[0], site_slice
+                    m = (
+                        f'Sites have full timeseries of zeros: '
+                        f'{np.where(all_zeros)[0]} in: {site_slice}'
                     )
                     logger.info(m)
                     warn(m)

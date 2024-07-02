@@ -99,7 +99,7 @@ def get_axis_lim(values, buffer=0.05):
     return v_min, v_max
 
 
-def make_images(h5_fpath, img_dir, **kwargs):
+def make_images(h5_fpath, img_dir, **kwargs):  # noqa : C901
     """
     Create images from each timestep in NSRDB h5 fpath
 

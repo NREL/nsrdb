@@ -245,10 +245,9 @@ class GfsFiles:
 
         if missing:
             m = (
-                'Could not find the required GFS file with date stamp "{}" '
-                'in directory {}, the following timestamps were missing:\n{}'.format(
-                    self.date_stamp, source_dir, missing
-                )
+                'Could not find the required GFS file with date stamp '
+                f'"{self.date_stamp}" in directory {source_dir}, the '
+                f'following timestamps were missing:\n{missing}'
             )
             logger.error(m)
             raise FileNotFoundError(m)

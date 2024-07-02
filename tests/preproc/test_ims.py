@@ -6,6 +6,7 @@ Created on Jan 17th 2020
 
 @author: mbannist
 """
+
 import os
 import tempfile
 from datetime import datetime as dt
@@ -19,9 +20,12 @@ from nsrdb.utilities.pytest import execute_pytest
 
 IMSTESTDATADIR = os.path.join(TESTDATADIR, 'albedo')
 
-METAFILES = ['IMS1kmLats.24576x24576x1.double',
-             'IMS1kmLons.24576x24576x1.double',
-             'imslat_4km.bin', 'imslon_4km.bin']
+METAFILES = [
+    'IMS1kmLats.24576x24576x1.double',
+    'IMS1kmLons.24576x24576x1.double',
+    'imslat_4km.bin',
+    'imslon_4km.bin',
+]
 
 
 def test_too_early_date():
@@ -75,16 +79,17 @@ def test_missing_data():
     """
     Verify appropriate exception is raised when a missing date is requested.
     """
-    with tempfile.TemporaryDirectory() as td:
-        with pytest.raises(ims.ImsDataNotFound):
-            for mf in METAFILES:
-                with open(os.path.join(td, mf),
-                          "w", encoding='utf-8') as f:
-                    f.write('fake metafile data')
+    with (
+        tempfile.TemporaryDirectory() as td,
+        pytest.raises(ims.ImsDataNotFoundError),
+    ):
+        for mf in METAFILES:
+            with open(os.path.join(td, mf), 'w', encoding='utf-8') as f:
+                f.write('fake metafile data')
 
-            d = get_dt(2015, 108)
-            ifa = ims.ImsFileAcquisition(d, td)
-            ifa.get_file()
+        d = get_dt(2015, 108)
+        ifa = ims.ImsFileAcquisition(d, td)
+        ifa.get_file()
 
 
 def test_data_loading():

@@ -156,7 +156,7 @@ def main(
     python -m nsrdb.blend.cli -n "blend5" -m $META -od "./" -ed $EDIR -wd $WDIR -t "irradiance" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
     python -m nsrdb.blend.cli -n "blend6" -m $META -od "./" -ed $EDIR -wd $WDIR -t "pv" -mc $MAPCOL -ls -105.0 -cs 100000 -ld "./logs/" slurm -a "pxs" -wt 48.0 -l "--qos=normal" -mem "83" -sout "./logs/"
     ```
-    """
+    """  # noqa: E501
 
     if log_dir is None:
         log_dir = os.path.join(out_dir, 'logs/')

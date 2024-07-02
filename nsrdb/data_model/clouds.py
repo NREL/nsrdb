@@ -4,8 +4,8 @@ import datetime
 import logging
 import os
 import re
-from warnings import warn
 from typing import ClassVar
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -469,9 +469,13 @@ class CloudVarSingle:
 
         dup_mask = grid.duplicated() & ~grid['latitude'].isna()
         if any(dup_mask):
-            rand_mult = np.random.Generator(0.99, 1.01, dup_mask.sum())
+            rand_mult = np.random.default_rng().uniform(
+                0.99, 1.01, dup_mask.sum()
+            )
             grid.loc[dup_mask, 'latitude'] *= rand_mult
-            rand_mult = np.random.Generator(0.99, 1.01, dup_mask.sum())
+            rand_mult = np.random.default_rng().uniform(
+                0.99, 1.01, dup_mask.sum()
+            )
             grid.loc[dup_mask, 'longitude'] *= rand_mult
 
             wmsg = (
@@ -1354,8 +1358,9 @@ class CloudVar(AncillaryVarHandler):
             logger.warning(w)
             warn(w)
         else:
-            m = 'CloudVar handler has a frequency of "{}" for pattern: {}'.format(
-                self.freq, self.pattern
+            m = (
+                f'CloudVar handler has a frequency of "{self.freq}" for '
+                f'pattern: {self.pattern}'
             )
             logger.debug(m)
 
@@ -1518,8 +1523,8 @@ class CloudVar(AncillaryVarHandler):
 
         for fp in flist:
             if NSRDBfs(fp).size() < 1e6:
-                msg = 'Cloud data source file is less than 1MB, skipping: {}'.format(
-                    fp
+                msg = (
+                    f'Cloud data source file is less than 1MB, skipping: {fp}'
                 )
                 warn(msg)
                 logger.warning(msg)

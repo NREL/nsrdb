@@ -111,6 +111,7 @@ ignore = [
   "D400", # ends-in-period
   "D401", # non-imperative-mood
   "D404", # docstring-starts-with-this
+  "E402", # import not at top of file
   "FIX001",	# line-contains-fixme
   "G004", # f-string logging
   "G001", # str.format logging

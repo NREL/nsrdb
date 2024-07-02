@@ -129,24 +129,23 @@ class MyMean:
 
             if base_shape is None and shape[0] % 8760 == 0:
                 base_shape = shape
-            elif base_shape is not None:
-                # pylint: disable=unsubscriptable-object
-                if base_shape[1] != shape[1]:
-                    e = (
-                        'Dataset "{}" has inconsistent shapes! '
-                        'Base shape was {}, but found new shape '
-                        'of {} in fpath: {}'.format(
-                            self._dset, base_shape, shape, fpath
-                        )
+            elif base_shape is not None and base_shape[1] != shape[1]:
+                e = (
+                    'Dataset "{}" has inconsistent shapes! '
+                    'Base shape was {}, but found new shape '
+                    'of {} in fpath: {}'.format(
+                        self._dset, base_shape, shape, fpath
                     )
-                    logger.error(e)
-                    raise ValueError(e)
+                )
+                logger.error(e)
+                raise ValueError(e)
 
             if base_units is None:
                 base_units = units
             elif base_units != units:
-                e = 'Found inconsistent units for dataset "{}": {} and {}'.format(
-                    self._dset, base_units, units
+                e = (
+                    f'Found inconsistent units for dataset "{self._dset}": '
+                    f'{base_units} and {units}'
                 )
                 logger.error(e)
                 raise ValueError(e)

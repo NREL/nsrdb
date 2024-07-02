@@ -168,7 +168,9 @@ def test_final_daily():
                 var_fac = VarFactory.get_base_handler(dset)
                 low = var_fac.physical_min
                 high = var_fac.physical_max
-                dset_data = np.random.uniform(low, high, size=shape)
+                dset_data = np.random.default_rng().uniform(
+                    low, high, size=shape
+                )
                 dset_data = dset_data.astype(np.float32)
                 test_data[dset][doy] = dset_data
 

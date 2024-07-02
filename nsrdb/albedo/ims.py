@@ -114,7 +114,7 @@ class ImsError(Exception):
     """General exception for IMS processing"""
 
 
-class ImsDataNotFound(ImsError):
+class ImsDataNotFoundError(ImsError):
     """
     Raised when IMS data is not available on ftp server. This is typically
     caused by a missing day that needs to be gap-filled.
@@ -305,7 +305,7 @@ class ImsDataAcquisition:
         try:
             ifa.get_file()
             self.data = ifa.data
-        except ImsDataNotFound:
+        except ImsDataNotFoundError:
             logger.info(
                 f'Data is missing or bad for {self.date}, '
                 'attempting to gap fill'
@@ -363,7 +363,7 @@ class ImsGapFill:
             ifa.get_file()
             logger.info('Gap-fill data found on disk')
             return ifa
-        except ImsDataNotFound:
+        except ImsDataNotFoundError:
             pass
 
         ifa = self._find_closest_day()
@@ -397,7 +397,7 @@ class ImsGapFill:
 
             try:
                 ifa.get_file()
-            except ImsDataNotFound:
+            except ImsDataNotFoundError:
                 continue
 
             logger.info(
@@ -436,7 +436,7 @@ class ImsFileAcquisition:
     disk first. If not on disk the data is downloaded.
 
     Files are acquired and loaded by calling self.get_file() after class is
-    initialized. ImsDataNotFound is raised if there is any issue obtaining
+    initialized. ImsDataNotFoundError is raised if there is any issue obtaining
     or loading data.
 
     It should be noted that for dates on and after 2014, 336, (Ver 1.3) the
@@ -556,7 +556,7 @@ class ImsFileAcquisition:
             )
         else:
             if self._gap_fill:
-                raise ImsDataNotFound(
+                raise ImsDataNotFoundError(
                     f'Gap-fill file {self._pfilename} not ' 'found on disk'
                 )
 
@@ -565,7 +565,7 @@ class ImsFileAcquisition:
                 ' download'
             )
             if not self._check_ftp_for_data():
-                raise ImsDataNotFound(
+                raise ImsDataNotFoundError(
                     f'{self._pfilename}.gz not found on ' f'{FTP_SERVER}'
                 )
             self._download_data()
@@ -649,7 +649,7 @@ class ImsFileAcquisition:
                 f'{length} but is {len(raw)}.'
             )
             logger.warning(msg)
-            raise ImsDataNotFound(msg)
+            raise ImsDataNotFoundError(msg)
 
         # Changed unpacked snow/ice values to match packed format
         raw = np.array(raw)
