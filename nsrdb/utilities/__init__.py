@@ -16,11 +16,13 @@ class ModuleName(str, Enum):
     ALL_SKY = 'all-sky'
     DAILY_ALL_SKY = 'daily-all-sky'
     BLEND = 'blend'
+    COLLECT_BLEND = 'collect-blend'
     AGGREGATE = 'aggregate'
+    COLLECT_AGG = 'collect-agg'
     COLLECT_DATA_MODEL = 'collect-data-model'
     COLLECT_FINAL = 'collect-final'
-    COLLECT_BLENDED = 'collect-blended'
-    COLLECT_AGG = 'collect-agg'
+    TMY = 'tmy'
+    COLLECT_TMY = 'collect-tmy'
 
     def __str__(self):
         return self.value

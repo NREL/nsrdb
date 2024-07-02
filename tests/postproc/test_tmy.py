@@ -6,6 +6,7 @@ Created on Feb 13th 2019
 
 @author: gbuster
 """
+
 import os
 from copy import deepcopy
 
@@ -14,7 +15,7 @@ import pandas as pd
 import pytest
 
 from nsrdb import TESTDATADIR
-from nsrdb.tmy.tmy import Cdf, Tmy
+from nsrdb.tmy.tmy import Cdf, Tmy, TmyRunner
 from nsrdb.utilities.file_utils import pd_date_range
 from nsrdb.utilities.pytest import execute_pytest
 
@@ -23,25 +24,35 @@ ATOL = 0.001
 NSRDB_BASE_FP = os.path.join(TESTDATADIR, 'validation_nsrdb/nsrdb_*_{}.h5')
 BASELINE_DIR = os.path.join(TESTDATADIR, 'tgy_2017/')
 
-BASELINES_FILES = {0: 'DRA_36.62_-116.02_tgy.csv',
-                   3: 'FPK_48.31_-105.1_tgy.csv',
-                   5: 'SXF_43.73_-96.62_tgy.csv',
-                   6: 'GCM_34.25_-89.87_tgy.csv',
-                   7: 'BON_40.05_-88.37_tgy.csv',
-                   8: 'PSU_40.72_-77.93_tgy.csv'}
+BASELINES_FILES = {
+    0: 'DRA_36.62_-116.02_tgy.csv',
+    3: 'FPK_48.31_-105.1_tgy.csv',
+    5: 'SXF_43.73_-96.62_tgy.csv',
+    6: 'GCM_34.25_-89.87_tgy.csv',
+    7: 'BON_40.05_-88.37_tgy.csv',
+    8: 'PSU_40.72_-77.93_tgy.csv',
+}
 
 
-@pytest.mark.parametrize(('mults', 'best_year'), (((1.0, 1.1, 1.2), 2014),
-                                                  ((0.5, 1.1, 0.6), 2015),
-                                                  ((0.8, 1.1, 0.6), 2013)))
+@pytest.mark.parametrize(
+    ('mults', 'best_year'),
+    (
+        ((1.0, 1.1, 1.2), 2014),
+        ((0.5, 1.1, 0.6), 2015),
+        ((0.8, 1.1, 0.6), 2013),
+    ),
+)
 def test_cdf_best_year(mults, best_year):
     """Test the CDF year selection using an arbitrary input array"""
 
-    my_arr = [(mults[i] * np.arange(365, dtype=np.float32)).tolist()
-              for i in range(3)]
+    my_arr = [
+        (mults[i] * np.arange(365, dtype=np.float32)).tolist()
+        for i in range(3)
+    ]
     my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
-    time_index = pd_date_range(start='1-1-2013', end='1-1-2016',
-                               freq='1D', closed='left')
+    time_index = pd_date_range(
+        start='1-1-2013', end='1-1-2016', freq='1D', closed='left'
+    )
     cdf = Cdf(my_arr, time_index)
     years, _ = cdf._best_fs_year()
 
@@ -50,19 +61,23 @@ def test_cdf_best_year(mults, best_year):
 
 def test_cdf_fs():
     """Test the FS metric against baseline values."""
-    baseline = {1: np.array([0.22484936, 0.07167668, 0.18745799]),
-                2: np.array([0.33341603, 0.1550684, 0.32166262]),
-                3: np.array([0.33340802, 0.16681612, 0.33340802]),
-                4: np.array([0.33341051, 0.1668211, 0.33341051]),
-                5: np.array([0.33340802, 0.16681612, 0.33340802]),
-                }
+    baseline = {
+        1: np.array([0.22484936, 0.07167668, 0.18745799]),
+        2: np.array([0.33341603, 0.1550684, 0.32166262]),
+        3: np.array([0.33340802, 0.16681612, 0.33340802]),
+        4: np.array([0.33341051, 0.1668211, 0.33341051]),
+        5: np.array([0.33340802, 0.16681612, 0.33340802]),
+    }
 
     mults = [0.4, 1.0, 1.6]
-    my_arr = [(mults[i] * np.arange(17520, dtype=np.float32)).tolist()
-              for i in range(3)]
+    my_arr = [
+        (mults[i] * np.arange(17520, dtype=np.float32)).tolist()
+        for i in range(3)
+    ]
     my_arr = np.expand_dims(np.array(my_arr).flatten(), axis=1)
-    time_index = pd_date_range(start='1-1-2013', end='1-1-2016',
-                               freq='30min', closed='left')
+    time_index = pd_date_range(
+        start='1-1-2013', end='1-1-2016', freq='30min', closed='left'
+    )
     cdf = Cdf(my_arr, time_index)
     fs_all = cdf._fs_all
     for k, v in baseline.items():
@@ -139,8 +154,10 @@ def test_tmy_steps():
     weights = {'sum_ghi': 1}
     tgy = Tmy(NSRDB_BASE_FP, years, weights, site_slice=slice(0, 2))
 
-    emsg = ('STEP1: TMY year selection based on FS metric failed! '
-            'Low FS metrics do not correspond to selected years.')
+    emsg = (
+        'STEP1: TMY year selection based on FS metric failed! '
+        'Low FS metrics do not correspond to selected years.'
+    )
     ws = tgy.get_weighted_fs()
     tmy_years_5_init, _ = tgy.select_fs_years(ws)
     for j in range(len(tgy.meta)):
@@ -150,8 +167,10 @@ def test_tmy_steps():
                 assert tmy_years_5_init[m][yi, j] == good_years[yi, j], emsg
                 assert tmy_years_5_init[m][yi, j] == good_years[yi, j], emsg
 
-    emsg = ('STEP2: Sorting based on multi-year ghi mean and median failed! '
-            'TMY years do not appear to be sorted correctly.')
+    emsg = (
+        'STEP2: Sorting based on multi-year ghi mean and median failed! '
+        'TMY years do not appear to be sorted correctly.'
+    )
     tmy_years_5_sorted, diffs = tgy.sort_years_mm(deepcopy(tmy_years_5_init))
     for j in range(len(tgy.meta)):
         for m in range(1, 13):
@@ -161,7 +180,7 @@ def test_tmy_steps():
                 diffs_sub.append(diffs[m][ii, j])
             assert diffs_sub == sorted(deepcopy(diffs_sub)), emsg
 
-    emsg = ('STEP3: Persistence filter failed! TMY year was chosen with {}')
+    emsg = 'STEP3: Persistence filter failed! TMY year was chosen with {}'
     emsg2 = 'Selected TMY year not found in 5 candidate years!'
     tmy_years, max_run_len, n_runs = tgy.persistence_filter(tmy_years_5_sorted)
     for im, m in enumerate(range(1, 13)):
@@ -220,6 +239,17 @@ def plot_cdf():
     arr = tgy._get_my_arr('sum_ghi')
     cdf = Cdf(arr, tgy.my_daily_time_index)
     cdf.plot_tmy_selection()
+
+
+def test_tmy_runner(tmpdir_factory):
+    """Make sure tmy runner functions correctly."""
+
+    years = list(range(1998, 2018))
+    td = tmpdir_factory.mktemp('tmp')
+    fn_out = os.path.join(str(td), 'tmy.h5')
+    TmyRunner.tmy(NSRDB_BASE_FP, years, out_dir=str(td), fn_out='tmy.h5')
+    TmyRunner.collect(NSRDB_BASE_FP, years, out_dir=str(td), fn_out='tmy.h5')
+    assert os.path.exists(fn_out)
 
 
 if __name__ == '__main__':

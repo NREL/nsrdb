@@ -1,0 +1,46 @@
+{
+    "tmy": {
+        "tmy": {
+            "outdir": "./",
+            "log_file": "./logs/tmy/tmy.log",
+            "job_status": "successful",
+            "execution_control": {
+                "stdout_path": "./stdout/"
+            },
+            "fn_out": "tmy.h5",
+            "job_name": "tmy",
+            "log_level": "INFO",
+            "nsrdb_base_fp": "/home/bbenton/repos/nsrdb/tests/data/validation_nsrdb/nsrdb_*_{}.h5",
+            "out_dir": "/tmp/pytest-of-bbenton/pytest-356/tmp0",
+            "status_dir": "./",
+            "time": 88.59361386299133,
+            "tmy_types": [
+                "tmy",
+                "tdy",
+                "tgy"
+            ],
+            "years": [
+                1998,
+                1999,
+                2000,
+                2001,
+                2002,
+                2003,
+                2004,
+                2005,
+                2006,
+                2007,
+                2008,
+                2009,
+                2010,
+                2011,
+                2012,
+                2013,
+                2014,
+                2015,
+                2016,
+                2017
+            ]
+        }
+    }
+}

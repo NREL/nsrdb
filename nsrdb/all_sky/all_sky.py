@@ -416,8 +416,9 @@ def all_sky_h5_parallel(
         data_shape = res.shape
         missing = [arg for arg in ALL_SKY_ARGS if arg not in res.dsets]
         if any(missing):
-            msg = 'Cannot run all_sky, missing datasets {} from source: {}'.format(
-                missing, f_source
+            msg = (
+                f'Cannot run all_sky, missing datasets {missing} from '
+                f'source: {f_source}'
             )
             logger.error(msg)
             raise KeyError(msg)
@@ -432,8 +433,8 @@ def all_sky_h5_parallel(
     if cols.stop is None:
         cols = slice(cols.start, data_shape[1])
 
-    logger.info('Running all-sky for rows: {}'.format(rows))
-    logger.info('Running all-sky for cols: {}'.format(cols))
+    logger.info('Running all-sky for rows: %s', rows)
+    logger.info('Running all-sky for cols: %s', cols)
 
     out_shape = (rows.stop - rows.start, cols.stop - cols.start)
     c_range = range(cols.start, cols.stop, col_chunk)
@@ -445,9 +446,7 @@ def all_sky_h5_parallel(
     out = {}
     completed = 0
 
-    logger.info(
-        'Running all-sky in parallel on {} workers.'.format(max_workers)
-    )
+    logger.info('Running all-sky in parallel on %s workers.', max_workers)
 
     loggers = ['farms', 'nsrdb', 'rest2', 'rex']
     with SpawnProcessPool(max_workers=max_workers, loggers=loggers) as exe:
@@ -470,10 +469,11 @@ def all_sky_h5_parallel(
             for var, arr in all_sky_out.items():
                 if var not in out:
                     logger.info(
-                        'Initializing output array for "{}" with '
-                        'shape {} and dtype {}.'.format(
-                            var, out_shape, arr.dtype
-                        )
+                        'Initializing output array for "%s" with shape %s '
+                        'and dtype %s.',
+                        var,
+                        out_shape,
+                        arr.dtype,
                     )
                     out[var] = np.ndarray(out_shape, dtype=arr.dtype)
                 out[var][:, c_slice] = arr
@@ -483,10 +483,8 @@ def all_sky_h5_parallel(
 
             if completed % 10 == 0:
                 logger.info(
-                    'All-sky futures completed: '
-                    '{} out of {}. '
-                    'Current memory usage is '
-                    '{:.3f} GB out of {:.3f} GB total.'.format(
+                    'All-sky futures completed: {} out of {}. Current memory '
+                    'usage is {:.3f} GB out of {:.3f} GB total.'.format(
                         completed,
                         len(futures),
                         mem.used / 1e9,

@@ -20,6 +20,7 @@ from rex.utilities.loggers import init_logger
 
 from nsrdb import __version__
 from nsrdb.nsrdb import NSRDB
+from nsrdb.tmy.tmy import TmyRunner
 from nsrdb.utilities import ModuleName
 from nsrdb.utilities.cli import BaseCLI
 from nsrdb.utilities.file_utils import ts_freq_check
@@ -187,7 +188,7 @@ create_configs_help = """
     Available keys:
         year (year to run),
         freq (target time step. e.g. "5min"),
-        outdir (parent directory for run directory),
+        out_dir (parent directory for run directory),
         satellite (east/west),
         spatial (meta file resolution, e.g. "2km" or "4km"),
         extent (full/conus),
@@ -201,7 +202,7 @@ create_configs_help = """
         "freq": "5min",
         "satellite": "east",
         "extent": "conus",
-        "outdir": "./",
+        "out_dir": "./",
         "spatial": "4km",
         "meta_file" : None,
         "doy_range": None
@@ -634,42 +635,23 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
+@click.option(
+    '--collect',
+    is_flag=True,
+    help='Flag to collect blended chunks into a single final file.',
+)
 @click.pass_context
-def blend(ctx, config, verbose=False, pipeline_step=None):
+def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    BaseCLI.kickoff_single(
-        ctx=ctx,
-        module_name=ModuleName.BLEND,
-        func=NSRDB.blend_files,
-        config=config,
-        verbose=verbose,
-        pipeline_step=pipeline_step,
-    )
-
-
-@main.command()
-@click.option(
-    '--config',
-    '-c',
-    type=str,
-    required=True,
-    help='Path to config file with kwargs for NSRDB.collect_blended()',
-)
-@click.option(
-    '-v',
-    '--verbose',
-    is_flag=True,
-    help='Flag to turn on debug logging. Default is False.',
-)
-def collect_blended(ctx, config, verbose=False, pipeline_step=None):
-    """Collect blended data chunks into a single file."""
+    func = NSRDB.collect_blended if collect else NSRDB.blend_files
+    mod_name = ModuleName.COLLECT_BLEND if collect else ModuleName.BLEND
 
     BaseCLI.kickoff_single(
         ctx=ctx,
-        module_name=ModuleName.COLLECT_BLENDED,
-        func=NSRDB.collect_blended,
+        module_name=mod_name,
+        func=func,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -690,18 +672,25 @@ def collect_blended(ctx, config, verbose=False, pipeline_step=None):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
+@click.option(
+    '--collect',
+    is_flag=True,
+    help='Flag to collect aggregated chunks into a single final file.',
+)
 @click.pass_context
-def aggregate(ctx, config, verbose=False, pipeline_step=None):
+def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     """Aggregate data files to a lower resolution.
 
     NOTE: Used to create data files from high-resolution years (2018+) which
     match resolution of low-resolution years (pre 2018)
     """
+    func = NSRDB.collect_aggregation if collect else NSRDB.aggregate_files
+    mod_name = ModuleName.COLLECT_AGG if collect else ModuleName.AGGREGATE
 
     BaseCLI.kickoff_single(
         ctx=ctx,
-        module_name=ModuleName.AGGREGATE,
-        func=NSRDB.aggregate_files,
+        module_name=mod_name,
+        func=func,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -714,7 +703,8 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None):
     '-c',
     type=str,
     required=True,
-    help='Path to config file with kwargs for NSRDB.collect_aggregation()',
+    help='Path to config file with kwargs for TmyRunner.func(), where func '
+    'is "tmy", "tdy", or "tgy".',
 )
 @click.option(
     '-v',
@@ -722,17 +712,58 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
-def collect_aggregation(ctx, config, verbose=False, pipeline_step=None):
-    """Collect aggregated data chunks."""
+@click.option(
+    '--collect',
+    is_flag=True,
+    help='Flag to collect tmy chunks into a single final file.',
+)
+@click.pass_context
+def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
+    """Create tmy files for given input files.
 
-    BaseCLI.kickoff_single(
+    You would call the nsrdb tmy module using::
+
+        $ python -m nsrdb.cli -c config.json tmy
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "tmy": {"run_name": "tmy"},
+            "collect-tmy": {"run_name": "collect_tmy"},
+            "direct": {
+                "tmy_types": ['tmy', 'tdy', 'tgy'],
+                "nsrdb_base_fp": './nsrdb_*_{}.h5',
+                "years": [2000, ..., 2022],
+                "out_dir": './",
+                "fn_out": 'tmy_2000_2022.h5'
+            }
+        }
+    """  # noqa : D301
+
+    mod_name = ModuleName.COLLECT_TMY if collect else ModuleName.TMY
+    config = BaseCLI.from_config_preflight(
         ctx=ctx,
-        module_name=ModuleName.COLLECT_AGG,
-        func=NSRDB.collect_aggregation,
+        module_name=mod_name,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
+    tmy_types = config.pop('tmy_types', ['tmy', 'tgy', 'tdy'])
+    fn_out = config.pop('fn_out', 'tmy.h5')
+    out_dir = config['out_dir']
+    for tmy_type in tmy_types:
+        func = TmyRunner.collect if collect else getattr(TmyRunner, tmy_type)
+        config['out_dir'] = os.path.join(out_dir, f'{tmy_type}/')
+        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{tmy_type}'
+        config['fn_out'] = fn_out.replace('.h5', f'_{tmy_type}.h5')
+        BaseCLI.kickoff_job(
+            ctx=ctx,
+            module_name=mod_name,
+            func=func,
+            config=config,
+            log_id=tmy_type,
+        )
 
 
 @main.group(invoke_without_command=True)
@@ -828,8 +859,7 @@ Pipeline.COMMANDS[ModuleName.BLEND] = blend
 Pipeline.COMMANDS[ModuleName.AGGREGATE] = aggregate
 Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.COLLECT_FINAL] = collect_final
-Pipeline.COMMANDS[ModuleName.COLLECT_BLENDED] = collect_blended
-Pipeline.COMMANDS[ModuleName.COLLECT_AGG] = collect_aggregation
+Pipeline.COMMANDS[ModuleName.TMY] = tmy
 
 
 if __name__ == '__main__':

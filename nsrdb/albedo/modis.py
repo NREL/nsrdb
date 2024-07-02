@@ -217,9 +217,7 @@ class ModisFileAcquisition:
         # Is date after last available and last day of leap year?
         if year > LAST_YEAR and day == 366:
             self.date = get_dt(LAST_YEAR, 365)
-            logger.info(
-                'Using day 365 of {} in place of day 366'.format(LAST_YEAR)
-            )
+            logger.info('Using day 365 of %s in place of day 366', LAST_YEAR)
 
         # Is date after last available?
         elif year > LAST_YEAR and day < 366:
@@ -239,14 +237,12 @@ class ModisFileAcquisition:
 
         if self.date != date:
             logger.info(
-                'MODIS albedo data does not yet exist for '
-                '{}/{}. Using data for {}/{} instead.'
-                ''.format(
-                    date.year,
-                    date.timetuple().tm_yday,
-                    self.date.year,
-                    self.date.timetuple().tm_yday,
-                )
+                'MODIS albedo data does not yet exist for %s/%s. Using data '
+                'for %s/%s instead.',
+                date.year,
+                date.timetuple().tm_yday,
+                self.date.year,
+                self.date.timetuple().tm_yday,
             )
 
         self.path = path

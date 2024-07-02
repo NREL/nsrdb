@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-NSRDB processing methods.
+"""NSRDB processing methods.
 @author: gbuster
 """
+
 import os
 
 from ._version import __version__
@@ -14,4 +13,4 @@ DEFAULT_VAR_META = os.path.join(CONFIGDIR, 'nsrdb_vars.csv')
 TESTDATADIR = os.path.join(os.path.dirname(NSRDBDIR), 'tests', 'data')
 
 # This needs to go last because it depends on the global dirs above
-from nsrdb.nsrdb import NSRDB
+from nsrdb.nsrdb import NSRDB  # noqa: E402

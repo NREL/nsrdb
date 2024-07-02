@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class MaiacVar(AncillaryVarHandler):
         list
         """
 
-        fps = NFS(self.pattern).glob()
+        fps = NSRDBfs(self.pattern).glob()
         if not any(fps):
             emsg = (
                 'Could not find source files '
@@ -127,7 +127,7 @@ class MaiacVar(AncillaryVarHandler):
             If nothing is missing, return an empty string.
         """
         for fp in self.files:
-            with NFS(fp, use_rex=True) as res:
+            with NSRDBfs(fp, use_rex=True) as res:
                 dsets = res.dsets
                 msg = 'Needs "{}" dset: {}'
                 assert 'latitude' in dsets, msg.format('latitude', fp)
@@ -159,7 +159,7 @@ class MaiacVar(AncillaryVarHandler):
         L = 0
         data = []
         for fp in self.files:
-            with NFS(fp, use_rex=True) as res:
+            with NSRDBfs(fp, use_rex=True) as res:
                 logger.debug(
                     'Getting MAIAC aod from {}'.format(os.path.basename(fp))
                 )
@@ -187,7 +187,7 @@ class MaiacVar(AncillaryVarHandler):
 
         if self._grid is None:
             for fp in self.files:
-                with NFS(fp, use_rex=True) as res:
+                with NSRDBfs(fp, use_rex=True) as res:
                     temp = pd.DataFrame(
                         {
                             'longitude': res['longitude'].flatten(),

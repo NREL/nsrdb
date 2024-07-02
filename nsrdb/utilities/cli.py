@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+from warnings import warn
 
 import click
 from gaps import Status
@@ -11,7 +12,6 @@ from rex import safe_json_load
 from rex.utilities.execution import SubprocessManager
 from rex.utilities.fun_utils import get_fun_call_str
 from rex.utilities.hpc import SLURM
-from rex.utilities.loggers import init_mult
 
 from nsrdb import NSRDB
 from nsrdb.utilities import ModuleName
@@ -21,6 +21,7 @@ AVAILABLE_HARDWARE_OPTIONS = ('kestrel', 'slurm', 'local')
 
 IMPORT_STR = (
     'from nsrdb.nsrdb import NSRDB;\n'
+    'from nsrdb.tmy.tmy import TmyRunner;\n'
     'from nsrdb.file_handlers.collection import Collector;\n'
     'from rex import init_logger;\n'
     'import time;\n'
@@ -109,8 +110,7 @@ class BaseCLI:
 
         cmd_args = cls.get_cmd_args(module_name=module_name, config=config)
         ctx.obj['STATUS_DIR'] = cmd_args['status_dir']
-        ctx.obj['VERBOSE'] = verbose
-        ctx.obj['OUT_DIR'] = cmd_args.get('outdir', cmd_args['status_dir'])
+        ctx.obj['OUT_DIR'] = cmd_args.get('out_dir', cmd_args['status_dir'])
         ctx.obj['PIPELINE_STEP'] = pipeline_step or module_name
         mod_name = module_name.replace('-', '_')
         ctx.obj['LOG_DIR'] = os.path.join(
@@ -126,19 +126,12 @@ class BaseCLI:
             'log_file', os.path.join(ctx.obj['LOG_DIR'], job_name + '.log')
         )
         log_level = cmd_args.get('log_level', 'INFO')
-        ctx.obj['LOG_ARG_STR'] = f'"nsrdb", log_level="{log_level}"'
         log_level = log_level == 'DEBUG'
-        verbose = any([verbose, log_level, ctx.obj['VERBOSE']])
-
-        init_mult(
-            f'nsrdb_{mod_name}',
-            ctx.obj['LOG_DIR'],
-            modules=[__name__, 'nsrdb'],
-            verbose=verbose,
-        )
+        verbose = any([verbose, log_level])
 
         cmd_args['log_file'] = ctx.obj['LOG_FILE']
         cmd_args['job_name'] = job_name
+        cmd_args['log_level'] = 'INFO' if not verbose else 'DEBUG'
         return cmd_args
 
     @staticmethod
@@ -151,9 +144,17 @@ class BaseCLI:
         else:
             status_dir = config.get('status_dir', './')
 
-        exec_kwargs = config.get('execution_control', {})
+        exec_kwargs = config.get('execution_control', {'option': 'local'})
         direct_args = config.get('direct', {})
         cmd_args = config.get(module_name, {})
+
+        if not cmd_args:
+            msg = (
+                f'Did not find any args for {module_name}. Will use '
+                '"direct" entries if available'
+            )
+            logger.warning(msg)
+            warn(msg)
 
         # replace any args with higher priority entries in command dict
         exec_kwargs.update(
@@ -178,6 +179,44 @@ class BaseCLI:
             f'Module name must be in ModuleName class. Received {module_name}.'
         )
         assert module_name in ModuleName, msg
+
+    @staticmethod
+    def running_or_done(
+        status_dir, pipeline_step, job_name, subprocess_manager=None
+    ):
+        """Check if job is running or complete."""
+
+        status = Status.retrieve_job_status(
+            status_dir,
+            pipeline_step=pipeline_step,
+            job_name=job_name,
+            subprocess_manager=subprocess_manager,
+        )
+        job_failed = 'fail' in str(status).lower()
+        job_submitted = status != 'not submitted'
+
+        successful = status == 'successful'
+        running = not job_failed and job_submitted and status is not None
+        if successful:
+            msg = (
+                f'Job "{job_name}" is successful in status json found in '
+                f'"{status_dir}", not re-running.'
+            )
+        elif running:
+            msg = (
+                f'Job "{job_name}" was found with status "{status}", not '
+                'resubmitting'
+            )
+
+        if job_failed:
+            logger.info(f'Previous run for job {job_name} failed.')
+
+        check = successful or running
+        if check:
+            click.echo(msg)
+            logger.info(msg)
+            return True
+        return False
 
     @classmethod
     def kickoff_slurm_job(
@@ -223,71 +262,62 @@ class BaseCLI:
         """
         cls.check_module_name(module_name)
         pipeline_step = ctx.obj['PIPELINE_STEP']
-        name = ctx.obj['JOB_NAME']
+        job_name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
-        slurm_manager = ctx.obj.get('SLURM_MANAGER', None)
-        if slurm_manager is None:
-            slurm_manager = SlurmManager()
-            ctx.obj['SLURM_MANAGER'] = slurm_manager
+        slurm_manager = ctx.obj.get('SLURM_MANAGER', SlurmManager())
+        ctx.obj['SLURM_MANAGER'] = slurm_manager
 
-        status = Status.retrieve_job_status(
-            status_dir,
+        if not cls.running_or_done(
+            status_dir=status_dir,
             pipeline_step=pipeline_step,
-            job_name=name,
+            job_name=job_name,
             subprocess_manager=slurm_manager,
-        )
-        job_failed = 'fail' in str(status).lower()
-        job_submitted = status != 'not submitted'
-
-        msg = f'nsrdb {module_name} CLI failed to submit jobs!'
-        if status == 'successful':
-            msg = (
-                f'Job "{name}" is successful in status json found in '
-                f'"{status_dir}", not re-running.'
-            )
-        elif not job_failed and job_submitted and status is not None:
-            msg = (
-                f'Job "{name}" was found with status "{status}", not '
-                'resubmitting'
-            )
-        else:
-            job_info = f'{module_name}'
+        ):
+            job_info = module_name
             if pipeline_step != module_name:
                 job_info = f'{job_info} (pipeline step {pipeline_step!r})'
-            logger.info(
-                f'Running nsrdb {job_info} on SLURM with node name "{name}".'
-            )
+            logger.info(f'Running {job_info} module on SLURM as "{job_name}".')
             out = slurm_manager.sbatch(
                 cmd,
                 alloc=alloc,
                 memory=memory,
                 walltime=walltime,
                 feature=feature,
-                name=name,
+                name=job_name,
                 stdout_path=stdout_path,
             )[0]
+
+            msg = f'nsrdb {module_name} CLI failed to submit jobs!'
             if out:
                 msg = (
-                    f'Kicked off nsrdb {job_info} job "{name}" (SLURM jobid '
-                    f'#{out}).'
+                    f'Kicked off {job_info} module as "{job_name}" (SLURM '
+                    f'jobid #{out}).'
                 )
 
-            # add job to nsrdb status file.
             Status.mark_job_as_submitted(
                 status_dir,
                 pipeline_step=pipeline_step,
-                job_name=name,
+                job_name=job_name,
                 replace=True,
                 job_attrs={
                     'job_id': out,
-                    'outdir': ctx.obj['OUT_DIR'],
+                    'out_dir': ctx.obj['OUT_DIR'],
                     'log_file': ctx.obj['LOG_FILE'],
                     'hardware': option,
                 },
             )
 
-        click.echo(msg)
-        logger.info(msg)
+            click.echo(msg)
+            logger.info(msg)
+
+    @staticmethod
+    def _parse_job_attrs(config):
+        return (
+            json.dumps(config)
+            .replace('null', 'None')
+            .replace('false', 'False')
+            .replace('true', 'True')
+        )
 
     @classmethod
     def kickoff_local_job(cls, ctx, module_name, cmd):
@@ -305,47 +335,32 @@ class BaseCLI:
         """
         cls.check_module_name(module_name)
         pipeline_step = ctx.obj['PIPELINE_STEP']
-        name = ctx.obj['JOB_NAME']
+        job_name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
-        subprocess_manager = SubprocessManager
 
-        status = Status.retrieve_job_status(
-            status_dir, pipeline_step=pipeline_step, job_name=name
-        )
-        job_failed = 'fail' in str(status).lower()
-        job_submitted = status != 'not submitted'
-
-        msg = f'nsrdb {module_name} CLI failed to submit jobs!'
-        if status == 'successful':
-            msg = (
-                f'Job "{name}" is successful in status json found in '
-                f'"{status_dir}", not re-running.'
-            )
-        elif not job_failed and job_submitted and status is not None:
-            msg = (
-                f'Job "{name}" was found with status "{status}", not '
-                'resubmitting'
-            )
-        else:
+        if not cls.running_or_done(
+            status_dir=status_dir,
+            pipeline_step=pipeline_step,
+            job_name=job_name,
+        ):
             job_info = f'{module_name}'
             if pipeline_step != module_name:
                 job_info = f'{job_info} (pipeline step {pipeline_step!r})'
-            if job_failed:
-                logger.info('Previous run failed.')
-            logger.info(
-                f'Running nsrdb {job_info} locally with job name "{name}".'
-            )
+            logger.info(f'Running {job_info} module locally as "{job_name}".')
+            SubprocessManager.submit(cmd)
             Status.mark_job_as_submitted(
                 status_dir=status_dir,
                 pipeline_step=pipeline_step,
-                job_name=name,
+                job_name=job_name,
                 replace=True,
+                job_attrs={
+                    'out_dir': ctx.obj['OUT_DIR'],
+                    'log_file': ctx.obj['LOG_FILE'],
+                },
             )
-            subprocess_manager.submit(cmd)
-            msg = f'Completed nsrdb {job_info} job "{name}".'
-
-        click.echo(msg)
-        logger.info(msg)
+            msg = f'Completed {job_info} module job "{job_name}".'
+            click.echo(msg)
+            logger.info(msg)
 
     @classmethod
     def get_status_cmd(cls, config, pipeline_step):
@@ -375,13 +390,7 @@ class BaseCLI:
             status_file_arg_str += f'pipeline_step="{pipeline_step}", '
             status_file_arg_str += f'job_name="{job_name}", '
             status_file_arg_str += 'attrs=job_attrs'
-
-            cmd += 'job_attrs = {};\n'.format(
-                json.dumps(config)
-                .replace('null', 'None')
-                .replace('false', 'False')
-                .replace('true', 'True')
-            )
+            cmd += f'job_attrs = {cls._parse_job_attrs(config)};\n'
             cmd += 'job_attrs.update({"job_status": "successful"});\n'
             cmd += 'job_attrs.update({"time": t_elap});\n'
             cmd += f'Status.make_single_job_file({status_file_arg_str})'
@@ -413,7 +422,6 @@ class BaseCLI:
             if log_id is None
             else ctx.obj['LOG_FILE'].replace('.log', f'_{log_id}.log')
         )
-        log_arg_str = f'{ctx.obj["LOG_ARG_STR"]}, log_file="{log_file}"'
         pipeline_step = ctx.obj['PIPELINE_STEP']
         exec_kwargs = config.get('execution_control', {})
         hardware_option = exec_kwargs.get('option', 'local')
@@ -423,7 +431,6 @@ class BaseCLI:
         cmd = (
             f"python -c '{IMPORT_STR}\n"
             't0 = time.time();\n'
-            f'logger = init_logger({log_arg_str});\n'
             f'{fun_str};\n'
             't_elap = time.time() - t0;\n'
         )
@@ -527,7 +534,7 @@ class BaseCLI:
                 module_name=module_name,
                 func=func,
                 config=config_dict,
-                log_id=doy,
+                log_id=log_id,
             )
 
     @classmethod

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ class GfsFiles:
         """
         files = []
         date_stamp = cls._make_date_stamp(start_time)
-        for f in NFS(source_dir).ls():
+        for f in NSRDBfs(source_dir).ls():
             if date_stamp in f:
                 fpath = os.path.join(source_dir, f)
                 timestamp, offset = cls._get_file_time(f, start_time)
@@ -287,7 +287,7 @@ class GfsVarSingle:
             Path to a single timestep GFS file
         """
         # pylint: disable=no-member
-        self._fs = NFS(fpath)
+        self._fs = NSRDBfs(fpath)
         self._dataset = self._fs.open()
         self._dsets = None
         self._units = None

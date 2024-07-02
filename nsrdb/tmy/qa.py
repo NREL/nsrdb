@@ -11,7 +11,7 @@ from warnings import warn
 import numpy as np
 
 from nsrdb.data_model import VarFactory
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,8 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
     """
 
     logger.info(
-        'Running QA on {} from {} to {} with step size {} and interval {}'.format(
-            fp, i0, iend, step, interval
-        )
+        f'Running QA on {fp} from {i0} to {iend} with step size {step} and '
+        f'interval {interval}'
     )
 
     n_split = int(np.ceil((iend - i0) / step))
@@ -49,7 +48,7 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
     chunks = [slice(x[0], x[-1] + 1) for x in chunks]
     chunks = chunks[::interval]
 
-    with NFS(fp, use_rex=True) as res:
+    with NSRDBfs(fp, use_rex=True) as res:
         ti = res.time_index
         meta = res.meta
 

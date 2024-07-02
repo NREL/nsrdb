@@ -144,7 +144,7 @@ class NSRDB:
             'basename': 'nsrdb',
             'metadir': '/projects/pxs/reference_grids',
             'spatial': '4km',
-            'outdir': './',
+            'out_dir': './',
             'freq': '30min',
             'extent': 'full',
         }
@@ -159,14 +159,14 @@ class NSRDB:
         collect_tag = f'{user_input["basename"]}_'
         collect_tag += f'{user_input["extent"]}_{user_input["year"]}_'
         fout = os.path.join(
-            f'{user_input["outdir"]}',
+            f'{user_input["out_dir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5',
         )
 
         user_input['log_file'] = f'{user_input["basename"]}_'
         user_input['log_file'] += f'{user_input["year"]}_collect_blend.log'
 
-        log_file = os.path.join(user_input['outdir'], user_input['log_file'])
+        log_file = os.path.join(user_input['out_dir'], user_input['log_file'])
         logger = init_logger(__name__, log_file=log_file, log_level='DEBUG')
         logger.info(
             'Running collect_blended with '
@@ -244,7 +244,7 @@ class NSRDB:
             'metadir': '/projects/pxs/reference_grids',
             'final_spatial': '4km',
             'final_freq': '30min',
-            'outdir': './',
+            'out_dir': './',
         }
 
         user_input = copy.deepcopy(default_kwargs)
@@ -256,14 +256,14 @@ class NSRDB:
         collect_dir += f'_{user_input["final_freq"]}'
         collect_tag = f'{user_input["basename"]}_'
         fout = os.path.join(
-            f'{user_input["outdir"]}',
+            f'{user_input["out_dir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5',
         )
 
         user_input['log_file'] = f'{user_input["basename"]}_'
         user_input['log_file'] += f'{user_input["year"]}_collect_agg.log'
 
-        log_file = os.path.join(user_input['outdir'], user_input['log_file'])
+        log_file = os.path.join(user_input['out_dir'], user_input['log_file'])
         logger = init_logger(__name__, log_file=log_file, log_level='DEBUG')
         logger.info(
             'Running collect_aggregation with '
@@ -293,7 +293,7 @@ class NSRDB:
             'full_spatial': '2km',
             'conus_spatial': '2km',
             'final_spatial': '4km',
-            'outdir': './',
+            'out_dir': './',
             'full_freq': '10min',
             'conus_freq': '5min',
             'final_freq': '30min',
@@ -355,7 +355,7 @@ class NSRDB:
         run_name = f'{user_input["basename"]}_{user_input["year"]}_agg'
         Manager.hpc(
             NSRDB,
-            user_input['outdir'],
+            user_input['out_dir'],
             user_input['metadir'],
             user_input['year'],
             user_input['n_chunks'],
@@ -365,7 +365,7 @@ class NSRDB:
             feature='--qos=normal',
             node_name=run_name,
             stdout_path=os.path.join(
-                user_input['outdir'], f'{final_sub_dir}/stdout/'
+                user_input['out_dir'], f'{final_sub_dir}/stdout/'
             ),
         )
 
@@ -385,7 +385,7 @@ class NSRDB:
             'metadir': '/projects/pxs/reference_grids',
             'spatial': '2km',
             'extent': 'conus',
-            'outdir': './',
+            'out_dir': './',
             'alloc': 'pxs',
             'walltime': 48,
             'chunk_size': 100000,
@@ -428,7 +428,7 @@ class NSRDB:
         src_dir += '_{satellite}'
         src_dir += f"_{user_input['extent']}_{user_input['year']}"
         src_dir += f"_{user_input['spatial']}/final"
-        src_dir = os.path.join(user_input['outdir'], src_dir)
+        src_dir = os.path.join(user_input['out_dir'], src_dir)
 
         if user_input['east_dir'] is None:
             user_input['east_dir'] = src_dir.format(satellite='east')
@@ -441,8 +441,8 @@ class NSRDB:
         user_input['name'] = f'{user_input["basename"]}_{user_input["year"]}'
         user_input['name'] += f'_{user_input["extent"]}_blend'
         name = user_input['name']
-        out_dir = user_input['outdir'] = os.path.join(
-            user_input['outdir'], name
+        out_dir = user_input['out_dir'] = os.path.join(
+            user_input['out_dir'], name
         )
         log_dir = os.path.join(out_dir, 'logs/')
 
@@ -564,7 +564,7 @@ class NSRDB:
             'spatial': '4km',
             'satellite': 'east',
             'extent': 'conus',
-            'outdir': './',
+            'out_dir': './',
             'meta_file': None,
             'doy_range': None,
         }
@@ -606,7 +606,7 @@ class NSRDB:
             ]
         )
 
-        user_input['outdir'] = os.path.join(user_input['outdir'], run_name)
+        user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
 
         logger = init_logger('nsrdb.cli', stream=True)
         logger.info(
@@ -627,10 +627,10 @@ class NSRDB:
                 s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
-        if not os.path.exists(user_input['outdir']):
-            os.makedirs(user_input['outdir'])
+        if not os.path.exists(user_input['out_dir']):
+            os.makedirs(user_input['out_dir'])
 
-        outfile = os.path.join(user_input['outdir'], 'config_nsrdb.json')
+        outfile = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write(s)
 
@@ -644,13 +644,13 @@ class NSRDB:
                 s = s.replace(f'"%{k}%"', str(v))
             s = s.replace(f'%{k}%', str(v))
 
-        outfile = os.path.join(user_input['outdir'], 'config_pipeline.json')
+        outfile = os.path.join(user_input['out_dir'], 'config_pipeline.json')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write(s)
 
         logger.info(f'Created file: {outfile}')
 
-        outfile = os.path.join(user_input['outdir'], 'run.sh')
+        outfile = os.path.join(user_input['out_dir'], 'run.sh')
         with open(outfile, 'w', encoding='utf-8') as f:
             f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
 
@@ -926,9 +926,7 @@ class NSRDB:
                     date.year, str(date.month).zfill(2), str(date.day).zfill(2)
                 )
 
-                log_file = log_file.replace(
-                    '.log', '_{}_{}.log'.format(doy, date_str)
-                )
+                log_file = log_file.replace('.log', f'_{date_str}_{doy}.log')
 
             for name in loggers:
                 init_logger(name, log_level=log_level, log_file=log_file)
@@ -1159,7 +1157,7 @@ class NSRDB:
         date = cls.to_datetime(date)
 
         nsrdb = cls(out_dir, date.year, grid, freq=freq, var_meta=var_meta)
-        nsrdb._init_loggers(date=date, log_file=log_file, log_level=log_level)
+        nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
         fpath_out = nsrdb._get_daily_fpath_out(date)
 
@@ -1846,10 +1844,7 @@ class NSRDB:
             make_out_dirs=False,
         )
         nsrdb._init_loggers(
-            date=date,
-            log_file=log_file,
-            log_level=log_level,
-            use_log_dir=False,
+            log_file=log_file, log_level=log_level, use_log_dir=False
         )
 
         logger.info(

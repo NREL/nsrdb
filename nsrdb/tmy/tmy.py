@@ -8,22 +8,19 @@ TODO: Refactor using new CLI. Don't need the hpc wrapper functions in here
 """
 
 import datetime
-import json
 import logging
 import os
 import shutil
 from concurrent.futures import as_completed
 from copy import deepcopy
-from inspect import signature
 from itertools import groupby
 
 import h5py
 import numpy as np
 import pandas as pd
-from cloud_fs import FileSystem as FS
+from cloud_fs import FileSystem
 from rex import init_logger
 from rex.utilities.execution import SpawnProcessPool
-from rex.utilities.hpc import SLURM
 
 from nsrdb.data_model.variable_factory import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
@@ -464,7 +461,7 @@ class Tmy:
             raise ValueError('Weights do not sum to 1.0!')
 
         for year in self._years:
-            for dset in self._weights.keys():
+            for dset in self._weights:
                 fpath, Handler = self._get_fpath(dset, year)
                 dset = self._strip_dset_fun(dset)[0]
                 with Handler(fpath) as f:
@@ -584,16 +581,12 @@ class Tmy:
         """
         arr = None
 
-        if unscale:
-            dtype = np.float32
-        else:
-            dtype = np.int32
+        dtype = np.float32 if unscale else np.int32
 
         for year in self._years:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath) as f:
-                with Handler(f, unscale=unscale) as res:
-                    temp = res[dset, :, self._site_slice]
+            with FileSystem(fpath) as f, Handler(f, unscale=unscale) as res:
+                temp = res[dset, :, self._site_slice]
 
             if arr is None:
                 shape = (len(self.my_time_index), temp.shape[1])
@@ -607,9 +600,8 @@ class Tmy:
                 temp = np.vstack((temp, temp2))
 
             elif len(temp) != mask.sum():
-                with FS(fpath) as f:
-                    with Resource(f, unscale=False) as res:
-                        ti = res.time_index
+                with FileSystem(fpath) as f, Resource(f, unscale=False) as res:
+                    ti = res.time_index
 
                 temp = self.drop_leap(temp, ti)[0]
 
@@ -829,9 +821,8 @@ class Tmy:
         """
         if self._meta is None:
             fpath, Handler = self._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f:
-                with Handler(f) as res:
-                    meta = res.meta
+            with FileSystem(fpath) as f, Handler(f) as res:
+                meta = res.meta
 
             self._meta = meta.iloc[self._site_slice, :]
         return self._meta
@@ -900,7 +891,7 @@ class Tmy:
 
         return freq
 
-    def get_weighted_fs(self):
+    def get_weighted_FileSystem(self):
         """Get the FS metric for all datasets and weight and combine.
 
         This is part of STEP #1 of the NSRDB TMY.
@@ -1007,7 +998,7 @@ class Tmy:
             )
         return lt_median
 
-    def _lt_mm_diffs(self):
+    def _lt_mm_difFileSystem(self):
         """Calculate the difference from the long term mean and median GHI.
 
         Returns
@@ -1062,7 +1053,7 @@ class Tmy:
         sorted_years = {
             m: np.zeros(shape, dtype=np.float32) for m in range(1, 13)
         }
-        diffs = self._lt_mm_diffs()
+        diffs = self._lt_mm_difFileSystem()
 
         for m in range(1, 13):
             sorted_years[m] = np.argsort(diffs[m], axis=0) + self.years[0]
@@ -1191,18 +1182,17 @@ class Tmy:
             (8760 x n_sites) timeseries array of dset with data in each month
             taken from the selected tmy_year.
         """
-        year_set = sorted(list(set(list(tmy_years.flatten()))))
+        year_set = sorted(set(tmy_years.flatten()))
         data = None
         masks = None
         self._tmy_years_long = None
 
         for year in year_set:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath) as f:
-                with Handler(f, unscale=unscale) as res:
-                    ti = res.time_index
-                    temp = res[dset, :, self._site_slice]
-                    temp, ti = self.drop_leap(temp, ti)
+            with FileSystem(fpath) as f, Handler(f, unscale=unscale) as res:
+                ti = res.time_index
+                temp = res[dset, :, self._site_slice]
+                temp, ti = self.drop_leap(temp, ti)
 
             if masks is None:
                 masks = {m: (ti.month == m) for m in range(1, 13)}
@@ -1244,7 +1234,7 @@ class Tmy:
             Shape is (months, sites).
         """
 
-        ws = self.get_weighted_fs()
+        ws = self.get_weighted_FileSystem()
         tmy_years_5, _ = self.select_fs_years(ws)
         tmy_years_5, _ = self.sort_years_mm(tmy_years_5)
         tmy_years, _, _ = self.persistence_filter(tmy_years_5)
@@ -1463,7 +1453,7 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f, Handler(f) as res:
+            with FileSystem(fpath) as f, Handler(f) as res:
                 self._meta = res.meta.iloc[self._site_slice, :]
 
         return self._meta
@@ -1473,7 +1463,7 @@ class TmyRunner:
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f, Handler(f) as res:
+            with FileSystem(fpath) as f, Handler(f) as res:
                 self._dsets = []
                 for d in res.dsets:
                     if res.shapes[d] == res.shape:
@@ -1532,6 +1522,23 @@ class TmyRunner:
 
         return attrs, chunks, dtypes
 
+    def _collect_chunk(self, f_out_chunk, site_slice, out):
+        """Add single chunk to final output."""
+        f_chunk_basename = os.path.basename(f_out_chunk)
+        with Resource(f_out_chunk, unscale=True) as chunk:
+            try:
+                for dset in self.dsets:
+                    data = chunk[dset]
+                    out[dset, :, site_slice] = data
+            except Exception as e:
+                m = (
+                    f'Could not read file dataset "{dset}" from file '
+                    f'"{f_chunk_basename}". Received the following '
+                    f'exception: \n{e}'
+                )
+                logger.exception(m)
+                raise e
+
     def _collect(self, purge_chunks=False):
         """Collect all chunked files into the final fout."""
 
@@ -1542,45 +1549,26 @@ class TmyRunner:
         with Outputs(self._final_fpath, mode='a', unscale=True) as out:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
+                f_chunk_basename = os.path.basename(f_out_chunk)
 
-                if os.path.basename(f_out_chunk) in status:
-                    logger.info(
-                        'Skipping file, already collected: {}'.format(
-                            os.path.basename(f_out_chunk)
-                        )
-                    )
-                else:
-                    with Resource(f_out_chunk, unscale=True) as chunk:
-                        for dset in self.dsets:
-                            try:
-                                data = chunk[dset]
-                            except Exception as e:
-                                m = (
-                                    'Could not read file dataset "{}" from '
-                                    'file "{}". Received the following '
-                                    'exception: \n{}'.format(
-                                        dset, os.path.basename(f_out_chunk), e
-                                    )
-                                )
-                                logger.exception(m)
-                                raise e
-                            else:
-                                out[dset, :, site_slice] = data
-
-                    logger.info(
-                        'Finished collecting #{} out of {} for sites '
-                        '{} from file {}'.format(
-                            i + 1,
-                            len(self._f_out_chunks),
-                            site_slice,
-                            os.path.basename(f_out_chunk),
-                        )
+                msg = f'Skipping file, already collected: {f_chunk_basename}'
+                if f_chunk_basename not in status:
+                    self._collect_chunk(
+                        f_out_chunk=f_out_chunk, site_slice=site_slice, out=out
                     )
                     with open(status_file, 'a') as f:
                         f.write('{}\n'.format(os.path.basename(f_out_chunk)))
+                    msg = (
+                        f'Finished collecting #{i + 1} out of '
+                        f'{len(self._f_out_chunks)} for sites {site_slice} '
+                        f'from file {f_chunk_basename}'
+                    )
+                logger.info(msg)
 
         if purge_chunks:
-            chunk_dir = os.path.dirname(list(self._f_out_chunks.values())[0])
+            chunk_dir = os.path.dirname(
+                next(iter(self._f_out_chunks.values()))
+            )
             logger.info('Purging chunk directory: {}'.format(chunk_dir))
             shutil.rmtree(chunk_dir)
 
@@ -2026,262 +2014,3 @@ class TmyRunner:
             var_meta=var_meta,
         )
         tgy._collect()
-
-    @staticmethod
-    def _hpc(
-        fun_str,
-        arg_str,
-        alloc='pxs',
-        memory=90,
-        walltime=4,
-        feature='--qos=high',
-        node_name='tmy',
-        stdout_path=None,
-    ):
-        """Run a TmyRunner method on an HPC node.
-
-        Format: TmyRunner.fun_str(arg_str)
-
-        Parameters
-        ----------
-        fun_str : str
-            Name of the class or static method belonging to the TmyRunner class
-            to execute in the SLURM job.
-        arg_str : str
-            Arguments passed to the target method.
-        alloc : str
-            SLURM project allocation.
-        memory : int
-            Node memory request in GB.
-        walltime : int
-            Node walltime request in hours.
-        feature : str
-            Additional flags for SLURM job. Format is "--qos=high"
-            or "--depend=[state:job_id]".
-        node_name : str
-            Name for the SLURM job.
-        stdout_path : str
-            Path to dump the stdout/stderr files.
-        """
-
-        if stdout_path is None:
-            stdout_path = os.getcwd()
-
-        cmd = (
-            "python -c 'from nsrdb.tmy.tmy import TmyRunner;"
-            "TmyRunner.{f}({a})'"
-        )
-
-        cmd = cmd.format(f=fun_str, a=arg_str)
-
-        slurm_manager = SLURM()
-        out = slurm_manager.sbatch(
-            cmd,
-            alloc=alloc,
-            memory=memory,
-            walltime=walltime,
-            feature=feature,
-            name=node_name,
-            stdout_path=stdout_path,
-        )[0]
-
-        print('\ncmd:\n{}\n'.format(cmd))
-
-        if out:
-            msg = 'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
-                node_name, out
-            )
-        else:
-            msg = (
-                'Was unable to kick off job "{}". '
-                'Please see the stdout error messages'.format(node_name)
-            )
-        print(msg)
-
-    @classmethod
-    def hpc_tmy(
-        cls,
-        fun_str,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        fn_out,
-        weights=None,
-        n_nodes=1,
-        site_slice=None,
-        supplemental_fp=None,
-        var_meta=None,
-        **kwargs,
-    ):
-        """Run a TMY/TDY/TGY job on an HPC node."""
-
-        if isinstance(weights, dict):
-            weights = json.dumps(weights)
-        if isinstance(supplemental_fp, dict):
-            supplemental_fp = json.dumps(supplemental_fp)
-
-        node_name = kwargs.get('node_name', None)
-
-        for node_index in range(n_nodes):
-            arg_str = (
-                '"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
-                'weights={weights}, '
-                'n_nodes={n_nodes}, '
-                'node_index={node_index}, '
-                'site_slice={site_slice}, '
-                'supplemental_fp={sfps}, '
-                'var_meta="{var_meta}"'
-            )
-            arg_str = arg_str.format(
-                nsrdb_base_fp=nsrdb_base_fp,
-                years=years,
-                out_dir=out_dir,
-                fn_out=fn_out,
-                weights=weights,
-                n_nodes=n_nodes,
-                node_index=node_index,
-                site_slice=site_slice,
-                sfps=supplemental_fp,
-                var_meta=var_meta,
-            )
-            sig = signature(getattr(cls, fun_str))
-            for k in sig.parameters:
-                if k in kwargs:
-                    arg_str += f', {k}="{kwargs.pop(k)}"'
-
-            if 'stdout_path' not in kwargs:
-                kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
-            if node_name is None:
-                kwargs['node_name'] = '{}{}'.format(fun_str, node_index)
-            else:
-                kwargs['node_name'] = '{}{}'.format(node_name, node_index)
-
-            cls._hpc(fun_str, arg_str, **kwargs)
-
-    @classmethod
-    def hpc_all(
-        cls,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        n_nodes=1,
-        site_slice=None,
-        supplemental_fp=None,
-        var_meta=None,
-        **kwargs,
-    ):
-        """Submit three hpc jobs for TMY, TGY, and TDY.
-
-        Parameters
-        ----------
-        nsrdb_base_fp : str
-            Base nsrdb filepath to retrieve annual files from. Must include
-            a single {} format option for the year. Can include * for an
-            NSRDB multi file source.
-        years : iterable
-            Iterable of years to include in the TMY calculation.
-        out_dir : str
-            Directory to dump temporary output files.
-        n_nodes : int
-            Number of hpc nodes to use for jobs.
-        site_slice : slice
-            Sites to consider in this TMY.
-        supplemental_fp : None | dict
-            Supplemental data base filepaths including {} for year for
-            uncommon dataset inputs to the TMY calculation. For example:
-            {'poa': '/projects/pxs/poa_h5_dir/poa_out_{}.h5'}
-        var_meta : str
-            CSV filepath containing meta data for all NSRDB variables.
-            Defaults to the NSRDB var meta csv in git repo.
-        kwargs : dict
-            Optional keyword arguments.
-        """
-
-        for fun_str in ('tmy', 'tgy', 'tdy'):
-            y = sorted(years)[-1]
-            fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
-            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.hpc_tmy(
-                fun_str,
-                nsrdb_base_fp,
-                years,
-                fun_out_dir,
-                fun_fn_out,
-                n_nodes=n_nodes,
-                site_slice=site_slice,
-                supplemental_fp=supplemental_fp,
-                var_meta=var_meta,
-                **kwargs,
-            )
-
-    @classmethod
-    def hpc_collect(
-        cls,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        fn_out,
-        site_slice=None,
-        supplemental_fp=None,
-        var_meta=None,
-        **kwargs,
-    ):
-        """Run a TMY/TDY/TGY file collection job on an HPC node."""
-
-        if isinstance(supplemental_fp, dict):
-            supplemental_fp = json.dumps(supplemental_fp)
-
-        arg_str = (
-            '"{nsrdb_base_fp}", {years}, "{out_dir}", "{fn_out}", '
-            'site_slice={site_slice}, supplemental_fp={supp_dirs}, '
-            'var_meta="{var_meta}"'
-        )
-        arg_str = arg_str.format(
-            nsrdb_base_fp=nsrdb_base_fp,
-            years=years,
-            out_dir=out_dir,
-            fn_out=fn_out,
-            site_slice=site_slice,
-            supp_dirs=supplemental_fp,
-            var_meta=var_meta,
-        )
-        sig = signature(cls.collect)
-        for k in sig.parameters:
-            if k in kwargs:
-                arg_str += f', {k}="{kwargs.pop(k)}"'
-
-        if 'stdout_path' not in kwargs:
-            kwargs['stdout_path'] = os.path.join(out_dir, 'stdout/')
-        if 'node_name' not in kwargs:
-            kwargs['node_name'] = 'col_{}'.format(
-                os.path.basename(fn_out.replace('.h5', ''))
-            )
-
-        cls._hpc('collect', arg_str, **kwargs)
-
-    @classmethod
-    def hpc_collect_all(
-        cls,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        site_slice=None,
-        var_meta=None,
-        **kwargs,
-    ):
-        """Submit three hpc jobs to collect TMY, TGY, and TDY
-        (directory setup depends on having run hpc_all() first)."""
-
-        for fun_str in ('tmy', 'tgy', 'tdy'):
-            y = sorted(years)[-1]
-            fun_out_dir = os.path.join(out_dir, '{}_{}/'.format(fun_str, y))
-            fun_fn_out = 'nsrdb_{}-{}.h5'.format(fun_str, y)
-            cls.hpc_collect(
-                nsrdb_base_fp,
-                years,
-                fun_out_dir,
-                fun_fn_out,
-                site_slice=site_slice,
-                var_meta=var_meta,
-                **kwargs,
-            )

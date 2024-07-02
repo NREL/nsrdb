@@ -157,7 +157,7 @@ def test_cli_create_configs(runner):
     with tempfile.TemporaryDirectory() as td:
         kwargs = {
             'year': 2020,
-            'outdir': td,
+            'out_dir': td,
             'satellite': 'east',
             'extent': 'conus',
             'spatial': '4km',
@@ -183,7 +183,7 @@ def test_cli_steps(runner, modern_config):
 
     config_file, _ = modern_config
     out_dir = os.path.dirname(config_file)
-    result = runner.invoke(cli.data_model, ['-c', config_file])
+    result = runner.invoke(cli.data_model, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     result = runner.invoke(cli.ml_cloud_fill, ['-c', config_file])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
@@ -191,7 +191,7 @@ def test_cli_steps(runner, modern_config):
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
     assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(DataModel.ALL_VARS_ML)
 
-    result = runner.invoke(cli.daily_all_sky, ['-c', config_file])
+    result = runner.invoke(cli.daily_all_sky, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
@@ -199,7 +199,7 @@ def test_cli_steps(runner, modern_config):
         DataModel.MLCLOUDS_VARS
     ) + sum(len(v) for v in NSRDB.OUTS.values())
 
-    result = runner.invoke(cli.collect_data_model, ['-c', config_file])
+    result = runner.invoke(cli.collect_data_model, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     assert len(glob(f'{out_dir}/final/*.h5')) == 7
 
@@ -215,21 +215,25 @@ def test_cli_pipeline(runner, modern_config):
     config_file, pipeline_file = modern_config
     config = safe_json_load(config_file)
     out_dir = os.path.dirname(pipeline_file)
+    n_days = len(config['data-model']['doy_range']) - 1
 
     # data-model
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(out_dir + '/logs/data_model/*.log')) == n_days
 
     # ml-cloud-fill
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(out_dir + '/logs/ml_cloud_fill/*.log')) == n_days
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
     assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(DataModel.ALL_VARS_ML)
 
     # all-sky
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
+    assert len(glob(out_dir + '/logs/daily_all_sky/*.log')) == n_days
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
     assert len(glob(f'{out_dir}/daily/*.h5')) == 1 + len(
@@ -237,7 +241,7 @@ def test_cli_pipeline(runner, modern_config):
     ) + sum(len(v) for v in NSRDB.OUTS.values())
 
     # data collection
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     final_files = glob(f'{out_dir}/final/*.h5')
     final_files = sorted([os.path.basename(f) for f in final_files])
@@ -252,6 +256,9 @@ def test_cli_pipeline(runner, modern_config):
         for f in target_files
     ]
     assert target_files == final_files
+    assert len(glob(out_dir + '/logs/collect_data_model/*.log')) == len(
+        NSRDB.OUTS
+    )
 
     # final status file update
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
@@ -268,13 +275,14 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     config_file, pipeline_file = legacy_config
     config = safe_json_load(config_file)
     out_dir = os.path.dirname(pipeline_file)
+    n_chunks = config['collect-data-model']['n_chunks']
 
     # data-model
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # pre gap-fill collection
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # specific humidity not included in ALL_VARS
@@ -286,21 +294,18 @@ def test_cli_pipeline_legacy(runner, legacy_config):
     assert len(glob(f'{out_dir}/collect/*.h5')) == 5
 
     # gap-fill
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # all-sky
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     # irrad and clearsky now in collect directory
-    assert (
-        len(glob(f'{out_dir}/collect/*.h5'))
-        == config['collect-data-model']['n_chunks'] * 7
-    )
+    assert len(glob(f'{out_dir}/collect/*.h5')) == n_chunks * len(NSRDB.OUTS)
 
     # final collection
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     final_files = glob(f'{out_dir}/final/*.h5')
     final_files = sorted([os.path.basename(f) for f in final_files])
@@ -311,9 +316,12 @@ def test_cli_pipeline_legacy(runner, legacy_config):
         )
         == final_files
     )
+    assert len(
+        glob(out_dir + '/logs/collect_data_model/*.log')
+    ) == n_chunks * len(NSRDB.OUTS)
 
     # final status file update
-    result = runner.invoke(cli.pipeline, ['-c', pipeline_file])
+    result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
 
     status_file = glob(out_dir + '/.gaps/*.json')[0]
     status_dict = safe_json_load(status_file)

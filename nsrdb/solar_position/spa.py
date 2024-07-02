@@ -440,13 +440,13 @@ class SPA:
         delta_psi = np.sum(
             (a + b * np.expand_dims(jce, axis=0).T).T * argsin, axis=0
         )
-        delta_psi = delta_psi / 36000000
+        delta_psi /= 36000000
 
         argcos = np.cos(nut_arr)
         delta_eps = np.sum(
             (c + d * np.expand_dims(jce, axis=0).T).T * argcos, axis=0
         )
-        delta_eps = delta_eps / 36000000
+        delta_eps /= 36000000
 
         return delta_psi, delta_eps
 
@@ -842,13 +842,11 @@ class SPA:
         arr : ndarray
             arr with proper shape (if possible)
         """
-        if len(shape) == 2:
-            if arr.shape[0] == shape[-1]:
-                arr = arr.T
+        if len(shape) == 2 and arr.shape[0] == shape[-1]:
+            arr = arr.T
 
-        if len(arr.shape) == 1:
-            if arr.shape[0] == shape[1]:
-                arr = arr.reshape(shape)
+        if len(arr.shape) == 1 and arr.shape[0] == shape[1]:
+            arr = arr.reshape(shape)
 
         if arr.shape != shape:
             raise ValueError(
@@ -996,7 +994,7 @@ class SPA:
         M = SPA.sun_mean_longitude(jme)
         E = M - 0.0057183 - alpha + delta_psi * np.cos(np.radians(e))
         # limit between 0 and 360
-        E = E % 360
+        E %= 360
         # convert to minutes
         E *= 4
         greater = E > 20

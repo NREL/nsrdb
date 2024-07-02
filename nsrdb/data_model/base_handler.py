@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from nsrdb import DATADIR, DEFAULT_VAR_META
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +332,7 @@ class AncillaryVarHandler:
         str
         """
         pat = getattr(self, key)
-        fps = NFS(pat).glob()
+        fps = NSRDBfs(pat).glob()
         if not any(fps) or len(fps) > 1:
             emsg = (
                 'Could not find or found too many source files '
@@ -370,7 +370,7 @@ class AncillaryVarHandler:
     @property
     def next_file_exists(self):
         """Check if file for next date exists"""
-        fps = NFS(self.next_pattern).glob()
+        fps = NSRDBfs(self.next_pattern).glob()
         return any(fps) or len(fps) > 1
 
     @property
@@ -484,7 +484,7 @@ class AncillaryVarHandler:
         if (
             self.source_dir != 'nan'
             and ~np.isnan(self.source_dir)
-            and not NFS(self.source_dir).exists()
+            and not NSRDBfs(self.source_dir).exists()
         ):
             # source dir is not nan and does not exist
             missing = self.source_dir

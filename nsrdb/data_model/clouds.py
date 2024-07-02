@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from warnings import warn
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -14,7 +15,7 @@ from scipy.spatial import cKDTree
 from scipy.stats import mode
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,11 @@ class CloudCoords:
         """Check if file has required vars for cloud coord correction"""
 
         if fp.endswith(('.nc', '.nc4')):
-            with NFS(fp) as f:
+            with NSRDBfs(fp) as f:
                 dsets = sorted(f.variables.keys())
 
         elif fp.endswith('.h5'):
-            with NFS(fp, use_h5py=True) as f:
+            with NSRDBfs(fp, use_h5py=True) as f:
                 dsets = list(f)
 
         else:
@@ -267,7 +268,7 @@ class CloudCoords:
 class CloudVarSingle:
     """Base framework for single-file/single-timestep cloud data extraction."""
 
-    GRID_LABELS = ['latitude', 'longitude']
+    GRID_LABELS: ClassVar = ['latitude', 'longitude']
 
     def __init__(
         self,
@@ -468,9 +469,9 @@ class CloudVarSingle:
 
         dup_mask = grid.duplicated() & ~grid['latitude'].isna()
         if any(dup_mask):
-            rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
+            rand_mult = np.random.Generator(0.99, 1.01, dup_mask.sum())
             grid.loc[dup_mask, 'latitude'] *= rand_mult
-            rand_mult = np.random.uniform(0.99, 1.01, dup_mask.sum())
+            rand_mult = np.random.Generator(0.99, 1.01, dup_mask.sum())
             grid.loc[dup_mask, 'longitude'] *= rand_mult
 
             wmsg = (
@@ -558,7 +559,7 @@ class CloudVarSingleH5(CloudVarSingle):
         """Get a list of the available datasets in the cloud file."""
 
         if self._available_dsets is None:
-            with NFS(self._fpath, use_h5py=True) as f:
+            with NSRDBfs(self._fpath, use_h5py=True) as f:
                 self._available_dsets = list(f)
 
         return self._available_dsets
@@ -598,7 +599,7 @@ class CloudVarSingleH5(CloudVarSingle):
 
         raw_grid = None
         grid = {}
-        with NFS(fpath, use_h5py=True) as f:
+        with NSRDBfs(fpath, use_h5py=True) as f:
             for dset in cls.GRID_LABELS:
                 if dset not in list(f):
                     msg = 'Could not find "{}" in file: "{}"'.format(
@@ -661,7 +662,7 @@ class CloudVarSingleH5(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         lat, lon = grid['latitude'], grid['longitude']
-        with NFS(fpath, use_h5py=True) as f:
+        with NSRDBfs(fpath, use_h5py=True) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f]
             if any(missing):
                 msg = (
@@ -774,10 +775,9 @@ class CloudVarSingleH5(CloudVarSingle):
         if sparse_mask is not None:
             if data.shape != sparse_mask.shape:
                 msg = (
-                    'Data model failed while processing "{}" which has '
-                    'shape {} while the coordinate grid mask has shape {}'.format(
-                        dset, data.shape, sparse_mask.shape
-                    )
+                    f'Data model failed while processing "{dset}" which has '
+                    f'shape {data.shape} while the coordinate grid mask has '
+                    f'shape {sparse_mask.shape}'
                 )
                 logger.error(msg)
                 raise RuntimeError(msg)
@@ -836,7 +836,7 @@ class CloudVarSingleH5(CloudVarSingle):
             data.
         """
 
-        with NFS(self._fpath, use_h5py=True) as f:
+        with NSRDBfs(self._fpath, use_h5py=True) as f:
             if dset not in list(f):
                 raise KeyError(
                     'Could not find "{}" in the cloud file: {}'.format(
@@ -920,7 +920,7 @@ class CloudVarSingleNC(CloudVarSingle):
         """Get a list of the available datasets in the cloud file."""
 
         if self._available_dsets is None:
-            with NFS(self._fpath) as f:
+            with NSRDBfs(self._fpath) as f:
                 self._available_dsets = list(f.variables.keys())
 
         return self._available_dsets
@@ -963,9 +963,9 @@ class CloudVarSingleNC(CloudVarSingle):
         sparse_mask = None
         raw_grid = None
         grid = {}
-        with NFS(fpath) as f:
+        with NSRDBfs(fpath) as f:
             for dset in cls.GRID_LABELS:
-                if dset not in f.variables.keys():
+                if dset not in f.variables:
                     msg = 'Could not find "{}" in file: "{}"'.format(
                         dset, fpath
                     )
@@ -1049,7 +1049,7 @@ class CloudVarSingleNC(CloudVarSingle):
             so that clouds are linked to the coordinate that they are shading.
         """
         lat, lon = grid['latitude'], grid['longitude']
-        with NFS(fpath) as f:
+        with NSRDBfs(fpath) as f:
             missing = [d for d in CloudCoords.REQUIRED if d not in f.variables]
             if any(missing):
                 msg = (
@@ -1126,10 +1126,9 @@ class CloudVarSingleNC(CloudVarSingle):
         if sparse_mask is not None:
             if data.shape != sparse_mask.shape:
                 msg = (
-                    'Data model failed while processing "{}" which has '
-                    'shape {} while the coordinate grid mask has shape {}'.format(
-                        dset, data.shape, sparse_mask.shape
-                    )
+                    f'Data model failed while processing "{dset}" which has '
+                    f'shape {data.shape} while the coordinate grid mask has '
+                    f'shape {sparse_mask.shape}'
                 )
                 logger.error(msg)
                 raise RuntimeError(msg)
@@ -1163,7 +1162,7 @@ class CloudVarSingleNC(CloudVarSingle):
             1D array of flattened data that should match the self.grid meta
             data.
         """
-        with NFS(self._fpath) as f:
+        with NSRDBfs(self._fpath) as f:
             if dset not in list(f.variables.keys()):
                 raise KeyError(
                     'Could not find "{}" in the cloud file: {}'.format(
@@ -1311,7 +1310,7 @@ class CloudVar(AncillaryVarHandler):
                 obj = self._obj_cache[fpath]
                 logger.debug('Found cached object {}'.format(obj))
 
-            elif not isinstance(fpath, str) or not NFS(fpath).exists():
+            elif not isinstance(fpath, str) or not NSRDBfs(fpath).exists():
                 msg = (
                     'Cloud data timestep {} is missing its '
                     'source file.'.format(timestamp)
@@ -1484,7 +1483,7 @@ class CloudVar(AncillaryVarHandler):
         """
 
         if self._flist is None:
-            self._flist = NFS(self.pattern).glob()
+            self._flist = NSRDBfs(self.pattern).glob()
             if not any(self._flist):
                 emsg = (
                     'Could not find or found too many source files '
@@ -1518,14 +1517,14 @@ class CloudVar(AncillaryVarHandler):
         """
 
         for fp in flist:
-            if NFS(fp).size() < 1e6:
+            if NSRDBfs(fp).size() < 1e6:
                 msg = 'Cloud data source file is less than 1MB, skipping: {}'.format(
                     fp
                 )
                 warn(msg)
                 logger.warning(msg)
 
-        flist = [fp for fp in flist if NFS(fp).size() > 1e6]
+        flist = [fp for fp in flist if NSRDBfs(fp).size() > 1e6]
 
         return flist
 

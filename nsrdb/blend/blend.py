@@ -444,8 +444,9 @@ class Blender:
         ]
 
         if len(fns_east) > 1 or len(fns_west) > 1:
-            e = 'Found multiple files with tag "{}" in source dirs: {} and {}'.format(
-                file_tag, east_dir, west_dir
+            e = (
+                f'Found multiple files with tag "{file_tag}" in source dirs: '
+                f'{east_dir} and {west_dir}'
             )
             logger.error(e)
             raise RuntimeError(e)

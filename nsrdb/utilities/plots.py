@@ -311,9 +311,7 @@ class Temporal:
                     except KeyError:
                         scale1 = 1
                         warn(
-                            'Dataset "{}" does not have psm_scale_factor.'.format(
-                                dset
-                            )
+                            f'Dataset "{dset}" does not have psm_scale_factor.'
                         )
 
                     try:
@@ -321,9 +319,7 @@ class Temporal:
                     except KeyError:
                         scale2 = 1
                         warn(
-                            'Dataset "{}" does not have psm_scale_factor.'.format(
-                                dset
-                            )
+                            f'Dataset "{dset}" does not have psm_scale_factor.'
                         )
 
                     # make time-series dataframes with one site of data

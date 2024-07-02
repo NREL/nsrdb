@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not NFS(self.file).isfile():
+        if not NSRDBfs(self.file).isfile():
             missing = self.file
 
         return missing
@@ -189,7 +189,7 @@ class AlbedoVar(AncillaryVarHandler):
         lon_ex : None | tuple
             Longitude range to exclude (everything INSIDE range is excluded).
         """
-        with NFS(self.file) as f:
+        with NSRDBfs(self.file) as f:
             latitude = f['latitude'][...]
             longitude = f['longitude'][...]
 
@@ -258,7 +258,7 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         # open h5py NSRDB albedo file
-        with NFS(self.file) as f:
+        with NSRDBfs(self.file) as f:
             attrs = dict(f['surface_albedo'].attrs)
             scale = attrs.get('scale_factor', 1)
 
@@ -302,7 +302,7 @@ class AlbedoVar(AncillaryVarHandler):
         """
 
         if self._albedo_grid is None:
-            with NFS(self.file) as f:
+            with NSRDBfs(self.file) as f:
                 if self._lat_good is not None:
                     latitude = f['latitude'][self._lat_good]
                 else:

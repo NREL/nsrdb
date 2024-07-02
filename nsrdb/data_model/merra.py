@@ -8,7 +8,7 @@ import pandas as pd
 
 from nsrdb import DATADIR
 from nsrdb.data_model.base_handler import AncillaryVarHandler, BaseDerivedVar
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class MerraVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not NFS(self.file).isfile():
+        if not NSRDBfs(self.file).isfile():
             missing = self.file
 
         return missing
@@ -192,7 +192,7 @@ class MerraVar(AncillaryVarHandler):
         ]
 
         # open NetCDF file
-        with NFS(file) as f:
+        with NSRDBfs(file) as f:
             # depending on variable, might need extra logic
             if self.name in ['wind_speed', 'wind_direction']:
                 u_vector = f['U2M'][:]
@@ -268,7 +268,7 @@ class MerraVar(AncillaryVarHandler):
         """
 
         if self._grid is None:
-            with NFS(self.file) as f:
+            with NSRDBfs(self.file) as f:
                 lon2d, lat2d = np.meshgrid(f['lon'][:], f['lat'][:])
 
             self._grid = pd.DataFrame(
