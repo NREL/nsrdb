@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class MLCloudsFill:
     """
-    Use the MLClouds algorith with phygnn model to fill missing cloud data
+    Use the MLClouds algorithm with phygnn model to fill missing cloud data
     """
 
     DEFAULT_MODEL = MODEL_FPATH

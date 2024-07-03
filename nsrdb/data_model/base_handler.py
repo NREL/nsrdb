@@ -8,7 +8,7 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 
-from nsrdb import DATADIR, DEFAULT_VAR_META
+from nsrdb import DATADIR, DEFAULT_VAR_META, VAR_DESCRIPTIONS
 from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
@@ -78,8 +78,7 @@ class AncillaryVarHandler:
 
         if var_meta is None:
             raise TypeError(
-                'Could not parse meta data for NSRDB variables '
-                'from: {}'.format(inp)
+                f'Could not parse meta data for NSRDB variables from: {inp}'
             )
 
         var_meta['var'] = var_meta['var'].str.strip(' ')
@@ -97,6 +96,7 @@ class AncillaryVarHandler:
         """
 
         attrs = {
+            'description': self.description,
             'units': self.units,
             'scale_factor': self.scale_factor,
             'physical_min': self.physical_min,
@@ -244,6 +244,23 @@ class AncillaryVarHandler:
             Intended NSRDB disk data type.
         """
         return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
+
+    @property
+    def description(self):
+        """Long variable description.
+
+        Returns
+        -------
+        description : str
+            Description of the variable to provide more info than the sometimes
+            opaque dset names.
+        """
+
+        return str(
+            VAR_DESCRIPTIONS.loc[
+                VAR_DESCRIPTIONS['var'] == self._name, 'description'
+            ].values[0]
+        )
 
     @property
     def units(self):

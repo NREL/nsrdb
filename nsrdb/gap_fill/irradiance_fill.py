@@ -22,7 +22,7 @@ def missing_cld_props(cloud_type, cld_opd_dcomp, cld_reff_dcomp):
         Array of cloud optical depths. Expected range is 0 - 160 with
         missing values <= 0.
     cld_reff_dcomp : np.ndarray
-        Array of cloud effective partical radii. Expected range is 0 - 160
+        Array of cloud effective particle radii. Expected range is 0 - 160
         with missing values <= 0.
 
     Returns

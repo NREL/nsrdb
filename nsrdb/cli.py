@@ -755,7 +755,6 @@ def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
         }
     """  # noqa : D301
 
-    init_logger('nsrdb.tmy', log_level=ctx.obj['LOG_LEVEL'])
     mod_name = ModuleName.COLLECT_TMY if collect else ModuleName.TMY
     config = BaseCLI.from_config_preflight(
         ctx=ctx,
