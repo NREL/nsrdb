@@ -1694,6 +1694,8 @@ class Manager:
     ):
         """Run NSRDB aggregation on HPC with each agg chunk on a node.
 
+        TODO: Replace this with new CLI integration
+
         Parameters
         ----------
         data : dict
@@ -1833,45 +1835,3 @@ class Manager:
             Collector.collect_flist(
                 flist, collect_dir, fout, dset, max_workers=max_workers
             )
-
-
-def run():
-    """2018 aggregation run script"""
-    data_dir = '/projects/pxs/processing/2018/'
-    meta_dir = '/projects/pxs/reference_grids/'
-    n_chunks = 32
-    year = 2018
-    Manager.hpc(
-        NSRDB_2018,
-        data_dir,
-        meta_dir,
-        year,
-        n_chunks,
-        alloc='pxs',
-        memory=90,
-        walltime=40,
-        feature='--qos=high',
-        node_name='agg',
-        stdout_path=os.path.join(data_dir, 'stdout/'),
-    )
-
-
-def collect():
-    """2018 collection run script"""
-    log_file = (
-        '/projects/pxs/processing/2018/nsrdb_output_final/'
-        'nsrdb_4km_30min/nsrdb_2018.log'
-    )
-    init_logger(__name__, log_level='DEBUG', log_file=log_file)
-    init_logger('nsrdb.file_handlers', log_level='DEBUG', log_file=log_file)
-    meta_final = '/projects/pxs/reference_grids/nsrdb_meta_4km.csv'
-    collect_dir = (
-        '/projects/pxs/processing/2018/nsrdb_output_final/'
-        'nsrdb_4km_30min/chunks'
-    )
-    collect_tag = 'nsrdb_2018_'
-    fout = (
-        '/projects/pxs/processing/2018/nsrdb_output_final/'
-        'nsrdb_4km_30min/nsrdb_2018.h5'
-    )
-    Manager.collect(meta_final, collect_dir, collect_tag, fout)

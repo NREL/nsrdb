@@ -31,6 +31,17 @@ TOOL = os.path.join(
 )
 
 
+def str_replace_dict(string_rep, user_input):
+    """Replace keys in string representation of a dictionary with user input
+    values. This is used to update config templates in
+    :meth:`NSRDB.create_config_files`"""
+    for k, v in user_input.items():
+        if isinstance(v, int):
+            string_rep = string_rep.replace(f'"%{k}%"', str(v))
+        string_rep = string_rep.replace(f'%{k}%', str(v))
+    return string_rep
+
+
 def daterange(start_date, end_date):
     """
     Create a range of dates.

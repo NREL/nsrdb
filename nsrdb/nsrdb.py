@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Entry point for NSRDB data pipeline execution.
 
-
 Created on Thu Apr 25 15:47:53 2019
 
 @author: gbuster
+
+TODO: Clean up create_config_files, blend_files, aggregate_files
 """
 
 import calendar
@@ -37,7 +38,12 @@ from nsrdb.data_model import DataModel, VarFactory
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.gap_fill.cloud_fill import CloudGapFill
-from nsrdb.utilities.file_utils import clean_meta, pd_date_range, ts_freq_check
+from nsrdb.utilities.file_utils import (
+    clean_meta,
+    pd_date_range,
+    str_replace_dict,
+    ts_freq_check,
+)
 
 PRE2018_CONFIG_TEMPLATE = os.path.join(
     CONFIGDIR, 'templates/config_nsrdb_pre2018.json'
@@ -548,7 +554,51 @@ class NSRDB:
             NSRDB.create_config_files(kwargs)
 
     @staticmethod
-    def create_config_files(kwargs):
+    def _update_run_templates(user_input):
+        """Replace format keys and dictionary keys in config templates with
+        user input values."""
+
+        logger.info(
+            'Updating NSRDB run templates with user_input:\n'
+            f'{pprint.pformat(user_input, indent=2)}'
+        )
+
+        template = (
+            PRE2018_CONFIG_TEMPLATE
+            if int(user_input['year']) < 2018
+            else POST2017_CONFIG_TEMPLATE
+        )
+        with open(template, encoding='utf-8') as s:
+            s = s.read()
+
+        s = str_replace_dict(s, user_input)
+
+        if not os.path.exists(user_input['out_dir']):
+            os.makedirs(user_input['out_dir'])
+
+        config_dict = json.loads(s)
+        config_dict.update(
+            {k: v for k, v in user_input.items() if k in config_dict}
+        )
+        outfile = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
+        with open(outfile, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(config_dict, indent=2))
+
+        logger.info(f'Created file: {outfile}')
+
+        with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
+            s = s.read()
+
+        s = str_replace_dict(s, user_input)
+
+        outfile = os.path.join(user_input['out_dir'], 'config_pipeline.json')
+        with open(outfile, 'w', encoding='utf-8') as f:
+            f.write(s)
+
+        logger.info(f'Created file: {outfile}')
+
+    @classmethod
+    def create_config_files(cls, kwargs):
         """Modify config files with specified parameters
 
         Parameters
@@ -608,53 +658,7 @@ class NSRDB:
 
         user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
 
-        logger = init_logger('nsrdb.cli', stream=True)
-        logger.info(
-            'Creating NSRDB config files with:\n'
-            f'{pprint.pformat(user_input, indent=2)}'
-        )
-
-        template = (
-            PRE2018_CONFIG_TEMPLATE
-            if int(user_input['year']) < 2018
-            else POST2017_CONFIG_TEMPLATE
-        )
-        with open(template, encoding='utf-8') as s:
-            s = s.read()
-
-        for k, v in user_input.items():
-            if isinstance(v, int):
-                s = s.replace(f'"%{k}%"', str(v))
-            s = s.replace(f'%{k}%', str(v))
-
-        if not os.path.exists(user_input['out_dir']):
-            os.makedirs(user_input['out_dir'])
-
-        outfile = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
-        with open(outfile, 'w', encoding='utf-8') as f:
-            f.write(s)
-
-        logger.info(f'Created file: {outfile}')
-
-        with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
-            s = s.read()
-
-        for k, v in user_input.items():
-            if isinstance(v, int):
-                s = s.replace(f'"%{k}%"', str(v))
-            s = s.replace(f'%{k}%', str(v))
-
-        outfile = os.path.join(user_input['out_dir'], 'config_pipeline.json')
-        with open(outfile, 'w', encoding='utf-8') as f:
-            f.write(s)
-
-        logger.info(f'Created file: {outfile}')
-
-        outfile = os.path.join(user_input['out_dir'], 'run.sh')
-        with open(outfile, 'w', encoding='utf-8') as f:
-            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
-
-        logger.info(f'Created file: {outfile}')
+        cls._update_run_templates(user_input)
 
     def make_out_dirs(self):
         """Ensure that all output directories exist"""

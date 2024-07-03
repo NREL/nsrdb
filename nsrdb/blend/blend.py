@@ -47,15 +47,10 @@ class Blender:
             because the conus west satellite extent doesnt go that far east.
         """
 
-        logger.info('Blender running at longitude seam: {}'.format(lon_seam))
         logger.info(
-            'Blender initialized with west source file: {}'.format(west_fpath)
-        )
-        logger.info(
-            'Blender initialized with east source file: {}'.format(east_fpath)
-        )
-        logger.info(
-            'Blender initialized with output file: {}'.format(out_fpath)
+            f'Blender running at longitude seam: {lon_seam}. Blender '
+            f'initialized with west source file: {west_fpath}, east '
+            f'source file: {east_fpath}, output file: {out_fpath}'
         )
 
         self._out_fpath = out_fpath
@@ -70,19 +65,11 @@ class Blender:
         self._parse_blended_meta()
 
         logger.debug(
-            'Final output meta: \n{}\n{}'.format(
-                self._meta_out.head(), self._meta_out.tail()
-            )
-        )
-        logger.debug(
-            'Source east meta: \n{}\n{}'.format(
-                self._meta_east.head(), self._meta_east.tail()
-            )
-        )
-        logger.debug(
-            'Source west meta: \n{}\n{}'.format(
-                self._meta_west.head(), self._meta_west.tail()
-            )
+            f'Final output meta: \n{self._meta_out.head()}'
+            f'\n{self._meta_out.tail()}. Source east meta: '
+            f'\n{self._meta_east.head()}\n{self._meta_east.tail()} '
+            f'Source west meta: \n{self._meta_west.head()}'
+            f'\n{self._meta_west.tail()}'
         )
 
         self._time_index = self._parse_ti()
@@ -307,35 +294,37 @@ class Blender:
 
         logger.info('Starting blend from source file: {}'.format(source_fpath))
 
-        with Outputs(source_fpath, mode='r', unscale=False) as source:
-            with Outputs(self._out_fpath, mode='a') as out:
-                for i_d, dset in enumerate(self._dsets):
-                    logger.info(
-                        'Starting blend of dataset "{}", {} of {}'.format(
-                            dset, i_d + 1, len(self._dsets)
+        with (
+            Outputs(source_fpath, mode='r', unscale=False) as source,
+            Outputs(self._out_fpath, mode='a') as out,
+        ):
+            for i_d, dset in enumerate(self._dsets):
+                logger.info(
+                    'Starting blend of dataset "{}", {} of {}'.format(
+                        dset, i_d + 1, len(self._dsets)
+                    )
+                )
+
+                zipped = zip(source_chunks, destination_chunks)
+                for i, (i_source, i_destination) in enumerate(zipped):
+                    logger.debug(
+                        '\t Blending gid chunk {} out of {}'.format(
+                            i + 1, len(source_chunks)
                         )
                     )
-
-                    zipped = zip(source_chunks, destination_chunks)
-                    for i, (i_source, i_destination) in enumerate(zipped):
-                        logger.debug(
-                            '\t Blending gid chunk {} out of {}'.format(
-                                i + 1, len(source_chunks)
-                            )
-                        )
-                        self._check_sequential(
-                            i_source,
-                            'Source chunk {}'.format(i),
-                            raise_flag=True,
-                        )
-                        self._check_sequential(
-                            i_destination,
-                            'Destination chunk {}'.format(i),
-                            raise_flag=True,
-                        )
-                        s = slice(i_source.min(), i_source.max() + 1)
-                        d = slice(i_destination.min(), i_destination.max() + 1)
-                        out[dset, :, d] = source[dset, :, s]
+                    self._check_sequential(
+                        i_source,
+                        'Source chunk {}'.format(i),
+                        raise_flag=True,
+                    )
+                    self._check_sequential(
+                        i_destination,
+                        'Destination chunk {}'.format(i),
+                        raise_flag=True,
+                    )
+                    s = slice(i_source.min(), i_source.max() + 1)
+                    d = slice(i_destination.min(), i_destination.max() + 1)
+                    out[dset, :, d] = source[dset, :, s]
         logger.info('Finished blend from source file: {}'.format(source_fpath))
 
     @classmethod

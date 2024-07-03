@@ -70,7 +70,7 @@
     "option": "kestrel",
     "alloc": "pxs",
     "feature": "--qos=normal",
-    "walltime": 4
+    "walltime": 40
   },
   "ml-cloud-fill": {
     "col_chunk": 10000,

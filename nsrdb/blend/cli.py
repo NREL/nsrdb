@@ -407,7 +407,7 @@ def slurm(ctx, alloc, walltime, feature, memory, stdout_path):
 
     for name, cmd in zip(names, cmds):
         logger.info(
-            'Running NSRDB blend on SLURM with ' 'node name "{}"'.format(name)
+            'Running NSRDB blend on SLURM with node name "{}"'.format(name)
         )
         out = slurm_manager.sbatch(
             cmd,
