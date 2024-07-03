@@ -1792,50 +1792,44 @@ class TmyRunner:
     def _run(self):
         """Run parallel tmy futures and save temp chunks to disk."""
 
-        if len(self.site_chunks) == 1:
-            self._run_serial()
+        futures = {}
+        loggers = ['nsrdb']
+        with SpawnProcessPool(loggers=loggers) as exe:
+            logger.info(
+                'Kicking off {} futures.'.format(len(self.site_chunks))
+            )
+            for i, site_slice in enumerate(self.site_chunks):
+                fi = self._site_chunks_index[i]
+                f_out = self._f_out_chunks[fi]
+                if self._run_file(f_out):
+                    future = exe.submit(
+                        self.run_single,
+                        self._nsrdb_base_fp,
+                        self._years,
+                        self._weights,
+                        site_slice,
+                        self.dsets,
+                        f_out,
+                        supplemental_fp=self._supplemental_fp,
+                        var_meta=self._var_meta,
+                    )
+                    futures[future] = i
+                else:
+                    logger.info('Skipping, already exists: {}'.format(f_out))
 
-        else:
-            futures = {}
-            loggers = ['nsrdb']
-            with SpawnProcessPool(loggers=loggers) as exe:
-                logger.info(
-                    'Kicking off {} futures.'.format(len(self.site_chunks))
-                )
-                for i, site_slice in enumerate(self.site_chunks):
-                    fi = self._site_chunks_index[i]
-                    f_out = self._f_out_chunks[fi]
-                    if self._run_file(f_out):
-                        future = exe.submit(
-                            self.run_single,
-                            self._nsrdb_base_fp,
-                            self._years,
-                            self._weights,
-                            site_slice,
-                            self.dsets,
-                            f_out,
-                            supplemental_fp=self._supplemental_fp,
-                            var_meta=self._var_meta,
-                        )
-                        futures[future] = i
-                    else:
-                        logger.info(
-                            'Skipping, already exists: {}'.format(f_out)
-                        )
+            logger.info(
+                'Finished kicking off {} futures.'.format(len(futures))
+            )
 
-                logger.info(
-                    'Finished kicking off {} futures.'.format(len(futures))
-                )
-
-                for i, future in enumerate(as_completed(futures)):
-                    if future.result():
-                        logger.info(
-                            '{} out of {} futures completed.'.format(
-                                i + 1, len(futures)
-                            )
+            for i, future in enumerate(as_completed(futures)):
+                if future.result():
+                    logger.info(
+                        '{} out of {} futures completed.'.format(
+                            i + 1, len(futures)
                         )
-                    else:
-                        logger.warning('Future #{} failed!'.format(i + 1))
+                    )
+                else:
+                    logger.warning('Future #{} failed!'.format(i + 1))
 
     @classmethod
     def tgy(
