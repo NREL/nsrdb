@@ -7,6 +7,7 @@ from warnings import warn
 
 import numpy as np
 import pandas as pd
+from rex import init_logger
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
@@ -455,3 +456,106 @@ class Blender:
             lon_seam=lon_seam,
             chunk_size=chunk_size,
         )
+
+    @classmethod
+    def run_full(
+        cls,
+        meta,
+        out_dir,
+        east_dir,
+        west_dir,
+        out_fn=None,
+        east_fn=None,
+        west_fn=None,
+        file_tag=None,
+        map_col='gid_full',
+        lon_seam=-105.0,
+        chunk_size=100000,
+        log_level='DEBUG',
+        log_file='blend.log',
+    ):
+        """NSRDB East-West Blend.
+
+        Parameters
+        ----------
+            meta: str
+                Filepath to final output blended meta data csv file.
+            out_dir: str
+                Directory to save blended output.
+            east_dir: str
+                Source east directory.
+            west_dir : str
+                Source west directory.
+            out_fn: str
+                Optional output filename
+            east_fn: str
+                Optional east filename (found in east_dir)
+            west_fn: str
+                Optional west filename (found in west_dir)
+            file_tag : str
+                File tag found in files in east and west source dirs.
+            map_col : str
+                Column in the east and west meta data that map sites to the
+                full meta_out gids.
+            lon_seam : float
+                Vertical longitude seam at which data transitions from the
+                western source to eastern, by default -105.0 (historical
+                closest to nadir).  5min conus data (2019 onwards) is typically
+                blended at -113.0 because the conus west satellite extent
+                doesnt go that far east.
+            chunk_size : int
+                Number of sites to read/write at a time.
+            log_file : str
+                File to use for logging
+            log_level : str
+                Level to use for logging.
+        """
+
+        if (
+            out_fn is not None
+            and east_fn is not None
+            and west_fn is not None
+            and file_tag is not None
+        ):
+            logger.info(
+                'Filenames and file tags all specified. Using filenames.'
+            )
+            file_tag = None
+
+        init_logger('nsrdb.blend', log_level=log_level, log_file=log_file)
+
+        if (
+            out_fn is None
+            and east_fn is None
+            and west_fn is None
+            and file_tag is None
+        ):
+            e = 'Filenames or file_tag must be specified for local blend job.'
+            logger.error(e)
+            raise RuntimeError(e)
+
+        if out_fn is not None and east_fn is not None and west_fn is not None:
+            out_fpath = os.path.join(out_dir, out_fn)
+            east_fpath = os.path.join(east_dir, east_fn)
+            west_fpath = os.path.join(west_dir, west_fn)
+            cls.blend_file(
+                meta,
+                out_fpath,
+                east_fpath,
+                west_fpath,
+                map_col=map_col,
+                lon_seam=lon_seam,
+                chunk_size=chunk_size,
+            )
+        else:
+            cls.blend_dir(
+                meta,
+                out_dir,
+                east_dir,
+                west_dir,
+                file_tag,
+                out_fn=out_fn,
+                map_col=map_col,
+                lon_seam=lon_seam,
+                chunk_size=chunk_size,
+            )

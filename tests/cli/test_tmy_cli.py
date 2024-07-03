@@ -6,7 +6,6 @@ import traceback
 
 import numpy as np
 import pytest
-from click.testing import CliRunner
 from rex import ResourceX
 
 from nsrdb import TESTDATADIR, cli
@@ -17,12 +16,6 @@ NSRDB_BASE_FP = os.path.join(TESTDATADIR, 'validation_nsrdb/nsrdb_*_{}.h5')
 site_slice = [0, 2]
 years = list(range(1998, 2008))
 tmy_types = ['tmy', 'tdy', 'tgy']
-
-
-@pytest.fixture(scope='module')
-def runner():
-    """Runner for testing click CLIs"""
-    return CliRunner()
 
 
 @pytest.fixture(scope='function')

@@ -7,7 +7,6 @@ import traceback
 from glob import glob
 
 import pytest
-from click.testing import CliRunner
 from rex import safe_json_load
 
 from nsrdb import NSRDB, TESTDATADIR, cli
@@ -31,12 +30,6 @@ DATA_MODEL_CONFIG = {
     'max_workers_regrid': 1,
     'dist_lim': 1.0,
 }
-
-
-@pytest.fixture(scope='module')
-def runner():
-    """Runner for testing click CLIs"""
-    return CliRunner()
 
 
 @pytest.fixture(scope='function')
@@ -152,7 +145,7 @@ def modern_config(tmpdir_factory):
     return config_file, pipeline_file
 
 
-def test_cli_create_configs(runner):
+def test_cli_create_main_configs(runner):
     """Test nsrdb.cli create-configs"""
     with tempfile.TemporaryDirectory() as td:
         kwargs = {
@@ -165,16 +158,62 @@ def test_cli_create_configs(runner):
         }
         result = runner.invoke(cli.create_configs, ['-c', kwargs])
 
-        if result.exit_code != 0:
-            msg = 'Failed with error {}'.format(
-                traceback.print_exception(*result.exc_info)
-            )
-            raise RuntimeError(msg)
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
 
         out_dir = f'{td}/nsrdb_east_conus_2020_4km_5min'
         assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
         assert os.path.exists(os.path.join(out_dir, 'config_pipeline.json'))
         assert os.path.exists(os.path.join(out_dir, 'run.sh'))
+
+        kwargs = {'year': 2020}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--all_domains']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        out_dirs = [
+            f'{td}/nsrdb_east_conus_2020_2km_5min',
+            f'{td}/nsrdb_west_conus_2020_2km_5min',
+            f'{td}/nsrdb_east_full_2020_4km_10min',
+            f'{td}/nsrdb_east_full_2020_4km_10min',
+        ]
+        for out_dir in out_dirs:
+            assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
+            assert os.path.exists(
+                os.path.join(out_dir, 'config_pipeline.json')
+            )
+            assert os.path.exists(os.path.join(out_dir, 'run.sh'))
+
+
+def test_cli_create_blend_configs(runner):
+    """Test nsrdb.cli create-configs"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {'year': 2020, 'out_dir': td, 'extent': 'conus'}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'blend']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+
+def test_cli_create_agg_configs(runner):
+    """Test nsrdb.cli create-configs"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {'year': 2020, 'out_dir': td}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'aggregate']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
 
 
 def test_cli_steps(runner, modern_config):

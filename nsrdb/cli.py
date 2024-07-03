@@ -6,6 +6,7 @@ import logging
 import os
 
 import click
+from click.types import STR
 from gaps import Pipeline
 from gaps.batch import BatchJob
 from gaps.cli.pipeline import pipeline as gaps_pipeline
@@ -13,6 +14,9 @@ from rex import safe_json_load
 from rex.utilities.loggers import init_logger
 
 from nsrdb import __version__
+from nsrdb.aggregation.aggregation import Manager
+from nsrdb.blend.blend import Blender
+from nsrdb.create_configs import CreateConfigs
 from nsrdb.nsrdb import NSRDB
 from nsrdb.tmy import TmyRunner
 from nsrdb.utilities import ModuleName
@@ -76,6 +80,8 @@ def main(ctx, config, verbose):
     respective NSRDB CLIs::
 
         $ python -m nsrdb.cli --help
+
+        $ python -m nsrdb.cli create-configs --help
 
         $ python -m nsrdb.cli pipeline --help
 
@@ -189,10 +195,15 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     gaps_pipeline(config, cancel, monitor, background)
 
 
-create_configs_help = """
-    Either a path to a .json config file or a dictionary.
-    Needs to include at least a "year" key. If input is a dictionary the
-    dictionary needs to provided in a string format::
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    required=True,
+    type=CONFIG_TYPE,
+    help="""Either a path to a .json config file or a dictionary. Needs to
+    include at least a "year" key. If input is a dictionary the dictionary
+    needs to provided in a string format::
 
         $ '{"year": 2019, "freq": "5min"}'
 
@@ -218,34 +229,48 @@ create_configs_help = """
         "spatial": "4km",
         "meta_file" : None,
         "doy_range": None
-    }
-"""
-
-
-@main.command()
+    }""",
+)
 @click.option(
-    '--config', '-c', required=True, type=CONFIG_TYPE, help=create_configs_help
+    '--run_type',
+    '-r',
+    default='main',
+    type=STR,
+    help="""Module to create configs for. Can be "main" (for standard run
+    with data-model, ml-cloud-fill, all-sky, and collect-data-model),
+    "aggregation" (for aggregating post-2018 data to pre-2018 resolution),
+    or "blend" (for blending east and west domains into a single domain)""",
 )
 @click.option(
     '--all_domains',
     '-ad',
     is_flag=True,
-    help=(
-        'Flag to generate config files for all domains. If True config '
-        'files for east/west and conus/full will be generated. (just full if '
-        'year is < 2018). satellite, extent, spatial, freq, and meta_file '
-        'will be auto populated. '
-    ),
+    help="""Flag to generate config files for all domains. If True config files
+    for east/west and conus/full will be generated. (just full if year is
+    < 2018). satellite, extent, spatial, freq, and meta_file will be auto
+    populated.""",
 )
 @click.pass_context
-def create_configs(ctx, config, all_domains=False):
+def create_configs(ctx, config, run_type='main', all_domains=False):
     """Create config files for standard NSRDB runs using config templates."""
 
     ctx.ensure_object(dict)
-    if all_domains:
-        NSRDB.create_configs_all_domains(config)
+    if run_type == 'main':
+        if all_domains:
+            CreateConfigs.create_main_configs_all_domains(config)
+        else:
+            CreateConfigs.create_main_configs(config)
+    elif run_type == 'aggregation':
+        CreateConfigs.create_agg_configs(config)
+    elif run_type == 'blend':
+        CreateConfigs.create_blend_configs(config)
     else:
-        NSRDB.create_config_files(config)
+        msg = (
+            f'Received unknown "run_type" {run_type}. Accepted values are '
+            '"main", "aggregation", and "blend"'
+        )
+        logger.error(msg)
+        raise ValueError(msg)
 
 
 @main.command()
@@ -657,8 +682,33 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    func = NSRDB.collect_blended if collect else NSRDB.blend_files
+    func = Blender.collect if collect else Blender.run_full
     mod_name = ModuleName.COLLECT_BLEND if collect else ModuleName.BLEND
+
+    config = BaseCLI.from_config_preflight(
+        ctx=ctx,
+        module_name=mod_name,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
+
+    file_tags = config.get(
+        'file_tag', ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
+    )
+    file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
+
+    for file_tag in file_tags:
+        log_id = file_tag
+        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
+        config['file_tag'] = file_tag
+        BaseCLI.kickoff_job(
+            ctx=ctx,
+            module_name=mod_name,
+            func=func,
+            config=config,
+            log_id=log_id,
+        )
 
     BaseCLI.kickoff_single(
         ctx=ctx,
@@ -696,10 +746,13 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     NOTE: Used to create data files from high-resolution years (2018+) which
     match resolution of low-resolution years (pre 2018)
     """
-    func = NSRDB.collect_aggregation if collect else NSRDB.aggregate_files
+    func = Manager.collect if collect else Manager.run_chunk
     mod_name = ModuleName.COLLECT_AGG if collect else ModuleName.AGGREGATE
+    kickoff_func = (
+        BaseCLI.kickoff_single if collect else BaseCLI.kickoff_multichunk
+    )
 
-    BaseCLI.kickoff_single(
+    kickoff_func(
         ctx=ctx,
         module_name=mod_name,
         func=func,
