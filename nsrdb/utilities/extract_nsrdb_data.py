@@ -87,39 +87,41 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w-') as t:
-            with h5py.File(self.source, 'r') as s:
-                for dset in dsets:
-                    if dset not in s:
-                        raise KeyError(
-                            'Could not find dataset "{}" in {}'.format(
-                                dset, self.source
-                            )
-                        )
-                for dset in dsets:
-                    print(
-                        'Copying "{}" from {} to {}'.format(
-                            dset, self.source, self.target
+        with (
+            h5py.File(self.target, 'w-') as t,
+            h5py.File(self.source, 'r') as s,
+        ):
+            for dset in dsets:
+                if dset not in s:
+                    raise KeyError(
+                        'Could not find dataset "{}" in {}'.format(
+                            dset, self.source
                         )
                     )
-                    chunks = None
-                    if hasattr(s[dset], 'chunks'):
-                        chunks = s[dset].chunks
-                    t.create_dataset(
-                        dset,
-                        data=s[dset][...],
-                        shape=s[dset].shape,
-                        dtype=s[dset].dtype,
-                        chunks=chunks,
+            for dset in dsets:
+                print(
+                    'Copying "{}" from {} to {}'.format(
+                        dset, self.source, self.target
                     )
+                )
+                chunks = None
+                if hasattr(s[dset], 'chunks'):
+                    chunks = s[dset].chunks
+                t.create_dataset(
+                    dset,
+                    data=s[dset][...],
+                    shape=s[dset].shape,
+                    dtype=s[dset].dtype,
+                    chunks=chunks,
+                )
 
-                    if hasattr(s[dset], 'attrs'):
-                        attrs = dict(s[dset].attrs)
-                        for k, v in attrs.items():
-                            t[dset].attrs[k] = v
+                if hasattr(s[dset], 'attrs'):
+                    attrs = dict(s[dset].attrs)
+                    for k, v in attrs.items():
+                        t[dset].attrs[k] = v
 
-                t.create_dataset('meta', data=s['meta'][...])
-                t.create_dataset('time_index', data=s['time_index'][...])
+            t.create_dataset('meta', data=s['meta'][...])
+            t.create_dataset('time_index', data=s['time_index'][...])
 
     def extract_sites(self, sites=range(100)):
         """Extract data from h5 for given site indices and write to new h5.
@@ -134,36 +136,38 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w-') as t:
-            with h5py.File(self.source, 'r') as s:
-                for dset in s.keys():
-                    if dset not in self.IGNORE_LIST:
-                        print(dset)
-                        dset_shape = s[dset].shape
+        with (
+            h5py.File(self.target, 'w-') as t,
+            h5py.File(self.source, 'r') as s,
+        ):
+            for dset in s:
+                if dset not in self.IGNORE_LIST:
+                    print(dset)
+                    dset_shape = s[dset].shape
 
-                        if len(dset_shape) > 1:
-                            t.create_dataset(
-                                dset,
-                                data=s[dset][:, sites],
-                                shape=(dset_shape[0], n_sites),
-                                dtype=s[dset].dtype,
-                            )
-                        else:
-                            t.create_dataset(
-                                dset,
-                                data=s[dset][sites],
-                                shape=(n_sites,),
-                                dtype=s[dset].dtype,
-                            )
+                    if len(dset_shape) > 1:
+                        t.create_dataset(
+                            dset,
+                            data=s[dset][:, sites],
+                            shape=(dset_shape[0], n_sites),
+                            dtype=s[dset].dtype,
+                        )
+                    else:
+                        t.create_dataset(
+                            dset,
+                            data=s[dset][sites],
+                            shape=(n_sites,),
+                            dtype=s[dset].dtype,
+                        )
 
-                        for attr in s[dset].attrs.keys():
-                            t[dset].attrs[attr] = s[dset].attrs[attr]
+                    for attr in s[dset].attrs:
+                        t[dset].attrs[attr] = s[dset].attrs[attr]
 
-                t.create_dataset('meta', data=s['meta'][sites])
-                t.create_dataset('time_index', data=s['time_index'][...])
+            t.create_dataset('meta', data=s['meta'][sites])
+            t.create_dataset('time_index', data=s['time_index'][...])
 
-                for site_meta in s['meta'][sites]:
-                    print(site_meta)
+            for site_meta in s['meta'][sites]:
+                print(site_meta)
 
     def extract_closest_meta(self, coords):
         """Get NSRDB meta data for pixels closest to input coordinate set.

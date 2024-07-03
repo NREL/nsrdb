@@ -119,6 +119,7 @@ ignore = [
   "N803", # invalid-argument-name
   "N806", # non-lowercase-variable-in-function
   "N811", # constant imported as non constant
+  "N817", # imported as acronym
   "PERF102", # incorrect-dict-iterator
   "PERF203", # try-except-in-loop
   "PERF401", # manual-list-comprehension
