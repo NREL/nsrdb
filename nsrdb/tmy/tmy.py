@@ -14,11 +14,12 @@ import shutil
 from concurrent.futures import as_completed
 from copy import deepcopy
 from itertools import groupby
+from typing import ClassVar
 
 import h5py
 import numpy as np
 import pandas as pd
-from cloud_fs import FileSystem as FS
+from cloud_fs import FileSystem
 from rex import init_logger
 from rex.utilities.execution import SpawnProcessPool
 
@@ -585,7 +586,7 @@ class Tmy:
 
         for year in self._years:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath) as f, Handler(f, unscale=unscale) as res:
+            with FileSystem(fpath) as f, Handler(f, unscale=unscale) as res:
                 temp = res[dset, :, self._site_slice]
 
             if arr is None:
@@ -600,7 +601,7 @@ class Tmy:
                 temp = np.vstack((temp, temp2))
 
             elif len(temp) != mask.sum():
-                with FS(fpath) as f, Resource(f, unscale=False) as res:
+                with FileSystem(fpath) as f, Resource(f, unscale=False) as res:
                     ti = res.time_index
 
                 temp = self.drop_leap(temp, ti)[0]
@@ -821,7 +822,7 @@ class Tmy:
         """
         if self._meta is None:
             fpath, Handler = self._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f, Handler(f) as res:
+            with FileSystem(fpath) as f, Handler(f) as res:
                 meta = res.meta
 
             self._meta = meta.iloc[self._site_slice, :]
@@ -998,7 +999,7 @@ class Tmy:
             )
         return lt_median
 
-    def _lt_mm_diffs(self):
+    def _lt_mm_difFileSystem(self):
         """Calculate the difference from the long term mean and median GHI.
 
         Returns
@@ -1053,7 +1054,7 @@ class Tmy:
         sorted_years = {
             m: np.zeros(shape, dtype=np.float32) for m in range(1, 13)
         }
-        diffs = self._lt_mm_diffs()
+        diffs = self._lt_mm_difFileSystem()
 
         for m in range(1, 13):
             sorted_years[m] = np.argsort(diffs[m], axis=0) + self.years[0]
@@ -1189,7 +1190,7 @@ class Tmy:
 
         for year in year_set:
             fpath, Handler = self._get_fpath(dset, year)
-            with FS(fpath) as f, Handler(f, unscale=unscale) as res:
+            with FileSystem(fpath) as f, Handler(f, unscale=unscale) as res:
                 ti = res.time_index
                 temp = res[dset, :, self._site_slice]
                 temp, ti = self.drop_leap(temp, ti)
@@ -1271,6 +1272,23 @@ class Tmy:
 class TmyRunner:
     """Class to handle running TMY, collecting outs, and writing to files."""
 
+    WEIGHTS: ClassVar = {
+        'TMY': {
+            'max_air_temperature': 0.05,
+            'min_air_temperature': 0.05,
+            'mean_air_temperature': 0.1,
+            'max_dew_point': 0.05,
+            'min_dew_point': 0.05,
+            'mean_dew_point': 0.1,
+            'max_wind_speed': 0.05,
+            'mean_wind_speed': 0.05,
+            'sum_dni': 0.25,
+            'sum_ghi': 0.25,
+        },
+        'TDY': {'sum_dni': 1.0},
+        'TGY': {'sum_ghi': 1.0},
+    }
+
     def __init__(
         self,
         nsrdb_base_fp,
@@ -1334,9 +1352,13 @@ class TmyRunner:
         self._site_chunks = None
         self._site_chunks_index = None
 
-        self._site_slice = slice(None)
-        if site_slice is not None:
-            self._site_slice = site_slice
+        self._site_slice = (
+            slice(None)
+            if site_slice is None
+            else slice(*site_slice)
+            if isinstance(site_slice, list)
+            else site_slice
+        )
         self._meta = None
         self._dsets = None
 
@@ -1453,7 +1475,7 @@ class TmyRunner:
         """Get the full NSRDB meta data."""
         if self._meta is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f, Handler(f) as res:
+            with FileSystem(fpath) as f, Handler(f) as res:
                 self._meta = res.meta.iloc[self._site_slice, :]
 
         return self._meta
@@ -1463,7 +1485,7 @@ class TmyRunner:
         """Get the NSRDB datasets excluding meta and time index."""
         if self._dsets is None:
             fpath, Handler = self._tmy_obj._get_fpath('ghi', self._years[0])
-            with FS(fpath) as f, Handler(f) as res:
+            with FileSystem(fpath) as f, Handler(f) as res:
                 self._dsets = []
                 for d in res.dsets:
                     if res.shapes[d] == res.shape:
@@ -1522,6 +1544,25 @@ class TmyRunner:
 
         return attrs, chunks, dtypes
 
+    def _collect_chunk(self, f_out_chunk, site_slice, out):
+        """Add single chunk to final output."""
+        f_chunk_basename = os.path.basename(f_out_chunk)
+        with Resource(f_out_chunk, unscale=True) as chunk:
+            for dset in self.dsets:
+                try:
+                    data = chunk[dset]
+                except Exception as e:
+                    m = (
+                        f'Could not read file dataset "{dset}" from file '
+                        f'"{f_chunk_basename}". Received the following '
+                        f'exception: \n{e}'
+                    )
+                    logger.exception(m)
+                    raise e
+                else:
+                    out[dset, :, site_slice] = data
+        return out
+
     def _collect(self, purge_chunks=False):
         """Collect all chunked files into the final fout."""
 
@@ -1532,34 +1573,20 @@ class TmyRunner:
         with Outputs(self._final_fpath, mode='a', unscale=True) as out:
             for i, f_out_chunk in self._f_out_chunks.items():
                 site_slice = self.site_chunks[i]
-
                 f_chunk_basename = os.path.basename(f_out_chunk)
+
                 msg = f'Skipping file, already collected: {f_chunk_basename}'
                 if f_chunk_basename not in status:
-                    with Resource(f_out_chunk, unscale=True) as chunk:
-                        for dset in self.dsets:
-                            try:
-                                data = chunk[dset]
-                            except Exception as e:
-                                m = (
-                                    'Could not read file dataset "{}" from '
-                                    'file "{}". Received the following '
-                                    'exception: \n{}'.format(
-                                        dset, os.path.basename(f_out_chunk), e
-                                    )
-                                )
-                                logger.exception(m)
-                                raise e
-                            else:
-                                out[dset, :, site_slice] = data
-
+                    out = self._collect_chunk(
+                        f_out_chunk=f_out_chunk, site_slice=site_slice, out=out
+                    )
+                    with open(status_file, 'a') as f:
+                        f.write('{}\n'.format(os.path.basename(f_out_chunk)))
                     msg = (
                         f'Finished collecting #{i + 1} out of '
                         f'{len(self._f_out_chunks)} for sites {site_slice} '
                         f'from file {f_chunk_basename}'
                     )
-                    with open(status_file, 'a') as f:
-                        f.write('{}\n'.format(os.path.basename(f_out_chunk)))
                 logger.info(msg)
 
         if purge_chunks:
@@ -1766,6 +1793,7 @@ class TmyRunner:
     def _run_serial(self):
         """Run serial tmy futures and save temp chunks to disk."""
 
+        logger.info('Running in serial.')
         for i, site_slice in enumerate(self.site_chunks):
             fi = self._site_chunks_index[i]
             f_out = self._f_out_chunks[fi]
@@ -1789,11 +1817,12 @@ class TmyRunner:
                 )
             )
 
-    def _run(self):
+    def _run_parallel(self):
         """Run parallel tmy futures and save temp chunks to disk."""
-
         futures = {}
         loggers = ['nsrdb']
+
+        logger.info('Running in parallel.')
         with SpawnProcessPool(loggers=loggers) as exe:
             logger.info(
                 'Kicking off {} futures.'.format(len(self.site_chunks))
@@ -1831,77 +1860,12 @@ class TmyRunner:
                 else:
                     logger.warning('Future #{} failed!'.format(i + 1))
 
-    @classmethod
-    def tgy(
-        cls,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        fn_out,
-        weights=None,
-        n_nodes=1,
-        node_index=0,
-        log=True,
-        log_level='INFO',
-        log_file=None,
-        site_slice=None,
-        supplemental_fp=None,
-        var_meta=None,
-    ):
-        """Run the TGY."""
-        if log:
-            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
-        if weights is None:
-            weights = {'sum_ghi': 1.0}
-        tgy = cls(
-            nsrdb_base_fp,
-            years,
-            weights,
-            out_dir=out_dir,
-            fn_out=fn_out,
-            n_nodes=n_nodes,
-            node_index=node_index,
-            site_slice=site_slice,
-            supplemental_fp=supplemental_fp,
-            var_meta=var_meta,
-        )
-        tgy._run()
-
-    @classmethod
-    def tdy(
-        cls,
-        nsrdb_base_fp,
-        years,
-        out_dir,
-        fn_out,
-        weights=None,
-        n_nodes=1,
-        node_index=0,
-        log=True,
-        log_level='INFO',
-        log_file=None,
-        site_slice=None,
-        supplemental_fp=None,
-        var_meta=None,
-    ):
-        """Run the TDY."""
-        if log:
-            init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
-        if weights is None:
-            weights = {'sum_dni': 1.0}
-        tdy = cls(
-            nsrdb_base_fp,
-            years,
-            weights,
-            out_dir=out_dir,
-            fn_out=fn_out,
-            n_nodes=n_nodes,
-            node_index=node_index,
-            site_slice=site_slice,
-            supplemental_fp=supplemental_fp,
-            var_meta=var_meta,
-        )
-        tdy._run()
+    def _run(self):
+        """Run in serial or parallel depending on number of chunks."""
+        if len(self.site_chunks) > 1:
+            self._run_parallel()
+        else:
+            self._run_serial()
 
     @classmethod
     def tmy(
@@ -1910,7 +1874,9 @@ class TmyRunner:
         years,
         out_dir,
         fn_out,
+        tmy_type='tmy',
         weights=None,
+        sites_per_worker=100,
         n_nodes=1,
         node_index=0,
         log=True,
@@ -1920,28 +1886,20 @@ class TmyRunner:
         supplemental_fp=None,
         var_meta=None,
     ):
-        """Run the TMY. Option for custom weights."""
+        """Run the TMY. Option for custom weights. Select default weights for
+        TMY / TDY / TGY with `tmy_type` and `weights = None`"""
+
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
 
         if weights is None:
-            weights = {
-                'max_air_temperature': 0.05,
-                'min_air_temperature': 0.05,
-                'mean_air_temperature': 0.1,
-                'max_dew_point': 0.05,
-                'min_dew_point': 0.05,
-                'mean_dew_point': 0.1,
-                'max_wind_speed': 0.05,
-                'mean_wind_speed': 0.05,
-                'sum_dni': 0.25,
-                'sum_ghi': 0.25,
-            }
+            weights = cls.WEIGHTS[tmy_type.upper()]
 
         tmy = cls(
             nsrdb_base_fp,
             years,
             weights,
+            sites_per_worker=sites_per_worker,
             out_dir=out_dir,
             fn_out=fn_out,
             n_nodes=n_nodes,
@@ -1959,12 +1917,14 @@ class TmyRunner:
         years,
         out_dir,
         fn_out,
+        sites_per_worker=100,
         site_slice=None,
         supplemental_fp=None,
         var_meta=None,
         log=True,
         log_level='INFO',
         log_file=None,
+        purge_chunks=False,
     ):
         """Run TMY collection.
 
@@ -1980,6 +1940,10 @@ class TmyRunner:
             Directory to dump temporary output files.
         fn_out : str
             Final output filename.
+        sites_per_worker : int
+            Number of sites to run at once (sites per core/worker). Used here
+            to determine size of chunks to collect. Needs to match the value
+            used during the initial call to `tmy()`.
         site_slice : slice
             Sites to consider in this TMY.
         supplemental_fp : None | dict
@@ -1995,14 +1959,16 @@ class TmyRunner:
             Log level for log output
         log_file : str | None
             Optional log file to write log output
+        purge_chunks : bool
+            Whether to purge chunks after collection into single file.
         """
         if log:
             init_logger('nsrdb.tmy', log_level=log_level, log_file=log_file)
-        weights = {'sum_ghi': 1.0}
         tgy = cls(
             nsrdb_base_fp,
             years,
-            weights,
+            sites_per_worker=sites_per_worker,
+            weights={'sum_ghi': 1.0},
             out_dir=out_dir,
             fn_out=fn_out,
             n_nodes=1,
@@ -2011,4 +1977,4 @@ class TmyRunner:
             supplemental_fp=supplemental_fp,
             var_meta=var_meta,
         )
-        tgy._collect()
+        tgy._collect(purge_chunks=purge_chunks)

@@ -749,9 +749,11 @@ def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
 
         \b
         {
-            "tmy": {"run_name": "tmy"},
-            "collect-tmy": {"run_name": "collect_tmy"},
+            "tmy": {},
+            "collect-tmy": {"purge_chunks": True},
             "direct": {
+                "sites_per_worker": 50,
+                "site_slice": [0, 100],
                 "tmy_types": ['tmy', 'tdy', 'tgy'],
                 "nsrdb_base_fp": './nsrdb_*_{}.h5',
                 "years": [2000, ..., 2022],
@@ -773,7 +775,8 @@ def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
     fn_out = config.pop('fn_out', 'tmy.h5')
     out_dir = config['out_dir']
     for tmy_type in tmy_types:
-        func = TmyRunner.collect if collect else getattr(TmyRunner, tmy_type)
+        func = TmyRunner.collect if collect else TmyRunner.tmy
+        config['tmy_type'] = tmy_type
         config['out_dir'] = os.path.join(out_dir, f'{tmy_type}/')
         config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{tmy_type}'
         config['fn_out'] = fn_out.replace('.h5', f'_{tmy_type}.h5')

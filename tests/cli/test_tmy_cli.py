@@ -35,11 +35,14 @@ def test_tmy_cli(runner):
             direct_dir_pattern, 'tmy_{tmy_type}.h5'
         )
         tmy_types = ['tmy', 'tdy', 'tgy']
+        site_slice = [0, 4]
         years = list(range(1998, 2018))
         config = {
-            'collect-tmy': {},
+            'collect-tmy': {'purge_chunks': True},
             'tmy': {},
             'direct': {
+                'site_slice': site_slice,
+                'sites_per_worker': 2,
                 'tmy_types': tmy_types,
                 'nsrdb_base_fp': NSRDB_BASE_FP,
                 'years': years,
@@ -66,16 +69,18 @@ def test_tmy_cli(runner):
             assert os.path.exists(cli_file_pattern.format(tmy_type=tmy_type))
 
         for tmy_type in tmy_types:
-            func = getattr(TmyRunner, tmy_type)
-            func(
+            TmyRunner.tmy(
                 NSRDB_BASE_FP,
                 years,
+                tmy_type=tmy_type,
+                site_slice=slice(*site_slice),
                 out_dir=direct_dir_pattern.format(tmy_type=tmy_type),
                 fn_out=f'tmy_{tmy_type}.h5',
             )
             TmyRunner.collect(
                 NSRDB_BASE_FP,
                 years,
+                site_slice=slice(*site_slice),
                 out_dir=direct_dir_pattern.format(tmy_type=tmy_type),
                 fn_out=f'tmy_{tmy_type}.h5',
             )
