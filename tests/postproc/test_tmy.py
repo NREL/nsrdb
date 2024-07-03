@@ -1,11 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-PyTest file for rest2.
-
-Created on Feb 13th 2019
-
-@author: gbuster
-"""
+"""Direct TMY tests"""
 
 import os
 from copy import deepcopy
@@ -15,7 +8,7 @@ import pandas as pd
 import pytest
 
 from nsrdb import TESTDATADIR
-from nsrdb.tmy.tmy import Cdf, Tmy, TmyRunner
+from nsrdb.tmy import Cdf, Tmy, TmyRunner
 from nsrdb.utilities.file_utils import pd_date_range
 from nsrdb.utilities.pytest import execute_pytest
 

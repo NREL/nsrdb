@@ -21,7 +21,7 @@ AVAILABLE_HARDWARE_OPTIONS = ('kestrel', 'slurm', 'local')
 
 IMPORT_STR = (
     'from nsrdb.nsrdb import NSRDB;\n'
-    'from nsrdb.tmy.tmy import TmyRunner;\n'
+    'from nsrdb.tmy import TmyRunner;\n'
     'from nsrdb.file_handlers.collection import Collector;\n'
     'from rex import init_logger;\n'
     'import time;\n'
@@ -264,8 +264,8 @@ class BaseCLI:
         pipeline_step = ctx.obj['PIPELINE_STEP']
         job_name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
-        slurm_manager = ctx.obj.get('SLURM_MANAGER', SlurmManager())
-        ctx.obj['SLURM_MANAGER'] = slurm_manager
+        slurm_manager = ctx.obj.get('SUBPROCESS_MANAGER', SlurmManager())
+        ctx.obj['SUBPROCESS_MANAGER'] = slurm_manager
 
         if not cls.running_or_done(
             status_dir=status_dir,
@@ -337,6 +337,10 @@ class BaseCLI:
         pipeline_step = ctx.obj['PIPELINE_STEP']
         job_name = ctx.obj['JOB_NAME']
         status_dir = ctx.obj['STATUS_DIR']
+        subprocess_manager = ctx.obj.get(
+            'SUBPROCESS_MANAGER', SubprocessManager
+        )
+        ctx.obj['SUBPROCESS_MANAGER'] = subprocess_manager
 
         if not cls.running_or_done(
             status_dir=status_dir,
@@ -347,7 +351,7 @@ class BaseCLI:
             if pipeline_step != module_name:
                 job_info = f'{job_info} (pipeline step {pipeline_step!r})'
             logger.info(f'Running {job_info} module locally as "{job_name}".')
-            SubprocessManager.submit(cmd)
+            subprocess_manager.submit(cmd)
             Status.mark_job_as_submitted(
                 status_dir=status_dir,
                 pipeline_step=pipeline_step,

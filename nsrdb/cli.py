@@ -1,10 +1,4 @@
-# -*- coding: utf-8 -*-
-"""NSRDB Command Line Interface (CLI).
-
-Created on Mon Oct 21 15:39:01 2019
-
-@author: gbuster
-"""
+"""NSRDB Command Line Interface (CLI)."""
 
 import itertools
 import json
@@ -20,7 +14,7 @@ from rex.utilities.loggers import init_logger
 
 from nsrdb import __version__
 from nsrdb.nsrdb import NSRDB
-from nsrdb.tmy.tmy import TmyRunner
+from nsrdb.tmy import TmyRunner
 from nsrdb.utilities import ModuleName
 from nsrdb.utilities.cli import BaseCLI
 from nsrdb.utilities.file_utils import ts_freq_check
@@ -52,9 +46,7 @@ class DictOrFile(click.ParamType):
         if value is None:
             return None
         raise TypeError(
-            'Cannot recognize input type: {} {} {} {}'.format(
-                value, type(value), param, ctx
-            )
+            f'Cannot recognize input type: {value} {type(value)} {param} {ctx}'
         )
 
 
@@ -763,6 +755,7 @@ def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
         }
     """  # noqa : D301
 
+    init_logger('nsrdb.tmy', log_level=ctx.obj['LOG_LEVEL'])
     mod_name = ModuleName.COLLECT_TMY if collect else ModuleName.TMY
     config = BaseCLI.from_config_preflight(
         ctx=ctx,
