@@ -6,7 +6,6 @@ import logging
 import os
 
 import click
-from click.types import STR
 from gaps import Pipeline
 from gaps.batch import BatchJob
 from gaps.cli.pipeline import pipeline as gaps_pipeline
@@ -235,10 +234,10 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     '--run_type',
     '-r',
     default='main',
-    type=STR,
+    type=str,
     help="""Module to create configs for. Can be "main" (for standard run
     with data-model, ml-cloud-fill, all-sky, and collect-data-model),
-    "aggregation" (for aggregating post-2018 data to pre-2018 resolution),
+    "aggregate" (for aggregating post-2018 data to pre-2018 resolution),
     or "blend" (for blending east and west domains into a single domain)""",
 )
 @click.option(
@@ -260,14 +259,14 @@ def create_configs(ctx, config, run_type='main', all_domains=False):
             CreateConfigs.create_main_configs_all_domains(config)
         else:
             CreateConfigs.create_main_configs(config)
-    elif run_type == 'aggregation':
+    elif run_type == 'aggregate':
         CreateConfigs.create_agg_configs(config)
     elif run_type == 'blend':
         CreateConfigs.create_blend_configs(config)
     else:
         msg = (
             f'Received unknown "run_type" {run_type}. Accepted values are '
-            '"main", "aggregation", and "blend"'
+            '"main", "aggregate", and "blend"'
         )
         logger.error(msg)
         raise ValueError(msg)

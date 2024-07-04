@@ -117,7 +117,7 @@ class CreateConfigs:
 
         out_dir = user_input['out_dir']
         os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(out_dir, 'config_agg.json')
+        config_file = os.path.join(out_dir, 'config_aggregate.json')
         with open(config_file, 'w') as f:
             f.write(json.dumps(user_input, indent=2))
 

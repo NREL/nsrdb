@@ -191,7 +191,7 @@ def test_cli_create_main_configs(runner):
 
 
 def test_cli_create_blend_configs(runner):
-    """Test nsrdb.cli create-configs"""
+    """Test nsrdb.cli create-configs --run_type blend"""
     with tempfile.TemporaryDirectory() as td:
         kwargs = {'year': 2020, 'out_dir': td, 'extent': 'conus'}
         result = runner.invoke(
@@ -202,9 +202,15 @@ def test_cli_create_blend_configs(runner):
             *result.exc_info
         )
 
+        config_file = os.path.join(td, 'config_blend.json')
+        assert os.path.exists(config_file)
+        config = safe_json_load(config_file)
+        assert config['year'] == 2020
+        assert 'west_dir' in config and 'east_dir' in config
+
 
 def test_cli_create_agg_configs(runner):
-    """Test nsrdb.cli create-configs"""
+    """Test nsrdb.cli create-configs --run_type aggregate"""
     with tempfile.TemporaryDirectory() as td:
         kwargs = {'year': 2020, 'out_dir': td}
         result = runner.invoke(
@@ -214,6 +220,15 @@ def test_cli_create_agg_configs(runner):
         assert result.exit_code == 0, traceback.print_exception(
             *result.exc_info
         )
+
+        config_file = os.path.join(td, 'config_aggregate.json')
+        assert os.path.exists(config_file)
+
+        config = safe_json_load(config_file)
+        assert config['year'] == 2020
+        assert config['full_freq'] == '10min'
+        assert config['conus_freq'] == '5min'
+        assert config['final_freq'] == '30min'
 
 
 def test_cli_steps(runner, modern_config):

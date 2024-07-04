@@ -14,7 +14,6 @@ import sys
 from datetime import datetime as dt
 
 import click
-from rex.utilities.cli_dtypes import INT, STR
 from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
 
@@ -226,7 +225,7 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
 @click.argument('start', type=Date())
 @click.argument('end', type=Date())
 @click.option(
-    '--alloc', required=True, type=STR, help='HPC allocation account name.'
+    '--alloc', required=True, type=str, help='HPC allocation account name.'
 )
 @click.option(
     '--walltime',
@@ -239,7 +238,7 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
     '--feature',
     '-l',
     default=None,
-    type=STR,
+    type=str,
     help=(
         'Additional flags for SLURM job. Format is "--qos=high" '
         'or "--depend=[state:job_id]". Default is None.'
@@ -249,14 +248,14 @@ def singleday(ctx, date, modis_shape, ims_shape, max_workers):
     '--memory',
     '-mem',
     default=None,
-    type=INT,
+    type=int,
     help='HPC node memory request in GB. Default is None',
 )
 @click.option(
     '--stdout_path',
     '-sout',
     default=None,
-    type=STR,
+    type=str,
     help='Subprocess standard output path. Default is in out_dir.',
 )
 @click.pass_context
