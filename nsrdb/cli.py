@@ -16,6 +16,7 @@ from nsrdb import __version__
 from nsrdb.aggregation.aggregation import Manager
 from nsrdb.blend.blend import Blender
 from nsrdb.create_configs import CreateConfigs
+from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
 from nsrdb.tmy import TmyRunner
 from nsrdb.utilities import ModuleName
@@ -249,20 +250,35 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     < 2018). satellite, extent, spatial, freq, and meta_file will be auto
     populated.""",
 )
+@click.option(
+    '--collect',
+    '-col',
+    is_flag=True,
+    help="""Flag to generate config files for module collection. This applies
+    to run_type = "aggregate" or "blend".""",
+)
 @click.pass_context
-def create_configs(ctx, config, run_type='main', all_domains=False):
+def create_configs(
+    ctx, config, run_type='main', all_domains=False, collect=False
+):
     """Create config files for standard NSRDB runs using config templates."""
 
     ctx.ensure_object(dict)
     if run_type == 'main':
         if all_domains:
-            CreateConfigs.create_main_configs_all_domains(config)
+            CreateConfigs.main_all_domains(config)
         else:
-            CreateConfigs.create_main_configs(config)
+            CreateConfigs.main(config)
     elif run_type == 'aggregate':
-        CreateConfigs.create_agg_configs(config)
+        if collect:
+            CreateConfigs.collect_aggregate(config)
+        else:
+            CreateConfigs.aggregate(config)
     elif run_type == 'blend':
-        CreateConfigs.create_blend_configs(config)
+        if collect:
+            CreateConfigs.collect_blend(config)
+        else:
+            CreateConfigs.blend(config)
     else:
         msg = (
             f'Received unknown "run_type" {run_type}. Accepted values are '
@@ -681,7 +697,7 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    func = Blender.collect if collect else Blender.run_full
+    func = Collector.collect_dir if collect else Blender.run_full
     mod_name = ModuleName.COLLECT_BLEND if collect else ModuleName.BLEND
 
     config = BaseCLI.from_config_preflight(
@@ -697,26 +713,28 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     )
     file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
 
-    for file_tag in file_tags:
-        log_id = file_tag
-        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
-        config['file_tag'] = file_tag
-        BaseCLI.kickoff_job(
+    if collect:
+        BaseCLI.kickoff_single(
             ctx=ctx,
             module_name=mod_name,
             func=func,
             config=config,
-            log_id=log_id,
+            verbose=verbose,
+            pipeline_step=pipeline_step,
         )
 
-    BaseCLI.kickoff_single(
-        ctx=ctx,
-        module_name=mod_name,
-        func=func,
-        config=config,
-        verbose=verbose,
-        pipeline_step=pipeline_step,
-    )
+    else:
+        for file_tag in file_tags:
+            log_id = file_tag
+            config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
+            config['file_tag'] = file_tag
+            BaseCLI.kickoff_job(
+                ctx=ctx,
+                module_name=mod_name,
+                func=func,
+                config=config,
+                log_id=log_id,
+            )
 
 
 @main.command()
@@ -745,7 +763,7 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     NOTE: Used to create data files from high-resolution years (2018+) which
     match resolution of low-resolution years (pre 2018)
     """
-    func = Manager.collect if collect else Manager.run_chunk
+    func = Collector.collect_dir if collect else Manager.run_chunk
     mod_name = ModuleName.COLLECT_AGG if collect else ModuleName.AGGREGATE
     kickoff_func = (
         BaseCLI.kickoff_single if collect else BaseCLI.kickoff_multichunk

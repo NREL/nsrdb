@@ -5,7 +5,6 @@
 - 4km 30min West -> 4km 30min NSRDB PSM v3 Meta
 """
 
-import json
 import logging
 import os
 import pickle
@@ -19,12 +18,10 @@ from farms.utilities import calc_dhi
 from rex import NSRDB as NSRDBHandler
 from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
-from rex.utilities.hpc import SLURM
 from rex.utilities.loggers import init_logger
 from scipy.spatial import cKDTree
 from scipy.stats import mode
 
-from nsrdb.file_handlers.collection import Collector
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.interpolation import temporal_step
 from nsrdb.utilities.plots import Spatial
@@ -1199,8 +1196,8 @@ class Manager:
         return dsets, attrs, chunks, dtypes, ti
 
     def _init_fout(self):
-        """Initialize the output file with all datasets and final
-        time index and meta"""
+        """Initialize the output file with all datasets and final time index
+        and meta"""
 
         if 'fpath' in self.data[self.data_sources[0]]:
             self.dsets, self.attrs, self.chunks, self.dtypes, _ = (
@@ -1594,7 +1591,8 @@ class Manager:
         year=2018,
         ignore_dsets=None,
         parallel=True,
-        log_level='INFO',
+        log_file='run_agg_chunk.log',
+        log_level='DEBUG',
     ):
         """
         Parameters
@@ -1617,18 +1615,14 @@ class Manager:
             Source datasets to ignore (not aggregate). Optional.
         parallel : bool
             Flag to use parallel compute.
+        log_file : str
+            File to use for logging
         log_level : str | bool
             Flag to initialize a log file at a given log level.
             False will not init a logger.
         """
 
-        if log_level:
-            log_file = os.path.join(
-                data_dir,
-                data['final']['data_sub_dir'] + '/',
-                'agg_{}.log'.format(i_chunk),
-            )
-            init_logger(__name__, log_level=log_level, log_file=log_file)
+        init_logger(__name__, log_level=log_level, log_file=log_file)
 
         logger.info(
             'Working on site chunk {} out of {}'.format(i_chunk + 1, n_chunks)
@@ -1676,162 +1670,3 @@ class Manager:
                 m.write_output(arr, var)
 
         logger.info('NSRDB aggregation complete!')
-
-    @classmethod
-    def hpc(
-        cls,
-        data,
-        data_dir,
-        meta_dir,
-        year,
-        n_chunks,
-        alloc='pxs',
-        memory=90,
-        walltime=4,
-        feature='--qos=normal',
-        node_name='agg',
-        stdout_path=None,
-    ):
-        """Run NSRDB aggregation on HPC with each agg chunk on a node.
-
-        TODO: Replace this with new CLI integration
-
-        Parameters
-        ----------
-        data : dict
-            Nested dictionary containing data on all NSRDB data sources
-            (east, west, conus) and the final aggregated output.
-        data_dir : str
-            Root directory containing sub dirs with all data sources.
-        meta_dir : str
-            Directory containing meta and ckdtree files for each data source
-            and the final aggregated output.
-        year : int
-            Year being analyzed.
-        n_chunks : int
-            Number of chunks to process the meta data in (each chunk will be
-            a node).
-        alloc : str
-            SLURM project allocation.
-        memory : int
-            Node memory request in GB.
-        walltime : int
-            Node walltime request in hours.
-        feature : str
-            Additional flags for SLURM job. Format is "--qos=high"
-            or "--depend=[state:job_id]". Default is None.
-        node_name : str
-            Name for the SLURM job.
-        stdout_path : str
-            Path to dump the stdout/stderr files.
-        """
-
-        if stdout_path is None:
-            stdout_path = os.getcwd()
-
-        cmd = (
-            "python -c 'from nsrdb.aggregation.aggregation import Manager;"
-            "Manager.run_chunk({})'"
-        )
-
-        slurm_manager = SLURM()
-
-        for i_chunk in range(n_chunks):
-            i_node_name = node_name + '_{}'.format(i_chunk)
-            a = (
-                '{}, "{}", "{}", i_chunk={}, n_chunks={}, year={}, '
-                'parallel=True, log_level="INFO"'.format(
-                    json.dumps(data),
-                    data_dir,
-                    meta_dir,
-                    i_chunk,
-                    n_chunks,
-                    year,
-                )
-            )
-            icmd = cmd.format(a)
-
-            out = slurm_manager.sbatch(
-                icmd,
-                alloc=alloc,
-                memory=memory,
-                walltime=walltime,
-                feature=feature,
-                name=i_node_name,
-                stdout_path=stdout_path,
-            )[0]
-
-            print('\ncmd:\n{}\n'.format(icmd))
-
-            if out:
-                msg = (
-                    'Kicked off job "{}" (SLURM jobid #{}) on ' 'HPC.'.format(
-                        i_node_name, out
-                    )
-                )
-            else:
-                msg = (
-                    'Was unable to kick off job "{}". '
-                    'Please see the stdout error messages'.format(i_node_name)
-                )
-            print(msg)
-
-    @classmethod
-    def collect(
-        cls,
-        meta_final,
-        collect_dir,
-        collect_tag,
-        fout,
-        dsets=None,
-        max_workers=None,
-    ):
-        """Perform final collection of chunk-aggregated files.
-
-        Parameters
-        ----------
-        meta_final : str | pd.DataFrame
-            Final meta data with index = gid.
-        collect_dir : str
-            Directory path containing chunked h5 files to collect.
-        collect_tag : str
-            String to be found in files that are being collected
-        fout : str
-            File path to the output collected file (will be initialized by
-            this method).
-        dsets : list | tuple
-            Select datasets to collect (None will default to all dsets)
-        max_workers : int | None
-            Number of workers to use in parallel. 1 runs serial,
-            None uses all available.
-        """
-
-        if isinstance(meta_final, str):
-            meta_final = pd.read_csv(meta_final, index_col=0)
-
-        fns = os.listdir(collect_dir)
-        flist = [
-            fn
-            for fn in fns
-            if fn.endswith('.h5')
-            and collect_tag in fn
-            and os.path.join(collect_dir, fn) != fout
-        ]
-        flist = sorted(
-            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1])
-        )
-
-        logger.info(
-            'Collecting aggregation chunks from {} files to: {}'.format(
-                len(flist), fout
-            )
-        )
-
-        dsets_all, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
-        dsets = dsets_all if dsets is None else dsets
-        Outputs.init_h5(fout, dsets, attrs, chunks, dtypes, ti, meta_final)
-
-        for dset in dsets:
-            Collector.collect_flist(
-                flist, collect_dir, fout, dset, max_workers=max_workers
-            )

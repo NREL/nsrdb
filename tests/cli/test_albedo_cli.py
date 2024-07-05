@@ -15,7 +15,6 @@ import traceback
 import h5py
 import numpy as np
 import pytest
-from click.testing import CliRunner
 from rex.utilities.loggers import LOGGERS
 
 from nsrdb import TESTDATADIR
@@ -27,12 +26,6 @@ pytest.importorskip('pyhdf')
 BASE_DIR = os.path.dirname(__file__)
 TEST_DATA_DIR = os.path.join(TESTDATADIR, 'albedo')
 TEST_MERRA_DIR = os.path.join(TESTDATADIR, 'merra2_source_files')
-
-
-@pytest.fixture(scope='module')
-def runner():
-    """Runner for testing click CLIs"""
-    return CliRunner()
 
 
 def test_cli_4km_data_with_temp_model(runner):

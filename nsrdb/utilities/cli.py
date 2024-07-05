@@ -23,6 +23,8 @@ IMPORT_STR = (
     'from nsrdb.nsrdb import NSRDB;\n'
     'from nsrdb.tmy import TmyRunner;\n'
     'from nsrdb.file_handlers.collection import Collector;\n'
+    'from nsrdb.blend.blend import Blender;\n'
+    'from nsrdb.aggregation.aggregation import Manager;\n'
     'from rex import init_logger;\n'
     'import time;\n'
     'from gaps import Status;\n'

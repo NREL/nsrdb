@@ -471,8 +471,8 @@ class Blender:
         map_col='gid_full',
         lon_seam=-105.0,
         chunk_size=100000,
-        log_level='DEBUG',
         log_file='blend.log',
+        log_level='DEBUG',
     ):
         """NSRDB East-West Blend.
 
@@ -538,6 +538,7 @@ class Blender:
             out_fpath = os.path.join(out_dir, out_fn)
             east_fpath = os.path.join(east_dir, east_fn)
             west_fpath = os.path.join(west_dir, west_fn)
+            logger.info(f'Running blend_file with file_tag {file_tag}.')
             cls.blend_file(
                 meta,
                 out_fpath,
@@ -548,6 +549,7 @@ class Blender:
                 chunk_size=chunk_size,
             )
         else:
+            logger.info(f'Running blend_dir with file_tag {file_tag}.')
             cls.blend_dir(
                 meta,
                 out_dir,

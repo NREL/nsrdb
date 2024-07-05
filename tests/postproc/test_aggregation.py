@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """2018 aggregation run script - WRF for Jaemo and Rahul
 
 Created on Tue Feb 11 14:04:45 2020
 
 @author: gbuster
 """
+
 import os
 import shutil
 import tempfile
@@ -24,60 +24,74 @@ meta_dir = os.path.join(TESTDATADIR, 'meta/')
 i0 = [2, 1, 8, 3]
 i1 = [5, 0, 4, 7]
 
-TESTJOB1 = {'source': {'data_sub_dir': 'nsrdb_2018',
-                       'tree_file': 'kdtree_surfrad_meta.pkl',
-                       'meta_file': 'surfrad_meta.csv',
-                       'spatial': '2km',
-                       'temporal': '5min'},
-            'final': {'data_sub_dir': 'agg_out',
-                      'fout': 'agg_out_test_2018.h5',
-                      'tree_file': 'kdtree_test_meta_agg.pkl',
-                      'meta_file': 'test_meta_agg.csv',
-                      'spatial': '4km',
-                      'temporal': '5min'},
-            }
+TESTJOB1 = {
+    'source': {
+        'data_sub_dir': 'nsrdb_2018',
+        'tree_file': 'kdtree_surfrad_meta.pkl',
+        'meta_file': 'surfrad_meta.csv',
+        'spatial': '2km',
+        'temporal': '5min',
+    },
+    'final': {
+        'data_sub_dir': 'agg_out',
+        'fout': 'agg_out_test_2018.h5',
+        'tree_file': 'kdtree_test_meta_agg.pkl',
+        'meta_file': 'test_meta_agg.csv',
+        'spatial': '4km',
+        'temporal': '5min',
+    },
+}
 
-TESTJOB2 = {'source': {'data_sub_dir': 'nsrdb_2018',
-                       'tree_file': 'kdtree_surfrad_meta.pkl',
-                       'meta_file': 'surfrad_meta.csv',
-                       'spatial': '2km',
-                       'temporal': '5min'},
-            'final': {'data_sub_dir': 'agg_out',
-                      'fout': 'agg_out_test_2018.h5',
-                      'tree_file': 'kdtree_test_meta_agg.pkl',
-                      'meta_file': 'test_meta_agg.csv',
-                      'spatial': '4km',
-                      'temporal': '30min'},
-            }
+TESTJOB2 = {
+    'source': {
+        'data_sub_dir': 'nsrdb_2018',
+        'tree_file': 'kdtree_surfrad_meta.pkl',
+        'meta_file': 'surfrad_meta.csv',
+        'spatial': '2km',
+        'temporal': '5min',
+    },
+    'final': {
+        'data_sub_dir': 'agg_out',
+        'fout': 'agg_out_test_2018.h5',
+        'tree_file': 'kdtree_test_meta_agg.pkl',
+        'meta_file': 'test_meta_agg.csv',
+        'spatial': '4km',
+        'temporal': '30min',
+    },
+}
 
-IGNORE_DSETS = ["alpha",
-                "asymmetry",
-                "ssa",
-                "ozone",
-                "surface_albedo",
-                "surface_pressure",
-                "total_precipitable_water",
-                "cloud_press_acha",
-                "solar_zenith_angle",
-                "clearsky_dni",
-                "clearsky_dhi",
-                "clearsky_ghi",
-                "ghi",
-                "dhi",
-                "air_temperature",
-                "dew_point",
-                "relative_humidity",
-                "wind_direction",
-                "wind_speed",
-                "cld_reff_dcomp",
-                ]
+IGNORE_DSETS = [
+    'alpha',
+    'asymmetry',
+    'ssa',
+    'ozone',
+    'surface_albedo',
+    'surface_pressure',
+    'total_precipitable_water',
+    'cloud_press_acha',
+    'solar_zenith_angle',
+    'clearsky_dni',
+    'clearsky_dhi',
+    'clearsky_ghi',
+    'ghi',
+    'dhi',
+    'air_temperature',
+    'dew_point',
+    'relative_humidity',
+    'wind_direction',
+    'wind_speed',
+    'cld_reff_dcomp',
+]
 
-FP_IN_IRRAD = os.path.join(TESTDATADIR, TESTJOB1['source']['data_sub_dir'],
-                           'nsrdb_irradiance_2018.h5')
-FP_IN_ANCIL = os.path.join(TESTDATADIR, TESTJOB1['source']['data_sub_dir'],
-                           'nsrdb_ancillary_2018.h5')
-FP_IN_CLOUD = os.path.join(TESTDATADIR, TESTJOB1['source']['data_sub_dir'],
-                           'nsrdb_clouds_2018.h5')
+FP_IN_IRRAD = os.path.join(
+    TESTDATADIR, TESTJOB1['source']['data_sub_dir'], 'nsrdb_irradiance_2018.h5'
+)
+FP_IN_ANCIL = os.path.join(
+    TESTDATADIR, TESTJOB1['source']['data_sub_dir'], 'nsrdb_ancillary_2018.h5'
+)
+FP_IN_CLOUD = os.path.join(
+    TESTDATADIR, TESTJOB1['source']['data_sub_dir'], 'nsrdb_clouds_2018.h5'
+)
 
 
 def copy_dir(src, dst):
@@ -118,9 +132,17 @@ def test_spatial_agg():
         dst = os.path.join(td, TESTJOB1['source']['data_sub_dir'])
         copy_dir(src, dst)
 
-        Manager.run_chunk(TESTJOB1, td, meta_dir, 0, 1,
-                          year=2018, parallel=False, log_level=False,
-                          ignore_dsets=IGNORE_DSETS)
+        Manager.run_chunk(
+            TESTJOB1,
+            td,
+            meta_dir,
+            0,
+            1,
+            year=2018,
+            parallel=False,
+            log_level=False,
+            ignore_dsets=IGNORE_DSETS,
+        )
 
         fp_out = TESTJOB1['final']['fout'].replace('.h5', '_0.h5')
         fp_out = os.path.join(td, TESTJOB1['final']['data_sub_dir'], fp_out)
@@ -161,9 +183,17 @@ def test_spatiotemporal_agg():
         dst = os.path.join(td, TESTJOB2['source']['data_sub_dir'])
         copy_dir(src, dst)
 
-        Manager.run_chunk(TESTJOB2, td, meta_dir, 0, 1,
-                          year=2018, parallel=False, log_level=False,
-                          ignore_dsets=IGNORE_DSETS)
+        Manager.run_chunk(
+            TESTJOB2,
+            td,
+            meta_dir,
+            0,
+            1,
+            year=2018,
+            parallel=False,
+            log_level=False,
+            ignore_dsets=IGNORE_DSETS,
+        )
 
         fp_out = TESTJOB2['final']['fout'].replace('.h5', '_0.h5')
         fp_out = os.path.join(td, TESTJOB2['final']['data_sub_dir'], fp_out)
@@ -206,11 +236,11 @@ def test_spatiotemporal_agg():
             assert ctype[i, 0] == mode(ctype_in[iw, :][:, i0].flatten())[0]
             assert ctype[i, 1] == mode(ctype_in[iw, :][:, i1].flatten())[0]
 
-            mask = (ctype[i, 0] == ctype_in[iw, :][:, i0].flatten())
+            mask = ctype[i, 0] == ctype_in[iw, :][:, i0].flatten()
             opd_in_masked = opd_in[iw, :][:, i0].flatten()[mask]
             assert opd[i, 0] == np.round(opd_in_masked.mean(), decimals=2)
 
-            mask = (ctype[i, 1] == ctype_in[iw, :][:, i1].flatten())
+            mask = ctype[i, 1] == ctype_in[iw, :][:, i1].flatten()
             opd_in_masked = opd_in[iw, :][:, i1].flatten()[mask]
             assert opd[i, 1] == np.round(opd_in_masked.mean(), decimals=2)
 
@@ -218,27 +248,39 @@ def test_spatiotemporal_agg():
 def test_multi_file():
     """Simple test for multi*file.h5 fpath specifications"""
     with tempfile.TemporaryDirectory() as td:
-
         fpath_multi = os.path.join(td, 'nsrdb_*_2018.h5')
         fpath_out = os.path.join(td, 'agg_out/agg_out_test_2018.h5')
-        TESTJOB3 = {'source': {'fpath': fpath_multi,
-                               'tree_file': 'kdtree_surfrad_meta.pkl',
-                               'meta_file': 'surfrad_meta.csv',
-                               'spatial': '2km',
-                               'temporal': '5min'},
-                    'final': {'fpath': fpath_out,
-                              'tree_file': 'kdtree_test_meta_agg.pkl',
-                              'meta_file': 'test_meta_agg.csv',
-                              'spatial': '4km',
-                              'temporal': '30min'},
-                    }
+        TESTJOB3 = {
+            'source': {
+                'fpath': fpath_multi,
+                'tree_file': 'kdtree_surfrad_meta.pkl',
+                'meta_file': 'surfrad_meta.csv',
+                'spatial': '2km',
+                'temporal': '5min',
+            },
+            'final': {
+                'fpath': fpath_out,
+                'tree_file': 'kdtree_test_meta_agg.pkl',
+                'meta_file': 'test_meta_agg.csv',
+                'spatial': '4km',
+                'temporal': '30min',
+            },
+        }
 
         src = os.path.join(TESTDATADIR, 'nsrdb_2018')
         copy_dir(src, td)
 
-        Manager.run_chunk(TESTJOB3, td, meta_dir, 0, 1,
-                          year=2018, parallel=False, log_level=False,
-                          ignore_dsets=IGNORE_DSETS)
+        Manager.run_chunk(
+            TESTJOB3,
+            td,
+            meta_dir,
+            0,
+            1,
+            year=2018,
+            parallel=False,
+            log_level=False,
+            ignore_dsets=IGNORE_DSETS,
+        )
 
         fpath_out = fpath_out.replace('.h5', '_0.h5')
         with NSRDB(fpath_out, mode='r') as f:

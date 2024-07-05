@@ -8,7 +8,6 @@ Created on Thu Apr 25 15:47:53 2019
 TODO: Clean up create_config_files, blend_files, aggregate_files
 """
 
-import copy
 import datetime
 import json
 import logging
@@ -20,12 +19,10 @@ from typing import ClassVar
 
 import numpy as np
 import pandas as pd
-import psutil
 from rex import MultiFileResource, init_logger
 from rex.utilities.loggers import create_dirs
 
 from nsrdb import CONFIGDIR, __version__
-from nsrdb.aggregation.aggregation import Manager
 from nsrdb.all_sky.all_sky import (
     ALL_SKY_ARGS,
     all_sky,
@@ -131,154 +128,6 @@ class NSRDB:
 
         if make_out_dirs:
             self.make_out_dirs()
-
-    @staticmethod
-    def collect_blended(kwargs):
-        """Collect blended data into single file
-
-        Parameters
-        ----------
-        kwargs : dict
-            Dictionary with keys specifying
-            the case for blend collection
-        """
-
-        default_kwargs = {
-            'basename': 'nsrdb',
-            'metadir': '/projects/pxs/reference_grids',
-            'spatial': '4km',
-            'out_dir': './',
-            'freq': '30min',
-            'extent': 'full',
-        }
-
-        user_input = copy.deepcopy(default_kwargs)
-        user_input.update(kwargs)
-
-        meta_file = f'nsrdb_meta_{user_input["spatial"]}.csv'
-        meta_file = os.path.join(user_input['metadir'], meta_file)
-        collect_dir = f'nsrdb_{user_input["year"]}'
-        collect_dir += f'_{user_input["extent"]}_blend'
-        collect_tag = f'{user_input["basename"]}_'
-        collect_tag += f'{user_input["extent"]}_{user_input["year"]}_'
-        fout = os.path.join(
-            f'{user_input["out_dir"]}',
-            f'{user_input["basename"]}_{user_input["year"]}.h5',
-        )
-
-        user_input['log_file'] = f'{user_input["basename"]}_'
-        user_input['log_file'] += f'{user_input["year"]}_collect_blend.log'
-
-        log_file = os.path.join(user_input['out_dir'], user_input['log_file'])
-        logger = init_logger(__name__, log_file=log_file, log_level='DEBUG')
-        logger.info(
-            'Running collect_blended with '
-            f'meta_file={meta_file}, collect_dir={collect_dir}, '
-            f'collect_tag={collect_tag}, fout={fout}'
-        )
-
-        meta_file = pd.read_csv(meta_file, index_col=0)
-
-        fns = os.listdir(collect_dir)
-        flist = [
-            fn
-            for fn in fns
-            if fn.endswith('.h5')
-            and collect_tag in fn
-            and os.path.join(collect_dir, fn) != fout
-        ]
-        flist = sorted(
-            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1])
-        )
-
-        temp = Manager.get_dset_attrs(collect_dir)
-        dsets_all, attrs, chunks, dtypes, ti = temp
-        Outputs.init_h5(fout, dsets_all, attrs, chunks, dtypes, ti, meta_file)
-        _, _, shape, _ = Collector._get_collection_attrs(
-            [flist[0]], collect_dir, dsets_all[0]
-        )
-
-        for fname in flist:
-            fpath = os.path.join(collect_dir, fname)
-            f = Outputs(fpath, unscale=False, mode='r')
-            dsets = [d for d in f.dsets if d in dsets_all]
-
-            logger.info(f'Collecting {dsets} from {fname}')
-            for dset in dsets:
-                attrs, _, final_dtype = VarFactory.get_dset_attrs(dset)
-
-                mem = psutil.virtual_memory()
-                logger.debug(
-                    'Initializing output dataset "{}" in-memory with shape '
-                    '{} and dtype {}. Current memory usage is '
-                    '{:.3f} GB out of {:.3f} GB total.'.format(
-                        dset,
-                        shape,
-                        final_dtype,
-                        mem.used / 1e9,
-                        mem.total / 1e9,
-                    )
-                )
-
-                logger.info(f'Writing {dset} to {fout} from {fpath}')
-
-                Collector._ensure_dset_in_output(fout, dset)
-                with Outputs(fout, mode='a') as f_combined:
-                    f_combined[dset, :, :] = f[dset][...]
-                logger.debug(
-                    'Finished writing "{}" to: {}'.format(
-                        dset, os.path.basename(fout)
-                    )
-                )
-        logger.info(f'Finished blend collection: {fout}')
-
-    @staticmethod
-    def collect_aggregation(kwargs):
-        """Collect aggregation chunks
-
-        Parameters
-        ----------
-        kwargs : dict
-            Dictionary with keys specifying
-            the case for aggregation collection
-        """
-        default_kwargs = {
-            'basename': 'nsrdb',
-            'metadir': '/projects/pxs/reference_grids',
-            'final_spatial': '4km',
-            'final_freq': '30min',
-            'out_dir': './',
-        }
-
-        user_input = copy.deepcopy(default_kwargs)
-        user_input.update(kwargs)
-
-        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
-        meta_file = os.path.join(user_input['metadir'], meta_file)
-        collect_dir = f'nsrdb_{user_input["final_spatial"]}'
-        collect_dir += f'_{user_input["final_freq"]}'
-        collect_tag = f'{user_input["basename"]}_'
-        fout = os.path.join(
-            f'{user_input["out_dir"]}',
-            f'{user_input["basename"]}_{user_input["year"]}.h5',
-        )
-
-        user_input['log_file'] = f'{user_input["basename"]}_'
-        user_input['log_file'] += f'{user_input["year"]}_collect_agg.log'
-
-        log_file = os.path.join(user_input['out_dir'], user_input['log_file'])
-        logger = init_logger(__name__, log_file=log_file, log_level='DEBUG')
-        logger.info(
-            'Running collect_aggregation with '
-            f'meta_file={meta_file}, collect_dir={collect_dir}, '
-            f'collect_tag={collect_tag}, fout={fout}'
-        )
-
-        Manager.collect(
-            meta_file, collect_dir, collect_tag, fout, max_workers=1
-        )
-
-        logger.info(f'Finished aggregation collection: {fout}')
 
     def make_out_dirs(self):
         """Ensure that all output directories exist"""
@@ -725,8 +574,8 @@ class NSRDB:
         mlclouds=False,
         max_workers=None,
         max_workers_regrid=None,
-        log_level='DEBUG',
         log_file='data_model.log',
+        log_level='DEBUG',
     ):
         """Run daily data model, and save output files.
 
@@ -771,11 +620,11 @@ class NSRDB:
         max_workers_regrid : None | int
             Max parallel workers allowed for cloud regrid processing. None uses
             all available workers. 1 runs regrid in serial.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         """
 
         date = cls.to_datetime(date)
@@ -820,8 +669,8 @@ class NSRDB:
         n_writes=1,
         freq='5min',
         var_meta=None,
-        log_level='DEBUG',
         log_file='collect_dm.log',
+        log_level='DEBUG',
         max_workers=None,
         final=False,
         final_file_name=None,
@@ -853,11 +702,11 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         max_workers : int | None
             Number of workers to run in parallel. 1 runs serial,
             None uses all available workers.
@@ -936,8 +785,8 @@ class NSRDB:
         var_meta=None,
         i_fname=None,
         tmp=False,
-        log_level='DEBUG',
         log_file='final_collection.log',
+        log_level='DEBUG',
     ):
         """Collect chunked files to single final output files.
 
@@ -957,11 +806,6 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
-        log_level : str | None
-            Logging level (DEBUG, INFO). If None, no logging will be
-            initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         i_fname : int | None
             Optional index to collect just a single output file. Indexes the
             sorted OUTS class attribute keys.
@@ -969,6 +813,11 @@ class NSRDB:
             Flag to use temporary scratch storage, then move to out_dir when
             finished. Doesn't seem to be faster than collecting to normal
             scratch on hpc.
+        log_file : str
+            File to log to. Will be put in output directory.
+        log_level : str | None
+            Logging level (DEBUG, INFO). If None, no logging will be
+            initialized.
         """
 
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
@@ -1046,8 +895,8 @@ class NSRDB:
         cols=slice(None),
         col_chunk=None,
         var_meta=None,
-        log_level='DEBUG',
         log_file='cloud_fill.log',
+        log_level='DEBUG',
     ):
         """Gap fill cloud properties in a collected data model output file.
 
@@ -1070,11 +919,11 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         """
         nsrdb = cls(out_dir, year, None, var_meta=var_meta)
 
@@ -1103,8 +952,8 @@ class NSRDB:
         fill_all=False,
         model_path=None,
         var_meta=None,
-        log_level='DEBUG',
         log_file='cloud_fill.log',
+        log_level='DEBUG',
         col_chunk=None,
         max_workers=None,
     ):
@@ -1129,11 +978,11 @@ class NSRDB:
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         col_chunk : None | int
             Optional chunking method to gap fill one column chunk at a time
             to reduce memory requirements. If provided, this should be an
@@ -1175,8 +1024,8 @@ class NSRDB:
         rows=slice(None),
         cols=slice(None),
         max_workers=None,
-        log_level='DEBUG',
         log_file='all_sky.log',
+        log_level='DEBUG',
         i_chunk=None,
         disc_on=False,
     ):
@@ -1207,11 +1056,11 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 will run serial,
             None will use all available.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         i_chunk : None | int
             Enumerated file index if running on site chunk.
         disc_on : bool
@@ -1298,8 +1147,8 @@ class NSRDB:
         rows=slice(None),
         cols=slice(None),
         max_workers=None,
-        log_level='DEBUG',
         log_file='all_sky.log',
+        log_level='DEBUG',
         disc_on=False,
     ):
         """Run the all-sky physics model from daily data model output files.
@@ -1332,11 +1181,11 @@ class NSRDB:
         max_workers : int | None
             Number of workers to run in parallel. 1 will run serial,
             None will use all available.
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         disc_on : bool
             Compute cloudy sky dni with the disc model (True) or the farms-dni
             model (False)
@@ -1438,11 +1287,11 @@ class NSRDB:
             memory bloat during prediction is:
             (n_time x n_sites x n_nodes_per_layer). low_mem=True will
             reduce this to (1000 x n_nodes_per_layer)
+        log_file : str
+            File to log to. Will be put in output directory.
         log_level : str | None
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
-        log_file : str
-            File to log to. Will be put in output directory.
         disc_on : bool
             Compute cloudy sky dni with the disc model (True) or the farms-dni
             model (False)

@@ -30,6 +30,13 @@ PIPELINE_CONFIG_TEMPLATE = os.path.join(
     CONFIGDIR, 'templates/config_pipeline.json'
 )
 
+DEFAULT_EXEC_CONFIG = {
+    'option': 'kestrel',
+    'memory': 173,
+    'walltime': 10,
+    'alloc': 'pxs',
+}
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +45,7 @@ class CreateConfigs:
     standard CONUS / Full Disc runs."""
 
     @staticmethod
-    def create_agg_configs(kwargs):
+    def aggregate(kwargs):
         """Get config for conus and full disk high-resolution to low-resolution
         aggregation.  This is then used as the input to `nsrdb.cli.aggregate`
 
@@ -59,10 +66,8 @@ class CreateConfigs:
             'conus_freq': '5min',
             'final_freq': '30min',
             'n_chunks': 32,
-            'alloc': 'pxs',
-            'memory': 90,
-            'walltime': 40,
             'source_priority': ['conus', 'full_disk'],
+            'execution_control': DEFAULT_EXEC_CONFIG,
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
@@ -124,7 +129,7 @@ class CreateConfigs:
         logger.info(f'Created config file: {config_file}.')
 
     @classmethod
-    def create_blend_configs(cls, kwargs):
+    def blend(cls, kwargs):
         """Get config dictionary for nsrdb.cli.blend for standard NSRDB runs.
 
         Parameters
@@ -141,10 +146,10 @@ class CreateConfigs:
             'extent': 'conus',
             'out_dir': './',
             'chunk_size': 100000,
-            'memory': 83,
             'meta_file': None,
             'east_dir': None,
             'west_dir': None,
+            'execution_control': DEFAULT_EXEC_CONFIG,
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
@@ -196,7 +201,7 @@ class CreateConfigs:
         logger.info(f'Created config file: {config_file}.')
 
     @classmethod
-    def create_main_configs_all_domains(cls, kwargs):
+    def main_all_domains(cls, kwargs):
         """Modify config files for all domains with specified parameters
 
         Parameters
@@ -302,7 +307,7 @@ class CreateConfigs:
         logger.info(f'Created file: {outfile}')
 
     @classmethod
-    def create_main_configs(cls, kwargs):
+    def main(cls, kwargs):
         """Modify config files with specified parameters
 
         Parameters
@@ -363,3 +368,89 @@ class CreateConfigs:
         user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
 
         cls._update_run_templates(user_input)
+
+    @classmethod
+    def collect_blend(cls, kwargs):
+        """Create blend collect config files.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the case for blend collection
+        """
+
+        default_kwargs = {
+            'basename': 'nsrdb',
+            'metadir': '/projects/pxs/reference_grids',
+            'spatial': '4km',
+            'out_dir': './',
+            'freq': '30min',
+            'extent': 'full',
+            'execution_control': DEFAULT_EXEC_CONFIG,
+        }
+
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        meta_file = f'nsrdb_meta_{user_input["spatial"]}.csv'
+        meta_file = os.path.join(user_input['metadir'], meta_file)
+        user_input['meta'] = meta_file
+        collect_dir = f'nsrdb_{user_input["year"]}'
+        collect_dir += f'_{user_input["extent"]}_blend'
+        collect_tag = f'{user_input["basename"]}_'
+        collect_tag += f'{user_input["extent"]}_{user_input["year"]}_'
+        user_input['collect_dir'] = collect_dir
+        user_input['collect_tag'] = collect_tag
+        user_input['fout'] = os.path.join(
+            f'{user_input["out_dir"]}',
+            f'{user_input["basename"]}_{user_input["year"]}.h5',
+        )
+
+        out_dir = user_input['out_dir']
+        os.makedirs(out_dir, exist_ok=True)
+        config_file = os.path.join(out_dir, 'config_collect_blend.json')
+        with open(config_file, 'w') as f:
+            f.write(json.dumps(user_input, indent=2))
+
+        logger.info(f'Created file: {config_file}')
+
+    @classmethod
+    def collect_aggregate(cls, kwargs):
+        """Create config for aggregation collection
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the case for aggregation collection
+        """
+        default_kwargs = {
+            'basename': 'nsrdb',
+            'metadir': '/projects/pxs/reference_grids',
+            'final_spatial': '4km',
+            'final_freq': '30min',
+            'out_dir': './',
+            'execution_control': DEFAULT_EXEC_CONFIG,
+        }
+
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+
+        meta_file = f'nsrdb_meta_{user_input["final_spatial"]}.csv'
+        meta_file = os.path.join(user_input['metadir'], meta_file)
+        collect_dir = f'nsrdb_{user_input["final_spatial"]}'
+        collect_dir += f'_{user_input["final_freq"]}'
+        collect_tag = f'{user_input["basename"]}_'
+        user_input['collect_dir'] = collect_dir
+        user_input['collect_tag'] = collect_tag
+        user_input['fout'] = os.path.join(
+            f'{user_input["out_dir"]}',
+            f'{user_input["basename"]}_{user_input["year"]}.h5',
+        )
+
+        out_dir = user_input['out_dir']
+        os.makedirs(out_dir, exist_ok=True)
+        config_file = os.path.join(out_dir, 'config_collect_aggregate.json')
+        with open(config_file, 'w') as f:
+            f.write(json.dumps(user_input, indent=2))
+
+        logger.info(f'Created file: {config_file}')

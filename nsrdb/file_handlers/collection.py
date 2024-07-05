@@ -9,6 +9,8 @@ from concurrent.futures import as_completed
 import numpy as np
 import pandas as pd
 import psutil
+from rex import NSRDB as NSRDBHandler
+from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
 from rex.utilities.loggers import init_logger
 
@@ -272,6 +274,37 @@ class Collector:
         f_data = f_data.astype(dtype)
 
         return f_data, row_slice, col_slice
+
+    @staticmethod
+    def _special_attrs(dset, dset_attrs):
+        """Enforce any special dataset attributes.
+
+        Parameters
+        ----------
+        dset : str
+            Name of dataset
+        dset_attrs : dict
+            Attribute key-value pair dictionary for dset.
+
+        Returns
+        -------
+        dset_attrs : dict
+            Attributes for dset with any special formatting.
+        """
+
+        if 'fill_flag' in dset:
+            dset_attrs['units'] = 'percent of filled timesteps'
+
+        if (
+            'scale_factor' in dset_attrs
+            and 'psm_scale_factor' not in dset_attrs
+        ):
+            dset_attrs['psm_scale_factor'] = dset_attrs['scale_factor']
+
+        if 'units' in dset_attrs and 'psm_units' not in dset_attrs:
+            dset_attrs['psm_units'] = dset_attrs['units']
+
+        return dset_attrs
 
     @staticmethod
     def _get_collection_attrs(
@@ -557,8 +590,8 @@ class Collector:
         sort=False,
         sort_key=None,
         var_meta=None,
-        log_level=None,
-        log_file=None,
+        log_file='collect_flist_lowmem.log',
+        log_level='DEBUG',
     ):
         """Collect a file list without data pre-init for low memory utilization
 
@@ -590,10 +623,9 @@ class Collector:
         log_file : str | None
             Target log file. None logs to stdout.
         """
-        if log_level is not None:
-            init_logger(
-                'nsrdb.file_handlers', log_file=log_file, log_level=log_level
-            )
+        init_logger(
+            'nsrdb.file_handlers', log_file=log_file, log_level=log_level
+        )
 
         if not os.path.exists(f_out):
             time_index, meta, _, _ = Collector._get_collection_attrs(
@@ -634,8 +666,8 @@ class Collector:
         n_writes=1,
         var_meta=None,
         max_workers=None,
-        log_level=None,
-        log_file=None,
+        log_file='collect_daily.log',
+        log_level='DEBUG',
     ):
         """Collect daily data model files from a dir to one output file.
 
@@ -668,17 +700,16 @@ class Collector:
             Defaults to the NSRDB var meta csv in git repo. This is used if
             f_out has not yet been initialized.
         max_workers : int | None
-            Number of workers to use in parallel. 1 runs serial,
-            None will use all available workers.
-        log_level : str | None
-            Desired log level, None will not initialize logging.
+            Number of workers to use in parallel. 1 runs serial, None will use
+            all available workers.
         log_file : str | None
             Target log file. None logs to stdout.
+        log_level : str | None
+            Desired log level, None will not initialize logging.
         """
-        if log_level is not None:
-            init_logger(
-                'nsrdb.file_handlers', log_file=log_file, log_level=log_level
-            )
+        init_logger(
+            'nsrdb.file_handlers', log_file=log_file, log_level=log_level
+        )
 
         if isinstance(dsets, str):
             dsets = (
@@ -740,3 +771,144 @@ class Collector:
                     )
 
         logger.info('Finished daily file collection.')
+
+    @staticmethod
+    def get_dset_attrs(
+        h5dir, ignore_dsets=('coordinates', 'time_index', 'meta')
+    ):
+        """Get output file dataset attributes for a set of datasets.
+
+        Parameters
+        ----------
+        h5dir : str
+            Path to directory containing multiple h5 files with all available
+            dsets. Can also be a single h5 filepath.
+        ignore_dsets : tuple | list
+            List of datasets to ignore (will not be aggregated).
+
+        Returns
+        -------
+        dsets : list
+            List of datasets.
+        attrs : dict
+            Dictionary of dataset attributes keyed by dset name.
+        chunks : dict
+            Dictionary of chunk tuples keyed by dset name.
+        dtypes : dict
+            dictionary of numpy datatypes keyed by dset name.
+        ti : pd.Datetimeindex
+            Time index of source files in h5dir.
+        """
+
+        dsets = []
+        attrs = {}
+        chunks = {}
+        dtypes = {}
+
+        if h5dir.endswith('.h5') and os.path.isfile(h5dir):
+            h5_files = [h5dir]
+        elif h5dir.endswith('.h5') and '*' in h5dir:
+            with MultiFileNSRDB(h5dir) as res:
+                h5_files = res._h5_files
+        else:
+            h5_files = [fn for fn in os.listdir(h5dir) if fn.endswith('.h5')]
+
+        logger.info(
+            'Getting dataset attributes from the following files: {}'.format(
+                h5_files
+            )
+        )
+
+        for fn in h5_files:
+            with NSRDBHandler(os.path.join(h5dir, fn)) as out:
+                ti = out.time_index
+                for d in out.dsets:
+                    if d not in ignore_dsets and d not in attrs:
+                        attrs[d] = Collector._special_attrs(
+                            d, out.get_attrs(dset=d)
+                        )
+
+                        try:
+                            x = out.get_dset_properties(d)
+                        except Exception as e:
+                            m = (
+                                'Could not get dataset "{}" properties from '
+                                'file: {}'.format(d, os.path.join(h5dir, fn))
+                            )
+                            logger.error(m)
+                            logger.exception(m)
+                            raise e
+                        else:
+                            _, dtypes[d], chunks[d] = x
+
+        dsets = list(attrs.keys())
+        logger.info('Found the following datasets: {}'.format(dsets))
+
+        return dsets, attrs, chunks, dtypes, ti
+
+    @classmethod
+    def collect_dir(
+        cls,
+        meta_final,
+        collect_dir,
+        collect_tag,
+        fout,
+        dsets=None,
+        max_workers=None,
+        log_file='collect_dir.log',
+        log_level='DEBUG',
+    ):
+        """Perform final collection of dsets for given collect_dir.
+
+        Parameters
+        ----------
+        meta_final : str | pd.DataFrame
+            Final meta data with index = gid.
+        collect_dir : str
+            Directory path containing chunked h5 files to collect.
+        collect_tag : str
+            String to be found in files that are being collected
+        fout : str
+            File path to the output collected file (will be initialized by
+            this method).
+        dsets : list | tuple
+            Select datasets to collect (None will default to all dsets)
+        max_workers : int | None
+            Number of workers to use in parallel. 1 runs serial, None will use
+            all available workers.
+        log_file : str | None
+            Target log file. None logs to stdout.
+        log_level : str | None
+            Desired log level, None will not initialize logging.
+        """
+
+        if log_level is not None:
+            init_logger(
+                'nsrdb.file_handlers', log_file=log_file, log_level=log_level
+            )
+
+        if isinstance(meta_final, str):
+            meta_final = pd.read_csv(meta_final, index_col=0)
+
+        fns = os.listdir(collect_dir)
+        flist = [
+            fn
+            for fn in fns
+            if fn.endswith('.h5')
+            and collect_tag in fn
+            and os.path.join(collect_dir, fn) != fout
+        ]
+        flist = sorted(
+            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1])
+        )
+
+        logger.info(f'Collecting chunks from {len(flist)} files to: {fout}')
+
+        dsets_all, attrs, chunks, dtypes, ti = cls.get_dset_attrs(collect_dir)
+        dsets = dsets_all if dsets is None else dsets
+        Outputs.init_h5(fout, dsets, attrs, chunks, dtypes, ti, meta_final)
+
+        for dset in dsets:
+            cls.collect_flist(
+                flist, collect_dir, fout, dset, max_workers=max_workers
+            )
