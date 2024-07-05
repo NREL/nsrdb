@@ -1,12 +1,4 @@
-# -*- coding: utf-8 -*-
-"""Entry point for NSRDB data pipeline execution.
-
-Created on Thu Apr 25 15:47:53 2019
-
-@author: gbuster
-
-TODO: Clean up create_config_files, blend_files, aggregate_files
-"""
+"""Entry point for NSRDB data pipeline execution."""
 
 import datetime
 import json

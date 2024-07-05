@@ -34,7 +34,7 @@ TOOL = os.path.join(
 def str_replace_dict(string_rep, user_input):
     """Replace keys in string representation of a dictionary with user input
     values. This is used to update config templates in
-    :meth:`NSRDB.create_config_files`"""
+    :meth:`CreateConfigs.main()`"""
     for k, v in user_input.items():
         if isinstance(v, int):
             string_rep = string_rep.replace(f'"%{k}%"', str(v))

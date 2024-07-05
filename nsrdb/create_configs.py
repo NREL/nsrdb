@@ -5,7 +5,7 @@ Created on Thu Apr 25 15:47:53 2019
 
 @author: gbuster
 
-TODO: Clean up create_config_files, blend_files, aggregate_files
+TODO: Clean up main, blend_files, aggregate_files
 """
 
 import calendar
@@ -219,9 +219,9 @@ class CreateConfigs:
                     'satellite': 'east',
                 }
             )
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update({'satellite': 'west'})
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
         elif kwargs['year'] == 2018:
             kwargs.update(
                 {
@@ -231,9 +231,9 @@ class CreateConfigs:
                     'satellite': 'east',
                 }
             )
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update({'extent': 'conus', 'freq': '5min'})
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update(
                 {
                     'spatial': '4km',
@@ -242,7 +242,7 @@ class CreateConfigs:
                     'satellite': 'west',
                 }
             )
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
         else:
             kwargs.update(
                 {
@@ -252,15 +252,15 @@ class CreateConfigs:
                     'satellite': 'east',
                 }
             )
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update({'satellite': 'west'})
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update(
                 {'extent': 'conus', 'freq': '5min', 'satellite': 'east'}
             )
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
             kwargs.update({'satellite': 'west'})
-            cls.create_config_files(kwargs)
+            cls.main(kwargs)
 
     @staticmethod
     def _update_run_templates(user_input):
@@ -368,6 +368,11 @@ class CreateConfigs:
         user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
 
         cls._update_run_templates(user_input)
+
+        with open(
+            os.path.join(user_input['out_dir'], 'run.sh'), mode='w'
+        ) as f:
+            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
 
     @classmethod
     def collect_blend(cls, kwargs):

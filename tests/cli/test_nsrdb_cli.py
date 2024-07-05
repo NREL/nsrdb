@@ -167,7 +167,7 @@ def test_cli_create_main_configs(runner):
         assert os.path.exists(os.path.join(out_dir, 'config_pipeline.json'))
         assert os.path.exists(os.path.join(out_dir, 'run.sh'))
 
-        kwargs = {'year': 2020}
+        kwargs = {'year': 2020, 'out_dir': td}
         result = runner.invoke(
             cli.create_configs, ['-c', kwargs, '--all_domains']
         )
@@ -179,8 +179,8 @@ def test_cli_create_main_configs(runner):
         out_dirs = [
             f'{td}/nsrdb_east_conus_2020_2km_5min',
             f'{td}/nsrdb_west_conus_2020_2km_5min',
-            f'{td}/nsrdb_east_full_2020_4km_10min',
-            f'{td}/nsrdb_east_full_2020_4km_10min',
+            f'{td}/nsrdb_east_full_2020_2km_10min',
+            f'{td}/nsrdb_west_full_2020_2km_10min',
         ]
         for out_dir in out_dirs:
             assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
