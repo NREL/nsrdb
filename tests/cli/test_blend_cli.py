@@ -37,29 +37,50 @@ def test_blend_cli(runner):
         os.mkdir(east_dir)
         os.mkdir(west_dir)
 
-        east_fp = os.path.join(east_dir, 'nsrdb_conus_east_irradiance.h5')
-        west_fp = os.path.join(west_dir, 'nsrdb_conus_west_irradiance.h5')
-        out_fp = os.path.join(out_dir, 'nsrdb_conus_irradiance.h5')
+        east_fps = [
+            os.path.join(east_dir, 'nsrdb_conus_east_irradiance.h5'),
+            os.path.join(east_dir, 'nsrdb_conus_east_clearsky.h5'),
+        ]
+        west_fps = [
+            os.path.join(west_dir, 'nsrdb_conus_west_irradiance.h5'),
+            os.path.join(west_dir, 'nsrdb_conus_west_clearsky.h5'),
+        ]
 
-        dsets = ['dni', 'dhi', 'ghi']
-        attrs = {d: {'scale_factor': 1, 'units': 'unitless'} for d in dsets}
-        chunks = dict.fromkeys(dsets)
-        dtypes = dict.fromkeys(dsets, 'uint16')
+        dsets_cld = ['dni', 'dhi', 'ghi']
+        dsets_clr = [f'clearsky_{dset}' for dset in dsets_cld]
 
-        Outputs.init_h5(
-            east_fp, dsets, attrs, chunks, dtypes, time_index, meta_east
-        )
-        Outputs.init_h5(
-            west_fp, dsets, attrs, chunks, dtypes, time_index, meta_west
-        )
+        for i, dsets in enumerate([dsets_cld, dsets_clr]):
+            attrs = {
+                d: {'scale_factor': 1, 'units': 'unitless'} for d in dsets
+            }
+            chunks = dict.fromkeys(dsets)
+            dtypes = dict.fromkeys(dsets, 'uint16')
+            Outputs.init_h5(
+                east_fps[i],
+                dsets,
+                attrs,
+                chunks,
+                dtypes,
+                time_index,
+                meta_east,
+            )
+            Outputs.init_h5(
+                west_fps[i],
+                dsets,
+                attrs,
+                chunks,
+                dtypes,
+                time_index,
+                meta_west,
+            )
 
-        with Outputs(east_fp, mode='a') as f:
-            for dset in dsets:
-                f[dset] = np.zeros((8760, len(meta_out)))
+            with Outputs(east_fps[i], mode='a') as f:
+                for dset in dsets:
+                    f[dset] = np.zeros((8760, len(meta_out)))
 
-        with Outputs(west_fp, mode='a') as f:
-            for dset in dsets:
-                f[dset] = np.ones((8760, len(meta_out)))
+            with Outputs(west_fps[i], mode='a') as f:
+                for dset in dsets:
+                    f[dset] = np.ones((8760, len(meta_out)))
 
         config = {
             'blend': {
@@ -67,13 +88,13 @@ def test_blend_cli(runner):
                 'out_dir': out_dir,
                 'east_dir': east_dir,
                 'west_dir': west_dir,
-                'file_tag': 'nsrdb_conus_',
+                'file_tag': ['irradiance', 'clearsky'],
                 'map_col': 'gid_full_map',
                 'lon_seam': lon_seam,
             },
         }
 
-        config_file = os.path.join(td, 'config.json')
+        config_file = os.path.join(td, 'config_blend.json')
         with open(config_file, 'w') as f:
             f.write(json.dumps(config))
 
@@ -82,10 +103,30 @@ def test_blend_cli(runner):
             *result.exc_info
         )
 
-        with Outputs(out_fp) as out:
+        fout = os.path.join(td, 'final_blend.h5')
+        config = {
+            'collect-blend': {
+                'collect_dir': out_dir,
+                'meta_final': meta_path,
+                'collect_tag': 'nsrdb_conus_',
+                'fout': fout,
+                'max_workers': 1,
+            },
+        }
+
+        config_file = os.path.join(td, 'config_collect_blend.json')
+        with open(config_file, 'w') as f:
+            f.write(json.dumps(config))
+
+        result = runner.invoke(cli.blend, ['-c', config_file, '--collect'])
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        with Outputs(fout) as out:
             west_mask = out.meta.longitude < lon_seam
             east_mask = out.meta.longitude >= lon_seam
-            for dset in dsets:
+            for dset in dsets_cld + dsets_clr:
                 data = out[dset]
                 assert (data[:, west_mask] == 1).all()
                 assert (data[:, east_mask] == 0).all()

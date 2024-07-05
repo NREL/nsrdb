@@ -700,7 +700,6 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    func = Collector.collect_dir if collect else Blender.run_full
     mod_name = ModuleName.COLLECT_BLEND if collect else ModuleName.BLEND
 
     config = BaseCLI.from_config_preflight(
@@ -711,22 +710,19 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
         pipeline_step=pipeline_step,
     )
 
-    file_tags = config.get(
-        'file_tag', ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
-    )
-    file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
-
     if collect:
-        BaseCLI.kickoff_single(
+        BaseCLI.kickoff_job(
             ctx=ctx,
             module_name=mod_name,
-            func=func,
+            func=Collector.collect_dir,
             config=config,
-            verbose=verbose,
-            pipeline_step=pipeline_step,
         )
 
     else:
+        file_tags = config.get(
+            'file_tag', ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
+        )
+        file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
         for file_tag in file_tags:
             log_id = file_tag
             config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
@@ -734,7 +730,7 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
             BaseCLI.kickoff_job(
                 ctx=ctx,
                 module_name=mod_name,
-                func=func,
+                func=Blender.run_full,
                 config=config,
                 log_id=log_id,
             )

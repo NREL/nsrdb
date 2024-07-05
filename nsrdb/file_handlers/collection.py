@@ -34,6 +34,7 @@ class Collector:
             Dataset/var name that is searched for in file names in collect_dir.
         """
 
+        self.collect_dir = collect_dir
         self.flist = self.get_flist(collect_dir, dset)
 
         if not any(self.flist):
@@ -109,7 +110,20 @@ class Collector:
         )
 
     @staticmethod
-    def get_flist(d, var):
+    def filter_flist(flist, collect_dir, dset):
+        """Filter file list so that only remaining files have given dset."""
+        filt_list = []
+        for fn in flist:
+            fp = os.path.join(collect_dir, fn)
+            with Outputs(fp, mode='r') as fobj:
+                if dset in fobj.dsets:
+                    filt_list.append(fn)
+
+        logger.debug(f'Found files for "{dset}": {filt_list}')
+        return filt_list
+
+    @staticmethod
+    def get_flist(d, dset):
         """Get a date-sorted .h5 file list for a given var.
 
         Filename requirements:
@@ -121,7 +135,7 @@ class Collector:
         ----------
         d : str
             Directory to get file list from.
-        var : str
+        dset : str
             Variable name that is searched for in files in d.
 
         Returns
@@ -131,20 +145,10 @@ class Collector:
             Sorted by integer before the first underscore in the filename.
         """
 
-        flist = []
         temp = os.listdir(d)
-        temp = [f for f in temp if f.endswith('.h5') and var in f]
-
-        for fn in temp:
-            fp = os.path.join(d, fn)
-            with Outputs(fp, mode='r') as fobj:
-                if var in fobj.dsets:
-                    flist.append(fn)
-
-        flist = sorted(flist, key=lambda x: int(x.split('_')[0]))
-        logger.debug('Found files for "{}": {}'.format(var, flist))
-
-        return flist
+        temp = [f for f in temp if f.endswith('.h5') and dset in f]
+        flist = Collector.filter_flist(temp, collect_dir=d, dset=dset)
+        return sorted(flist, key=lambda x: int(x.split('_')[0]))
 
     @staticmethod
     def get_slices(final_time_index, final_meta, new_time_index, new_meta):
@@ -308,7 +312,7 @@ class Collector:
 
     @staticmethod
     def _get_collection_attrs(
-        flist, collect_dir, dset, sites=None, sort=True, sort_key=None
+        flist, collect_dir, sites=None, sort=True, sort_key=None
     ):
         """Get important dataset attributes from a file list to be collected.
 
@@ -340,8 +344,6 @@ class Collector:
             collected
         shape : tuple
             Output (collected) dataset shape
-        dtype : str
-            Dataset output (collected on disk) dataset data type.
         """
 
         if sort:
@@ -373,11 +375,7 @@ class Collector:
 
         shape = (len(time_index), len(meta))
 
-        fp0 = os.path.join(collect_dir, flist[0])
-        with Outputs(fp0, mode='r') as fin:
-            dtype = fin.get_dset_properties(dset)[1]
-
-        return time_index, meta, shape, dtype
+        return time_index, meta, shape
 
     @staticmethod
     def _init_collected_h5(f_out, time_index, meta):
@@ -434,8 +432,9 @@ class Collector:
                     dset, f.shape, dtype, chunks=chunks, attrs=attrs, data=data
                 )
 
-    @staticmethod
+    @classmethod
     def collect_flist(
+        cls,
         flist,
         collect_dir,
         f_out,
@@ -448,6 +447,8 @@ class Collector:
     ):
         """Collect a dataset from a file list with data pre-init.
 
+        Note
+        ----
         Collects data that can be chunked in both space and time.
 
         Parameters
@@ -475,8 +476,11 @@ class Collector:
             None uses all available.
         """
 
-        time_index, meta, shape, _ = Collector._get_collection_attrs(
-            flist, collect_dir, dset, sites=sites, sort=sort, sort_key=sort_key
+        flist = cls.filter_flist(
+            flist=flist, collect_dir=collect_dir, dset=dset
+        )
+        time_index, meta, shape = Collector._get_collection_attrs(
+            flist, collect_dir, sites=sites, sort=sort, sort_key=sort_key
         )
 
         attrs, _, final_dtype = VarFactory.get_dset_attrs(
@@ -628,8 +632,8 @@ class Collector:
         )
 
         if not os.path.exists(f_out):
-            time_index, meta, _, _ = Collector._get_collection_attrs(
-                flist, collect_dir, dset, sort=sort, sort_key=sort_key
+            time_index, meta, _ = Collector._get_collection_attrs(
+                flist, collect_dir, sort=sort, sort_key=sort_key
             )
 
             Collector._init_collected_h5(f_out, time_index, meta)
@@ -744,8 +748,8 @@ class Collector:
                     raise ValueError(e)
 
                 if not os.path.exists(f_out):
-                    time_index, meta, _, _ = collector._get_collection_attrs(
-                        collector.flist, collect_dir, dset, sites=sites
+                    time_index, meta, _ = collector._get_collection_attrs(
+                        collector.flist, collect_dir, sites=sites
                     )
                     collector._init_collected_h5(f_out, time_index, meta)
 
@@ -898,7 +902,10 @@ class Collector:
             and os.path.join(collect_dir, fn) != fout
         ]
         flist = sorted(
-            flist, key=lambda x: int(x.replace('.h5', '').split('_')[-1])
+            flist,
+            key=lambda x: int(x.replace('.h5', '').split('_')[-1])
+            if x.replace('.h5', '').split('_')[-1].isdigit()
+            else x,
         )
 
         logger.info(f'Collecting chunks from {len(flist)} files to: {fout}')
@@ -909,5 +916,9 @@ class Collector:
 
         for dset in dsets:
             cls.collect_flist(
-                flist, collect_dir, fout, dset, max_workers=max_workers
+                flist,
+                collect_dir,
+                fout,
+                dset,
+                max_workers=max_workers,
             )
