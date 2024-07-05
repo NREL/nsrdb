@@ -1524,7 +1524,7 @@ class Manager:
 
         return arr
 
-    def _agg_var_parallel(self, var, method):
+    def _agg_var_parallel(self, var, method, max_workers=None):
         """Aggregate one var for all sites in this chunk in parallel.
 
         Parameters
@@ -1545,7 +1545,7 @@ class Manager:
         arr = self._init_arr(var)
 
         loggers = ['farms', 'nsrdb']
-        with SpawnProcessPool(loggers=loggers) as exe:
+        with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             logger.debug('Submitting futures...')
             for i in range(len(self.meta_chunk)):
                 args = self._get_args(var, i)
@@ -1590,7 +1590,7 @@ class Manager:
         n_chunks,
         year=2018,
         ignore_dsets=None,
-        parallel=True,
+        max_workers=None,
         log_file='run_agg_chunk.log',
         log_level='DEBUG',
     ):
@@ -1613,8 +1613,8 @@ class Manager:
             Year being analyzed.
         ignore_dsets : list | None
             Source datasets to ignore (not aggregate). Optional.
-        parallel : bool
-            Flag to use parallel compute.
+        max_workers : int | None
+            Number of workers to user. Runs serially if max_workers == 1
         log_file : str
             File to use for logging
         log_level : str | bool
@@ -1662,10 +1662,12 @@ class Manager:
                         var, i_var, n_var, method
                     )
                 )
-                if parallel:
-                    arr = m._agg_var_parallel(var, method)
-                else:
+                if max_workers == 1:
                     arr = m._agg_var_serial(var, method)
+                else:
+                    arr = m._agg_var_parallel(
+                        var, method, max_workers=max_workers
+                    )
 
                 m.write_output(arr, var)
 

@@ -80,9 +80,10 @@ def test_agg_cli(runner):
                 'data': TESTJOB3,
                 'data_dir': td,
                 'meta_dir': meta_dir,
+                'n_chunks': 2,
                 'year': 2018,
                 'ignore_dsets': IGNORE_DSETS,
-                'parallel': False,
+                'max_workers': 1,
             },
         }
 
@@ -97,6 +98,30 @@ def test_agg_cli(runner):
 
         fpath_out = fpath_out.replace('.h5', '_0.h5')
         with NSRDB(fpath_out, mode='r') as f:
+            dsets = ('dni', 'aod', 'cloud_type', 'cld_opd_dcomp')
+            assert all(d in f for d in dsets)
+
+        fout = os.path.join(td, 'final_agg.h5')
+        config = {
+            'collect-aggregate': {
+                'collect_dir': os.path.join(td, 'agg_out'),
+                'meta_final': os.path.join(meta_dir, 'test_meta_agg.csv'),
+                'collect_tag': 'agg_out_',
+                'fout': fout,
+                'max_workers': 1,
+            },
+        }
+
+        config_file = os.path.join(td, 'config.json')
+        with open(config_file, 'w') as f:
+            f.write(json.dumps(config))
+
+        result = runner.invoke(cli.aggregate, ['-c', config_file, '--collect'])
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        with NSRDB(fout, mode='r') as f:
             dsets = ('dni', 'aod', 'cloud_type', 'cld_opd_dcomp')
             assert all(d in f for d in dsets)
 

@@ -18,7 +18,7 @@ class ModuleName(str, Enum):
     BLEND = 'blend'
     COLLECT_BLEND = 'collect-blend'
     AGGREGATE = 'aggregate'
-    COLLECT_AGG = 'collect-agg'
+    COLLECT_AGGREGATE = 'collect-aggregate'
     COLLECT_DATA_MODEL = 'collect-data-model'
     COLLECT_FINAL = 'collect-final'
     TMY = 'tmy'

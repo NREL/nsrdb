@@ -105,7 +105,8 @@ def main(ctx, config, verbose):
         \b
         {
             "logging": {"log_level": "DEBUG"},
-            "<command name>": {kwargs},
+            "<command name>": {'run_name': ...,
+                               **kwargs},
             "direct": {more kwargs},
             "execution_control": {"option": "kestrel", ...}
             "another command": {...},
@@ -113,6 +114,8 @@ def main(ctx, config, verbose):
             ]
         }
 
+    The "run_name" key will be prepended to each kicked off job. e.g.
+    <run_name>_0, <run_name>_1, ... for multiple jobs from the same cli module.
     The "direct" key is used to provide arguments to multiple commands. This
     removes the need for duplication in the case of multiple commands having
     the same argument values. "execution_control" is used to provide arguments
@@ -764,7 +767,9 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     match resolution of low-resolution years (pre 2018)
     """
     func = Collector.collect_dir if collect else Manager.run_chunk
-    mod_name = ModuleName.COLLECT_AGG if collect else ModuleName.AGGREGATE
+    mod_name = (
+        ModuleName.COLLECT_AGGREGATE if collect else ModuleName.AGGREGATE
+    )
     kickoff_func = (
         BaseCLI.kickoff_single if collect else BaseCLI.kickoff_multichunk
     )

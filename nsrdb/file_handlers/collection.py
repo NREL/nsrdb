@@ -882,10 +882,9 @@ class Collector:
             Desired log level, None will not initialize logging.
         """
 
-        if log_level is not None:
-            init_logger(
-                'nsrdb.file_handlers', log_file=log_file, log_level=log_level
-            )
+        init_logger(
+            'nsrdb.file_handlers', log_file=log_file, log_level=log_level
+        )
 
         if isinstance(meta_final, str):
             meta_final = pd.read_csv(meta_final, index_col=0)
