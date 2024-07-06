@@ -202,11 +202,37 @@ def test_cli_create_blend_configs(runner):
             *result.exc_info
         )
 
-        config_file = os.path.join(td, 'config_blend.json')
+        config_file = os.path.join(td, 'config_blend_conus.json')
         assert os.path.exists(config_file)
         config = safe_json_load(config_file)
-        assert config['year'] == 2020
-        assert 'west_dir' in config and 'east_dir' in config
+        assert config['blend']['year'] == 2020
+        assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
+
+
+def test_cli_create_blend_configs_all(runner):
+    """Test nsrdb.cli create-configs --run_type blend without specifying extent
+    for year > 2017"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {'year': 2020, 'out_dir': td}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'blend']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        config_file = os.path.join(td, 'config_blend_conus.json')
+        assert os.path.exists(config_file)
+        config = safe_json_load(config_file)
+        assert config['blend']['year'] == 2020
+        assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
+
+        config_file = os.path.join(td, 'config_blend_full.json')
+        assert os.path.exists(config_file)
+        config = safe_json_load(config_file)
+        assert config['blend']['year'] == 2020
+        assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
 
 
 def test_cli_create_agg_configs(runner):
@@ -225,10 +251,10 @@ def test_cli_create_agg_configs(runner):
         assert os.path.exists(config_file)
 
         config = safe_json_load(config_file)
-        assert config['year'] == 2020
-        assert config['full_freq'] == '10min'
-        assert config['conus_freq'] == '5min'
-        assert config['final_freq'] == '30min'
+        assert config['aggregate']['year'] == 2020
+        assert config['aggregate']['full_freq'] == '10min'
+        assert config['aggregate']['conus_freq'] == '5min'
+        assert config['aggregate']['final_freq'] == '30min'
 
 
 def test_cli_steps(runner, modern_config):

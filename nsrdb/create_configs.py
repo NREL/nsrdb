@@ -1,12 +1,4 @@
-# -*- coding: utf-8 -*-
-"""Entry point for NSRDB data pipeline execution.
-
-Created on Thu Apr 25 15:47:53 2019
-
-@author: gbuster
-
-TODO: Clean up main, blend_files, aggregate_files
-"""
+"""Config creation class for CONUS / Full Disc NSRDB runs."""
 
 import calendar
 import copy
@@ -37,6 +29,7 @@ DEFAULT_EXEC_CONFIG = {
     'alloc': 'pxs',
 }
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,16 +39,262 @@ class CreateConfigs:
 
     RUN_NAME = '{basename}_{satellite}_{extent}_{year}_{spatial}_{freq}'
 
-    @staticmethod
-    def aggregate(kwargs):
+    @classmethod
+    def main_all(cls, kwargs):
+        """Modify config files for all domains with specified parameters.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of parameters including year, basename, satellite,
+            extent, freq, spatial, meta_file, doy_range
+        """
+        if kwargs['year'] < 2018:
+            kwargs.update(
+                {
+                    'spatial': '4km',
+                    'extent': 'full',
+                    'freq': '30min',
+                    'satellite': 'east',
+                }
+            )
+            cls.main(kwargs)
+            kwargs.update({'satellite': 'west'})
+            cls.main(kwargs)
+        elif kwargs['year'] == 2018:
+            kwargs.update(
+                {
+                    'spatial': '2km',
+                    'extent': 'full',
+                    'freq': '10min',
+                    'satellite': 'east',
+                }
+            )
+            cls.main(kwargs)
+            kwargs.update({'extent': 'conus', 'freq': '5min'})
+            cls.main(kwargs)
+            kwargs.update(
+                {
+                    'spatial': '4km',
+                    'extent': 'full',
+                    'freq': '30min',
+                    'satellite': 'west',
+                }
+            )
+            cls.main(kwargs)
+        else:
+            kwargs.update(
+                {
+                    'spatial': '2km',
+                    'extent': 'full',
+                    'freq': '10min',
+                    'satellite': 'east',
+                }
+            )
+            cls.main(kwargs)
+            kwargs.update({'satellite': 'west'})
+            cls.main(kwargs)
+            kwargs.update(
+                {'extent': 'conus', 'freq': '5min', 'satellite': 'east'}
+            )
+            cls.main(kwargs)
+            kwargs.update({'satellite': 'west'})
+            cls.main(kwargs)
+
+    @classmethod
+    def full(cls, kwargs):
+        """Modify config files for all domains with specified parameters. Write
+        all post processing config files and post processing pipeline config
+        file for the given year
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of parameters including year, basename, satellite,
+            extent, freq, spatial, meta_file, doy_range
+        """
+        cls.main_all(kwargs)
+        cls.post(kwargs)
+
+    @classmethod
+    def _update_run_templates(cls, user_input):
+        """Replace format keys and dictionary keys in config templates with
+        user input values."""
+
+        logger.info(
+            'Updating NSRDB run templates with user_input:\n'
+            f'{pprint.pformat(user_input, indent=2)}'
+        )
+
+        template = (
+            PRE2018_CONFIG_TEMPLATE
+            if int(user_input['year']) < 2018
+            else POST2017_CONFIG_TEMPLATE
+        )
+        with open(template, encoding='utf-8') as s:
+            s = s.read()
+
+        config_dict = json.loads(str_replace_dict(s, user_input))
+        config_dict.update(
+            {k: v for k, v in user_input.items() if k in config_dict}
+        )
+        cls._write_config(
+            config_dict,
+            os.path.join(user_input['out_dir'], 'config_nsrdb.json'),
+        )
+
+        with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
+            s = s.read()
+
+        config_dict = json.loads(str_replace_dict(s, user_input))
+
+        cls._write_config(
+            config_dict,
+            os.path.join(user_input['out_dir'], 'config_pipeline.json'),
+        )
+
+    @classmethod
+    def main(cls, kwargs):
+        """Modify config files with specified parameters
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of parameters including year, basename, satellite,
+            extent, freq, spatial, meta_file, doy_range
+        """
+
+        default_kwargs = {
+            'basename': 'nsrdb',
+            'freq': '5min',
+            'spatial': '4km',
+            'satellite': 'east',
+            'extent': 'conus',
+            'out_dir': './',
+            'meta_file': None,
+            'doy_range': None,
+        }
+        user_input = copy.deepcopy(default_kwargs)
+        user_input.update(kwargs)
+        os.makedirs(user_input['out_dir'], exist_ok=True)
+
+        extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
+        lon_seam_map = {'full': -105, 'conus': -113}
+        user_input['extent_tag'] = extent_tag_map[user_input['extent']]
+        lon_seam = lon_seam_map[user_input['extent']]
+
+        if user_input['meta_file'] is None:
+            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
+
+            if user_input['year'] > 2017:
+                meta_file += f'_{user_input["extent"]}'
+
+            meta_file += f'_{user_input["satellite"]}_{lon_seam}.csv'
+            user_input['meta_file'] = meta_file
+
+        if user_input['doy_range'] is None:
+            if calendar.isleap(user_input['year']):
+                user_input['doy_range'] = [1, 367]
+            else:
+                user_input['doy_range'] = [1, 366]
+
+        user_input['start_doy'] = user_input['doy_range'][0]
+        user_input['end_doy'] = user_input['doy_range'][1]
+
+        run_name = cls.RUN_NAME.format(
+            basename=user_input['basename'],
+            satellite=user_input['satellite'],
+            extent=user_input['extent'],
+            year=user_input['year'],
+            spatial=user_input['spatial'],
+            freq=user_input['freq'],
+        )
+
+        user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
+
+        cls._update_run_templates(user_input)
+
+        run_file = os.path.join(user_input['out_dir'], 'run.sh')
+        with open(run_file, 'w') as f:
+            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
+
+        logger.info(f'Saved run script: {run_file}.')
+
+    @classmethod
+    def post(cls, kwargs):
+        """Create all post processing config files for blending / aggregation /
+        collection."""
+
+        pipeline_config = {'pipeline': []}
+        out_dir = kwargs.get('out_dir', './')
+
+        if kwargs['year'] > 2017:
+            kwargs.update({'extent': 'conus'})
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_conus.json', module_name='blend'
+            )
+            pipeline_config['pipeline'].append(
+                {
+                    'blend-conus': './config_blend_conus.json',
+                    'command': 'blend',
+                }
+            )
+            kwargs.update({'extent': 'full'})
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_full.json', module_name='blend'
+            )
+            pipeline_config['pipeline'].append(
+                {'blend-full': './config_blend_full.json', 'command': 'blend'}
+            )
+            config = cls._aggregate(kwargs)
+            cls._write_config(
+                config, 'config_aggregate.json', module_name='aggregate'
+            )
+            pipeline_config['pipeline'].append(
+                {'aggregate': './config_aggregate.json'}
+            )
+            config = cls._collect_aggregate(kwargs)
+            cls._write_config(
+                config,
+                'config_collect_aggregate.json',
+                module_name='collect-aggregate',
+            )
+            pipeline_config['pipeline'].append(
+                {'collect-aggregate': './config_collect_aggregate.json'}
+            )
+        else:
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_full.json', module_name='blend'
+            )
+            pipeline_config['pipeline'].append(
+                {'blend': './config_blend_full.json'}
+            )
+            config = cls._collect_blend(kwargs)
+            cls._write_config(
+                config,
+                'config_collect_blend.json',
+                module_name='collect-blend',
+            )
+            pipeline_config['pipeline'].append(
+                {'collect-blend': './config_collect_blend.json'}
+            )
+        cls._write_config(
+            pipeline_config, os.path.join(out_dir, 'config_pipeline_post.json')
+        )
+
+    @classmethod
+    def _aggregate(cls, kwargs):
         """Get config for conus and full disk high-resolution to low-resolution
         aggregation.  This is then used as the input to `nsrdb.cli.aggregate`
 
         Parameters
         ----------
         kwargs : dict
-            Dictionary with keys specifying the
-            case for which to aggregate files
+            Dictionary with keys specifying the case for which to aggregate
+            files
         """
         default_kwargs = {
             'basename': 'nsrdb',
@@ -121,58 +360,65 @@ class CreateConfigs:
         }
 
         user_input['data'] = NSRDB
-
-        out_dir = user_input['out_dir']
-        os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(out_dir, 'config_aggregate.json')
         run_name = user_input.get('run_name', None)
         user_input['run_name'] = (
             run_name
             if run_name is not None
             else f'aggregate_{user_input["year"]}'
         )
-        user_input = {'aggregate': user_input}
-        with open(config_file, 'w') as f:
-            f.write(json.dumps(user_input, indent=2))
-
-        logger.info(
-            f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(user_input, indent=2)}'
-        )
+        return user_input
 
     @classmethod
-    def blend(cls, kwargs):
-        """Get config dictionary for nsrdb.cli.blend for standard NSRDB runs.
+    def aggregate(cls, kwargs):
+        """Get config for conus and full disk high-resolution to low-resolution
+        aggregation.  This is then used as the input to `nsrdb.cli.aggregate`
 
         Parameters
         ----------
         kwargs : dict
-            Dictionary with keys specifying the
-            case for which to blend data files
+            Dictionary with keys specifying the case for which to aggregate
+            files
+        """
+
+        config = cls._aggregate(kwargs)
+        cls._write_config(
+            config, 'config_aggregate.json', module_name='aggregate'
+        )
+
+    @classmethod
+    def _blend(cls, kwargs):
+        """Get config dictionary for nsrdb.cli.blend for standard NSRDB runs
+        for a given extent.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the case for which to blend data
+            files
         """
         default_kwargs = {
             'file_tag': 'all',
             'basename': 'nsrdb',
             'metadir': '/projects/pxs/reference_grids',
-            'spatial': '2km',
-            'extent': 'conus',
+            'spatial': '4km',
+            'extent': 'full',
             'out_dir': './',
             'chunk_size': 100000,
             'meta_file': None,
             'east_dir': None,
             'west_dir': None,
-            'freq': '5min',
+            'freq': '30min',
             'execution_control': DEFAULT_EXEC_CONFIG,
         }
         user_input = copy.deepcopy(default_kwargs)
         user_input.update(kwargs)
 
-        if user_input['year'] < 2018:
-            user_input['extent'] = 'full'
-            user_input['spatial'] = '4km'
-            user_input['freq'] = '30min'
-        elif user_input['extent'] == 'full':
-            user_input['freq'] = '10min'
+        if user_input['year'] > 2017:
+            user_input['spatial'] = '2km'
+            if user_input['extent'] == 'full':
+                user_input['freq'] = '10min'
+            else:
+                user_input['freq'] = '5min'
 
         map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
         user_input['map_col'] = (
@@ -180,10 +426,10 @@ class CreateConfigs:
             or map_col_map[user_input['extent']]
         )
 
-        meta_lon_map = {'full': -105, 'conus': -113}
-        user_input['meta_lon'] = (
+        lon_seam_map = {'full': -105, 'conus': -113}
+        user_input['lon_seam'] = (
             user_input.get('lon_seam', None)
-            or meta_lon_map[user_input['extent']]
+            or lon_seam_map[user_input['extent']]
         )
 
         if user_input['meta_file'] is None:
@@ -223,210 +469,75 @@ class CreateConfigs:
                 ),
                 'final',
             )
-
-        out_dir = user_input['out_dir']
-        os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(
-            out_dir, f'config_blend_{user_input["extent"]}.json'
-        )
         run_name = user_input.get('run_name', None)
         user_input['run_name'] = (
             run_name
             if run_name is not None
             else f'blend_{user_input["extent"]}_{user_input["year"]}'
         )
-        user_input = {'blend': user_input}
+
+        return user_input
+
+    @classmethod
+    def _write_config(cls, config, config_file, module_name=None):
+        """Write config to .json file."""
+
+        config_dir = os.path.dirname(config_file)
+        out_dir = config.get('out_dir', config_dir or './')
+        os.makedirs(out_dir, exist_ok=True)
+        config_file = os.path.join(out_dir, os.path.basename(config_file))
+
+        if module_name is not None:
+            exec_kwargs = config.pop('execution_control')
+            config = {
+                module_name: config,
+                'execution_control': exec_kwargs,
+            }
         with open(config_file, 'w') as f:
-            f.write(json.dumps(user_input, indent=2))
+            f.write(json.dumps(config, indent=2))
 
         logger.info(
             f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(user_input, indent=2)}'
+            f'\n{pprint.pformat(config, indent=2)}'
         )
 
     @classmethod
-    def main_all_domains(cls, kwargs):
-        """Modify config files for all domains with specified parameters
+    def blend(cls, kwargs):
+        """Get config dictionary for nsrdb.cli.blend for standard NSRDB runs.
 
         Parameters
         ----------
         kwargs : dict
-            Dictionary of parameters including year, basename, satellite,
-            extent, freq, spatial, meta_file, doy_range
+            Dictionary with keys specifying the case for which to blend data
+            files
         """
-        if kwargs['year'] < 2018:
-            kwargs.update(
-                {
-                    'spatial': '4km',
-                    'extent': 'full',
-                    'freq': '30min',
-                    'satellite': 'east',
-                }
+
+        if kwargs['year'] > 2017 and 'extent' not in kwargs:
+            kwargs.update({'extent': 'conus'})
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_conus.json', module_name='blend'
             )
-            cls.main(kwargs)
-            kwargs.update({'satellite': 'west'})
-            cls.main(kwargs)
-        elif kwargs['year'] == 2018:
-            kwargs.update(
-                {
-                    'spatial': '2km',
-                    'extent': 'full',
-                    'freq': '10min',
-                    'satellite': 'east',
-                }
+            kwargs.update({'extent': 'full'})
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_full.json', module_name='blend'
             )
-            cls.main(kwargs)
-            kwargs.update({'extent': 'conus', 'freq': '5min'})
-            cls.main(kwargs)
-            kwargs.update(
-                {
-                    'spatial': '4km',
-                    'extent': 'full',
-                    'freq': '30min',
-                    'satellite': 'west',
-                }
-            )
-            cls.main(kwargs)
         else:
-            kwargs.update(
-                {
-                    'spatial': '2km',
-                    'extent': 'full',
-                    'freq': '10min',
-                    'satellite': 'east',
-                }
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config, 'config_blend_full.json', module_name='blend'
             )
-            cls.main(kwargs)
-            kwargs.update({'satellite': 'west'})
-            cls.main(kwargs)
-            kwargs.update(
-                {'extent': 'conus', 'freq': '5min', 'satellite': 'east'}
-            )
-            cls.main(kwargs)
-            kwargs.update({'satellite': 'west'})
-            cls.main(kwargs)
-
-    @staticmethod
-    def _update_run_templates(user_input):
-        """Replace format keys and dictionary keys in config templates with
-        user input values."""
-
-        logger.info(
-            'Updating NSRDB run templates with user_input:\n'
-            f'{pprint.pformat(user_input, indent=2)}'
-        )
-
-        template = (
-            PRE2018_CONFIG_TEMPLATE
-            if int(user_input['year']) < 2018
-            else POST2017_CONFIG_TEMPLATE
-        )
-        with open(template, encoding='utf-8') as s:
-            s = s.read()
-
-        s = str_replace_dict(s, user_input)
-
-        if not os.path.exists(user_input['out_dir']):
-            os.makedirs(user_input['out_dir'])
-
-        config_dict = json.loads(s)
-        config_dict.update(
-            {k: v for k, v in user_input.items() if k in config_dict}
-        )
-        config_file = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
-        with open(config_file, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(config_dict, indent=2))
-
-        logger.info(
-            f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(config_dict, indent=2)}'
-        )
-
-        with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
-            s = s.read()
-
-        s = str_replace_dict(s, user_input)
-
-        config_file = os.path.join(
-            user_input['out_dir'], 'config_pipeline.json'
-        )
-        with open(config_file, 'w', encoding='utf-8') as f:
-            f.write(s)
-
-        logger.info(
-            f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(config_dict, indent=2)}'
-        )
 
     @classmethod
-    def main(cls, kwargs):
-        """Modify config files with specified parameters
+    def _collect_blend(cls, kwargs):
+        """Create config for collecting blended files into a single output
+        file.
 
-        Parameters
-        ----------
-        kwargs : dict
-            Dictionary of parameters including year, basename, satellite,
-            extent, freq, spatial, meta_file, doy_range
-        """
-
-        default_kwargs = {
-            'basename': 'nsrdb',
-            'freq': '5min',
-            'spatial': '4km',
-            'satellite': 'east',
-            'extent': 'conus',
-            'out_dir': './',
-            'meta_file': None,
-            'doy_range': None,
-        }
-        user_input = copy.deepcopy(default_kwargs)
-        user_input.update(kwargs)
-
-        extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
-        meta_lon_map = {'full': -105, 'conus': -113}
-        user_input['extent_tag'] = extent_tag_map[user_input['extent']]
-        meta_lon = meta_lon_map[user_input['extent']]
-
-        if user_input['meta_file'] is None:
-            meta_file = f'nsrdb_meta_{user_input["spatial"]}'
-
-            if user_input['year'] > 2017:
-                meta_file += f'_{user_input["extent"]}'
-
-            meta_file += f'_{user_input["satellite"]}_{meta_lon}.csv'
-            user_input['meta_file'] = meta_file
-
-        if user_input['doy_range'] is None:
-            if calendar.isleap(user_input['year']):
-                user_input['doy_range'] = [1, 367]
-            else:
-                user_input['doy_range'] = [1, 366]
-
-        user_input['start_doy'] = user_input['doy_range'][0]
-        user_input['end_doy'] = user_input['doy_range'][1]
-
-        run_name = cls.RUN_NAME.format(
-            basename=user_input['basename'],
-            satellite=user_input['satellite'],
-            extent=user_input['extent'],
-            year=user_input['year'],
-            spatial=user_input['spatial'],
-            freq=user_input['freq'],
-        )
-
-        user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
-
-        cls._update_run_templates(user_input)
-
-        run_file = os.path.join(user_input['out_dir'], 'run.sh')
-        with open(run_file, 'w') as f:
-            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
-
-        logger.info(f'Saved run script: {run_file}.')
-
-    @classmethod
-    def collect_blend(cls, kwargs):
-        """Create blend collect config files.
+        Note
+        ----
+        This is used to combine year < 2018 dset files into single files with
+        all dsets. e.g. clearsky, irradiance, clouds, etc -> nsrdb_{year}.h5
 
         Parameters
         ----------
@@ -467,21 +578,37 @@ class CreateConfigs:
             if run_name is not None
             else f'collect_blend_{user_input["extent"]}_{user_input["year"]}'
         )
-        out_dir = user_input['out_dir']
-        user_input = {'collect-blend': user_input}
-        os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(out_dir, 'config_collect_blend.json')
-        with open(config_file, 'w') as f:
-            f.write(json.dumps(user_input, indent=2))
+        return user_input
 
-        logger.info(
-            f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(user_input, indent=2)}'
+    @classmethod
+    def collect_blend(cls, kwargs):
+        """Collect blended files into a single output file.
+
+        Note
+        ----
+        This is used to combine year < 2018 dset files into single files with
+        all dsets. e.g. clearsky, irradiance, clouds, etc -> nsrdb_{year}.h5
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the case for blend collection
+        """
+
+        config = cls._collect_blend(kwargs)
+        cls._write_config(
+            config, 'config_collect_blend.json', module_name='collect-blend'
         )
 
     @classmethod
-    def collect_aggregate(cls, kwargs):
+    def _collect_aggregate(cls, kwargs):
         """Create config for aggregation collection
+
+        Note
+        ----
+        This is used to collect single dset aggregated files into a single file
+        with all dsets. e.g. e.g. clearsky, irradiance, clouds, etc ->
+        nsrdb_{year}.h5
 
         Parameters
         ----------
@@ -511,21 +638,33 @@ class CreateConfigs:
             f'{user_input["out_dir"]}',
             f'{user_input["basename"]}_{user_input["year"]}.h5',
         )
-
-        out_dir = user_input['out_dir']
-        os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(out_dir, 'config_collect_aggregate.json')
         run_name = user_input.get('run_name', None)
         user_input['run_name'] = (
             run_name
             if run_name is not None
             else f'collect_aggregate_{user_input["year"]}'
         )
-        user_input = {'collect-aggregate': user_input}
-        with open(config_file, 'w') as f:
-            f.write(json.dumps(user_input, indent=2))
+        return user_input
 
-        logger.info(
-            f'Created config file: {config_file}:'
-            f'\n{pprint.pformat(user_input, indent=2)}'
+    @classmethod
+    def collect_aggregate(cls, kwargs):
+        """Create config for aggregation collection
+
+        Note
+        ----
+        This is used to collect single dset aggregated files into a single file
+        with all dsets. e.g. e.g. clearsky, irradiance, clouds, etc ->
+        nsrdb_{year}.h5
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary with keys specifying the case for aggregation collection
+        """
+        config = cls._collect_aggregate(kwargs)
+
+        cls._write_config(
+            config,
+            'config_collect_aggregate.json',
+            module_name='collect-aggregate',
         )

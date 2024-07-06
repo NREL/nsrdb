@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from nsrdb import TESTDATADIR
-from nsrdb.all_sky.all_sky import all_sky
+from nsrdb.all_sky.all_sky import all_sky, calc_dhi
 from nsrdb.utilities.pytest import execute_pytest
 from nsrdb.utilities.statistics import mae_perc
 
@@ -37,9 +37,10 @@ def get_benchmark_data(test_file=TEST_FILE, sites=SITES):
 
     with h5py.File(test_file, 'r') as f:
         # get the original baseline irradiance variables
-        dhi_orig = f['dhi'][:, sites]
+        sza = f['solar_zenith_angle'][:, sites] / 100
         dni_orig = f['dni'][:, sites]
         ghi_orig = f['ghi'][:, sites]
+        dhi_orig, _ = calc_dhi(dni_orig, ghi_orig, sza=sza)
         fill_orig = f['fill_flag'][:, sites]
 
     return dhi_orig, dni_orig, ghi_orig, fill_orig
@@ -255,8 +256,8 @@ def test_all_sky(
         )
         assert mae_p[var] < mae_perc_threshold, msg
 
-    logger.info(f'MAE: {mae_p}')
-    logger.info(
+    print(f'MAE dictionary: {mae_p}')
+    print(
         'Maximum of {:.4f}% bad timesteps. Threshold was {:.4f}%.'.format(
             max_perc_bad, 100 * timestep_frac_threshold
         )

@@ -237,12 +237,16 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
 @click.option(
     '--run_type',
     '-r',
-    default='main',
+    default='full',
     type=str,
-    help="""Module to create configs for. Can be "main" (for standard run
-    with data-model, ml-cloud-fill, all-sky, and collect-data-model),
-    "aggregate" (for aggregating post-2018 data to pre-2018 resolution),
-    or "blend" (for blending east and west domains into a single domain)""",
+    help="""Run type to create configs for. Can be "full" (generates all config
+    and pipline files for the given year, including all domain main runs,
+    blending, aggregation, and collection), or "main" (for standard run without
+    post-processing, with data-model, ml-cloud-fill, all-sky, and
+    collect-data-model), "aggregate" (for aggregating post-2018 data to
+    pre-2018 resolution), "blend" (for blending east and west domains into a
+    single domain), or "post" (for all blending / aggregation / collection for
+    a given year)""",
 )
 @click.option(
     '--all_domains',
@@ -262,16 +266,18 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
 )
 @click.pass_context
 def create_configs(
-    ctx, config, run_type='main', all_domains=False, collect=False
+    ctx, config, run_type='full', all_domains=False, collect=False
 ):
     """Create config files for standard NSRDB runs using config templates."""
 
     init_logger('nsrdb.create_configs', log_level='DEBUG')
 
     ctx.ensure_object(dict)
-    if run_type == 'main':
+    if run_type == 'full':
+        CreateConfigs.full(config)
+    elif run_type == 'main':
         if all_domains:
-            CreateConfigs.main_all_domains(config)
+            CreateConfigs.main_all(config)
         else:
             CreateConfigs.main(config)
     elif run_type == 'aggregate':
@@ -284,10 +290,12 @@ def create_configs(
             CreateConfigs.collect_blend(config)
         else:
             CreateConfigs.blend(config)
+    elif run_type == 'post':
+        CreateConfigs.post(config)
     else:
         msg = (
             f'Received unknown "run_type" {run_type}. Accepted values are '
-            '"main", "aggregate", and "blend"'
+            '"main", "post", "aggregate", and "blend"'
         )
         logger.error(msg)
         raise ValueError(msg)
@@ -721,9 +729,13 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
         )
 
     else:
-        file_tags = config.get(
-            'file_tag', ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
+        file_tags = config.get('file_tag', 'all')
+        file_tags = (
+            file_tags
+            if file_tags != 'all'
+            else ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
         )
+
         file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
         for file_tag in file_tags:
             log_id = file_tag
