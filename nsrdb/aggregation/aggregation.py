@@ -78,25 +78,25 @@ SIMPLE = {
 
 NSRDB_2018 = {
     'east': {
-        'data_sub_dir': 'east',
-        'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
-        'meta_file': 'nsrdb_meta_2km_east.csv',
+        'data_sub_dir': 'nsrdb_full_east_2018_2km_10min/final/',
+        'tree_file': 'kdtree_nsrdb_meta_2km_full.pkl',
+        'meta_file': 'nsrdb_meta_2km_full.csv',
         'spatial': '2km',
-        'temporal': '15min',
-    },
-    'west': {
-        'data_sub_dir': 'west',
-        'tree_file': 'kdtree_west_psm_extent.pkl',
-        'meta_file': 'west_psm_extent.csv',
-        'spatial': '4km',
-        'temporal': '30min',
+        'temporal': '10min',
     },
     'conus': {
-        'data_sub_dir': 'conus',
+        'data_sub_dir': 'nsrdb_conus_east_2018_2km_5min/final/',
         'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
         'meta_file': 'nsrdb_meta_2km_conus.csv',
         'spatial': '2km',
         'temporal': '5min',
+    },
+    'west': {
+        'data_sub_dir': 'nsrdb_west_full_2018_4km_30min/final/',
+        'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
+        'meta_file': 'nsrdb_meta_4km.csv',
+        'spatial': '4km',
+        'temporal': '30min',
     },
     'final': {
         'data_sub_dir': 'nsrdb_4km_30min',

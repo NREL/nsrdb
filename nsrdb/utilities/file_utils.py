@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """NSRDB data mover and manipulation utilities.
 
 @author: gbuster

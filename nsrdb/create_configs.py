@@ -8,6 +8,7 @@ import os
 import pprint
 
 from nsrdb import CONFIGDIR
+from nsrdb.aggregation.aggregation import NSRDB_2018
 from nsrdb.utilities.file_utils import (
     str_replace_dict,
 )
@@ -63,23 +64,13 @@ class CreateConfigs:
             cls.main(kwargs)
         elif kwargs['year'] == 2018:
             kwargs.update(
-                {
-                    'spatial': '2km',
-                    'extent': 'full',
-                    'freq': '10min',
-                    'satellite': 'east',
-                }
+                {'extent': 'full', 'satellite': 'east', **NSRDB_2018['east']}
             )
             cls.main(kwargs)
-            kwargs.update({'extent': 'conus', 'freq': '5min'})
+            kwargs.update({'extent': 'conus', **NSRDB_2018['conus']})
             cls.main(kwargs)
             kwargs.update(
-                {
-                    'spatial': '4km',
-                    'extent': 'full',
-                    'freq': '30min',
-                    'satellite': 'west',
-                }
+                {'extent': 'full', 'satellite': 'west', **NSRDB_2018['west']}
             )
             cls.main(kwargs)
         else:
@@ -183,10 +174,10 @@ class CreateConfigs:
         user_input['extent_tag'] = extent_tag_map[user_input['extent']]
         lon_seam = lon_seam_map[user_input['extent']]
 
-        if user_input['meta_file'] is None:
+        if user_input['meta_file'] is None and user_input['year'] != 2018:
             meta_file = f'nsrdb_meta_{user_input["spatial"]}'
 
-            if user_input['year'] > 2017:
+            if user_input['year'] > 2018:
                 meta_file += f'_{user_input["extent"]}'
 
             meta_file += f'_{user_input["satellite"]}_{lon_seam}.csv'
@@ -228,7 +219,7 @@ class CreateConfigs:
         pipeline_config = {'pipeline': []}
         out_dir = kwargs.get('out_dir', './')
 
-        if kwargs['year'] > 2017:
+        if kwargs['year'] > 2018:
             kwargs.update({'extent': 'conus'})
             config = cls._blend(kwargs)
             cls._write_config(
@@ -263,6 +254,14 @@ class CreateConfigs:
             )
             pipeline_config['pipeline'].append(
                 {'collect-aggregate': './config_collect_aggregate.json'}
+            )
+        elif kwargs['year'] == 2018:
+            config = cls._aggregate(kwargs)
+            cls._write_config(
+                config, 'config_aggregate.json', module_name='aggregate'
+            )
+            pipeline_config['pipeline'].append(
+                {'aggregate': './config_aggregate.json'}
             )
         else:
             config = cls._blend(kwargs)
@@ -333,33 +332,41 @@ class CreateConfigs:
 
         source_priority = user_input['source_priority']
 
-        NSRDB = {
-            'full_disk': {
-                'data_sub_dir': full_sub_dir,
-                'tree_file': full_tree_file,
-                'meta_file': full_meta_file,
-                'spatial': f'{user_input["full_spatial"]}',
-                'temporal': f'{user_input["full_freq"]}',
-            },
-            'conus': {
-                'data_sub_dir': conus_sub_dir,
-                'tree_file': conus_tree_file,
-                'meta_file': conus_meta_file,
-                'spatial': f'{user_input["conus_spatial"]}',
-                'temporal': f'{user_input["conus_freq"]}',
-            },
-            'final': {
-                'data_sub_dir': final_sub_dir,
-                'fout': 'nsrdb.h5',
-                'tree_file': tree_file.format(res=user_input['final_spatial']),
-                'meta_file': meta_file.format(res=user_input['final_spatial']),
-                'spatial': f'{user_input["final_spatial"]}',
-                'temporal': f'{user_input["final_freq"]}',
-                'source_priority': source_priority,
-            },
-        }
+        if user_input['year'] == 2018:
+            data = NSRDB_2018
 
-        user_input['data'] = NSRDB
+        else:
+            data = {
+                'full_disk': {
+                    'data_sub_dir': full_sub_dir,
+                    'tree_file': full_tree_file,
+                    'meta_file': full_meta_file,
+                    'spatial': f'{user_input["full_spatial"]}',
+                    'temporal': f'{user_input["full_freq"]}',
+                },
+                'conus': {
+                    'data_sub_dir': conus_sub_dir,
+                    'tree_file': conus_tree_file,
+                    'meta_file': conus_meta_file,
+                    'spatial': f'{user_input["conus_spatial"]}',
+                    'temporal': f'{user_input["conus_freq"]}',
+                },
+                'final': {
+                    'data_sub_dir': final_sub_dir,
+                    'fout': f'nsrdb_{user_input["year"]}.h5',
+                    'tree_file': tree_file.format(
+                        res=user_input['final_spatial']
+                    ),
+                    'meta_file': meta_file.format(
+                        res=user_input['final_spatial']
+                    ),
+                    'spatial': f'{user_input["final_spatial"]}',
+                    'temporal': f'{user_input["final_freq"]}',
+                    'source_priority': source_priority,
+                },
+            }
+
+        user_input['data'] = data
         run_name = user_input.get('run_name', None)
         user_input['run_name'] = (
             run_name
