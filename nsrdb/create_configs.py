@@ -44,6 +44,8 @@ class CreateConfigs:
     """Collection of methods to create config files for NSRDB module inputs for
     standard CONUS / Full Disc runs."""
 
+    RUN_NAME = '{basename}_{satellite}_{extent}_{year}_{spatial}_{freq}'
+
     @staticmethod
     def aggregate(kwargs):
         """Get config for conus and full disk high-resolution to low-resolution
@@ -123,10 +125,20 @@ class CreateConfigs:
         out_dir = user_input['out_dir']
         os.makedirs(out_dir, exist_ok=True)
         config_file = os.path.join(out_dir, 'config_aggregate.json')
+        run_name = user_input.get('run_name', None)
+        user_input['run_name'] = (
+            run_name
+            if run_name is not None
+            else f'aggregate_{user_input["year"]}'
+        )
+        user_input = {'aggregate': user_input}
         with open(config_file, 'w') as f:
             f.write(json.dumps(user_input, indent=2))
 
-        logger.info(f'Created config file: {config_file}.')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(user_input, indent=2)}'
+        )
 
     @classmethod
     def blend(cls, kwargs):
@@ -149,6 +161,7 @@ class CreateConfigs:
             'meta_file': None,
             'east_dir': None,
             'west_dir': None,
+            'freq': '5min',
             'execution_control': DEFAULT_EXEC_CONFIG,
         }
         user_input = copy.deepcopy(default_kwargs)
@@ -157,6 +170,9 @@ class CreateConfigs:
         if user_input['year'] < 2018:
             user_input['extent'] = 'full'
             user_input['spatial'] = '4km'
+            user_input['freq'] = '30min'
+        elif user_input['extent'] == 'full':
+            user_input['freq'] = '10min'
 
         map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
         user_input['map_col'] = (
@@ -181,24 +197,52 @@ class CreateConfigs:
                 user_input['metadir'], meta_file
             )
 
-        src_dir = f"{user_input['basename']}"
-        src_dir += '_{satellite}'
-        src_dir += f"_{user_input['extent']}_{user_input['year']}"
-        src_dir += f"_{user_input['spatial']}/final"
-        src_dir = os.path.join(user_input['out_dir'], src_dir)
-
         if user_input['east_dir'] is None:
-            user_input['east_dir'] = src_dir.format(satellite='east')
+            user_input['east_dir'] = os.path.join(
+                user_input['out_dir'],
+                cls.RUN_NAME.format(
+                    basename=user_input['basename'],
+                    satellite='east',
+                    extent=user_input['extent'],
+                    year=user_input['year'],
+                    spatial=user_input['spatial'],
+                    freq=user_input['freq'],
+                ),
+                'final',
+            )
         if user_input['west_dir'] is None:
-            user_input['west_dir'] = src_dir.format(satellite='west')
+            user_input['west_dir'] = os.path.join(
+                user_input['out_dir'],
+                cls.RUN_NAME.format(
+                    basename=user_input['basename'],
+                    satellite='west',
+                    extent=user_input['extent'],
+                    year=user_input['year'],
+                    spatial=user_input['spatial'],
+                    freq=user_input['freq'],
+                ),
+                'final',
+            )
 
         out_dir = user_input['out_dir']
         os.makedirs(out_dir, exist_ok=True)
-        config_file = os.path.join(out_dir, 'config_blend.json')
+        config_file = os.path.join(
+            out_dir, f'config_blend_{user_input["extent"]}.json'
+        )
+        run_name = user_input.get('run_name', None)
+        user_input['run_name'] = (
+            run_name
+            if run_name is not None
+            else f'blend_{user_input["extent"]}_{user_input["year"]}'
+        )
+        user_input = {'blend': user_input}
         with open(config_file, 'w') as f:
             f.write(json.dumps(user_input, indent=2))
 
-        logger.info(f'Created config file: {config_file}.')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(user_input, indent=2)}'
+        )
 
     @classmethod
     def main_all_domains(cls, kwargs):
@@ -289,22 +333,30 @@ class CreateConfigs:
         config_dict.update(
             {k: v for k, v in user_input.items() if k in config_dict}
         )
-        outfile = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
-        with open(outfile, 'w', encoding='utf-8') as f:
+        config_file = os.path.join(user_input['out_dir'], 'config_nsrdb.json')
+        with open(config_file, 'w', encoding='utf-8') as f:
             f.write(json.dumps(config_dict, indent=2))
 
-        logger.info(f'Created file: {outfile}')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(config_dict, indent=2)}'
+        )
 
         with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
             s = s.read()
 
         s = str_replace_dict(s, user_input)
 
-        outfile = os.path.join(user_input['out_dir'], 'config_pipeline.json')
-        with open(outfile, 'w', encoding='utf-8') as f:
+        config_file = os.path.join(
+            user_input['out_dir'], 'config_pipeline.json'
+        )
+        with open(config_file, 'w', encoding='utf-8') as f:
             f.write(s)
 
-        logger.info(f'Created file: {outfile}')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(config_dict, indent=2)}'
+        )
 
     @classmethod
     def main(cls, kwargs):
@@ -353,26 +405,24 @@ class CreateConfigs:
         user_input['start_doy'] = user_input['doy_range'][0]
         user_input['end_doy'] = user_input['doy_range'][1]
 
-        run_name = '_'.join(
-            str(user_input[k])
-            for k in [
-                'basename',
-                'satellite',
-                'extent',
-                'year',
-                'spatial',
-                'freq',
-            ]
+        run_name = cls.RUN_NAME.format(
+            basename=user_input['basename'],
+            satellite=user_input['satellite'],
+            extent=user_input['extent'],
+            year=user_input['year'],
+            spatial=user_input['spatial'],
+            freq=user_input['freq'],
         )
 
         user_input['out_dir'] = os.path.join(user_input['out_dir'], run_name)
 
         cls._update_run_templates(user_input)
 
-        with open(
-            os.path.join(user_input['out_dir'], 'run.sh'), mode='w'
-        ) as f:
+        run_file = os.path.join(user_input['out_dir'], 'run.sh')
+        with open(run_file, 'w') as f:
             f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
+
+        logger.info(f'Saved run script: {run_file}.')
 
     @classmethod
     def collect_blend(cls, kwargs):
@@ -411,13 +461,23 @@ class CreateConfigs:
             f'{user_input["basename"]}_{user_input["year"]}.h5',
         )
 
+        run_name = user_input.get('run_name', None)
+        user_input['run_name'] = (
+            run_name
+            if run_name is not None
+            else f'collect_blend_{user_input["extent"]}_{user_input["year"]}'
+        )
         out_dir = user_input['out_dir']
+        user_input = {'collect-blend': user_input}
         os.makedirs(out_dir, exist_ok=True)
         config_file = os.path.join(out_dir, 'config_collect_blend.json')
         with open(config_file, 'w') as f:
             f.write(json.dumps(user_input, indent=2))
 
-        logger.info(f'Created file: {config_file}')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(user_input, indent=2)}'
+        )
 
     @classmethod
     def collect_aggregate(cls, kwargs):
@@ -455,7 +515,17 @@ class CreateConfigs:
         out_dir = user_input['out_dir']
         os.makedirs(out_dir, exist_ok=True)
         config_file = os.path.join(out_dir, 'config_collect_aggregate.json')
+        run_name = user_input.get('run_name', None)
+        user_input['run_name'] = (
+            run_name
+            if run_name is not None
+            else f'collect_aggregate_{user_input["year"]}'
+        )
+        user_input = {'collect-aggregate': user_input}
         with open(config_file, 'w') as f:
             f.write(json.dumps(user_input, indent=2))
 
-        logger.info(f'Created file: {config_file}')
+        logger.info(
+            f'Created config file: {config_file}:'
+            f'\n{pprint.pformat(user_input, indent=2)}'
+        )

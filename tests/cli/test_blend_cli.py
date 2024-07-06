@@ -84,7 +84,7 @@ def test_blend_cli(runner):
 
         config = {
             'blend': {
-                'meta': meta_path,
+                'meta_file': meta_path,
                 'out_dir': out_dir,
                 'east_dir': east_dir,
                 'west_dir': west_dir,

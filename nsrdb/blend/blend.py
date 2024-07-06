@@ -460,7 +460,7 @@ class Blender:
     @classmethod
     def run_full(
         cls,
-        meta,
+        meta_file,
         out_dir,
         east_dir,
         west_dir,
@@ -478,7 +478,7 @@ class Blender:
 
         Parameters
         ----------
-            meta: str
+            meta_file: str
                 Filepath to final output blended meta data csv file.
             out_dir: str
                 Directory to save blended output.
@@ -510,7 +510,6 @@ class Blender:
             log_level : str
                 Level to use for logging.
         """
-
         if (
             out_fn is not None
             and east_fn is not None
@@ -540,7 +539,7 @@ class Blender:
             west_fpath = os.path.join(west_dir, west_fn)
             logger.info(f'Running blend_file with file_tag {file_tag}.')
             cls.blend_file(
-                meta,
+                meta_file,
                 out_fpath,
                 east_fpath,
                 west_fpath,
@@ -551,7 +550,7 @@ class Blender:
         else:
             logger.info(f'Running blend_dir with file_tag {file_tag}.')
             cls.blend_dir(
-                meta,
+                meta_file,
                 out_dir,
                 east_dir,
                 west_dir,

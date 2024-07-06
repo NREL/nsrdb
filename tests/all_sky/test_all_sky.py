@@ -7,6 +7,7 @@ Created on Feb 13th 2019
 @author: gbuster
 """
 
+import logging
 import os
 import time
 
@@ -27,6 +28,8 @@ RTOL = 1e-03
 ATOL = 0.01
 
 SITES = list(range(10))
+
+logger = logging.getLogger(__name__)
 
 
 def get_benchmark_data(test_file=TEST_FILE, sites=SITES):
@@ -252,8 +255,8 @@ def test_all_sky(
         )
         assert mae_p[var] < mae_perc_threshold, msg
 
-    print(mae_p)
-    print(
+    logger.info(f'MAE: {mae_p}')
+    logger.info(
         'Maximum of {:.4f}% bad timesteps. Threshold was {:.4f}%.'.format(
             max_perc_bad, 100 * timestep_frac_threshold
         )

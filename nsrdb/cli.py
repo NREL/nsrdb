@@ -266,6 +266,8 @@ def create_configs(
 ):
     """Create config files for standard NSRDB runs using config templates."""
 
+    init_logger('nsrdb.create_configs', log_level='DEBUG')
+
     ctx.ensure_object(dict)
     if run_type == 'main':
         if all_domains:
