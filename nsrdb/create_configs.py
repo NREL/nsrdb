@@ -511,8 +511,15 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to blend data
             files
         """
+        if 'extent' in kwargs:
+            config = cls._blend(kwargs)
+            cls._write_config(
+                config,
+                f'config_blend_{config["extent"]}.json',
+                module_name='blend',
+            )
 
-        if kwargs['year'] > 2017 and 'extent' not in kwargs:
+        elif kwargs['year'] > 2017 and 'extent' not in kwargs:
             kwargs.update({'extent': 'conus'})
             config = cls._blend(kwargs)
             cls._write_config(

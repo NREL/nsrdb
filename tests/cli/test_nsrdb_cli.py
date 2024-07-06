@@ -156,7 +156,9 @@ def test_cli_create_main_configs(runner):
             'spatial': '4km',
             'freq': '5min',
         }
-        result = runner.invoke(cli.create_configs, ['-c', kwargs])
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'main']
+        )
 
         assert result.exit_code == 0, traceback.print_exception(
             *result.exc_info
@@ -169,7 +171,8 @@ def test_cli_create_main_configs(runner):
 
         kwargs = {'year': 2020, 'out_dir': td}
         result = runner.invoke(
-            cli.create_configs, ['-c', kwargs, '--all_domains']
+            cli.create_configs,
+            ['-c', kwargs, '--run_type', 'main', '--all_domains'],
         )
 
         assert result.exit_code == 0, traceback.print_exception(
