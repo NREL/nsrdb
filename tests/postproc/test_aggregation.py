@@ -139,7 +139,7 @@ def test_spatial_agg():
             0,
             1,
             year=2018,
-            parallel=False,
+            max_workers=1,
             log_level=False,
             ignore_dsets=IGNORE_DSETS,
         )
@@ -190,7 +190,7 @@ def test_spatiotemporal_agg():
             0,
             1,
             year=2018,
-            parallel=False,
+            max_workers=1,
             log_level=False,
             ignore_dsets=IGNORE_DSETS,
         )
@@ -277,7 +277,7 @@ def test_multi_file():
             0,
             1,
             year=2018,
-            parallel=False,
+            max_workers=1,
             log_level=False,
             ignore_dsets=IGNORE_DSETS,
         )
