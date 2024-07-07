@@ -302,40 +302,36 @@ class CreateConfigs:
         if extent == 'final':
             source_priority = config.pop('source_priority')
             final_sub_dir = (
-                f'{config["basename"]}_{config["final_spatial"]}'
+                f'{config.get("basename", "nsrdb")}_{config["final_spatial"]}'
                 f'_{config["final_freq"]}'
             )
-            return (
-                {
-                    'data_sub_dir': final_sub_dir,
-                    'fout': f'nsrdb_{config["year"]}.h5',
-                    'tree_file': tree_file.replace('_{extent}', '').format(
-                        res=config['final_spatial']
-                    ),
-                    'meta_file': meta_file.replace('_{extent}', '').format(
-                        res=config['final_spatial']
-                    ),
-                    'spatial': f'{config["final_spatial"]}',
-                    'temporal': f'{config["final_freq"]}',
-                    'source_priority': source_priority,
-                },
-            )
+            return {
+                'data_sub_dir': final_sub_dir,
+                'fout': f'nsrdb_{config["year"]}.h5',
+                'tree_file': tree_file.replace('_{extent}', '').format(
+                    res=config['final_spatial']
+                ),
+                'meta_file': meta_file.replace('_{extent}', '').format(
+                    res=config['final_spatial']
+                ),
+                'spatial': f'{config["final_spatial"]}',
+                'temporal': f'{config["final_freq"]}',
+                'source_priority': source_priority,
+            }
 
-        return (
-            {
-                'data_sub_dir': cls._get_run_name(
-                    {**config, 'extent': extent}, run_type='blend'
-                ),
-                'tree_file': tree_file.format(
-                    res=config[f'{extent}_spatial'], extent=extent
-                ),
-                'meta_file': meta_file.format(
-                    res=config[f'{extent}_spatial'], extent=extent
-                ),
-                'spatial': config[f'{extent}_spatial'],
-                'temporal': config[f'{extent}_freq'],
-            },
-        )
+        return {
+            'data_sub_dir': cls._get_run_name(
+                {**config, 'extent': extent}, run_type='blend'
+            ),
+            'tree_file': tree_file.format(
+                res=config[f'{extent}_spatial'], extent=extent
+            ),
+            'meta_file': meta_file.format(
+                res=config[f'{extent}_spatial'], extent=extent
+            ),
+            'spatial': config[f'{extent}_spatial'],
+            'temporal': config[f'{extent}_freq'],
+        }
 
     @classmethod
     def _aggregate(cls, kwargs):
@@ -358,6 +354,7 @@ class CreateConfigs:
             'final_freq': '30min',
             'n_chunks': 32,
             'source_priority': ['conus', 'full_disk'],
+            'meta_dir': DEFAULT_META_DIR,
         }
 
         config = copy.deepcopy(default_kwargs)
@@ -393,7 +390,12 @@ class CreateConfigs:
 
         config = cls._aggregate(kwargs)
         cls._write_config(
-            config, 'config_aggregate.json', module_name='aggregate'
+            config,
+            os.path.join(
+                kwargs.get('out_dir', './'),
+                'config_aggregate.json',
+            ),
+            module_name='aggregate',
         )
 
     @classmethod
@@ -414,6 +416,7 @@ class CreateConfigs:
             'main_dir': '../',
             'chunk_size': 100000,
             'freq': '30min',
+            'meta_dir': DEFAULT_META_DIR,
         }
         config = copy.deepcopy(default_kwargs)
         config.update(kwargs)
@@ -489,30 +492,15 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to blend data
             files
         """
-        if 'extent' in kwargs:
-            config = cls._blend(kwargs)
-            cls._write_config(
-                config,
+        config = cls._blend(kwargs)
+        cls._write_config(
+            config,
+            os.path.join(
+                kwargs.get('out_dir', './'),
                 f'config_blend_{config["extent"]}.json',
-                module_name='blend',
-            )
-
-        elif kwargs['year'] > 2017 and 'extent' not in kwargs:
-            kwargs.update({'extent': 'conus'})
-            config = cls._blend(kwargs)
-            cls._write_config(
-                config, 'config_blend_conus.json', module_name='blend'
-            )
-            kwargs.update({'extent': 'full'})
-            config = cls._blend(kwargs)
-            cls._write_config(
-                config, 'config_blend_full.json', module_name='blend'
-            )
-        else:
-            config = cls._blend(kwargs)
-            cls._write_config(
-                config, 'config_blend_full.json', module_name='blend'
-            )
+            ),
+            module_name='blend',
+        )
 
     @classmethod
     def _collect_blend(cls, kwargs):
@@ -534,6 +522,7 @@ class CreateConfigs:
             'spatial': '4km',
             'freq': '30min',
             'extent': 'full',
+            'meta_dir': DEFAULT_META_DIR,
         }
 
         config = copy.deepcopy(default_kwargs)
@@ -571,7 +560,11 @@ class CreateConfigs:
 
         config = cls._collect_blend(kwargs)
         cls._write_config(
-            config, 'config_collect_blend.json', module_name='collect-blend'
+            config,
+            os.path.join(
+                kwargs.get('out_dir', './'), 'config_collect_blend.json'
+            ),
+            module_name='collect-blend',
         )
 
     @classmethod
@@ -592,6 +585,7 @@ class CreateConfigs:
         default_kwargs = {
             'final_spatial': '4km',
             'final_freq': '30min',
+            'meta_dir': DEFAULT_META_DIR,
         }
 
         config = copy.deepcopy(default_kwargs)
@@ -628,9 +622,10 @@ class CreateConfigs:
             Dictionary with keys specifying the case for aggregation collection
         """
         config = cls._collect_aggregate(kwargs)
-
         cls._write_config(
             config,
-            'config_collect_aggregate.json',
+            os.path.join(
+                kwargs.get('out_dir', './'), 'config_collect_aggregate.json'
+            ),
             module_name='collect-aggregate',
         )

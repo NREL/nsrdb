@@ -255,32 +255,6 @@ def test_cli_create_blend_configs(runner):
         assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
 
 
-def test_cli_create_blend_configs_all(runner):
-    """Test nsrdb.cli create-configs --run_type blend without specifying extent
-    for year > 2017"""
-    with tempfile.TemporaryDirectory() as td:
-        kwargs = {'year': 2020, 'out_dir': td}
-        result = runner.invoke(
-            cli.create_configs, ['-c', kwargs, '--run_type', 'blend']
-        )
-
-        assert result.exit_code == 0, traceback.print_exception(
-            *result.exc_info
-        )
-
-        config_file = os.path.join(td, 'config_blend_conus.json')
-        assert os.path.exists(config_file)
-        config = safe_json_load(config_file)
-        assert config['blend']['year'] == 2020
-        assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
-
-        config_file = os.path.join(td, 'config_blend_full.json')
-        assert os.path.exists(config_file)
-        config = safe_json_load(config_file)
-        assert config['blend']['year'] == 2020
-        assert 'west_dir' in config['blend'] and 'east_dir' in config['blend']
-
-
 def test_cli_create_agg_configs(runner):
     """Test nsrdb.cli create-configs --run_type aggregate"""
     with tempfile.TemporaryDirectory() as td:
