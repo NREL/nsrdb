@@ -268,7 +268,20 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
 def create_configs(
     ctx, config, run_type='full', all_domains=False, collect=False
 ):
-    """Create config files for standard NSRDB runs using config templates."""
+    """Create config files for standard NSRDB runs using config templates.
+
+    Examples
+    --------
+    $ python -m nsrdb.cli create-configs -c '{"year": 2020, "out_dir": "./"}'
+
+    The above will generate all full_disc / conus run directories for east /
+    west regions, each with main routine config files contained. Additionally,
+    conus / full_disc blend configs, aggregation config, collection config, and
+    a post processing pipeline config with all these steps will be written to a
+    "post_proc" directory so that post-processing can be run simply with::
+
+    $ python -m nsrdb.cli pipeline -c config_pipeline_post.json
+    """
 
     init_logger('nsrdb.create_configs', log_level='DEBUG')
 

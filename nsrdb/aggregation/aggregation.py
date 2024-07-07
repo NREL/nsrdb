@@ -166,11 +166,9 @@ class MetaManager:
             the data source string.
         """
         logger.info(
-            'Making aggregation meta data from {} sources to '
-            'final meta: {}'.format(len(source_tree_fpaths), fpath_final)
-        )
-        logger.info(
-            'Aggregation meta data sources: {}'.format(source_tree_fpaths)
+            f'Making aggregation meta data from {len(source_tree_fpaths)} '
+            f'sources to final meta: {fpath_final}. Aggregation meta data '
+            f'sources: {source_tree_fpaths}'
         )
 
         meta = pd.read_csv(fpath_final, index_col=0)
@@ -198,8 +196,8 @@ class MetaManager:
         for name in pd.unique(meta['source']):
             count = (meta['source'] == name).sum()
             logger.info(
-                'Aggregated NSRDB meta data has {} sites with '
-                'aggregation source "{}"'.format(count, name)
+                f'Aggregated NSRDB meta data has {count} sites with '
+                f'aggregation source "{name}"'
             )
 
         if any(meta['source'] == 'null'):

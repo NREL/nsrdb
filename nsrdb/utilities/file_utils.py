@@ -30,11 +30,28 @@ TOOL = os.path.join(
 )
 
 
-def str_replace_dict(string_rep, user_input):
+def get_format_keys(format_string):
+    """Extracts the keys used within a format string.
+
+    Parameters
+    ----------
+    format_string: str
+        The input string containing format placeholders.
+
+    Returns
+    -------
+        A list of keys found in the format string.
+    """
+    keys = re.findall(r'\{([^}]+)\}', format_string)
+
+    return keys
+
+
+def str_replace_dict(string_rep, config):
     """Replace keys in string representation of a dictionary with user input
     values. This is used to update config templates in
     :meth:`CreateConfigs.main()`"""
-    for k, v in user_input.items():
+    for k, v in config.items():
         if isinstance(v, int):
             string_rep = string_rep.replace(f'"%{k}%"', str(v))
         string_rep = string_rep.replace(f'%{k}%', str(v))

@@ -145,6 +145,49 @@ def modern_config(tmpdir_factory):
     return config_file, pipeline_file
 
 
+def test_cli_create_all_configs(runner):
+    """Test nsrdb.cli create-configs for main and post modules"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {
+            'year': 2020,
+            'out_dir': td,
+            'satellite': 'east',
+            'extent': 'conus',
+            'spatial': '4km',
+            'freq': '5min',
+        }
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'full']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        out_dirs = [
+            f'{td}/nsrdb_east_conus_2020_2km_5min',
+            f'{td}/nsrdb_west_conus_2020_2km_5min',
+            f'{td}/nsrdb_east_full_2020_2km_10min',
+            f'{td}/nsrdb_west_full_2020_2km_10min',
+        ]
+        for out_dir in out_dirs:
+            assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
+            assert os.path.exists(
+                os.path.join(out_dir, 'config_pipeline.json')
+            )
+            assert os.path.exists(os.path.join(out_dir, 'run.sh'))
+
+        post_files = [
+            f'{td}/post_proc/config_blend_conus.json',
+            f'{td}/post_proc/config_blend_full.json',
+            f'{td}/post_proc/config_aggregate.json',
+            f'{td}/post_proc/config_collect_aggregate.json',
+            f'{td}/post_proc/config_pipeline_post.json',
+            f'{td}/post_proc/run.sh',
+        ]
+        assert all(os.path.exists(f) for f in post_files)
+
+
 def test_cli_create_main_configs(runner):
     """Test nsrdb.cli create-configs"""
     with tempfile.TemporaryDirectory() as td:
