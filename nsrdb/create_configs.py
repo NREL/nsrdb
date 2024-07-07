@@ -592,7 +592,7 @@ class CreateConfigs:
         config.update(kwargs)
 
         meta_file = f'nsrdb_meta_{config["final_spatial"]}.csv'
-        meta_file = os.path.join(config['meta_dir'], meta_file)
+        config['meta_final'] = os.path.join(config['meta_dir'], meta_file)
         collect_dir = f'nsrdb_{config["final_spatial"]}_{config["final_freq"]}'
         collect_tag = f'{config["basename"]}_'
         config['collect_dir'] = collect_dir

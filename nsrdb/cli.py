@@ -713,54 +713,66 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
-@click.option(
-    '--collect',
-    is_flag=True,
-    help='Flag to collect blended chunks into a single final file.',
-)
 @click.pass_context
-def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
+def blend(ctx, config, verbose=False, pipeline_step=None):
     """Blend files from separate domains (e.g. east / west) into a single
     domain."""
 
-    mod_name = ModuleName.COLLECT_BLEND if collect else ModuleName.BLEND
-
     config = BaseCLI.from_config_preflight(
         ctx=ctx,
-        module_name=mod_name,
+        module_name=ModuleName.BLEND,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
     )
 
-    if collect:
+    file_tags = config.get('file_tag', 'all')
+    file_tags = (
+        file_tags
+        if file_tags != 'all'
+        else ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
+    )
+
+    file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
+    for file_tag in file_tags:
+        log_id = file_tag
+        config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
+        config['file_tag'] = file_tag
         BaseCLI.kickoff_job(
             ctx=ctx,
-            module_name=mod_name,
-            func=Collector.collect_dir,
+            module_name=ModuleName.BLEND,
+            func=Blender.run_full,
             config=config,
+            log_id=log_id,
         )
 
-    else:
-        file_tags = config.get('file_tag', 'all')
-        file_tags = (
-            file_tags
-            if file_tags != 'all'
-            else ['_'.join(k.split('_')[1:-1]) for k in NSRDB.OUTS]
-        )
 
-        file_tags = file_tags if isinstance(file_tags, list) else [file_tags]
-        for file_tag in file_tags:
-            log_id = file_tag
-            config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
-            config['file_tag'] = file_tag
-            BaseCLI.kickoff_job(
-                ctx=ctx,
-                module_name=mod_name,
-                func=Blender.run_full,
-                config=config,
-                log_id=log_id,
-            )
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for Collector.collect_dir()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is False.',
+)
+@click.pass_context
+def collect_blend(ctx, config, verbose=False, pipeline_step=None):
+    """Collect blended files into a single file with multiple datasets."""
+
+    BaseCLI.kickoff_single(
+        ctx=ctx,
+        module_name=ModuleName.COLLECT_BLEND,
+        func=Collector.collect_dir,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
 
 
 @main.command()
@@ -777,30 +789,18 @@ def blend(ctx, config, verbose=False, pipeline_step=None, collect=False):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
-@click.option(
-    '--collect',
-    is_flag=True,
-    help='Flag to collect aggregated chunks into a single final file.',
-)
 @click.pass_context
-def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
+def aggregate(ctx, config, verbose=False, pipeline_step=None):
     """Aggregate data files to a lower resolution.
 
     NOTE: Used to create data files from high-resolution years (2018+) which
     match resolution of low-resolution years (pre 2018)
     """
-    func = Collector.collect_dir if collect else Manager.run_chunk
-    mod_name = (
-        ModuleName.COLLECT_AGGREGATE if collect else ModuleName.AGGREGATE
-    )
-    kickoff_func = (
-        BaseCLI.kickoff_single if collect else BaseCLI.kickoff_multichunk
-    )
 
-    kickoff_func(
+    BaseCLI.kickoff_multichunk(
         ctx=ctx,
-        module_name=mod_name,
-        func=func,
+        module_name=ModuleName.AGGREGATE,
+        func=Manager.run_chunk,
         config=config,
         verbose=verbose,
         pipeline_step=pipeline_step,
@@ -813,8 +813,7 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     '-c',
     type=str,
     required=True,
-    help='Path to config file with kwargs for TmyRunner.func(), where func '
-    'is "tmy", "tdy", or "tgy".',
+    help='Path to config file with kwargs for Collector.collect_dir()',
 )
 @click.option(
     '-v',
@@ -822,37 +821,24 @@ def aggregate(ctx, config, verbose=False, pipeline_step=None, collect=False):
     is_flag=True,
     help='Flag to turn on debug logging. Default is False.',
 )
-@click.option(
-    '--collect',
-    is_flag=True,
-    help='Flag to collect tmy chunks into a single final file.',
-)
 @click.pass_context
-def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
-    """Create tmy files for given input files.
+def collect_aggregate(ctx, config, verbose=False, pipeline_step=None):
+    """Collect aggregate data files into a single file with multiple
+    datasets."""
 
-    You would call the nsrdb tmy module using::
+    BaseCLI.kickoff_single(
+        ctx=ctx,
+        module_name=ModuleName.COLLECT_AGGREGATE,
+        func=Collector.collect_dir,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
 
-        $ python -m nsrdb.cli -c config.json tmy
 
-    A typical config.json file might look like this::
-
-        \b
-        {
-            "tmy": {},
-            "collect-tmy": {"purge_chunks": True},
-            "direct": {
-                "sites_per_worker": 50,
-                "site_slice": [0, 100],
-                "tmy_types": ['tmy', 'tdy', 'tgy'],
-                "nsrdb_base_fp": './nsrdb_*_{}.h5',
-                "years": [2000, ..., 2022],
-                "out_dir": './",
-                "fn_out": 'tmy_2000_2022.h5'
-            }
-        }
-    """  # noqa : D301
-
+def _run_or_collect_tmy(
+    ctx, config, verbose=False, pipeline_step=None, collect=False
+):
     mod_name = ModuleName.COLLECT_TMY if collect else ModuleName.TMY
     config = BaseCLI.from_config_preflight(
         ctx=ctx,
@@ -877,6 +863,101 @@ def tmy(ctx, config, verbose=False, pipeline_step=None, collect=False):
             config=config,
             log_id=tmy_type,
         )
+
+
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for TmyRunner.func(), where func '
+    'is "tmy", "tdy", or "tgy".',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is False.',
+)
+@click.pass_context
+def tmy(ctx, config, verbose=False, pipeline_step=None):
+    """Create tmy files for given input files.
+
+    You would call the nsrdb tmy module using::
+
+        $ python -m nsrdb.cli -c config.json tmy
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "tmy": {},
+            "collect-tmy": {"purge_chunks": True},
+            "direct": {
+                "sites_per_worker": 50,
+                "site_slice": [0, 100],
+                "tmy_types": ['tmy', 'tdy', 'tgy'],
+                "nsrdb_base_fp": './nsrdb_*_{}.h5',
+                "years": [2000, ..., 2022],
+                "out_dir": './",
+                "fn_out": 'tmy_2000_2022.h5'
+            }
+        }
+    """  # noqa : D301
+
+    _run_or_collect_tmy(
+        ctx,
+        config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+        collect=False,
+    )
+
+
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    type=str,
+    required=True,
+    help='Path to config file with kwargs for TmyRunner.collect()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is False.',
+)
+@click.pass_context
+def collect_tmy(ctx, config, verbose=False, pipeline_step=None):
+    """Collect the previously generated tmy file chunks.
+
+    You would call the nsrdb collect-tmy module using::
+
+        $ python -m nsrdb.cli -c config.json collect-tmy
+
+    A typical config.json file might look like this::
+
+        \b
+        {
+            "tmy": {},
+            "collect-tmy": {"purge_chunks": True},
+            "direct": {
+                "sites_per_worker": 50,
+                "site_slice": [0, 100],
+                "tmy_types": ['tmy', 'tdy', 'tgy'],
+                "nsrdb_base_fp": './nsrdb_*_{}.h5',
+                "years": [2000, ..., 2022],
+                "out_dir": './",
+                "fn_out": 'tmy_2000_2022.h5'
+            }
+        }
+    """  # noqa : D301
+
+    _run_or_collect_tmy(
+        ctx, config, verbose=verbose, pipeline_step=pipeline_step, collect=True
+    )
 
 
 @main.group(invoke_without_command=True)
@@ -973,6 +1054,9 @@ Pipeline.COMMANDS[ModuleName.AGGREGATE] = aggregate
 Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.COLLECT_FINAL] = collect_final
 Pipeline.COMMANDS[ModuleName.TMY] = tmy
+Pipeline.COMMANDS[ModuleName.COLLECT_BLEND] = collect_blend
+Pipeline.COMMANDS[ModuleName.COLLECT_AGGREGATE] = collect_aggregate
+Pipeline.COMMANDS[ModuleName.COLLECT_TMY] = collect_tmy
 
 
 if __name__ == '__main__':

@@ -69,7 +69,7 @@ def test_tmy_cli(runner, tmpdir_factory):
 
     result = runner.invoke(cli.tmy, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    result = runner.invoke(cli.tmy, ['-c', config_file, '--collect', '-v'])
+    result = runner.invoke(cli.collect_tmy, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
     for tmy_type in tmy_types:
         assert os.path.exists(file_pattern.format(tmy_type=tmy_type))
@@ -102,7 +102,7 @@ def test_tmy_regression(runner, tmpdir_factory, tmy_file):
 
     result = runner.invoke(cli.tmy, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
-    result = runner.invoke(cli.tmy, ['-c', config_file, '--collect', '-v'])
+    result = runner.invoke(cli.collect_tmy, ['-c', config_file, '-v'])
     assert result.exit_code == 0, traceback.print_exception(*result.exc_info)
 
     for tmy_type in tmy_types:

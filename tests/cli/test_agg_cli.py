@@ -116,7 +116,7 @@ def test_agg_cli(runner):
         with open(config_file, 'w') as f:
             f.write(json.dumps(config))
 
-        result = runner.invoke(cli.aggregate, ['-c', config_file, '--collect'])
+        result = runner.invoke(cli.collect_aggregate, ['-c', config_file])
         assert result.exit_code == 0, traceback.print_exception(
             *result.exc_info
         )
