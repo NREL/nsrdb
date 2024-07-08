@@ -130,7 +130,8 @@ def main(ctx, config, verbose):
     ctx.obj['VERBOSE'] = verbose
     ctx.obj['LOG_LEVEL'] = 'DEBUG' if verbose else 'INFO'
 
-    init_logger('nsrdb.cli', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
+    init_logger('nsrdb', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
+    init_logger('gaps', log_level=ctx.obj['LOG_LEVEL'], log_file=None)
 
 
 @main.group(invoke_without_command=True)
@@ -194,7 +195,6 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     """  # noqa: D301
 
     ctx.ensure_object(dict)
-    init_logger('gaps', log_level='DEBUG')
     ctx.obj['VERBOSE'] = verbose or ctx.obj.get('VERBOSE', False)
     gaps_pipeline(config, cancel, monitor, background)
 
@@ -283,8 +283,6 @@ def create_configs(
 
     $ python -m nsrdb.cli pipeline -c config_pipeline_post.json
     """
-
-    init_logger('nsrdb.create_configs', log_level='DEBUG')
 
     ctx.ensure_object(dict)
     func_name = f'collect_{run_type}' if collect else run_type
