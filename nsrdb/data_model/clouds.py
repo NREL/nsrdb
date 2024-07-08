@@ -532,7 +532,7 @@ class CloudVarSingleH5(CloudVarSingle):
             coordinates and not at the apparent location from the sensor.
         solar_shading : bool
             Flag to adjust cloud coordinates so clouds are assigned to the
-            coordiantes they shade.
+            coordinates they shade.
         remap_pc : bool
             Flag to remap the parallax-corrected and solar-shading-corrected
             data back onto the original semi-regular GOES coordinates
@@ -1257,10 +1257,9 @@ class CloudVar(AncillaryVarHandler):
         self._obj_cache = {}
 
         logger.info(
-            'Cloud coordinate parallax correction: {}, solar '
-            'shading adjustment: {}, coordinate remapping: {}'.format(
-                parallax_correct, solar_shading, remap_pc
-            )
+            f'Cloud coordinate parallax correction: {parallax_correct}, '
+            f'solar shading adjustment: {solar_shading}, '
+            f'coordinate remapping: {remap_pc} for dsets: {dsets}'
         )
 
         self._check_freq()
@@ -1673,7 +1672,7 @@ class CloudVar(AncillaryVarHandler):
 
             if len(flist) <= 3:
                 ti_delta_minutes = int(ti_deltas_minutes[0])
-                freq = '{}T'.format(ti_delta_minutes)
+                freq = '{}min'.format(ti_delta_minutes)
             else:
                 try:
                     ti_delta_minutes = int(mode(ti_deltas_minutes).mode)
@@ -1684,7 +1683,7 @@ class CloudVar(AncillaryVarHandler):
                     logger.error(msg)
                     raise ValueError(msg) from e
 
-                freq = '{}T'.format(ti_delta_minutes)
+                freq = '{}min'.format(ti_delta_minutes)
                 if len(flist) < 5:
                     w = (
                         'File list contains less than 5 files. Inferred '

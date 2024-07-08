@@ -39,8 +39,6 @@ BASE_KWARGS = {
 
 MAIN_KWARGS = {
     **BASE_KWARGS,
-    'spatial': '4km',
-    'freq': '30min',
     'extent': 'full',
     'satellite': 'east',
 }
