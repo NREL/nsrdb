@@ -63,8 +63,8 @@
   "direct": {
     "log_level": "INFO",
     "freq": "%freq%",
-    "run_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%_%year%",
-    "grid": "/projects/pxs/reference_grids/%meta_file%",
+    "run_name": "%run_name%",
+    "grid": "%meta_file%",
     "out_dir": "./",
     "max_workers": 32,
     "year": "%year%"

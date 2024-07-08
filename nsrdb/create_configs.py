@@ -37,6 +37,14 @@ BASE_KWARGS = {
     'meta_dir': DEFAULT_META_DIR,
 }
 
+MAIN_KWARGS = {
+    **BASE_KWARGS,
+    'spatial': '4km',
+    'freq': '30min',
+    'extent': 'full',
+    'satellite': 'east',
+}
+
 BLEND_KWARGS = {
     **BASE_KWARGS,
     'file_tag': 'all',
@@ -103,17 +111,33 @@ class CreateConfigs:
     def _get_res(cls, config):
         """Get spatiotemporal res for a given year and extent."""
 
+        spatial, freq = config.get('spatial', None), config.get('freq', None)
+        if spatial is not None and freq is not None:
+            return spatial, freq
+
+        if config['year'] >= 2018:
+            msg = (
+                '"extent" key not provided. Provide "spatial" and "freq" '
+                'or "extent".'
+            )
+            assert 'extent' in config, msg
+        if config['year'] == 2018 and config['extent'] == 'full':
+            msg = (
+                '"satellite" key not provided. Provide "spatial" and '
+                '"freq" or "satellite".'
+            )
+            assert 'satellite' in config, msg
+
         if config['year'] == 2018:
+            spatial = '2km'
+            freq = '5min'
             if config['extent'] == 'full':
                 if config['satellite'] == 'east':
                     spatial = '2km'
                     freq = '10min'
-                if config['satellite'] == 'west':
+                else:
                     spatial = '4km'
                     freq = '30min'
-            else:
-                spatial = '2km'
-                freq = '5min'
 
         elif config['year'] > 2018:
             spatial = '2km'
@@ -127,6 +151,10 @@ class CreateConfigs:
     def _get_meta(cls, config, run_type='main'):
         """Get meta file for a given extent, satellite, and resolution."""
 
+        meta_file = config.get('meta_file', None)
+        if meta_file is not None:
+            return meta_file
+
         if 'final_spatial' in config:
             spatial = config['final_spatial']
 
@@ -136,19 +164,32 @@ class CreateConfigs:
         meta_file = f'nsrdb_meta_{spatial}'
 
         if config['year'] > 2017 and 'collect' not in run_type:
+            msg = '"extent" key not provided. Provide "meta_file" or "extent"'
+            assert 'extent' in config, msg
             meta_file += f'_{config["extent"]}'
 
-        if run_type in ('blend', 'aggregate') or 'collect' in run_type:
-            meta_file = os.path.join(config['meta_dir'], f'{meta_file}.csv')
+        if run_type == 'main':
+            msg = (
+                '"satellite" key not provided. Provide "meta_file" or '
+                '"satellite".'
+            )
+            assert 'satellite' in config, msg
+            meta_file += f'_{config["satellite"]}_{config["lon_seam"]}'
 
-        else:
-            meta_file += f'_{config["satellite"]}_{config["lon_seam"]}.csv'
+        meta_file = os.path.join(
+            config['meta_dir'], f'{os.path.basename(meta_file)}.csv'
+        )
 
         return meta_file
 
     @classmethod
     def _get_run_name(cls, config, run_type='main'):
         """Get name of run for given main run input."""
+
+        run_name = config.get('run_name', None)
+        if run_name is not None:
+            return run_name
+
         config.update(
             {k: v for k, v in BASE_KWARGS.items() if k not in config}
         )
@@ -222,26 +263,31 @@ class CreateConfigs:
             Dictionary of parameters including year, basename, satellite,
             extent, freq, spatial, meta_file, doy_range
         """
-        config = cls._init_kwargs(kwargs, BASE_KWARGS)
+        config = cls._init_kwargs(kwargs, MAIN_KWARGS)
         extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
         lon_seam_map = {'full': -105, 'conus': -113}
+        msg = (
+            '"extent" key not provided. Provide "extent" so correct input '
+            'data can be selected'
+        )
+        assert 'extent' in config, msg
         config['extent_tag'] = extent_tag_map[config['extent']]
-        lon_seam = lon_seam_map[config['extent']]
-        config['meta_file'] = cls._get_meta({**config, 'lon_seam': lon_seam})
+        config['lon_seam'] = lon_seam_map[config['extent']]
+        config['meta_file'] = cls._get_meta(config)
         config['spatial'], config['freq'] = cls._get_res(config)
 
-        if config.get('doy_range', None) is None:
-            if calendar.isleap(config['year']):
-                config['doy_range'] = [1, 367]
-            else:
-                config['doy_range'] = [1, 366]
-
-        config['start_doy'] = config['doy_range'][0]
-        config['end_doy'] = config['doy_range'][1]
-
-        config['out_dir'] = os.path.join(
-            config['out_dir'], cls._get_run_name(config)
+        config['doy_range'] = config.get(
+            'doy_range',
+            ([1, 367] if calendar.isleap(config['year']) else [1, 366]),
         )
+
+        config['start_doy'], config['end_doy'] = (
+            config['doy_range'][0],
+            config['doy_range'][1],
+        )
+
+        config['run_name'] = cls._get_run_name(config)
+        config['out_dir'] = os.path.join(config['out_dir'], config['run_name'])
 
         cls._update_run_templates(config)
 
@@ -448,9 +494,7 @@ class CreateConfigs:
             }
 
         config['data'] = data
-        config['run_name'] = config.get(
-            'run_name', cls._get_run_name(config, run_type='aggregate')
-        )
+        config['run_name'] = cls._get_run_name(config, run_type='aggregate')
         return config
 
     @classmethod
@@ -506,9 +550,7 @@ class CreateConfigs:
             cls._get_run_name({'satellite': 'west', **config}),
             'final',
         )
-        config['run_name'] = config.get(
-            'run_name', cls._get_run_name(config, run_type='blend')
-        )
+        config['run_name'] = cls._get_run_name(config, run_type='blend')
 
         return config
 
@@ -583,8 +625,8 @@ class CreateConfigs:
             f'{config["basename"]}_{config["year"]}.h5',
         )
 
-        config['run_name'] = config.get(
-            'run_name', cls._get_run_name(config, run_type='collect-blend')
+        config['run_name'] = cls._get_run_name(
+            config, run_type='collect-blend'
         )
         return config
 
@@ -640,9 +682,10 @@ class CreateConfigs:
             f'{config["out_dir"]}',
             f'{config["basename"]}_{config["year"]}.h5',
         )
-        config['run_name'] = config.get(
-            'run_name', cls._get_run_name(config, run_type='collect-aggregate')
+        config['run_name'] = cls._get_run_name(
+            config, run_type='collect-aggregate'
         )
+
         return config
 
     @classmethod
