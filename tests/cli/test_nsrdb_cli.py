@@ -1,5 +1,6 @@
 """PyTest file for main nsrdb CLI."""
 
+import inspect
 import json
 import os
 import tempfile
@@ -10,7 +11,10 @@ import pytest
 from rex import safe_json_load
 
 from nsrdb import NSRDB, TESTDATADIR, cli
+from nsrdb.aggregation.aggregation import Manager
+from nsrdb.blend.blend import Blender
 from nsrdb.data_model import DataModel
+from nsrdb.file_handlers.collection import Collector
 from nsrdb.utilities.pytest import execute_pytest
 
 VAR_META = os.path.join(TESTDATADIR, 'nsrdb_vars.csv')
@@ -145,17 +149,66 @@ def modern_config(tmpdir_factory):
     return config_file, pipeline_file
 
 
-def test_cli_create_all_configs(runner):
+def _check_args(post_files, funcs):
+    for file, func in zip(post_files[:-2], funcs):
+        config = safe_json_load(file)
+        config_args = config[next(iter(config.keys()))]
+        arg_spec = inspect.getargspec(func)
+        args = arg_spec.args[1 : -len(arg_spec.defaults)]
+
+        # not requiring i_chunk in configs since this is defined in
+        # BaseCLI.kickoff_multichunk call
+        if 'i_chunk' in args:
+            args.pop(args.index('i_chunk'))
+        assert all(arg in config_args for arg in args)
+
+
+def test_cli_create_all_configs_2018(runner):
     """Test nsrdb.cli create-configs for main and post modules"""
     with tempfile.TemporaryDirectory() as td:
-        kwargs = {
-            'year': 2020,
-            'out_dir': td,
-            'satellite': 'east',
-            'extent': 'conus',
-            'spatial': '4km',
-            'freq': '5min',
-        }
+        kwargs = {'year': 2018, 'out_dir': td}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'full']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        out_dirs = [
+            f'{td}/nsrdb_east_conus_2018_2km_5min',
+            f'{td}/nsrdb_east_full_2018_2km_10min',
+            f'{td}/nsrdb_west_full_2018_4km_30min',
+        ]
+        for out_dir in out_dirs:
+            assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
+            assert os.path.exists(
+                os.path.join(out_dir, 'config_pipeline.json')
+            )
+            assert os.path.exists(os.path.join(out_dir, 'run.sh'))
+
+        post_files = [
+            f'{td}/post_proc/config_aggregate.json',
+            f'{td}/post_proc/config_collect_aggregate.json',
+            f'{td}/post_proc/config_pipeline_post.json',
+            f'{td}/post_proc/run.sh',
+        ]
+        assert all(os.path.exists(f) for f in post_files)
+
+        funcs = [
+            Manager.run_chunk,
+            Collector.collect_dir,
+        ]
+
+        # make sure configs have all positional args for the corresponding
+        # modules
+        _check_args(post_files, funcs)
+
+
+def test_cli_create_all_configs_post2018(runner):
+    """Test nsrdb.cli create-configs for main and post modules"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {'year': 2020, 'out_dir': td}
         result = runner.invoke(
             cli.create_configs, ['-c', kwargs, '--run_type', 'full']
         )
@@ -186,6 +239,58 @@ def test_cli_create_all_configs(runner):
             f'{td}/post_proc/run.sh',
         ]
         assert all(os.path.exists(f) for f in post_files)
+
+        funcs = [
+            Blender.run_full,
+            Blender.run_full,
+            Manager.run_chunk,
+            Collector.collect_dir,
+        ]
+
+        # make sure configs have all positional args for the corresponding
+        # modules
+        _check_args(post_files, funcs)
+
+
+def test_cli_create_all_configs_pre2018(runner):
+    """Test nsrdb.cli create-configs for main and post modules"""
+    with tempfile.TemporaryDirectory() as td:
+        kwargs = {'year': 2016, 'out_dir': td}
+        result = runner.invoke(
+            cli.create_configs, ['-c', kwargs, '--run_type', 'full']
+        )
+
+        assert result.exit_code == 0, traceback.print_exception(
+            *result.exc_info
+        )
+
+        out_dirs = [
+            f'{td}/nsrdb_east_full_2016_4km_30min',
+            f'{td}/nsrdb_west_full_2016_4km_30min',
+        ]
+        for out_dir in out_dirs:
+            assert os.path.exists(os.path.join(out_dir, 'config_nsrdb.json'))
+            assert os.path.exists(
+                os.path.join(out_dir, 'config_pipeline.json')
+            )
+            assert os.path.exists(os.path.join(out_dir, 'run.sh'))
+
+        post_files = [
+            f'{td}/post_proc/config_blend.json',
+            f'{td}/post_proc/config_collect_blend.json',
+            f'{td}/post_proc/config_pipeline_post.json',
+            f'{td}/post_proc/run.sh',
+        ]
+        assert all(os.path.exists(f) for f in post_files)
+
+        funcs = [
+            Blender.run_full,
+            Collector.collect_dir,
+        ]
+
+        # make sure configs have all positional args for the corresponding
+        # modules
+        _check_args(post_files, funcs)
 
 
 def test_cli_create_main_configs(runner):

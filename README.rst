@@ -52,21 +52,31 @@ All-Sky.
 Installation
 ============
 
-1. Use conda (anaconda or miniconda with python 3.9) to create an nsrdb
-   environment: ``conda create --name nsrdb python=3.9``
-2. Activate your new conda env: ``conda activate nsrdb``
-3. Follow the steps used in the `pytest actions <https://github.com/NREL/nsrdb/blob/main/.github/workflows/pull_request_tests.yml>`_.
+Option 1: Install from PIP (recommended for analysts):
+------------------------------------------------------
 
-    1) These actions refer to the required repositories needed to run all tests and the commands which should be run from the local location of those repositories
-    2) If you plan to run without MLClouds the step associated with this repository can be skipped.
-4. Test your installation:
+1. Create a new environment: ``conda create --name nsrdb python=3.9``
 
-    1) Start ipython and test the following import:
-       ``from nsrdb.data_model import DataModel``
-    2) Navigate to the tests/ directory and run the command: ``pytest``
+2. Activate environment: ``conda activate nsrdb``
 
-5. If you are a developer, also run ``pre-commit install`` in the directory
-   containing .pre-commit-config.yaml.
+3. Install nsrdb: ``pip install NREL-nsrdb``
+
+Option 2: Clone repo (recommended for developers)
+-------------------------------------------------
+
+1. from home dir, ``git clone git@github.com:NREL/nsrdb.git``
+
+2. Create ``nsrdb`` environment and install package
+    1) Create a conda env: ``conda create -n nsrdb``
+    2) Run the command: ``conda activate nsrdb``
+    3) ``cd`` into the repo cloned in 1.
+    4) Prior to running ``pip`` below, make sure the branch is correct (install
+       from main!)
+    5) Install ``nsrdb`` and its dependencies by running:
+       ``pip install .`` (or ``pip install -e .`` if running a dev branch
+       or working on the source code)
+    7) *Optional*: Set up the pre-commit hooks with ``pip install pre-commit`` and ``pre-commit install``
+
 
 
 NSRDB Versions
@@ -80,34 +90,77 @@ NSRDB Versions
       - Effective Date
       - Data Years*
       - Notes
-    * - 1.0.0
-      - 2015
-      - 2005-2012
-      - Initial release of PSM v1 (no FARMS)
-
-        - Satellite Algorithm for Shortwave Radiation Budget (SASRAB) model
-        - MMAC model for clear sky condition
-        - The DNI for cloud scenes is then computed using the DISC model
-
-    * - 2.0.0
-      - 2016
-      - 1998-2015
-      - Initial release of PSM v2 (use of FARMS, downscaling of ancillary data
-        introduced to account for elevation, NSRDB website distribution
-        developed)
-
-        - Clear sky: REST2, Cloudy sky: NREL FARMS model and DISC model
-        - Climate Forecast System Reanalysis (CFSR) is used for ancillary data
-        - Monthly 0.5º aerosol optical depth (AOD) for 1998-2014 using
-          satellite and ground-based measurements. Monthly results interpolated
-          to daily 4-km AOD data. Daily data calibrated using ground
-          measurements to develop accurate AOD product.
-
+    * - 4.0.0
+      - 5/1/23
+      - 2022
+      - Integrated new FARMS-DNI model.
+    * - 3.2.3
+      - 4/13/23
+      - None
+      - Fixed MERRA interpolation issue #51 and deprecated python 3.7/3.8.
+        Added changes to accommodate pandas v2.0.0.
+    * - 3.2.2
+      - 2/25/2022
+      - 1998-2021
+      - Implemented a model for snowy albedo as a function of temperature from
+        MERRA2 based on the paper "A comparison of simulated and observed
+        fluctuations in summertime Arctic surface albedo" by Becky Ross and
+        John E. Walsh
+    * - 3.2.1
+      - 1/12/2021
+      - 2021
+      - Implemented an algorithm to re-map the parallax and shading corrected
+        cloud coordinates to the nominal GOES coordinate system. This fixes the
+        issue of PC cloud coordinates conflicting with clearsky coordinates.
+        This also fixes the strange pattern that was found in the long term
+        means generated from PC data.
+    * - 3.2.0
+      - 3/17/2021
+      - 2020
+      - Enabled cloud solar shading coordinate adjustment by default, enabled
+        MLClouds machine learning gap fill method for missing cloud properties
+        (cloud fill flag #7)
+    * - 3.1.2
+      - 6/8/2020
+      - 2020
+      - Added feature to adjust cloud coordinates based on solar position and
+        shading geometry.
+    * - 3.1.1
+      - 12/5/2019
+      - 2018+, TMY/TDY/TGY-2018
+      - Complete refactor of TMY processing code.
+    * - 3.1.0
+      - 9/23/2019
+      - 2018+
+      - Complete refactor of NSRDB processing code for NSRDB 2018
+    * - 3.0.6
+      - 4/23/2019
+      - 1998-2017
+      - Missing data for all cloud properties gap filled using heuristics method
+    * - 3.0.5
+      - 4/8/2019
+      - 1998-2017
+      - Cloud pressure attributes and scale/offset fixed for 2016 and 2017
+    * - 3.0.4
+      - 3/29/2019
+      - 1998-2017
+      - Aerosol optical depth patched with physical range from 0 to 3.2
+    * - 3.0.3
+      - 2/25/2019
+      - 1998-2017
+      - Wind data recomputed to fix corrupted data in western extent
+    * - 3.0.2
+      - 2/25/2019
+      - 1998-2017
+      - Air temperature data recomputed from MERRA2 with elevation correction
+    * - 3.0.1
+      - 2018
+      - 2017+
+      - Moved from timeshift of radiation to timeshift of cloud properties.
     * - 3.0.0
       - 2018
       - 1998-2017
       - Initial release of PSM v3
-
         - Hourly AOD (1998-2016) from Modern-Era Retrospective analysis for
           Research and Applications Version 2 (MERRA2).
         - Snow-free Surface Albedo from MODIS (2001-2015), (MCD43GF CMG
@@ -120,74 +173,26 @@ NSRDB Versions
         - Modern-Era Retrospective analysis for Research and Applications,
           Version 2 (MERRA-2) is used for ancillary data (pressure, humidity,
           wind speed etc.)
+    * - 2.0.0
+      - 2016
+      - 1998-2015
+      - Initial release of PSM v2 (use of FARMS, downscaling of ancillary data
+        introduced to account for elevation, NSRDB website distribution
+        developed)
+        - Clear sky: REST2, Cloudy sky: NREL FARMS model and DISC model
+        - Climate Forecast System Reanalysis (CFSR) is used for ancillary data
+        - Monthly 0.5º aerosol optical depth (AOD) for 1998-2014 using
+          satellite and ground-based measurements. Monthly results interpolated
+          to daily 4-km AOD data. Daily data calibrated using ground
+          measurements to develop accurate AOD product.
+    * - 1.0.0
+      - 2015
+      - 2005-2012
+      - Initial release of PSM v1 (no FARMS)
+        - Satellite Algorithm for Shortwave Radiation Budget (SASRAB) model
+        - MMAC model for clear sky condition
+        - The DNI for cloud scenes is then computed using the DISC model
 
-    * - 3.0.1
-      - 2018
-      - 2017+
-      - Moved from timeshift of radiation to timeshift of cloud properties.
-    * - 3.0.2
-      - 2/25/2019
-      - 1998-2017
-      - Air temperature data recomputed from MERRA2 with elevation correction
-    * - 3.0.3
-      - 2/25/2019
-      - 1998-2017
-      - Wind data recomputed to fix corrupted data in western extent
-    * - 3.0.4
-      - 3/29/2019
-      - 1998-2017
-      - Aerosol optical depth patched with physical range from 0 to 3.2
-    * - 3.0.5
-      - 4/8/2019
-      - 1998-2017
-      - Cloud pressure attributes and scale/offset fixed for 2016 and 2017
-    * - 3.0.6
-      - 4/23/2019
-      - 1998-2017
-      - Missing data for all cloud properties gap filled using heuristics method
-    * - 3.1.0
-      - 9/23/2019
-      - 2018+
-      - Complete refactor of NSRDB processing code for NSRDB 2018
-    * - 3.1.1
-      - 12/5/2019
-      - 2018+, TMY/TDY/TGY-2018
-      - Complete refactor of TMY processing code.
-    * - 3.1.2
-      - 6/8/2020
-      - 2020
-      - Added feature to adjust cloud coordinates based on solar position and
-        shading geometry.
-    * - 3.2.0
-      - 3/17/2021
-      - 2020
-      - Enabled cloud solar shading coordinate adjustment by default, enabled
-        MLClouds machine learning gap fill method for missing cloud properties
-        (cloud fill flag #7)
-    * - 3.2.1
-      - 1/12/2021
-      - 2021
-      - Implemented an algorithm to re-map the parallax and shading corrected
-        cloud coordinates to the nominal GOES coordinate system. This fixes the
-        issue of PC cloud coordinates conflicting with clearsky coordinates.
-        This also fixes the strange pattern that was found in the long term
-        means generated from PC data.
-    * - 3.2.2
-      - 2/25/2022
-      - 1998-2021
-      - Implemented a model for snowy albedo as a function of temperature from
-        MERRA2 based on the paper "A comparison of simulated and observed
-        fluctuations in summertime Arctic surface albedo" by Becky Ross and
-        John E. Walsh
-    * - 3.2.3
-      - 4/13/23
-      - None
-      - Fixed MERRA interpolation issue #51 and deprecated python 3.7/3.8.
-        Added changes to accommodate pandas v2.0.0.
-    * - 4.0.0
-      - 5/1/23
-      - 2022
-      - Integrated new FARMS-DNI model.
 
 Recommended Citation
 ====================

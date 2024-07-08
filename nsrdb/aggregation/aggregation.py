@@ -36,14 +36,14 @@ NSRDB = {
         'tree_file': 'kdtree_nsrdb_meta_2km.pkl',
         'meta_file': 'nsrdb_meta_2km.csv',
         'spatial': '2km',
-        'temporal': '10min',
+        'freq': '10min',
     },
     'conus': {
         'data_sub_dir': 'blended_conus',
         'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
         'meta_file': 'nsrdb_meta_2km_conus.csv',
         'spatial': '2km',
-        'temporal': '5min',
+        'freq': '5min',
     },
     'final': {
         'data_sub_dir': 'nsrdb_4km_30min',
@@ -51,7 +51,7 @@ NSRDB = {
         'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
         'meta_file': 'nsrdb_meta_4km.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
         'source_priority': ['conus', 'full_disk'],
     },
 }
@@ -63,7 +63,7 @@ SIMPLE = {
         'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
         'meta_file': 'nsrdb_meta_2km_east.csv',
         'spatial': '2km',
-        'temporal': '15min',
+        'freq': '15min',
     },
     'final': {
         'data_sub_dir': 'wrf_9km',
@@ -71,7 +71,7 @@ SIMPLE = {
         'tree_file': 'kdtree_wrf_meta_9km.pkl',
         'meta_file': 'wrf_meta_9km.csv',
         'spatial': '9km',
-        'temporal': '15min',
+        'freq': '15min',
     },
 }
 
@@ -82,21 +82,21 @@ NSRDB_2018 = {
         'tree_file': 'kdtree_nsrdb_meta_2km_full.pkl',
         'meta_file': 'nsrdb_meta_2km_full.csv',
         'spatial': '2km',
-        'temporal': '10min',
+        'freq': '10min',
     },
     'conus': {
         'data_sub_dir': 'nsrdb_conus_east_2018_2km_5min/final/',
         'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
         'meta_file': 'nsrdb_meta_2km_conus.csv',
         'spatial': '2km',
-        'temporal': '5min',
+        'freq': '5min',
     },
     'west': {
         'data_sub_dir': 'nsrdb_west_full_2018_4km_30min/final/',
         'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
         'meta_file': 'nsrdb_meta_4km.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
     },
     'final': {
         'data_sub_dir': 'nsrdb_4km_30min',
@@ -104,7 +104,7 @@ NSRDB_2018 = {
         'tree_file': 'kdtree_nsrdb_meta_4km.pkl',
         'meta_file': 'nsrdb_meta_4km.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
     },
 }
 
@@ -115,21 +115,21 @@ SURFRAD_2018 = {
         'tree_file': 'kdtree_nsrdb_meta_2km_east.pkl',
         'meta_file': 'nsrdb_meta_2km_east.csv',
         'spatial': '2km',
-        'temporal': '15min',
+        'freq': '15min',
     },
     'west': {
         'data_sub_dir': 'west',
         'tree_file': 'kdtree_west_psm_extent.pkl',
         'meta_file': 'west_psm_extent.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
     },
     'conus': {
         'data_sub_dir': 'conus',
         'tree_file': 'kdtree_nsrdb_meta_2km_conus.pkl',
         'meta_file': 'nsrdb_meta_2km_conus.csv',
         'spatial': '2km',
-        'temporal': '5min',
+        'freq': '5min',
     },
     'final': {
         'data_sub_dir': 'nsrdb_4km_30min',
@@ -137,7 +137,7 @@ SURFRAD_2018 = {
         'tree_file': 'kdtree_surfrad_meta.pkl',
         'meta_file': 'surfrad_meta.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
     },
 }
 
@@ -964,7 +964,7 @@ class Manager:
     def parse_data(self):
         """Parse the data input for several useful attributes."""
         self.final_sres = self.data['final']['spatial']
-        self.final_tres = self.data['final']['temporal']
+        self.final_tres = self.data['final']['freq']
         if 'fpath' in self.data['final']:
             self.fout = self.data['final']['fpath']
         else:
@@ -984,7 +984,7 @@ class Manager:
 
     def preflight(
         self,
-        reqs=('data_sub_dir', 'tree_file', 'meta_file', 'spatial', 'temporal'),
+        reqs=('data_sub_dir', 'tree_file', 'meta_file', 'spatial', 'freq'),
     ):
         """Run validity checks on input data.
 
@@ -1357,7 +1357,7 @@ class Manager:
         """Get the temporal window sizes for all data sources."""
         for source in self.data_sources:
             w = self._get_temporal_w(
-                self.data[source]['temporal'], self.final_tres
+                self.data[source]['freq'], self.final_tres
             )
             self.data[source]['window'] = w
             logger.info(

@@ -30,7 +30,7 @@ TESTJOB1 = {
         'tree_file': 'kdtree_surfrad_meta.pkl',
         'meta_file': 'surfrad_meta.csv',
         'spatial': '2km',
-        'temporal': '5min',
+        'freq': '5min',
     },
     'final': {
         'data_sub_dir': 'agg_out',
@@ -38,7 +38,7 @@ TESTJOB1 = {
         'tree_file': 'kdtree_test_meta_agg.pkl',
         'meta_file': 'test_meta_agg.csv',
         'spatial': '4km',
-        'temporal': '5min',
+        'freq': '5min',
     },
 }
 
@@ -48,7 +48,7 @@ TESTJOB2 = {
         'tree_file': 'kdtree_surfrad_meta.pkl',
         'meta_file': 'surfrad_meta.csv',
         'spatial': '2km',
-        'temporal': '5min',
+        'freq': '5min',
     },
     'final': {
         'data_sub_dir': 'agg_out',
@@ -56,7 +56,7 @@ TESTJOB2 = {
         'tree_file': 'kdtree_test_meta_agg.pkl',
         'meta_file': 'test_meta_agg.csv',
         'spatial': '4km',
-        'temporal': '30min',
+        'freq': '30min',
     },
 }
 
@@ -256,14 +256,14 @@ def test_multi_file():
                 'tree_file': 'kdtree_surfrad_meta.pkl',
                 'meta_file': 'surfrad_meta.csv',
                 'spatial': '2km',
-                'temporal': '5min',
+                'freq': '5min',
             },
             'final': {
                 'fpath': fpath_out,
                 'tree_file': 'kdtree_test_meta_agg.pkl',
                 'meta_file': 'test_meta_agg.csv',
                 'spatial': '4km',
-                'temporal': '30min',
+                'freq': '30min',
             },
         }
 

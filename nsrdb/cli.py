@@ -194,6 +194,7 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
     """  # noqa: D301
 
     ctx.ensure_object(dict)
+    init_logger('gaps', log_level='DEBUG')
     ctx.obj['VERBOSE'] = verbose or ctx.obj.get('VERBOSE', False)
     gaps_pipeline(config, cancel, monitor, background)
 
@@ -855,8 +856,7 @@ def _run_or_collect_tmy(
     '-c',
     type=str,
     required=True,
-    help='Path to config file with kwargs for TmyRunner.func(), where func '
-    'is "tmy", "tdy", or "tgy".',
+    help='Path to config file with kwargs for TmyRunner.tmy()',
 )
 @click.option(
     '-v',

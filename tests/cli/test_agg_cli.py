@@ -61,14 +61,14 @@ def test_agg_cli(runner):
                 'tree_file': 'kdtree_surfrad_meta.pkl',
                 'meta_file': 'surfrad_meta.csv',
                 'spatial': '2km',
-                'temporal': '5min',
+                'freq': '5min',
             },
             'final': {
                 'fpath': fpath_out,
                 'tree_file': 'kdtree_test_meta_agg.pkl',
                 'meta_file': 'test_meta_agg.csv',
                 'spatial': '4km',
-                'temporal': '30min',
+                'freq': '30min',
             },
         }
 
