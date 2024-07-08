@@ -99,8 +99,9 @@ def main(ctx, config, verbose):
 
         $ python -m nsrdb.cli aggregate --help
 
-    Each of these commands can be run with a config_file provided through the
-    `-c` argument. A typical config file might look like::
+    Each of these commands can be run with a config_file or a dictionary
+    (represented as a string) provided through the `-c` argument. A typical
+    config file might look like::
 
         \b
         {
@@ -121,6 +122,15 @@ def main(ctx, config, verbose):
     the same argument values. "execution_control" is used to provide arguments
     to the SLURM manager for HPC submissions or to select local execution with
     {"option": "local"}
+
+    To do a standard CONUS / Full Disc run use the following commands::
+
+        $ config='{"year": <year>, "out_dir": <out_dir>}'
+        $ python -m nsrdb.cli create-configs -c config
+        $ cd <out_dir>
+        $ bash run.sh (run this until all main steps are complete)
+        $ cd post_proc
+        $ bash run.sh (run this until all post-proc steps are complete)
 
     See the help pages of the module CLIs for more details on the config files
     for each CLI.
