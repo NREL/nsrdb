@@ -1,4 +1,4 @@
-"""PyTest file for main nsrdb CLI."""
+"""PyTest file for tmy CLI."""
 
 import json
 import os
