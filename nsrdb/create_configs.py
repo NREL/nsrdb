@@ -190,6 +190,13 @@ class CreateConfigs:
         config_dict.update(
             {k: v for k, v in config.items() if k in config_dict}
         )
+
+        # special case for 2018. use all points as neighbors during cloud
+        # regrid
+
+        if config['year'] == 2018 and config['satellite'] == 'west':
+            config_dict['data-model']['dist_lim'] = 1e6
+
         cls._write_config(
             config_dict,
             os.path.join(config['out_dir'], 'config_nsrdb.json'),
