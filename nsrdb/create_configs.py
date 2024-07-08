@@ -30,15 +30,47 @@ DEFAULT_EXEC_CONFIG = {
 
 DEFAULT_META_DIR = '/projects/pxs/reference_grids/'
 
-DEFAULT_KWARGS = {
+
+BASE_KWARGS = {
     'basename': 'nsrdb',
+    'out_dir': './',
+    'execution_control': DEFAULT_EXEC_CONFIG,
+    'meta_dir': DEFAULT_META_DIR,
+}
+
+MAIN_KWARGS = {
+    **BASE_KWARGS,
     'freq': '30min',
     'spatial': '4km',
     'satellite': 'east',
     'extent': 'full',
-    'out_dir': './',
-    'execution_control': DEFAULT_EXEC_CONFIG,
-    'meta_dir': DEFAULT_META_DIR,
+}
+
+BLEND_KWARGS = {
+    **BASE_KWARGS,
+    'file_tag': 'all',
+    'extent': 'full',
+    'main_dir': '../',
+}
+
+AGG_KWARGS = {
+    **BASE_KWARGS,
+    'full_spatial': '2km',
+    'conus_spatial': '2km',
+    'final_spatial': '4km',
+    'data_dir': './',
+    'full_freq': '10min',
+    'conus_freq': '5min',
+    'final_freq': '30min',
+    'n_chunks': 32,
+    'source_priority': ['conus', 'full_disk'],
+}
+
+COLLECT_AGG_KWARGS = {
+    **BASE_KWARGS,
+    'final_spatial': '4km',
+    'final_freq': '30min',
+    'max_workers': 10,
 }
 
 
@@ -65,7 +97,7 @@ class CreateConfigs:
             Dictionary of parameters including year, basename, satellite,
             extent, freq, spatial, meta_file, doy_range
         """
-        config = copy.deepcopy(DEFAULT_KWARGS)
+        config = copy.deepcopy(MAIN_KWARGS)
         config.update(kwargs)
         config['out_dir'] = os.path.abspath(config['out_dir'])
         os.makedirs(config['out_dir'], exist_ok=True)
@@ -209,7 +241,7 @@ class CreateConfigs:
     def _get_run_name(cls, config, run_type='main'):
         """Get name of run for given main run input."""
         config.update(
-            {k: v for k, v in DEFAULT_KWARGS.items() if k not in config}
+            {k: v for k, v in MAIN_KWARGS.items() if k not in config}
         )
         pattern_dict = {
             'main': cls.MAIN_RUN_NAME,
@@ -344,20 +376,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to aggregate
             files
         """
-        default_kwargs = {
-            'full_spatial': '2km',
-            'conus_spatial': '2km',
-            'final_spatial': '4km',
-            'data_dir': './',
-            'full_freq': '10min',
-            'conus_freq': '5min',
-            'final_freq': '30min',
-            'n_chunks': 32,
-            'source_priority': ['conus', 'full_disk'],
-            'meta_dir': DEFAULT_META_DIR,
-        }
-
-        config = copy.deepcopy(default_kwargs)
+        config = copy.deepcopy(AGG_KWARGS)
         config.update(kwargs)
 
         if config['year'] == 2018:
@@ -409,16 +428,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to blend data
             files
         """
-        default_kwargs = {
-            'file_tag': 'all',
-            'spatial': '4km',
-            'extent': 'full',
-            'main_dir': '../',
-            'chunk_size': 100000,
-            'freq': '30min',
-            'meta_dir': DEFAULT_META_DIR,
-        }
-        config = copy.deepcopy(default_kwargs)
+        config = copy.deepcopy(BLEND_KWARGS)
         config.update(kwargs)
 
         if config['year'] > 2017:
@@ -442,13 +452,15 @@ class CreateConfigs:
         meta_file += '.csv'
         config['meta_file'] = os.path.join(config['meta_dir'], meta_file)
 
-        config['satellite'] = 'east'
         config['east_dir'] = os.path.join(
-            config['main_dir'], cls._get_run_name(config), 'final'
+            config['main_dir'],
+            cls._get_run_name({'satellite': 'east', **config}),
+            'final',
         )
-        config['satellite'] = 'west'
         config['west_dir'] = os.path.join(
-            config['main_dir'], cls._get_run_name(config), 'final'
+            config['main_dir'],
+            cls._get_run_name({'satellite': 'west', **config}),
+            'final',
         )
         config['run_name'] = config.get(
             'run_name', cls._get_run_name(config, run_type='blend')
@@ -518,14 +530,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for blend collection
         """
 
-        default_kwargs = {
-            'spatial': '4km',
-            'freq': '30min',
-            'extent': 'full',
-            'meta_dir': DEFAULT_META_DIR,
-        }
-
-        config = copy.deepcopy(default_kwargs)
+        config = copy.deepcopy(BASE_KWARGS)
         config.update(kwargs)
 
         config['meta'] = os.path.join(
@@ -582,13 +587,7 @@ class CreateConfigs:
         kwargs : dict
             Dictionary with keys specifying the case for aggregation collection
         """
-        default_kwargs = {
-            'final_spatial': '4km',
-            'final_freq': '30min',
-            'meta_dir': DEFAULT_META_DIR,
-        }
-
-        config = copy.deepcopy(default_kwargs)
+        config = copy.deepcopy(COLLECT_AGG_KWARGS)
         config.update(kwargs)
 
         meta_file = f'nsrdb_meta_{config["final_spatial"]}.csv'

@@ -286,32 +286,16 @@ def create_configs(
     init_logger('nsrdb.create_configs', log_level='DEBUG')
 
     ctx.ensure_object(dict)
-    if run_type == 'full':
-        CreateConfigs.full(config)
-    elif run_type == 'main':
-        if all_domains:
-            CreateConfigs.main_all(config)
-        else:
-            CreateConfigs.main(config)
-    elif run_type == 'aggregate':
-        if collect:
-            CreateConfigs.collect_aggregate(config)
-        else:
-            CreateConfigs.aggregate(config)
-    elif run_type == 'blend':
-        if collect:
-            CreateConfigs.collect_blend(config)
-        else:
-            CreateConfigs.blend(config)
-    elif run_type == 'post':
-        CreateConfigs.post(config)
-    else:
-        msg = (
-            f'Received unknown "run_type" {run_type}. Accepted values are '
-            '"main", "post", "aggregate", and "blend"'
-        )
-        logger.error(msg)
-        raise ValueError(msg)
+    func_name = f'collect_{run_type}' if collect else run_type
+    func_name = 'main_all' if run_type == 'main' and all_domains else func_name
+    valid_types = ['full', 'main', 'aggregate', 'blend', 'post']
+    msg = (
+        f'Received unknown "run_type" {run_type}. Accepted values are '
+        f'{valid_types}'
+    )
+    assert hasattr(CreateConfigs, func_name), msg
+    config_func = getattr(CreateConfigs, func_name)
+    config_func(config)
 
 
 @main.command()
