@@ -153,7 +153,7 @@ def _check_args(post_files, funcs):
     for file, func in zip(post_files[:-2], funcs):
         config = safe_json_load(file)
         config_args = config[next(iter(config.keys()))]
-        arg_spec = inspect.getargspec(func)
+        arg_spec = inspect.getfullargspec(func)
         args = arg_spec.args[1 : -len(arg_spec.defaults)]
 
         # not requiring i_chunk in configs since this is defined in
