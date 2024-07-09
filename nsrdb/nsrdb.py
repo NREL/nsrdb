@@ -144,9 +144,7 @@ class NSRDB:
         """
         if self._ti is None:
             self._ti = pd.date_range(
-                '1-1-{y}'.format(y=self._year),
-                '1-1-{y}'.format(y=self._year + 1),
-                freq=self._freq,
+                f'1-1-{self._year}', f'1-1-{self._year}', freq=self._freq
             )[:-1]
         return self._ti
 
@@ -759,7 +757,7 @@ class NSRDB:
             var_meta=nsrdb._var_meta,
             max_workers=max_workers,
         )
-        logger.info('Finished file collection to: {}'.format(f_out))
+        logger.info(f'Finished file collection to: {f_out}')
 
     @classmethod
     def collect_final(
@@ -832,10 +830,8 @@ class NSRDB:
             fids = [int(fn.replace('.h5', '').split('_')[-1]) for fn in flist]
             if fids != list(range(np.min(fids), 1 + np.max(fids))):
                 emsg = (
-                    'File list appears to be missing files. '
-                    '{} files from {} to {}.'.format(
-                        len(flist), np.min(fids), np.max(fids)
-                    )
+                    f'File list appears to be missing files. {len(flist)} '
+                    f'files from {np.min(fids)} to {np.max(fids)}.'
                 )
                 raise FileNotFoundError(emsg)
 
@@ -845,12 +841,10 @@ class NSRDB:
                 nsrdb.init_output_h5(
                     f_out, dsets, ti, nsrdb.meta, var_meta=nsrdb._var_meta
                 )
-                logger.info(
-                    'Collecting {} files in list: {}'.format(len(flist), flist)
-                )
+                logger.info(f'Collecting {len(flist)} files in list: {flist}')
 
                 for dset in dsets:
-                    logger.info('Collecting dataset "{}".'.format(dset))
+                    logger.info(f'Collecting dataset "{dset}".')
                     Collector.collect_flist_lowmem(
                         flist,
                         collect_dir,
@@ -861,8 +855,8 @@ class NSRDB:
 
             else:
                 emsg = (
-                    'Could not find files to collect for {} in the '
-                    'collect dir: {}'.format(fname, collect_dir)
+                    f'Could not find files to collect for {fname} in the '
+                    f'collect dir: {collect_dir}'
                 )
                 raise FileNotFoundError(emsg)
 
@@ -870,7 +864,7 @@ class NSRDB:
                 logger.info('Moving temp file to final output directory.')
                 shutil.move(f_out, os.path.join(out_dir, fname))
 
-        logger.info('Finished final file collection to: {}'.format(out_dir))
+        logger.info(f'Finished final file collection to: {out_dir}.')
 
     @classmethod
     def gap_fill_clouds(
@@ -921,9 +915,9 @@ class NSRDB:
             fn for fn in nsrdb.OUTS if 'ancillary_b' in fn
         ).format(y=year)
         f_cloud = os.path.join(nsrdb._collect_dir, fname_clouds)
-        f_cloud = f_cloud.replace('.h5', '_{}.h5'.format(i_chunk))
+        f_cloud = f_cloud.replace('.h5', f'_{i_chunk}.h5')
         f_ancillary = os.path.join(nsrdb._collect_dir, fname_ancillary)
-        f_ancillary = f_ancillary.replace('.h5', '_{}.h5'.format(i_chunk))
+        f_ancillary = f_ancillary.replace('.h5', f'_{i_chunk}.h5')
 
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
         CloudGapFill.fill_file(
@@ -1067,12 +1061,12 @@ class NSRDB:
                 )
                 cs_irrad_dsets = dsets
 
-        f_source = os.path.join(nsrdb._collect_dir, 'nsrdb*{}.h5'.format(year))
+        f_source = os.path.join(nsrdb._collect_dir, f'nsrdb*{year}.h5')
 
         if i_chunk is not None:
-            f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
-            f_out_cs = f_out_cs.replace('.h5', '_{}.h5'.format(i_chunk))
-            f_source = f_source.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_out = f_out.replace('.h5', f'_{i_chunk}.h5')
+            f_out_cs = f_out_cs.replace('.h5', f'_{i_chunk}.h5')
+            f_source = f_source.replace('.h5', f'_{i_chunk}.h5')
 
         with MultiFileResource(f_source) as source:
             meta = source.meta
@@ -1107,13 +1101,13 @@ class NSRDB:
                 disc_on=disc_on,
             )
 
-        logger.info('Finished all-sky. Writing to: {}'.format(f_out))
+        logger.info(f'Finished all-sky. Writing to: {f_out}.')
         with Outputs(f_out, mode='a') as f:
             for dset, arr in out.items():
                 if dset in f.dsets:
                     f[dset, rows, cols] = arr
 
-        logger.info('Finished all-sky. Writing to: {}'.format(f_out_cs))
+        logger.info(f'Finished all-sky. Writing to: {f_out_cs}.')
         with Outputs(f_out_cs, mode='a') as f:
             for dset, arr in out.items():
                 if dset in f.dsets:
@@ -1181,7 +1175,7 @@ class NSRDB:
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        f_source = os.path.join(nsrdb._daily_dir, '{}*.h5'.format(date))
+        f_source = os.path.join(nsrdb._daily_dir, f'{date}*.h5')
 
         with MultiFileResource(f_source) as source:
             meta = source.meta
@@ -1201,9 +1195,9 @@ class NSRDB:
 
         logger.info('Finished all-sky compute.')
         for dset, arr in out.items():
-            fn = '{}_{}_0.h5'.format(date, dset)
+            fn = f'{date}_{dset}_0.h5'
             f_out = os.path.join(nsrdb._daily_dir, fn)
-            logger.info('Writing {} to: {}'.format(dset, f_out))
+            logger.info(f'Writing {dset} to: {f_out}.')
             nsrdb.init_output_h5(
                 f_out, [dset], time_index, meta, var_meta=nsrdb._var_meta
             )
@@ -1308,9 +1302,8 @@ class NSRDB:
         )
 
         logger.info(
-            'Starting daily data model execution for {}-{}-{}'.format(
-                date.month, date.day, date.year
-            )
+            'Starting daily data model execution for '
+            f'{date.month}-{date.day}-{date.year}'
         )
 
         data_model = DataModel.run_multiple(
@@ -1329,9 +1322,8 @@ class NSRDB:
         )
 
         logger.info(
-            'Finished daily data model execution for {}-{}-{}'.format(
-                date.month, date.day, date.year
-            )
+            'Finished daily data model execution for '
+            f'{date.month}-{date.day}-{date.year}'
         )
 
         data_model = MLCloudsFill.clean_data_model(
