@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """A framework for handling Asymmetry source data."""
+
 import datetime
 import logging
 import os
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,14 @@ logger = logging.getLogger(__name__)
 class AsymVar(AncillaryVarHandler):
     """Framework for Asymmetry variable data extraction."""
 
-    def __init__(self, name='asymmetry', var_meta=None,
-                 date=datetime.date(year=2017, month=1, day=1),
-                 fname='asymmetry_clim.h5', **kwargs):
+    def __init__(
+        self,
+        name='asymmetry',
+        var_meta=None,
+        date=datetime.date(year=2017, month=1, day=1),
+        fname='asymmetry_clim.h5',
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -58,7 +63,7 @@ class AsymVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not NFS(self.file).isfile():
+        if not NSRDBfs(self.file).isfile():
             missing = self.file
 
         return missing
@@ -84,7 +89,7 @@ class AsymVar(AncillaryVarHandler):
         data : np.ndarray
             Single month of asymmetry data with shape (1 x n_sites).
         """
-        with NFS(self.file) as f:
+        with NSRDBfs(self.file) as f:
             # take the data at all sites for the zero-indexed month
             i = self._date.month - 1
             data = f[self.name][i, :]
@@ -105,13 +110,17 @@ class AsymVar(AncillaryVarHandler):
         """
 
         if self._asym_grid is None:
-            with NFS(self.file, use_rex=True) as f:
+            with NSRDBfs(self.file, use_rex=True) as f:
                 self._asym_grid = f.meta
 
-            if ('latitude' not in self._asym_grid
-                    or 'longitude' not in self._asym_grid):
-                raise ValueError('Asymmetry file did not have '
-                                 'latitude/longitude meta data. '
-                                 'Please check: {}'.format(self.file))
+            if (
+                'latitude' not in self._asym_grid
+                or 'longitude' not in self._asym_grid
+            ):
+                raise ValueError(
+                    'Asymmetry file did not have '
+                    'latitude/longitude meta data. '
+                    'Please check: {}'.format(self.file)
+                )
 
         return self._asym_grid

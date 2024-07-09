@@ -1,15 +1,14 @@
-"""
-NSRDB Sky Classification utility using SURFRAD + Clearsky Irradiance.
-"""
+"""NSRDB Sky Classification utility using SURFRAD + Clearsky Irradiance."""
+
 import logging
+
 import numpy as np
 import pandas as pd
-from scipy.stats import mode
-
 from farms import SZA_LIM
-from farms.utilities import ti_to_radius, calc_beta
+from farms.utilities import calc_beta, ti_to_radius
 from rest2.rest2 import rest2
 from rex import MultiFileResource, Resource
+from scipy.stats import mode
 
 from nsrdb.data_model.solar_zenith_angle import SolarZenithAngle
 from nsrdb.file_handlers.surfrad import Surfrad
@@ -24,19 +23,45 @@ class SkyClass:
     """
 
     # REST2 inputs with NSRDB variable names
-    REST_VARS = ('surface_pressure', 'surface_albedo', 'ssa', 'asymmetry',
-                 'solar_zenith_angle', 'radius', 'alpha', 'beta', 'ozone',
-                 'total_precipitable_water')
+    REST_VARS = (
+        'surface_pressure',
+        'surface_albedo',
+        'ssa',
+        'asymmetry',
+        'solar_zenith_angle',
+        'radius',
+        'alpha',
+        'beta',
+        'ozone',
+        'total_precipitable_water',
+    )
 
     # REST2 input names (order must match REST_VARS)
-    ALIASES = ('p', 'albedo', 'ssa', 'g',
-               'z', 'radius', 'alpha', 'beta', 'ozone',
-               'w')
+    ALIASES = (
+        'p',
+        'albedo',
+        'ssa',
+        'g',
+        'z',
+        'radius',
+        'alpha',
+        'beta',
+        'ozone',
+        'w',
+    )
 
-    def __init__(self, fp_surf, fp_nsrdb, nsrdb_gid,
-                 clearsky_ratio=0.9, clear_time_frac=0.8,
-                 cloudy_time_frac=0.2, window_minutes=61,
-                 min_irradiance=0, sza_lim=89):
+    def __init__(
+        self,
+        fp_surf,
+        fp_nsrdb,
+        nsrdb_gid,
+        clearsky_ratio=0.9,
+        clear_time_frac=0.8,
+        cloudy_time_frac=0.2,
+        window_minutes=61,
+        min_irradiance=0,
+        sza_lim=89,
+    ):
         """
         Parameters
         ----------
@@ -132,7 +157,7 @@ class SkyClass:
             missing time steps) and data columns for each input variable
             required by REST and some extras (e.g. air_temperature).
         """
-        rest_inputs = {v: None for v in self.REST_VARS}
+        rest_inputs = dict.fromkeys(self.REST_VARS)
 
         for var in self.REST_VARS:
             temp = self.nsrdb['air_temperature', :, self._gid]
@@ -145,8 +170,7 @@ class SkyClass:
         beta = calc_beta(self.nsrdb['aod', :, self._gid], rest_inputs['alpha'])
         rest_inputs['beta'] = beta
 
-        rest_inputs = pd.DataFrame(
-            rest_inputs, index=self.nsrdb_time_index)
+        rest_inputs = pd.DataFrame(rest_inputs, index=self.nsrdb_time_index)
         rest_inputs = rest_inputs.reindex(self.surf_time_index)
         rest_inputs = rest_inputs.interpolate('linear', axis=0).ffill().bfill()
 
@@ -156,9 +180,13 @@ class SkyClass:
         lat_lon = self.nsrdb.meta.loc[self._gid, ['latitude', 'longitude']]
         lat_lon = lat_lon.values.reshape((1, 2)).astype(float)
         elev = np.array([self.nsrdb.meta.loc[self._gid, 'elevation']])
-        sza = SolarZenithAngle.derive(self.surf_time_index, lat_lon, elev,
-                                      rest_inputs['surface_pressure'].values,
-                                      rest_inputs['air_temperature'].values)
+        sza = SolarZenithAngle.derive(
+            self.surf_time_index,
+            lat_lon,
+            elev,
+            rest_inputs['surface_pressure'].values,
+            rest_inputs['air_temperature'].values,
+        )
         rest_inputs['solar_zenith_angle'] = sza
 
         return rest_inputs
@@ -178,8 +206,10 @@ class SkyClass:
         ghi : np.ndarray
             2D (time, 1) array of clearsky GHI values calculated by REST2.
         """
-        kwargs = {self.ALIASES[i]: rest_inputs[var].values
-                  for i, var in enumerate(self.REST_VARS)}
+        kwargs = {
+            self.ALIASES[i]: rest_inputs[var].values
+            for i, var in enumerate(self.REST_VARS)
+        }
         kwargs = {k: np.expand_dims(v, axis=1) for k, v in kwargs.items()}
         ghi = rest2(**kwargs, sza_lim=SZA_LIM).ghi
         return ghi
@@ -265,8 +295,7 @@ class SkyClass:
         return df
 
     def add_validation_data(self, df):
-        """Add NSRDB and SURFRAD ghi and dni data to a DataFrame.
-        """
+        """Add NSRDB and SURFRAD ghi and dni data to a DataFrame."""
         df = df.reindex(self.nsrdb_time_index)
         assert len(df) == len(self.nsrdb_time_index)
         ti_deltas = self.nsrdb_time_index - np.roll(self.nsrdb_time_index, 1)
@@ -274,10 +303,12 @@ class SkyClass:
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
         freq = '{}T'.format(ti_delta_minutes)
         df = df.drop(['ghi_ground', 'clear'], axis=1)
-        surf_df = self.surfrad.get_df(dt_out=freq,
-                                      window_minutes=self._window_min)
-        surf_df = surf_df.rename({k: '{}_ground'.format(k)
-                                  for k in surf_df.columns}, axis=1)
+        surf_df = self.surfrad.get_df(
+            dt_out=freq, window_minutes=self._window_min
+        )
+        surf_df = surf_df.rename(
+            {k: '{}_ground'.format(k) for k in surf_df.columns}, axis=1
+        )
         df = df.join(surf_df, how='left')
         df['dhi_nsrdb'] = self.nsrdb['dhi', :, self._gid]
         df['dni_nsrdb'] = self.nsrdb['dni', :, self._gid]
@@ -285,18 +316,28 @@ class SkyClass:
         df['cloud_type'] = self.nsrdb['cloud_type', :, self._gid]
         df['fill_flag'] = self.nsrdb['fill_flag', :, self._gid]
 
-        mask = ((df['ghi_ground'] < self._min_irrad)
-                | (df['ghi_nsrdb'] < self._min_irrad)
-                | (df['solar_zenith_angle'] > self._sza_lim))
+        mask = (
+            (df['ghi_ground'] < self._min_irrad)
+            | (df['ghi_nsrdb'] < self._min_irrad)
+            | (df['solar_zenith_angle'] > self._sza_lim)
+        )
         df.loc[mask, 'sky_class'] = 'missing'
 
         return df
 
     @classmethod
-    def run(cls, fp_surf, fp_nsrdb, nsrdb_gid,
-            clearsky_ratio=0.9, clear_time_frac=0.8,
-            cloudy_time_frac=0.2, window_minutes=61,
-            min_irradiance=0, sza_lim=89):
+    def run(
+        cls,
+        fp_surf,
+        fp_nsrdb,
+        nsrdb_gid,
+        clearsky_ratio=0.9,
+        clear_time_frac=0.8,
+        cloudy_time_frac=0.2,
+        window_minutes=61,
+        min_irradiance=0,
+        sza_lim=89,
+    ):
         """
         Parameters
         ----------
@@ -342,14 +383,17 @@ class SkyClass:
             with those timesteps.
         """
 
-        with cls(fp_surf, fp_nsrdb, nsrdb_gid,
-                 clearsky_ratio=clearsky_ratio,
-                 clear_time_frac=clear_time_frac,
-                 cloudy_time_frac=cloudy_time_frac,
-                 window_minutes=window_minutes,
-                 min_irradiance=min_irradiance,
-                 sza_lim=sza_lim) as sc:
-
+        with cls(
+            fp_surf,
+            fp_nsrdb,
+            nsrdb_gid,
+            clearsky_ratio=clearsky_ratio,
+            clear_time_frac=clear_time_frac,
+            cloudy_time_frac=cloudy_time_frac,
+            window_minutes=window_minutes,
+            min_irradiance=min_irradiance,
+            sza_lim=sza_lim,
+        ) as sc:
             df = sc.get_comparison_df()
             df = sc.calculate_sky_class(df)
             df = sc.add_validation_data(df)

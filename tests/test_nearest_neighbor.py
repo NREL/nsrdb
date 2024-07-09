@@ -1,4 +1,3 @@
-# pylint: skip-file
 """
 PyTest file for PV generation in Rhode Island.
 
@@ -7,13 +6,12 @@ Created on Thu Nov 29 09:54:51 2018
 @author: gbuster
 """
 
-import os
-import pytest
+
 import numpy as np
 import pandas as pd
 
-from nsrdb.utilities.nearest_neighbor import knn, geo_nn, reg_grid_nn
-
+from nsrdb.utilities.nearest_neighbor import geo_nn, knn, reg_grid_nn
+from nsrdb.utilities.pytest import execute_pytest
 
 latitude = np.array(range(0, 90))
 longitude = np.array(range(-180, 0))
@@ -103,21 +101,5 @@ def test_regular_grid_nn():
     return coords_closest_reg
 
 
-def execute_pytest(capture='all', flags='-rapP', purge=True):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

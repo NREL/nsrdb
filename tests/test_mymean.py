@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PyTest file for multi year mean.
 
@@ -7,14 +6,14 @@ Created on Feb 13th 2019
 @author: gbuster
 """
 import os
-import pytest
-import numpy as np
 import tempfile
 
-from nsrdb import TESTDATADIR
-from nsrdb.mymean.mymean import MyMean
-from nsrdb.file_handlers.outputs import Outputs
+import numpy as np
 
+from nsrdb import TESTDATADIR
+from nsrdb.file_handlers.outputs import Outputs
+from nsrdb.mymean.mymean import MyMean
+from nsrdb.utilities.pytest import execute_pytest
 
 NSRDB_DIR = os.path.join(TESTDATADIR, 'validation_nsrdb/')
 
@@ -46,21 +45,5 @@ def test_mymean():
         assert np.allclose(data, truth, atol=1)
 
 
-def execute_pytest(capture='all', flags='-rapP'):
-    """Execute module as pytest with detailed summary report.
-
-    Parameters
-    ----------
-    capture : str
-        Log or stdout/stderr capture option. ex: log (only logger),
-        all (includes stdout/stderr)
-    flags : str
-        Which tests to show logs and results for.
-    """
-
-    fname = os.path.basename(__file__)
-    pytest.main(['-q', '--show-capture={}'.format(capture), fname, flags])
-
-
 if __name__ == '__main__':
-    execute_pytest()
+    execute_pytest(__file__)

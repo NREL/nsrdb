@@ -1,13 +1,14 @@
-# -*- coding: utf-8 -*-
 """A framework for handling source data in the NREL resource format: .h5 source
 files with meta and time_index datasets, all data is (n_time, n_sites).
 """
-import os
+
 import logging
+import os
+
 import numpy as np
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class NrelVar(AncillaryVarHandler):
         """
 
         missing = ''
-        if not NFS(self.file).isfile():
+        if not NSRDBfs(self.file).isfile():
             missing = self.file
 
         return missing
@@ -73,12 +74,14 @@ class NrelVar(AncillaryVarHandler):
         """
 
         if self._row_mask is None:
-            with NFS(self.file, use_rex=True) as f:
+            with NSRDBfs(self.file, use_rex=True) as f:
                 ti = f.time_index
 
-            self._row_mask = ((ti.year == self._date.year)
-                              & (ti.month == self._date.month)
-                              & (ti.day == self._date.day))
+            self._row_mask = (
+                (ti.year == self._date.year)
+                & (ti.month == self._date.month)
+                & (ti.day == self._date.day)
+            )
 
         return self._row_mask
 
@@ -93,7 +96,7 @@ class NrelVar(AncillaryVarHandler):
         """
 
         if self._time_index is None:
-            with NFS(self.file, use_rex=True) as f:
+            with NSRDBfs(self.file, use_rex=True) as f:
                 self._time_index = f.time_index[self.row_mask]
 
         return self._time_index
@@ -108,7 +111,7 @@ class NrelVar(AncillaryVarHandler):
         np.ndarray
         """
 
-        with NFS(self.file, use_rex=True) as f:
+        with NSRDBfs(self.file, use_rex=True) as f:
             locs = np.where(self.row_mask)[0]
             row_slice = slice(locs[0], locs[-1] + 1)
             data = f[self.name, row_slice, :]
@@ -125,7 +128,7 @@ class NrelVar(AncillaryVarHandler):
         """
 
         if self._grid is None:
-            with NFS(self.file, use_rex=True) as f:
+            with NSRDBfs(self.file, use_rex=True) as f:
                 self._grid = f.meta[['latitude', 'longitude', 'elevation']]
 
         return self._grid

@@ -1,11 +1,12 @@
-# -*- coding: utf-8 -*-
 """NSRDB interpolation algorithms for downscaling.
 
 Created on Tue Dec  4 08:22:26 2018
 
 @author: gbuster
 """
+
 import logging
+
 import numpy as np
 import pandas as pd
 
@@ -51,10 +52,15 @@ def temporal_lin(array, ti_native, ti_new):
     ti_new = remove_tz(ti_new)
 
     array = pd.DataFrame(array, index=ti_native)
-    array = pd.DataFrame(index=ti_new)\
-        .merge(array, left_index=True, right_index=True, how='outer')\
-        .interpolate(method='linear', axis=0).ffill().bfill()\
-        .reindex(ti_new).values
+    array = (
+        pd.DataFrame(index=ti_new)
+        .merge(array, left_index=True, right_index=True, how='outer')
+        .interpolate(method='linear', axis=0)
+        .ffill()
+        .bfill()
+        .reindex(ti_new)
+        .values
+    )
     return array
 
 
@@ -80,16 +86,26 @@ def temporal_step(array, ti_native, ti_new):
 
     if array.shape[0] > 1:
         array = pd.DataFrame(array, index=ti_native)
-        array = pd.DataFrame(index=ti_new)\
-            .merge(array, left_index=True, right_index=True, how='outer')\
-            .interpolate(method='nearest', axis=0).ffill().bfill()\
-            .reindex(ti_new).values
+        array = (
+            pd.DataFrame(index=ti_new)
+            .merge(array, left_index=True, right_index=True, how='outer')
+            .interpolate(method='nearest', axis=0)
+            .ffill()
+            .bfill()
+            .reindex(ti_new)
+            .values
+        )
     else:
         # single entry arrays cannot be interpolated but must be filled
         array = pd.DataFrame(array, index=ti_native)
-        array = pd.DataFrame(index=ti_new)\
-            .merge(array, left_index=True, right_index=True, how='outer')\
-            .ffill().bfill().reindex(ti_new).values
+        array = (
+            pd.DataFrame(index=ti_new)
+            .merge(array, left_index=True, right_index=True, how='outer')
+            .ffill()
+            .bfill()
+            .reindex(ti_new)
+            .values
+        )
 
     return array
 
@@ -151,8 +167,7 @@ def idw(data, indices, distance, p=2, dist_thresh=None):
     weight[rows, 1:] = 0
 
     # calculate the IDW
-    data_idw = (np.sum(weight * data[indices], axis=1)
-                / np.sum(weight, axis=1))
+    data_idw = np.sum(weight * data[indices], axis=1) / np.sum(weight, axis=1)
 
     if dist_thresh is not None:
         data_idw = np.where(distance[:, 0] < dist_thresh, data_idw, np.nan)
@@ -163,7 +178,7 @@ def nn(data, indices, distance=None, dist_thresh=None):
     """Nearest Neighbor Spatial Interpolation.
 
     Parameters
-    -------------
+    ----------
     data : np.array
         Coarse resolution NSRDB data to be interpolated.
         Must be for a single timestep and be flattened/raveled.
@@ -211,7 +226,7 @@ def lower_data(var, data, var_elev):
 
     if var == 'air_temperature':
         # air temp must be in C or K
-        const = 6.5 / 1000.
+        const = 6.5 / 1000.0
         data = data + var_elev * const
 
     elif var == 'surface_pressure':
@@ -222,14 +237,17 @@ def lower_data(var, data, var_elev):
         else:
             # imply mbar
             scalar = 1013.25
-        const = scalar * (1 - (np.power((1 - var_elev / 44307.69231),
-                                        5.25328)))
+        const = scalar * (
+            1 - (np.power((1 - var_elev / 44307.69231), 5.25328))
+        )
         data = data + const
         if np.min(data) < 0.0:
-            raise ValueError('Spatial interpolation of surface pressure '
-                             'resulted in negative values. Incorrectly '
-                             'scaled/unscaled values or incorrect units are '
-                             'the most likely causes.')
+            raise ValueError(
+                'Spatial interpolation of surface pressure '
+                'resulted in negative values. Incorrectly '
+                'scaled/unscaled values or incorrect units are '
+                'the most likely causes.'
+            )
 
     elif var in ['aod', 'total_precipitable_water']:
         scale_height = 2500
@@ -263,7 +281,7 @@ def raise_data(var, data, ref_elev):
 
     if var == 'air_temperature':
         # air temp must be in C or K
-        const = 6.5 / 1000.
+        const = 6.5 / 1000.0
         data = data - ref_elev * const
 
     elif var == 'surface_pressure':
@@ -274,14 +292,17 @@ def raise_data(var, data, ref_elev):
         else:
             # imply mbar
             scalar = 1013.25
-        const = scalar * (1 - (np.power((1 - ref_elev / 44307.69231),
-                                        5.25328)))
+        const = scalar * (
+            1 - (np.power((1 - ref_elev / 44307.69231), 5.25328))
+        )
         data = data - const
         if np.min(data) < 0.0:
-            raise ValueError('Spatial interpolation of surface pressure '
-                             'resulted in negative values. Incorrectly '
-                             'scaled/unscaled values or incorrect units are '
-                             'the most likely causes.')
+            raise ValueError(
+                'Spatial interpolation of surface pressure '
+                'resulted in negative values. Incorrectly '
+                'scaled/unscaled values or incorrect units are '
+                'the most likely causes.'
+            )
 
     elif var in ['aod', 'total_precipitable_water']:
         scale_height = 2500
@@ -312,8 +333,9 @@ def parse_method(method):
         return None
 
 
-def spatial_interp(var, data, native_grid, new_grid, method, dist, ind,
-                   elevation_correct):
+def spatial_interp(
+    var, data, native_grid, new_grid, method, dist, ind, elevation_correct
+):
     """Perform single variable spatial interpolation on MERRA data array.
 
     Parameters
@@ -351,14 +373,14 @@ def spatial_interp(var, data, native_grid, new_grid, method, dist, ind,
 
     # iterate through timesteps interpolating all sites for a single timestep
     for i in range(data.shape[0]):
-
         # flatten the data for processing
         sub_data = data[i, :].ravel()
 
         # optional elevation correction
         if elevation_correct:
-            sub_data = lower_data(var, sub_data,
-                                  native_grid['elevation'].values)
+            sub_data = lower_data(
+                var, sub_data, native_grid['elevation'].values
+            )
 
         # perform interpolation on flat data using indices and distance inputs
         if 'IDW' in method.upper():
@@ -375,15 +397,15 @@ def spatial_interp(var, data, native_grid, new_grid, method, dist, ind,
 
         # optional elevation correction
         if elevation_correct:
-            sub_data = raise_data(var, sub_data,
-                                  new_grid['elevation'].values)
+            sub_data = raise_data(var, sub_data, new_grid['elevation'].values)
 
         # ensure data is flat (ideally from shape of (n, 1) to (n,))
         if len(sub_data.shape) > 1:
             if sub_data.shape[1] != 1:
-                raise ValueError('Spatial interpolation for a single timestep '
-                                 'returned non 1D data of shape: {}'
-                                 .format(sub_data.shape))
+                raise ValueError(
+                    'Spatial interpolation for a single timestep '
+                    'returned non 1D data of shape: {}'.format(sub_data.shape)
+                )
             sub_data = sub_data.ravel()
 
         # save single timestep of high spatial resolutiond data

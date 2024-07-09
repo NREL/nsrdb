@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 """A framework for handling MAIAC high-res AOD source data."""
+
 import logging
-import numpy as np
 import os
+
+import numpy as np
 import pandas as pd
 
 from nsrdb.data_model.base_handler import AncillaryVarHandler
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +91,15 @@ class MaiacVar(AncillaryVarHandler):
         list
         """
 
-        fps = NFS(self.pattern).glob()
+        fps = NSRDBfs(self.pattern).glob()
         if not any(fps):
-            emsg = ('Could not find source files '
-                    'for dataset "{}" with glob pattern: "{}". '
-                    'Found {} files: {}'
-                    .format(self.name, self.pattern, len(fps), fps))
+            emsg = (
+                'Could not find source files '
+                'for dataset "{}" with glob pattern: "{}". '
+                'Found {} files: {}'.format(
+                    self.name, self.pattern, len(fps), fps
+                )
+            )
             logger.error(emsg)
             raise FileNotFoundError(emsg)
 
@@ -123,7 +127,7 @@ class MaiacVar(AncillaryVarHandler):
             If nothing is missing, return an empty string.
         """
         for fp in self.files:
-            with NFS(fp, use_rex=True) as res:
+            with NSRDBfs(fp, use_rex=True) as res:
                 dsets = res.dsets
                 msg = 'Needs "{}" dset: {}'
                 assert 'latitude' in dsets, msg.format('latitude', fp)
@@ -155,9 +159,10 @@ class MaiacVar(AncillaryVarHandler):
         L = 0
         data = []
         for fp in self.files:
-            with NFS(fp, use_rex=True) as res:
-                logger.debug('Getting MAIAC aod from {}'
-                             .format(os.path.basename(fp)))
+            with NSRDBfs(fp, use_rex=True) as res:
+                logger.debug(
+                    'Getting MAIAC aod from {}'.format(os.path.basename(fp))
+                )
                 data.append(res['aod', :, :, self.doy_index].flatten())
                 L += len(data[-1])
 
@@ -182,17 +187,20 @@ class MaiacVar(AncillaryVarHandler):
 
         if self._grid is None:
             for fp in self.files:
-                with NFS(fp, use_rex=True) as res:
+                with NSRDBfs(fp, use_rex=True) as res:
                     temp = pd.DataFrame(
-                        {'longitude': res['longitude'].flatten(),
-                            'latitude': res['latitude'].flatten()})
+                        {
+                            'longitude': res['longitude'].flatten(),
+                            'latitude': res['latitude'].flatten(),
+                        }
+                    )
                     if self._grid is None:
                         self._grid = temp
                     else:
-                        self._grid = self._grid.append(temp,
-                                                       ignore_index=True)
+                        self._grid = self._grid.append(temp, ignore_index=True)
 
-            logger.debug('MAIAC AOD grid has {} coordinates'
-                         .format(len(self._grid)))
+            logger.debug(
+                'MAIAC AOD grid has {} coordinates'.format(len(self._grid))
+            )
 
         return self._grid

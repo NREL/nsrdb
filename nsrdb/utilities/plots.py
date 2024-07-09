@@ -1,29 +1,33 @@
-# -*- coding: utf-8 -*-
 # flake8: noqa: C901
 """Test data extraction.
 
 Created on Tue Dec  10 08:22:26 2018
 
 @author: gbuster
+
+TODO: Integrate into cli as a QA module.
 """
+
 import datetime
-import h5py
 import logging
-import numpy as np
 import os
-import pandas as pd
 import sys
+from typing import ClassVar
 from warnings import warn
+
+import h5py
+import numpy as np
+import pandas as pd
 
 if 'linux' in sys.platform:
     import matplotlib
+
     matplotlib.use('Agg')
 # pylint: disable-msg=W0404
-import matplotlib.pyplot as plt
 import matplotlib as mpl
-
-from rex.utilities.loggers import init_logger
+import matplotlib.pyplot as plt
 from rex.utilities.execution import SpawnProcessPool
+from rex.utilities.loggers import init_logger
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +47,11 @@ class Temporal:
             as a meta data file with the first column being the GIDs.
         """
 
-        logger.info('Performing temporal QA of {} and {}'
-                    .format(os.path.basename(f1), os.path.basename(f2)))
+        logger.info(
+            'Performing temporal QA of {} and {}'.format(
+                os.path.basename(f1), os.path.basename(f2)
+            )
+        )
         self._gids1 = None
         self._gids2 = None
         self._meta1 = None
@@ -201,8 +208,9 @@ class Temporal:
         return self._t2
 
     @staticmethod
-    def plot_timeseries(df1, df2, title, ylabel, legend, out_dir,
-                        month=1, day=1):
+    def plot_timeseries(
+        df1, df2, title, ylabel, legend, out_dir, month=1, day=1
+    ):
         """Plot a single day timeseries for two timeseries-indexed dataframes.
 
         Parameters
@@ -231,10 +239,12 @@ class Temporal:
         plt.plot(df1.index[mask1], df1.iloc[mask1, 0], '-o')
         plt.plot(df2.index[mask2], df2.iloc[mask2, 0], '--x')
 
-        y_min = np.min((np.min(df1.iloc[mask1, 0]),
-                        np.min(df2.iloc[mask2, 0])))
-        y_max = np.max((np.max(df1.iloc[mask1, 0]),
-                        np.max(df2.iloc[mask2, 0])))
+        y_min = np.min(
+            (np.min(df1.iloc[mask1, 0]), np.min(df2.iloc[mask2, 0]))
+        )
+        y_max = np.max(
+            (np.max(df1.iloc[mask1, 0]), np.max(df2.iloc[mask2, 0]))
+        )
         plt.ylim((y_min, 1.1 * y_max))
 
         plt.xlabel('Time Index')
@@ -243,13 +253,24 @@ class Temporal:
         plt.legend(legend)
         plt.xticks(rotation=90)
 
-        plt.savefig(os.path.join(out_dir, title + '.png'), dpi=300,
-                    bbox_inches='tight')
+        plt.savefig(
+            os.path.join(out_dir, title + '.png'), dpi=300, bbox_inches='tight'
+        )
         plt.close()
 
     @classmethod
-    def plot_sites(cls, f1, f2, gids1=None, gids2=None, dsets=('dni',),
-                   sites=(0,), months=(1,), days=(1,), out_dir='./'):
+    def plot_sites(
+        cls,
+        f1,
+        f2,
+        gids1=None,
+        gids2=None,
+        dsets=('dni',),
+        sites=(0,),
+        months=(1,),
+        days=(1,),
+        out_dir='./',
+    ):
         """Plot sites in file1 against a baseline file2.
 
         Parameters
@@ -289,91 +310,105 @@ class Temporal:
                         scale1 = t.attrs1(dset)['psm_scale_factor']
                     except KeyError:
                         scale1 = 1
-                        warn('Dataset "{}" does not have psm_scale_factor.'
-                             .format(dset))
+                        warn(
+                            f'Dataset "{dset}" does not have psm_scale_factor.'
+                        )
 
                     try:
                         scale2 = t.attrs2(dset)['psm_scale_factor']
                     except KeyError:
                         scale2 = 1
-                        warn('Dataset "{}" does not have psm_scale_factor.'
-                             .format(dset))
+                        warn(
+                            f'Dataset "{dset}" does not have psm_scale_factor.'
+                        )
 
                     # make time-series dataframes with one site of data
-                    df1 = pd.DataFrame({dset: t.h1[dset][:, site1] / scale1},
-                                       index=t.t1)
-                    df2 = pd.DataFrame({dset: t.h2[dset][:, site2] / scale2},
-                                       index=t.t2)
+                    df1 = pd.DataFrame(
+                        {dset: t.h1[dset][:, site1] / scale1}, index=t.t1
+                    )
+                    df2 = pd.DataFrame(
+                        {dset: t.h2[dset][:, site2] / scale2}, index=t.t2
+                    )
 
                     # check that the locations match
                     loc1 = t.meta1.loc[site1, ['latitude', 'longitude']].values
                     loc2 = t.meta2.loc[site2, ['latitude', 'longitude']].values
-                    loc_check = all(np.round(loc1.astype(float),
-                                             decimals=2)
-                                    == np.round(loc2.astype(float),
-                                                decimals=2))
+                    loc_check = all(
+                        np.round(loc1.astype(float), decimals=2)
+                        == np.round(loc2.astype(float), decimals=2)
+                    )
                     if not loc_check:
-                        logger.warning('Temporal QA sites do not match. '
-                                       'Site in file 1 has index {} and '
-                                       'lat/lon {}, site in file 2 has '
-                                       'index {} and lat/lon {}'
-                                       .format(site1, loc1, site2, loc2))
+                        logger.warning(
+                            'Temporal QA sites do not match. '
+                            'Site in file 1 has index {} and '
+                            'lat/lon {}, site in file 2 has '
+                            'index {} and lat/lon {}'.format(
+                                site1, loc1, site2, loc2
+                            )
+                        )
                     else:
-                        logger.info('Plotting timeseries for site index {} in '
-                                    'file 1 and site index {} in file 2 with '
-                                    'lat/lon {}'.format(site1, site2, loc1))
+                        logger.info(
+                            'Plotting timeseries for site index {} in '
+                            'file 1 and site index {} in file 2 with '
+                            'lat/lon {}'.format(site1, site2, loc1)
+                        )
 
                     for month in months:
                         for day in days:
-                            title = (dset
-                                     + '_{}_{}_{}'.format(site1, month, day))
-                            t.plot_timeseries(df2, df1, title, dset, legend,
-                                              out_dir, month=month, day=day)
+                            title = dset + '_{}_{}_{}'.format(
+                                site1, month, day
+                            )
+                            t.plot_timeseries(
+                                df2,
+                                df1,
+                                title,
+                                dset,
+                                legend,
+                                out_dir,
+                                month=month,
+                                day=day,
+                            )
 
 
 class Spatial:
     """Framework to perform NSRDB spatial QA via map plots."""
 
-    EXTENTS = {'conus': {'xlim': (-127, -65),
-                         'ylim': (13, 50),
-                         'figsize': (10, 6)},
-               'nsrdb': {'xlim': (-190, -20),
-                         'ylim': (-23, 61),
-                         'figsize': (10, 6)},
-               'canada': {'xlim': (-140, -50),
-                          'ylim': (43, 68),
-                          'figsize': (12, 7)},
-               'east': {'xlim': (-130, -20),
-                        'ylim': (-62, 62),
-                        'figsize': (7, 8)},
-               'west': {'xlim': (-180, -100),
-                        'ylim': (-60, 62),
-                        'figsize': (7, 8)},
-               'full': {'xlim': (-170, -20),
-                        'ylim': (-62, 62),
-                        'figsize': (10, 7)},
-               'wecc': {'xlim': (-127, -100),
-                        'ylim': (29, 50),
-                        'figsize': (8, 6)},
-               'south_america': {'xlim': (-85, -32),
-                                 'ylim': (-59, 16),
-                                 'figsize': (7, 9)},
-               'global': {'xlim': (-180, 180),
-                          'ylim': (-90, 90),
-                          'figsize': (120, 80)},
-               'meteosat': {'xlim': (-24, 108),
-                            'ylim': (-54, 60),
-                            'figsize': (10, 7)},
-               'himawari': {'xlim': (55, 180),
-                            'ylim': (-60, 60),
-                            'figsize': (9, 7)},
-               }
+    EXTENTS: ClassVar = {
+        'conus': {'xlim': (-127, -65), 'ylim': (13, 50), 'figsize': (10, 6)},
+        'nsrdb': {'xlim': (-190, -20), 'ylim': (-23, 61), 'figsize': (10, 6)},
+        'canada': {'xlim': (-140, -50), 'ylim': (43, 68), 'figsize': (12, 7)},
+        'east': {'xlim': (-130, -20), 'ylim': (-62, 62), 'figsize': (7, 8)},
+        'west': {'xlim': (-180, -100), 'ylim': (-60, 62), 'figsize': (7, 8)},
+        'full': {'xlim': (-170, -20), 'ylim': (-62, 62), 'figsize': (10, 7)},
+        'wecc': {'xlim': (-127, -100), 'ylim': (29, 50), 'figsize': (8, 6)},
+        'south_america': {
+            'xlim': (-85, -32),
+            'ylim': (-59, 16),
+            'figsize': (7, 9),
+        },
+        'global': {
+            'xlim': (-180, 180),
+            'ylim': (-90, 90),
+            'figsize': (120, 80),
+        },
+        'meteosat': {
+            'xlim': (-24, 108),
+            'ylim': (-54, 60),
+            'figsize': (10, 7),
+        },
+        'himawari': {'xlim': (55, 180), 'ylim': (-60, 60), 'figsize': (9, 7)},
+    }
 
     @staticmethod
-    def multi_year(year_range, out_dir, dsets,
-                   nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
-                   fname_base='nsrdb_{year}.h5',
-                   timesteps=range(0, 17520, 8600), **kwargs):
+    def multi_year(
+        year_range,
+        out_dir,
+        dsets,
+        nsrdb_dir='/projects/PXS/nsrdb/v3.0.1/',
+        fname_base='nsrdb_{year}.h5',
+        timesteps=range(0, 17520, 8600),
+        **kwargs,
+    ):
         """Make map plots at timesteps for datasets in multiple NSRDB files.
 
         Parameters
@@ -404,8 +439,9 @@ class Spatial:
 
         for year in year_range:
             h5 = os.path.join(nsrdb_dir, fname_base.format(year=year))
-            fig, ax = Spatial.dsets(h5, dsets, out_dir, timesteps=timesteps,
-                                    **kwargs)
+            fig, ax = Spatial.dsets(
+                h5, dsets, out_dir, timesteps=timesteps, **kwargs
+            )
         return fig, ax
 
     @staticmethod
@@ -415,28 +451,39 @@ class Spatial:
         if timedelta is not None:
             ti += timedelta
 
-        if 'title' in kwargs and kwargs['title']:
+        if kwargs.get('title'):
             if og_title is None:
                 og_title = kwargs['title']
 
-            s = ('{}-{}-{} {}:{}'.format(
-                ti[ts].month, ti[ts].day, ti[ts].year,
+            s = '{}-{}-{} {}:{}'.format(
+                ti[ts].month,
+                ti[ts].day,
+                ti[ts].year,
                 str(ti[ts].hour).zfill(2),
-                str(ti[ts].minute).zfill(2)))
+                str(ti[ts].minute).zfill(2),
+            )
             if '{}' in og_title:
                 kwargs['title'] = og_title.format(s)
             if '{}' in fname:
                 fname = fname.format(s.replace(':', '-'))
 
-        fname_out = '{}_{}_{}{}'.format(fname, dset, ts,
-                                        file_ext)
+        fname_out = '{}_{}_{}{}'.format(fname, dset, ts, file_ext)
         return fname_out, kwargs, og_title
 
     @staticmethod
-    def dsets(h5, dsets, out_dir, timesteps=(0,), fname=None, file_ext='.png',
-              sites=None, interval=None, max_workers=1,
-              timedelta=datetime.timedelta(hours=0),
-              **kwargs):
+    def dsets(
+        h5,
+        dsets,
+        out_dir,
+        timesteps=(0,),
+        fname=None,
+        file_ext='.png',
+        sites=None,
+        interval=None,
+        max_workers=1,
+        timedelta=datetime.timedelta(hours=0),
+        **kwargs,
+    ):
         """Make map style plots at several timesteps for a given dataset.
 
         Parameters
@@ -490,11 +537,13 @@ class Spatial:
 
                 ti = pd.to_datetime(f['time_index'][...].astype(str))
                 if sites is None:
-                    df = pd.DataFrame(f['meta'][...]).loc[:, ['latitude',
-                                                              'longitude']]
+                    df = pd.DataFrame(f['meta'][...]).loc[
+                        :, ['latitude', 'longitude']
+                    ]
                 else:
-                    df = pd.DataFrame(f['meta'][sites]).loc[:, ['latitude',
-                                                                'longitude']]
+                    df = pd.DataFrame(f['meta'][sites]).loc[
+                        :, ['latitude', 'longitude']
+                    ]
             if interval is not None:
                 df = df.iloc[slice(None, None, interval), :]
 
@@ -504,62 +553,83 @@ class Spatial:
                 scale_factor = attrs['psm_scale_factor']
             else:
                 scale_factor = 1
-                warn('Could not find scale factor attr in h5: {}'
-                     .format(h5))
+                warn('Could not find scale factor attr in h5: {}'.format(h5))
 
             # 2D array with timesteps
             if len(dset_shape) > 1:
                 logger.debug('Importing data for "{}"...'.format(dset))
                 with h5py.File(h5, 'r') as f:
                     if sites is None:
-                        data = (f[dset][timesteps, :].astype(np.float32)
-                                / scale_factor)
+                        data = (
+                            f[dset][timesteps, :].astype(np.float32)
+                            / scale_factor
+                        )
                     else:
-                        data = (f[dset][timesteps, sites].astype(np.float32)
-                                / scale_factor)
+                        data = (
+                            f[dset][timesteps, sites].astype(np.float32)
+                            / scale_factor
+                        )
                 if interval is not None:
                     data = data[:, slice(None, None, interval)]
-                logger.debug('Finished importing data for "{}".'
-                             .format(dset))
+                logger.debug('Finished importing data for "{}".'.format(dset))
 
                 if isinstance(timesteps, slice):
                     step = timesteps.step
                     if step is None:
                         step = 1
-                    timesteps = list(range(timesteps.start,
-                                           timesteps.stop,
-                                           step))
+                    timesteps = list(
+                        range(timesteps.start, timesteps.stop, step)
+                    )
 
                 if max_workers == 1:
                     for i, ts in enumerate(timesteps):
                         df[dset] = data[i, :]
                         fn_out, kwargs, og_title = Spatial._fmt_title(
-                            kwargs, og_title, ti, ts, fname, dset,
-                            file_ext, timedelta)
-                        fig, ax = Spatial.plot_geo_df(df, fn_out, out_dir,
-                                                      **kwargs)
+                            kwargs,
+                            og_title,
+                            ti,
+                            ts,
+                            fname,
+                            dset,
+                            file_ext,
+                            timedelta,
+                        )
+                        fig, ax = Spatial.plot_geo_df(
+                            df, fn_out, out_dir, **kwargs
+                        )
                 else:
                     fig, ax = None, None
-                    with SpawnProcessPool(loggers='nsrdb',
-                                          max_workers=max_workers) as exe:
+                    with SpawnProcessPool(
+                        loggers='nsrdb', max_workers=max_workers
+                    ) as exe:
                         for i, ts in enumerate(timesteps):
                             df_par = df.copy()
                             df_par[dset] = data[i, :]
                             fn_out, kwargs, og_title = Spatial._fmt_title(
-                                kwargs, og_title, ti, ts, fname, dset,
-                                file_ext, timedelta)
-                            exe.submit(Spatial.plot_geo_df, df_par, fn_out,
-                                       out_dir, **kwargs)
+                                kwargs,
+                                og_title,
+                                ti,
+                                ts,
+                                fname,
+                                dset,
+                                file_ext,
+                                timedelta,
+                            )
+                            exe.submit(
+                                Spatial.plot_geo_df,
+                                df_par,
+                                fn_out,
+                                out_dir,
+                                **kwargs,
+                            )
 
             # 1D array, no timesteps
             else:
                 with h5py.File(h5, 'r') as f:
                     if sites is None:
-                        data = (f[dset][...].astype(np.float32)
-                                / scale_factor)
+                        data = f[dset][...].astype(np.float32) / scale_factor
                     else:
-                        data = (f[dset][sites].astype(np.float32)
-                                / scale_factor)
+                        data = f[dset][sites].astype(np.float32) / scale_factor
 
                 if interval is not None:
                     data = data[slice(None, None, interval)]
@@ -570,8 +640,9 @@ class Spatial:
         return fig, ax
 
     @staticmethod
-    def goes_cloud(fpath, dsets, out_dir, nan_fill=-15, sparse_step=10,
-                   **kwargs):
+    def goes_cloud(
+        fpath, dsets, out_dir, nan_fill=-15, sparse_step=10, **kwargs
+    ):
         """Plot datasets from a GOES cloud file.
 
         Parameters
@@ -595,16 +666,20 @@ class Spatial:
         ax : matplotlib.axes._subplots.AxesSubplot
             Plotting axes object.
         """
-        from nsrdb.data_model.clouds import (CloudVarSingleH5,
-                                             CloudVarSingleNC,
-                                             CloudVar)
+        from nsrdb.data_model.clouds import (
+            CloudVar,
+            CloudVarSingleH5,
+            CloudVarSingleNC,
+        )
 
         if fpath.endswith('.nc'):
-            cld = CloudVarSingleNC(fpath, pre_proc_flag=True, index=None,
-                                   dsets=dsets)
+            cld = CloudVarSingleNC(
+                fpath, pre_proc_flag=True, index=None, dsets=dsets
+            )
         else:
-            cld = CloudVarSingleH5(fpath, pre_proc_flag=True, index=None,
-                                   dsets=dsets)
+            cld = CloudVarSingleH5(
+                fpath, pre_proc_flag=True, index=None, dsets=dsets
+            )
 
         timestamp = CloudVar.get_timestamp(fpath)
 
@@ -623,16 +698,34 @@ class Spatial:
         return fig, ax
 
     @staticmethod
-    def plot_geo_df(df, fname, out_dir, labels=('latitude', 'longitude'),
-                    xlabel='Longitude', ylabel='Latitude',
-                    title=None, title_loc='center',
-                    cbar_label='dset', marker_size=0.1, marker='s',
-                    xlim=(-127, -65), ylim=(24, 50), figsize=(10, 5),
-                    cmap='OrRd_11', cbar_range=None, dpi=150,
-                    extent=None, axis=None, alpha=1.0,
-                    shape=None, shape_aspect=None,
-                    shape_edge_color=(0.2, 0.2, 0.2), shape_line_width=2,
-                    bbox_inches='tight', dark=True):
+    def plot_geo_df(
+        df,
+        fname,
+        out_dir,
+        labels=('latitude', 'longitude'),
+        xlabel='Longitude',
+        ylabel='Latitude',
+        title=None,
+        title_loc='center',
+        cbar_label='dset',
+        marker_size=0.1,
+        marker='s',
+        xlim=(-127, -65),
+        ylim=(24, 50),
+        figsize=(10, 5),
+        cmap='OrRd_11',
+        cbar_range=None,
+        dpi=150,
+        extent=None,
+        axis=None,
+        alpha=1.0,
+        shape=None,
+        shape_aspect=None,
+        shape_edge_color=(0.2, 0.2, 0.2),
+        shape_line_width=2,
+        bbox_inches='tight',
+        dark=True,
+    ):
         """Plot a dataframe to verify the blending operation.
 
         Parameters
@@ -709,11 +802,10 @@ class Spatial:
             textcolor = '#969696'
             facecolor = 'k'
 
-        if isinstance(extent, str):
-            if extent.lower() in Spatial.EXTENTS:
-                xlim = Spatial.EXTENTS[extent.lower()]['xlim']
-                ylim = Spatial.EXTENTS[extent.lower()]['ylim']
-                figsize = Spatial.EXTENTS[extent.lower()]['figsize']
+        if isinstance(extent, str) and extent.lower() in Spatial.EXTENTS:
+            xlim = Spatial.EXTENTS[extent.lower()]['xlim']
+            ylim = Spatial.EXTENTS[extent.lower()]['ylim']
+            figsize = Spatial.EXTENTS[extent.lower()]['figsize']
 
         try:
             fig = plt.figure(figsize=figsize, facecolor=facecolor)
@@ -724,8 +816,10 @@ class Spatial:
             mpl.rcParams['axes.labelcolor'] = textcolor
 
             if cbar_range is None:
-                cbar_range = [np.nanmin(df.iloc[:, 2]),
-                              np.nanmax(df.iloc[:, 2])]
+                cbar_range = [
+                    np.nanmin(df.iloc[:, 2]),
+                    np.nanmax(df.iloc[:, 2]),
+                ]
             elif isinstance(cbar_range, tuple):
                 cbar_range = list(cbar_range)
             if cbar_range[0] is None:
@@ -738,22 +832,26 @@ class Spatial:
                 cmap = plt.get_cmap(cmap)
 
                 # hack for colorbar if alpha is input
-                c = ax.scatter(df.iloc[0][labels[1]],
-                               df.iloc[0][labels[0]],
-                               c=df.iloc[0, 2],
-                               cmap=cmap,
-                               vmin=cbar_range[0],
-                               vmax=cbar_range[1],
-                               alpha=1.0)
-                _ = ax.scatter(df.loc[:, labels[1]],
-                               df.loc[:, labels[0]],
-                               marker=marker,
-                               s=marker_size,
-                               c=df.iloc[:, 2],
-                               cmap=cmap,
-                               vmin=cbar_range[0],
-                               vmax=cbar_range[1],
-                               alpha=alpha)
+                c = ax.scatter(
+                    df.iloc[0][labels[1]],
+                    df.iloc[0][labels[0]],
+                    c=df.iloc[0, 2],
+                    cmap=cmap,
+                    vmin=cbar_range[0],
+                    vmax=cbar_range[1],
+                    alpha=1.0,
+                )
+                _ = ax.scatter(
+                    df.loc[:, labels[1]],
+                    df.loc[:, labels[0]],
+                    marker=marker,
+                    s=marker_size,
+                    c=df.iloc[:, 2],
+                    cmap=cmap,
+                    vmin=cbar_range[0],
+                    vmax=cbar_range[1],
+                    alpha=alpha,
+                )
 
             else:
                 custom_cmap = True
@@ -763,34 +861,43 @@ class Spatial:
                 cmaplist = [cmap(i) for i in range(cmap.N)]
                 bounds = np.linspace(cbar_range[0], cbar_range[1], int(nbins))
                 cmap = mpl.colors.LinearSegmentedColormap.from_list(
-                    '{}_{}'.format(cmap_name, nbins), cmaplist, len(bounds))
+                    '{}_{}'.format(cmap_name, nbins), cmaplist, len(bounds)
+                )
                 norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
                 # hack for colorbar if alpha is input
-                c = ax.scatter(df.iloc[0][labels[1]],
-                               df.iloc[0][labels[0]],
-                               marker=marker,
-                               s=marker_size,
-                               c=df.iloc[0, 2],
-                               cmap=cmap,
-                               norm=norm,
-                               alpha=1.0)
-                _ = ax.scatter(df.loc[:, labels[1]],
-                               df.loc[:, labels[0]],
-                               marker=marker,
-                               s=marker_size,
-                               c=df.iloc[:, 2],
-                               cmap=cmap,
-                               norm=norm,
-                               alpha=alpha)
+                c = ax.scatter(
+                    df.iloc[0][labels[1]],
+                    df.iloc[0][labels[0]],
+                    marker=marker,
+                    s=marker_size,
+                    c=df.iloc[0, 2],
+                    cmap=cmap,
+                    norm=norm,
+                    alpha=1.0,
+                )
+                _ = ax.scatter(
+                    df.loc[:, labels[1]],
+                    df.loc[:, labels[0]],
+                    marker=marker,
+                    s=marker_size,
+                    c=df.iloc[:, 2],
+                    cmap=cmap,
+                    norm=norm,
+                    alpha=alpha,
+                )
 
             if shape is not None:
                 import geopandas as gpd
+
                 gdf = gpd.GeoDataFrame.from_file(shape)
                 gdf = gdf.to_crs({'init': 'epsg:4326'})
-                gdf.geometry.boundary.plot(ax=ax, color=None,
-                                           edgecolor=shape_edge_color,
-                                           linewidth=shape_line_width)
+                gdf.geometry.boundary.plot(
+                    ax=ax,
+                    color=None,
+                    edgecolor=shape_edge_color,
+                    linewidth=shape_line_width,
+                )
                 if shape_aspect:
                     ax.set_aspect(shape_aspect)
 
@@ -814,12 +921,16 @@ class Spatial:
                 int_bar = all(b % 1 == 0.0 for b in bounds)
                 if int_bar:
                     fmt = '%.0f'
-                cbar = fig.colorbar(c, ax=ax, cmap=cmap,
-                                    norm=norm,
-                                    spacing='proportional',
-                                    ticks=bounds,
-                                    boundaries=bounds,
-                                    format=fmt)
+                cbar = fig.colorbar(
+                    c,
+                    ax=ax,
+                    cmap=cmap,
+                    norm=norm,
+                    spacing='proportional',
+                    ticks=bounds,
+                    boundaries=bounds,
+                    format=fmt,
+                )
 
             if cbar is not None:
                 ticks = plt.getp(cbar.ax, 'yticklabels')
@@ -842,23 +953,33 @@ class Spatial:
 
             out = os.path.join(out_dir, fname)
             if fname.endswith('.tiff'):
-                from PIL import Image
                 import io
+
+                from PIL import Image
+
                 png1 = io.BytesIO()
-                fig.savefig(png1, format='png', dpi=dpi, bbox_inches='tight',
-                            facecolor=facecolor)
+                fig.savefig(
+                    png1,
+                    format='png',
+                    dpi=dpi,
+                    bbox_inches='tight',
+                    facecolor=facecolor,
+                )
                 png2 = Image.open(png1)
                 png2.save(out)
                 png2.close()
             else:
-                fig.savefig(out, dpi=dpi, bbox_inches=bbox_inches,
-                            facecolor=facecolor)
+                fig.savefig(
+                    out, dpi=dpi, bbox_inches=bbox_inches, facecolor=facecolor
+                )
             logger.info('Saved figure: {}'.format(fname))
             plt.close()
         except Exception as e:
             # never break a full data pipeline on failed plots
-            msg = ('Could not plot "{}". Received the following '
-                   'exception: {}'.format(title, e))
+            msg = (
+                'Could not plot "{}". Received the following '
+                'exception: {}'.format(title, e)
+            )
             logger.error(msg)
             raise e
 

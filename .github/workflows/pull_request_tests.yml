@@ -2,6 +2,7 @@ name: Pytests
 
 on: pull_request
 
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -15,8 +16,6 @@ jobs:
             python-version: '3.10'
           - os: ubuntu-latest
             python-version: '3.9'
-          - os: ubuntu-latest
-            python-version: '3.8'
 
     steps:
     - uses: actions/checkout@v4
@@ -36,3 +35,4 @@ jobs:
     - name: Run pytest
       run: |
         python -m pytest -v --disable-warnings
+

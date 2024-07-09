@@ -4,13 +4,17 @@
 Created on Tue Dec  10 08:22:26 2018
 
 @author: gbuster
+
+FIXME: Is any of this still used?
 """
+
+import os
+from warnings import warn
+
 import h5py
 import numpy as np
-import os
 import pandas as pd
 from scipy.spatial import cKDTree
-from warnings import warn
 
 
 class ExtractNSRDB:
@@ -33,8 +37,10 @@ class ExtractNSRDB:
         if os.path.exists(target):
             warn('Target file already exists: "{}"'.format(target))
             if os.path.getsize(target) > 1e9:
-                raise IOError('Refuse to write to target file; the file '
-                              'already exists and is large: {}'.format(target))
+                raise OSError(
+                    'Refuse to write to target file; the file '
+                    'already exists and is large: {}'.format(target)
+                )
 
         self.target = target
         self.source = source
@@ -81,30 +87,41 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w-') as t:
-            with h5py.File(self.source, 'r') as s:
-                for dset in dsets:
-                    if dset not in s:
-                        raise KeyError('Could not find dataset "{}" in {}'
-                                       .format(dset, self.source))
-                for dset in dsets:
-                    print('Copying "{}" from {} to {}'
-                          .format(dset, self.source, self.target))
-                    chunks = None
-                    if hasattr(s[dset], 'chunks'):
-                        chunks = s[dset].chunks
-                    t.create_dataset(dset, data=s[dset][...],
-                                     shape=s[dset].shape,
-                                     dtype=s[dset].dtype,
-                                     chunks=chunks)
+        with (
+            h5py.File(self.target, 'w-') as t,
+            h5py.File(self.source, 'r') as s,
+        ):
+            for dset in dsets:
+                if dset not in s:
+                    raise KeyError(
+                        'Could not find dataset "{}" in {}'.format(
+                            dset, self.source
+                        )
+                    )
+            for dset in dsets:
+                print(
+                    'Copying "{}" from {} to {}'.format(
+                        dset, self.source, self.target
+                    )
+                )
+                chunks = None
+                if hasattr(s[dset], 'chunks'):
+                    chunks = s[dset].chunks
+                t.create_dataset(
+                    dset,
+                    data=s[dset][...],
+                    shape=s[dset].shape,
+                    dtype=s[dset].dtype,
+                    chunks=chunks,
+                )
 
-                    if hasattr(s[dset], 'attrs'):
-                        attrs = dict(s[dset].attrs)
-                        for k, v in attrs.items():
-                            t[dset].attrs[k] = v
+                if hasattr(s[dset], 'attrs'):
+                    attrs = dict(s[dset].attrs)
+                    for k, v in attrs.items():
+                        t[dset].attrs[k] = v
 
-                t.create_dataset('meta', data=s['meta'][...])
-                t.create_dataset('time_index', data=s['time_index'][...])
+            t.create_dataset('meta', data=s['meta'][...])
+            t.create_dataset('time_index', data=s['time_index'][...])
 
     def extract_sites(self, sites=range(100)):
         """Extract data from h5 for given site indices and write to new h5.
@@ -119,30 +136,38 @@ class ExtractNSRDB:
         if not self.target.endswith('.h5'):
             raise TypeError('Target must be .h5 for site data extraction.')
 
-        with h5py.File(self.target, 'w-') as t:
-            with h5py.File(self.source, 'r') as s:
-                for dset in s.keys():
-                    if dset not in self.IGNORE_LIST:
-                        print(dset)
-                        dset_shape = s[dset].shape
+        with (
+            h5py.File(self.target, 'w-') as t,
+            h5py.File(self.source, 'r') as s,
+        ):
+            for dset in s:
+                if dset not in self.IGNORE_LIST:
+                    print(dset)
+                    dset_shape = s[dset].shape
 
-                        if len(dset_shape) > 1:
-                            t.create_dataset(dset, data=s[dset][:, sites],
-                                             shape=(dset_shape[0], n_sites),
-                                             dtype=s[dset].dtype)
-                        else:
-                            t.create_dataset(dset, data=s[dset][sites],
-                                             shape=(n_sites, ),
-                                             dtype=s[dset].dtype)
+                    if len(dset_shape) > 1:
+                        t.create_dataset(
+                            dset,
+                            data=s[dset][:, sites],
+                            shape=(dset_shape[0], n_sites),
+                            dtype=s[dset].dtype,
+                        )
+                    else:
+                        t.create_dataset(
+                            dset,
+                            data=s[dset][sites],
+                            shape=(n_sites,),
+                            dtype=s[dset].dtype,
+                        )
 
-                        for attr in s[dset].attrs.keys():
-                            t[dset].attrs[attr] = s[dset].attrs[attr]
+                    for attr in s[dset].attrs:
+                        t[dset].attrs[attr] = s[dset].attrs[attr]
 
-                t.create_dataset('meta', data=s['meta'][sites])
-                t.create_dataset('time_index', data=s['time_index'][...])
+            t.create_dataset('meta', data=s['meta'][sites])
+            t.create_dataset('time_index', data=s['time_index'][...])
 
-                for site_meta in s['meta'][sites]:
-                    print(site_meta)
+            for site_meta in s['meta'][sites]:
+                print(site_meta)
 
     def extract_closest_meta(self, coords):
         """Get NSRDB meta data for pixels closest to input coordinate set.
@@ -192,9 +217,8 @@ class ExtractNSRDB:
 
         if isinstance(values, str):
             values = values.encode()
-        if isinstance(values, list):
-            if isinstance(values[0], str):
-                values = [v.encode() for v in values]
+        if isinstance(values, list) and isinstance(values[0], str):
+            values = [v.encode() for v in values]
         if not isinstance(values, list):
             values = [values]
         return self.meta.loc[self.meta[label].isin(values), :]
@@ -222,8 +246,9 @@ class ExtractPuertoRico(ExtractNSRDB):
         """Extract the Puerto Rico with USVI and BVI NSRDB data for a given
         year to target h5."""
         target = 'pr_nsrdb_{}.h5'.format(year)
-        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
-                              'nsrdb_{}.h5'.format(year))
+        source = os.path.join(
+            '/projects/PXS/nsrdb/v3.0.1', 'nsrdb_{}.h5'.format(year)
+        )
 
         ex = cls(target, source)
         val = ['Puerto Rico', 'U.S. Virgin Is.', 'British Virgin Is.']
@@ -250,8 +275,9 @@ class ExtractPuertoRico(ExtractNSRDB):
     def puerto_rico_data(cls, year=2015):
         """Extract the Puerto Rico NSRDB data for a given year to target h5."""
         target = 'pr_nsrdb_{}.h5'.format(year)
-        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
-                              'nsrdb_{}.h5'.format(year))
+        source = os.path.join(
+            '/projects/PXS/nsrdb/v3.0.1', 'nsrdb_{}.h5'.format(year)
+        )
 
         ex = cls(target, source)
         val = 'Puerto Rico'
@@ -264,8 +290,9 @@ class ExtractPuertoRico(ExtractNSRDB):
     def puerto_rico_data_50(cls, year=2015):
         """Extract 50 sites in PR for a given year to target h5."""
         target = 'pr_50_nsrdb_{}.h5'.format(year)
-        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
-                              'nsrdb_{}.h5'.format(year))
+        source = os.path.join(
+            '/projects/PXS/nsrdb/v3.0.1', 'nsrdb_{}.h5'.format(year)
+        )
 
         ex = cls(target, source)
         val = 'Puerto Rico'
@@ -279,37 +306,44 @@ class ExtractPuertoRico(ExtractNSRDB):
         """Extract PR solar site data."""
 
         ex = cls(target, source)
-        coords = np.array(((17.947249, -66.157321),  # ilumina
-                           (18.412413, -65.903370),  # san fermin
-                           (17.979177, -66.220556),  # horizon
-                           (18.474486, -67.047259),  # oriana
-                           ))
+        coords = np.array(
+            (
+                (17.947249, -66.157321),  # ilumina
+                (18.412413, -65.903370),  # san fermin
+                (17.979177, -66.220556),  # horizon
+                (18.474486, -67.047259),  # oriana
+            )
+        )
         subset_meta = ex.extract_closest_meta(coords)
         subset_meta = subset_meta.sort_index()
         if not os.path.exists(target) and target.endswith('.csv'):
             subset_meta.to_csv(target)
         else:
-            raise IOError('Cannot write to: {}'.format(target))
+            raise OSError('Cannot write to: {}'.format(target))
 
 
 class ExtractValidationData(ExtractNSRDB):
     """Extraction utilities for NSRDB validation ground-measurement sites."""
 
     # static SURFRAD validation site coordinates [lat,lon].
-    COORDS = np.array(((40.052, -88.373),  # Bondville, Illinois
-                       (40.125, -105.237),  # Table Mountain, Boulder, CO
-                       (36.624, -116.019),  # Desert Rock, Nevada
-                       (48.308, -105.102),  # Fort Peck, Montana
-                       (34.255, -89.873),  # Goodwin Creek, Mississippi
-                       (40.720, -77.931),  # Penn. State Univ., Pennsylvania
-                       (43.734, -96.623),  # Sioux Falls, South Dakota
-                       (36.604, -97.485),  # ARM Southern Great Plains, OK
-                       (39.742, -105.180),  # SRRL-NREL
-                       ))
+    COORDS = np.array(
+        (
+            (40.052, -88.373),  # Bondville, Illinois
+            (40.125, -105.237),  # Table Mountain, Boulder, CO
+            (36.624, -116.019),  # Desert Rock, Nevada
+            (48.308, -105.102),  # Fort Peck, Montana
+            (34.255, -89.873),  # Goodwin Creek, Mississippi
+            (40.720, -77.931),  # Penn. State Univ., Pennsylvania
+            (43.734, -96.623),  # Sioux Falls, South Dakota
+            (36.604, -97.485),  # ARM Southern Great Plains, OK
+            (39.742, -105.180),  # SRRL-NREL
+        )
+    )
 
     @classmethod
-    def save_meta(cls, target,
-                  source='/projects/PXS/nsrdb/v3.0.1/nsrdb_2017.h5'):
+    def save_meta(
+        cls, target, source='/projects/PXS/nsrdb/v3.0.1/nsrdb_2017.h5'
+    ):
         """Save the meta data for the validation ground-measurement sites."""
         ex = cls(target, source)
         subset_meta = ex.extract_closest_meta(cls.COORDS)
@@ -331,8 +365,9 @@ class ExtractTestData(ExtractNSRDB):
         """Extract NSRDB data from 50 sites from oregon to target h5."""
         # Random sites in Oregon
         target = os.path.join(dir_out, 'test_data_{}.h5'.format(year))
-        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
-                              'nsrdb_{}.h5'.format(year))
+        source = os.path.join(
+            '/projects/PXS/nsrdb/v3.0.1', 'nsrdb_{}.h5'.format(year)
+        )
 
         ex = cls(target, source)
         ex.extract_sites(sites=range(200050, 200100))
@@ -341,10 +376,10 @@ class ExtractTestData(ExtractNSRDB):
     def srrl_2017(cls, dir_out, year=2017):
         """Extract NSRDB data from NREL SRRL site to target h5."""
         # Site 145809 is close to NREL
-        target = os.path.join(dir_out,
-                              'test_data_NREL_{}.h5'.format(year))
-        source = os.path.join('/projects/PXS/nsrdb/v3.0.1',
-                              'nsrdb_{}.h5'.format(year))
+        target = os.path.join(dir_out, 'test_data_NREL_{}.h5'.format(year))
+        source = os.path.join(
+            '/projects/PXS/nsrdb/v3.0.1', 'nsrdb_{}.h5'.format(year)
+        )
         ex = cls(target, source)
         ex.extract_sites(sites=range(145809, 145810))
 

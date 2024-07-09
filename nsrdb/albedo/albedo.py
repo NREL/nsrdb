@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Class to compile MODIS dry land albedo and IMS snow data into composite albedo.
 
@@ -6,11 +5,13 @@ Created on Jan 23 2020
 
 @author: mbannist
 """
+
 import logging
 import os
 from concurrent.futures import as_completed
 from datetime import datetime as dt
 from multiprocessing import cpu_count
+from typing import ClassVar
 
 import h5py
 import numpy as np
@@ -26,13 +27,13 @@ ALBEDO_NODATA = 0
 
 # TIFF world file. Values were extracted from MODIS data with QGIS and may
 # be slightly off.
-WORLD = '''0.00833333
+WORLD = """0.00833333
 0.00000000
 0.00000000
 -0.00833333
 -179.99583333
 89.99583333
-'''
+"""
 
 # Number of times to dialate (buffer) IMS snow/no-snow boundary. Larger numbers
 # results in a larger KD tree. Smaller number risk "shark's teeth" artifacts
@@ -82,15 +83,23 @@ class CompositeAlbedoDay:
     # Value for snow/sea ice in IMS. In thousandths, e.g. 867 == 0.867
     SNOW_ALBEDO = 867
 
-    ALBEDO_ATTRS = {'units': 'unitless',
-                    'scale_factor': 100}
+    ALBEDO_ATTRS: ClassVar = {'units': 'unitless', 'scale_factor': 100}
 
     CHUNKS = (2000, 1000)
 
     @classmethod
-    def run(cls, date, modis_path, ims_path, albedo_path, merra_path=None,
-            ims_shape=None, modis_shape=None, max_workers=None,
-            ims_buffer=IMS_EDGE_BUFFFER):
+    def run(
+        cls,
+        date,
+        modis_path,
+        ims_path,
+        albedo_path,
+        merra_path=None,
+        ims_shape=None,
+        modis_shape=None,
+        max_workers=None,
+        ims_buffer=IMS_EDGE_BUFFFER,
+    ):
         """
         Merge MODIS and IMS data for one day.
 
@@ -126,12 +135,14 @@ class CompositeAlbedoDay:
         -------
             Class instance
         """
-        cad = cls(date, modis_path, ims_path, albedo_path,
-                  merra_path, max_workers)
+        cad = cls(
+            date, modis_path, ims_path, albedo_path, merra_path, max_workers
+        )
 
         logger.info(f'Loading MODIS data for {cad.date}')
-        cad._modis = modis.ModisDay(cad.date, cad._modis_path,
-                                    shape=modis_shape)
+        cad._modis = modis.ModisDay(
+            cad.date, cad._modis_path, shape=modis_shape
+        )
 
         logger.info(f'Loading IMS data {cad.date}')
         cad._ims = ims.ImsDay(cad.date, cad._ims_path, shape=ims_shape)
@@ -139,8 +150,15 @@ class CompositeAlbedoDay:
         cad.albedo = cad._calc_albedo(ims_buffer=ims_buffer)
         return cad
 
-    def __init__(self, date, modis_path, ims_path, albedo_path,
-                 merra_path=None, max_workers=None):
+    def __init__(
+        self,
+        date,
+        modis_path,
+        ims_path,
+        albedo_path,
+        merra_path=None,
+        max_workers=None,
+    ):
         """
         Parameters
         ----------
@@ -186,30 +204,47 @@ class CompositeAlbedoDay:
         assert self.albedo.dtype == np.uint8
         day = str(self.date.timetuple().tm_yday).zfill(3)
         year = self.date.year
-        outfilename = os.path.join(self.albedo_path,
-                                   f'nsrdb_albedo_{year}_{day}.h5')
+        outfilename = os.path.join(
+            self.albedo_path, f'nsrdb_albedo_{year}_{day}.h5'
+        )
 
-        if self.albedo.shape[0] > self.CHUNKS[0] and \
-                self.albedo.shape[1] > self.CHUNKS[1]:
+        if (
+            self.albedo.shape[0] > self.CHUNKS[0]
+            and self.albedo.shape[1] > self.CHUNKS[1]
+        ):
             logger.info(f'Using a chunk size of {self.CHUNKS}')
             chunks = self.CHUNKS
         else:
-            logger.warning(f'Albedo data is smaller than {self.CHUNKS}, using '
-                           'automatic chunk size.')
+            logger.warning(
+                f'Albedo data is smaller than {self.CHUNKS}, using '
+                'automatic chunk size.'
+            )
             chunks = True
 
         logger.info(f'Writing albedo data to {outfilename}')
         with h5py.File(outfilename, 'w') as f:
-            f.create_dataset('surface_albedo', shape=self.albedo.shape,
-                             dtype=self.albedo.dtype, chunks=chunks,
-                             data=self.albedo)
+            f.create_dataset(
+                'surface_albedo',
+                shape=self.albedo.shape,
+                dtype=self.albedo.dtype,
+                chunks=chunks,
+                data=self.albedo,
+            )
             for k, v in self.ALBEDO_ATTRS.items():
                 f['surface_albedo'].attrs[k] = v
 
-            f.create_dataset('latitude', shape=self._modis.lat.shape,
-                             dtype=self._modis.lat.dtype, data=self._modis.lat)
-            f.create_dataset('longitude', shape=self._modis.lon.shape,
-                             dtype=self._modis.lon.dtype, data=self._modis.lon)
+            f.create_dataset(
+                'latitude',
+                shape=self._modis.lat.shape,
+                dtype=self._modis.lat.dtype,
+                data=self._modis.lat,
+            )
+            f.create_dataset(
+                'longitude',
+                shape=self._modis.lon.shape,
+                dtype=self._modis.lon.dtype,
+                data=self._modis.lon,
+            )
 
     def write_tiff(self, outfilename=None):
         """
@@ -224,8 +259,9 @@ class CompositeAlbedoDay:
         if outfilename is None:
             day = str(self.date.timetuple().tm_yday).zfill(3)
             year = self.date.year
-            outfilename = os.path.join(self.albedo_path,
-                                       f'nsrdb_albedo_{year}_{day}.tif')
+            outfilename = os.path.join(
+                self.albedo_path, f'nsrdb_albedo_{year}_{day}.tif'
+            )
 
         self._create_tiff(self.albedo, outfilename)
 
@@ -265,12 +301,14 @@ class CompositeAlbedoDay:
             File name and full path for TIFF
         """
         import libtiff
+
         tif = libtiff.TIFF.open(filename, mode='w')
         tif.write_image(data)
         tif.close()
 
-        with open(os.path.splitext(filename)[0] + '.tfw', "w",
-                  encoding='utf-8') as f:
+        with open(
+            os.path.splitext(filename)[0] + '.tfw', 'w', encoding='utf-8'
+        ) as f:
             f.write(WORLD)
 
         logger.debug(f'Write to file {filename} complete')
@@ -292,8 +330,9 @@ class CompositeAlbedoDay:
             as MODIS
         """
         if self._modis is None or self._ims is None:
-            raise AlbedoError('MODIS/IMS data must be loaded before running'
-                              ' calc_albedo()')
+            raise AlbedoError(
+                'MODIS/IMS data must be loaded before running' ' calc_albedo()'
+            )
         logger.info(f'Calculating composite albedo for {self.date}')
 
         # Clip MODIS data to IMS boundary
@@ -313,8 +352,8 @@ class CompositeAlbedoDay:
         if self._max_workers != 1:
             if self._max_workers is not None:
                 logging.warning(
-                    f'Processing albedo with {self._max_workers}'
-                    ' workers')
+                    f'Processing albedo with {self._max_workers}' ' workers'
+                )
             ind = self._run_futures(ims_tree, modis_pts)
         else:
             logging.warning('Processing albedo with a single worker')
@@ -323,8 +362,9 @@ class CompositeAlbedoDay:
         # Project nearest neighbors from IMS to MODIS.
         # Array is on same grid as clipped MODIS,
         # but has snow/no snow values from binary IMS.
-        snow_no_snow = ims_bin_mskd[ind].reshape(len(mc.mlat_clip),
-                                                 len(mc.mlon_clip))
+        snow_no_snow = ims_bin_mskd[ind].reshape(
+            len(mc.mlat_clip), len(mc.mlon_clip)
+        )
         self._mask = snow_no_snow
         logger.info(f'Shape of snow/no snow grid is {snow_no_snow.shape}.')
 
@@ -332,25 +372,33 @@ class CompositeAlbedoDay:
         mclip_albedo = mc.modis_clip
 
         if self._merra_path is not None:
-            logger.info(f'Loading Merra data for {self.date}. '
-                        'This might take a while')
+            logger.info(
+                f'Loading Merra data for {self.date}. '
+                'This might take a while'
+            )
             if self._max_workers != 1:
                 if self._max_workers is not None:
                     logging.warning(
                         f'Loading MERRA data with {self._max_workers}'
-                        ' workers')
+                        ' workers'
+                    )
                 else:
                     logging.warning('Loading MERRA data with a single worker')
             self._merra_data = tm.DataHandler.get_data(
-                self.date, self._merra_path, self._mask,
-                mc.mlat_clip, mc.mlon_clip,
-                max_workers=self._max_workers)
+                self.date,
+                self._merra_path,
+                self._mask,
+                mc.mlat_clip,
+                mc.mlon_clip,
+                max_workers=self._max_workers,
+            )
 
             msg = 'Calculating temperature dependent '
             msg += f'snowy albedo for {self.date}'
             logger.info(msg)
             mclip_albedo = tm.TemperatureModel.update_snow_albedo(
-                mclip_albedo, self._mask, self._merra_data)
+                mclip_albedo, self._mask, self._merra_data
+            )
         else:
             mclip_albedo[snow_no_snow == 1] = self.SNOW_ALBEDO
 
@@ -363,9 +411,11 @@ class CompositeAlbedoDay:
 
         # Check bounds
         if albedo[albedo < 0].any() or albedo[albedo > 1000].any():
-            raise AlbedoError('Composite albedo data has values greater than'
-                              ' 1000 or less than 0, before reducing scale '
-                              'factor.')
+            raise AlbedoError(
+                'Composite albedo data has values greater than'
+                ' 1000 or less than 0, before reducing scale '
+                'factor.'
+            )
 
         # MODIS data has a scaling factor of 1000, reduce to 100
         albedo /= 10
@@ -414,8 +464,9 @@ class CompositeAlbedoDay:
         chunks = np.array_split(modis_pts, cpu_count())
         now = dt.now()
         loggers = ['nsrdb']
-        with SpawnProcessPool(loggers=loggers,
-                              max_workers=self._max_workers) as exe:
+        with SpawnProcessPool(
+            loggers=loggers, max_workers=self._max_workers
+        ) as exe:
             for i, chunk in enumerate(chunks):
                 future = exe.submit(self._run_single_tree, ims_tree, chunk)
                 meta = {'id': i}
@@ -430,10 +481,13 @@ class CompositeAlbedoDay:
             logger.info(f'Started all futures in {dt.now() - now}')
 
             for i, future in enumerate(as_completed(futures)):
-                logger.info(f'Future {futures[future]} completed in '
-                            f'{dt.now() - now}.')
-                logger.info(f'{i + 1} out of {len(futures)} futures '
-                            f'completed')
+                logger.info(
+                    f'Future {futures[future]} completed in '
+                    f'{dt.now() - now}.'
+                )
+                logger.info(
+                    f'{i + 1} out of {len(futures)} futures ' f'completed'
+                )
         logger.info('done processing')
 
         # Merge all returned indices
@@ -441,7 +495,7 @@ class CompositeAlbedoDay:
         pos = 0
         for key in futures:
             size = len(key.result())
-            ind[pos:pos + size] = key.result()
+            ind[pos : pos + size] = key.result()
             pos += size
         return ind
 
@@ -472,11 +526,14 @@ class CompositeAlbedoDay:
         ims_bin[ims_bin > 2] = 1  # Snow, sea ice
 
         # Create and buffer edge mask
-        logger.debug('Performing IMS edge detection and dilating edge '
-                     '%s times', buffer)
+        logger.debug(
+            'Performing IMS edge detection and dilating edge ' '%s times',
+            buffer,
+        )
         ims_mask = ims_bin - ndimage.morphology.binary_dilation(ims_bin)
-        ims_mask = ndimage.morphology.binary_dilation(ims_mask,
-                                                      iterations=buffer)
+        ims_mask = ndimage.morphology.binary_dilation(
+            ims_mask, iterations=buffer
+        )
         ims_mask = ims_mask.flatten()
 
         # Mask data and lon/lat to boundary edges
@@ -552,13 +609,17 @@ class ModisClipper:
         ilon_good = self._ims.lon[valid_ims]
 
         # Get MODIS mask from IMS extents
-        logger.info(f'Boundaries of valid IMS data: {ilon_good.min()} - '
-                    f'{ilon_good.max()} long, {ilat_good.min()} - '
-                    f'{ilat_good.max()} lat')
-        mlat_idx = (ilat_good.min() - CLIP_MARGIN <= self._modis.lat) & \
-                   (self._modis.lat <= ilat_good.max() + CLIP_MARGIN)
-        mlon_idx = (ilon_good.min() - CLIP_MARGIN <= self._modis.lon) & \
-                   (self._modis.lon <= ilon_good.max() + CLIP_MARGIN)
+        logger.info(
+            f'Boundaries of valid IMS data: {ilon_good.min()} - '
+            f'{ilon_good.max()} long, {ilat_good.min()} - '
+            f'{ilat_good.max()} lat'
+        )
+        mlat_idx = (ilat_good.min() - CLIP_MARGIN <= self._modis.lat) & (
+            self._modis.lat <= ilat_good.max() + CLIP_MARGIN
+        )
+        mlon_idx = (ilon_good.min() - CLIP_MARGIN <= self._modis.lon) & (
+            self._modis.lon <= ilon_good.max() + CLIP_MARGIN
+        )
         self.modis_idx = np.ix_(mlat_idx, mlon_idx)
 
         # Clip out MODIS that matches IMS extents
@@ -566,8 +627,10 @@ class ModisClipper:
         self.mlat_clip = self._modis.lat[mlat_idx]
         self.mlon_clip = self._modis.lon[mlon_idx]
 
-        logger.info('Boundaries of clipped MODIS data: '
-                    f'{self.mlon_clip.min()} - '
-                    f'{self.mlon_clip.max()} long, {self.mlat_clip.min()} - '
-                    f'{self.mlat_clip.max()} lat')
+        logger.info(
+            'Boundaries of clipped MODIS data: '
+            f'{self.mlon_clip.min()} - '
+            f'{self.mlon_clip.max()} long, {self.mlat_clip.min()} - '
+            f'{self.mlat_clip.max()} lat'
+        )
         logger.info(f'Shape of clipped MODIS data is {self.modis_clip.shape}')

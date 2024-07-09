@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""NSRDB east/west blending utilities.
-"""
+"""NSRDB east/west blending utilities."""
+
 import logging
-import numpy as np
 import os
-import pandas as pd
 from warnings import warn
 
-from nsrdb.file_handlers.outputs import Outputs
+import numpy as np
+import pandas as pd
+from rex import init_logger
+
 from nsrdb.data_model import VarFactory
+from nsrdb.file_handlers.outputs import Outputs
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +18,15 @@ logger = logging.getLogger(__name__)
 class Blender:
     """Class to blend east and west satellite extents"""
 
-    def __init__(self, meta_out, out_fpath, east_fpath, west_fpath,
-                 map_col='gid_full', lon_seam=-105.0):
+    def __init__(
+        self,
+        meta_out,
+        out_fpath,
+        east_fpath,
+        west_fpath,
+        map_col='gid_full',
+        lon_seam=-105.0,
+    ):
         """
         Parameters
         ----------
@@ -39,13 +48,11 @@ class Blender:
             because the conus west satellite extent doesnt go that far east.
         """
 
-        logger.info('Blender running at longitude seam: {}'.format(lon_seam))
-        logger.info('Blender initialized with west source file: {}'
-                    .format(west_fpath))
-        logger.info('Blender initialized with east source file: {}'
-                    .format(east_fpath))
-        logger.info('Blender initialized with output file: {}'
-                    .format(out_fpath))
+        logger.info(
+            f'Blender running at longitude seam: {lon_seam}. Blender '
+            f'initialized with west source file: {west_fpath}, east '
+            f'source file: {east_fpath}, output file: {out_fpath}'
+        )
 
         self._out_fpath = out_fpath
         self._east_fpath = east_fpath
@@ -58,19 +65,27 @@ class Blender:
         self._meta_west = self._parse_meta_file(west_fpath)
         self._parse_blended_meta()
 
-        logger.debug('Final output meta: \n{}\n{}'
-                     .format(self._meta_out.head(), self._meta_out.tail()))
-        logger.debug('Source east meta: \n{}\n{}'
-                     .format(self._meta_east.head(), self._meta_east.tail()))
-        logger.debug('Source west meta: \n{}\n{}'
-                     .format(self._meta_west.head(), self._meta_west.tail()))
+        logger.debug(
+            f'Final output meta: \n{self._meta_out.head()}'
+            f'\n{self._meta_out.tail()}. Source east meta: '
+            f'\n{self._meta_east.head()}\n{self._meta_east.tail()} '
+            f'Source west meta: \n{self._meta_west.head()}'
+            f'\n{self._meta_west.tail()}'
+        )
 
         self._time_index = self._parse_ti()
         self._dsets = self._parse_dsets()
 
         attrs, chunks, dtypes = VarFactory.get_dsets_attrs(self._dsets)
-        Outputs.init_h5(self._out_fpath, self._dsets, attrs, chunks, dtypes,
-                        self._time_index, self._meta_out)
+        Outputs.init_h5(
+            self._out_fpath,
+            self._dsets,
+            attrs,
+            chunks,
+            dtypes,
+            self._time_index,
+            self._meta_out,
+        )
 
     @staticmethod
     def _parse_meta_file(inp):
@@ -97,14 +112,16 @@ class Blender:
                 with Outputs(inp, mode='r') as out:
                     meta_out = out.meta
             else:
-                e = ('Meta filepath must be csv or h5 but received: {}'
-                     .format(inp))
+                e = 'Meta filepath must be csv or h5 but received: {}'.format(
+                    inp
+                )
                 logger.error(e)
                 raise ValueError(e)
 
         elif not isinstance(inp, pd.DataFrame):
-            e = ('Meta needs to be DataFrame or str but received: {}'
-                 .format(type(inp)))
+            e = 'Meta needs to be DataFrame or str but received: {}'.format(
+                type(inp)
+            )
             logger.error(e)
             raise ValueError(e)
 
@@ -123,7 +140,7 @@ class Blender:
         self._meta_west = self._meta_west[west_mask]
         self._meta_east = self._meta_east[east_mask]
 
-        '''
+        """
         if len(self._meta_east) < 10:
             e = 'Eastern meta got totally eliminated by seam mask!'
             logger.error(e)
@@ -132,31 +149,40 @@ class Blender:
             e = 'Western meta got totally eliminated by seam mask!'
             logger.error(e)
             raise RuntimeError(e)
-        '''
+        """
 
         west_gid_full = self._meta_west[self._map_col].values.tolist()
         east_gid_full = self._meta_east[self._map_col].values.tolist()
         gid_full_all = list(set(west_gid_full + east_gid_full))
 
-        self._check_sequential(self._meta_west.index.values,
-                               'West source gids')
-        self._check_sequential(self._meta_east.index.values,
-                               'East source gids')
-        self._check_sequential(self._meta_west[self._map_col].values,
-                               'West destination gids')
-        self._check_sequential(self._meta_east[self._map_col].values,
-                               'East destination gids')
+        self._check_sequential(
+            self._meta_west.index.values, 'West source gids'
+        )
+        self._check_sequential(
+            self._meta_east.index.values, 'East source gids'
+        )
+        self._check_sequential(
+            self._meta_west[self._map_col].values, 'West destination gids'
+        )
+        self._check_sequential(
+            self._meta_east[self._map_col].values, 'East destination gids'
+        )
 
         if len(gid_full_all) != len(west_gid_full) + len(east_gid_full):
-            e = ('Western full-extent gids and eastern full-extent gids have '
-                 'duplicates based on a seam of {}!'.format(self._lon_seam))
+            e = (
+                'Western full-extent gids and eastern full-extent gids have '
+                'duplicates based on a seam of {}!'.format(self._lon_seam)
+            )
             logger.error(e)
             raise RuntimeError(e)
 
         if len(gid_full_all) != len(self._meta_out):
-            e = ('Combined western and eastern meta data have {} gids wheras '
-                 'the final output meta data has {} gids!'
-                 .format(len(gid_full_all), len(self._meta_out)))
+            e = (
+                'Combined western and eastern meta data have {} gids wheras '
+                'the final output meta data has {} gids!'.format(
+                    len(gid_full_all), len(self._meta_out)
+                )
+            )
             logger.error(e)
             raise RuntimeError(e)
 
@@ -176,7 +202,7 @@ class Blender:
             Flag to raise Runtimeerror if not sequential.
 
         Returns
-        ------
+        -------
         sequential : bool
             Whether arr is sequential or not.
         """
@@ -185,7 +211,7 @@ class Blender:
 
         if not all(arr == arr_seq):
             sequential = False
-            msg = ('{} is not sequential!'.format(name))
+            msg = '{} is not sequential!'.format(name)
             if warn_flag:
                 logger.warning(msg)
                 warn(msg)
@@ -241,8 +267,9 @@ class Blender:
             warn(w)
 
         dsets = list(set(dsets_e).intersection(set(dsets_w)))
-        logger.info('Blending the following {} dsets: {}'
-                    .format(len(dsets), dsets))
+        logger.info(
+            'Blending the following {} dsets: {}'.format(len(dsets), dsets)
+        )
         return dsets
 
     def run_blend(self, source_fpath, source_meta, chunk_size=100000):
@@ -268,30 +295,50 @@ class Blender:
 
         logger.info('Starting blend from source file: {}'.format(source_fpath))
 
-        with Outputs(source_fpath, mode='r', unscale=False) as source:
-            with Outputs(self._out_fpath, mode='a') as out:
-                for i_d, dset in enumerate(self._dsets):
-                    logger.info('Starting blend of dataset "{}", {} of {}'
-                                .format(dset, i_d + 1, len(self._dsets)))
+        with (
+            Outputs(source_fpath, mode='r', unscale=False) as source,
+            Outputs(self._out_fpath, mode='a') as out,
+        ):
+            for i_d, dset in enumerate(self._dsets):
+                logger.info(
+                    'Starting blend of dataset "{}", {} of {}'.format(
+                        dset, i_d + 1, len(self._dsets)
+                    )
+                )
 
-                    zipped = zip(source_chunks, destination_chunks)
-                    for i, (i_source, i_destination) in enumerate(zipped):
-                        logger.debug('\t Blending gid chunk {} out of {}'
-                                     .format(i + 1, len(source_chunks)))
-                        self._check_sequential(
-                            i_source, 'Source chunk {}'.format(i),
-                            raise_flag=True)
-                        self._check_sequential(
-                            i_destination, 'Destination chunk {}'.format(i),
-                            raise_flag=True)
-                        s = slice(i_source.min(), i_source.max() + 1)
-                        d = slice(i_destination.min(), i_destination.max() + 1)
-                        out[dset, :, d] = source[dset, :, s]
+                zipped = zip(source_chunks, destination_chunks)
+                for i, (i_source, i_destination) in enumerate(zipped):
+                    logger.debug(
+                        '\t Blending gid chunk {} out of {}'.format(
+                            i + 1, len(source_chunks)
+                        )
+                    )
+                    self._check_sequential(
+                        i_source,
+                        'Source chunk {}'.format(i),
+                        raise_flag=True,
+                    )
+                    self._check_sequential(
+                        i_destination,
+                        'Destination chunk {}'.format(i),
+                        raise_flag=True,
+                    )
+                    s = slice(i_source.min(), i_source.max() + 1)
+                    d = slice(i_destination.min(), i_destination.max() + 1)
+                    out[dset, :, d] = source[dset, :, s]
         logger.info('Finished blend from source file: {}'.format(source_fpath))
 
     @classmethod
-    def blend_file(cls, meta_out, out_fpath, east_fpath, west_fpath,
-                   map_col='gid_full', lon_seam=-105.0, chunk_size=100000):
+    def blend_file(
+        cls,
+        meta_out,
+        out_fpath,
+        east_fpath,
+        west_fpath,
+        map_col='gid_full',
+        lon_seam=-105.0,
+        chunk_size=100000,
+    ):
         """Initialize and run the blender using explicit source and output
         filepaths.
 
@@ -317,8 +364,14 @@ class Blender:
             Number of sites to read/write at a time.
         """
 
-        b = cls(meta_out, out_fpath, east_fpath, west_fpath,
-                map_col=map_col, lon_seam=lon_seam)
+        b = cls(
+            meta_out,
+            out_fpath,
+            east_fpath,
+            west_fpath,
+            map_col=map_col,
+            lon_seam=lon_seam,
+        )
 
         b.run_blend(b._west_fpath, b._meta_west, chunk_size=chunk_size)
         b.run_blend(b._east_fpath, b._meta_east, chunk_size=chunk_size)
@@ -326,9 +379,18 @@ class Blender:
         logger.info('Finished blend. Output file is: {}'.format(b._out_fpath))
 
     @classmethod
-    def blend_dir(cls, meta_out, out_dir, east_dir, west_dir, file_tag,
-                  out_fn=None, map_col='gid_full', lon_seam=-105.0,
-                  chunk_size=100000):
+    def blend_dir(
+        cls,
+        meta_out,
+        out_dir,
+        east_dir,
+        west_dir,
+        file_tag,
+        out_fn=None,
+        map_col='gid_full',
+        lon_seam=-105.0,
+        chunk_size=100000,
+    ):
         """Initialize and run the blender on two source directories with a
         file tag to search for. This can only blend one file.
 
@@ -360,14 +422,22 @@ class Blender:
             Number of sites to read/write at a time.
         """
 
-        fns_east = [fn for fn in os.listdir(east_dir)
-                    if fn.endswith('.h5') and file_tag in fn]
-        fns_west = [fn for fn in os.listdir(west_dir)
-                    if fn.endswith('.h5') and file_tag in fn]
+        fns_east = [
+            fn
+            for fn in os.listdir(east_dir)
+            if fn.endswith('.h5') and file_tag in fn
+        ]
+        fns_west = [
+            fn
+            for fn in os.listdir(west_dir)
+            if fn.endswith('.h5') and file_tag in fn
+        ]
 
         if len(fns_east) > 1 or len(fns_west) > 1:
-            e = ('Found multiple files with tag "{}" in source dirs: {} and {}'
-                 .format(file_tag, east_dir, west_dir))
+            e = (
+                f'Found multiple files with tag "{file_tag}" in source dirs: '
+                f'{east_dir} and {west_dir}'
+            )
             logger.error(e)
             raise RuntimeError(e)
 
@@ -377,6 +447,116 @@ class Blender:
             out_fn = fns_east[0].replace('_east', '')
         out_fpath = os.path.join(out_dir, out_fn)
 
-        cls.blend_file(meta_out, out_fpath, east_fpath, west_fpath,
-                       map_col=map_col, lon_seam=lon_seam,
-                       chunk_size=chunk_size)
+        cls.blend_file(
+            meta_out,
+            out_fpath,
+            east_fpath,
+            west_fpath,
+            map_col=map_col,
+            lon_seam=lon_seam,
+            chunk_size=chunk_size,
+        )
+
+    @classmethod
+    def run_full(
+        cls,
+        meta_file,
+        out_dir,
+        east_dir,
+        west_dir,
+        out_fn=None,
+        east_fn=None,
+        west_fn=None,
+        file_tag=None,
+        map_col='gid_full',
+        lon_seam=-105.0,
+        chunk_size=100000,
+        log_file='blend.log',
+        log_level='DEBUG',
+    ):
+        """NSRDB East-West Blend.
+
+        Parameters
+        ----------
+            meta_file: str
+                Filepath to final output blended meta data csv file.
+            out_dir: str
+                Directory to save blended output.
+            east_dir: str
+                Source east directory.
+            west_dir : str
+                Source west directory.
+            out_fn: str
+                Optional output filename
+            east_fn: str
+                Optional east filename (found in east_dir)
+            west_fn: str
+                Optional west filename (found in west_dir)
+            file_tag : str
+                File tag found in files in east and west source dirs.
+            map_col : str
+                Column in the east and west meta data that map sites to the
+                full meta_out gids.
+            lon_seam : float
+                Vertical longitude seam at which data transitions from the
+                western source to eastern, by default -105.0 (historical
+                closest to nadir).  5min conus data (2019 onwards) is typically
+                blended at -113.0 because the conus west satellite extent
+                doesnt go that far east.
+            chunk_size : int
+                Number of sites to read/write at a time.
+            log_file : str
+                File to use for logging
+            log_level : str
+                Level to use for logging.
+        """
+        if (
+            out_fn is not None
+            and east_fn is not None
+            and west_fn is not None
+            and file_tag is not None
+        ):
+            logger.info(
+                'Filenames and file tags all specified. Using filenames.'
+            )
+            file_tag = None
+
+        init_logger('nsrdb.blend', log_level=log_level, log_file=log_file)
+
+        if (
+            out_fn is None
+            and east_fn is None
+            and west_fn is None
+            and file_tag is None
+        ):
+            e = 'Filenames or file_tag must be specified for local blend job.'
+            logger.error(e)
+            raise RuntimeError(e)
+
+        if out_fn is not None and east_fn is not None and west_fn is not None:
+            out_fpath = os.path.join(out_dir, out_fn)
+            east_fpath = os.path.join(east_dir, east_fn)
+            west_fpath = os.path.join(west_dir, west_fn)
+            logger.info(f'Running blend_file with file_tag {file_tag}.')
+            cls.blend_file(
+                meta_file,
+                out_fpath,
+                east_fpath,
+                west_fpath,
+                map_col=map_col,
+                lon_seam=lon_seam,
+                chunk_size=chunk_size,
+            )
+        else:
+            logger.info(f'Running blend_dir with file_tag {file_tag}.')
+            cls.blend_dir(
+                meta_file,
+                out_dir,
+                east_dir,
+                west_dir,
+                file_tag,
+                out_fn=out_fn,
+                map_col=map_col,
+                lon_seam=lon_seam,
+                chunk_size=chunk_size,
+            )

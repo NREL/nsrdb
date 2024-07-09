@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 """Base handler class for NSRDB data sources."""
-from abc import ABC, abstractmethod
+
+import datetime as dt
 import logging
+from abc import ABC, abstractmethod
+from warnings import warn
+
 import numpy as np
 import pandas as pd
-from warnings import warn
-import datetime as dt
 
-from nsrdb import DATADIR, DEFAULT_VAR_META
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb import DATADIR, DEFAULT_VAR_META, VAR_DESCRIPTIONS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +77,9 @@ class AncillaryVarHandler:
             var_meta = inp
 
         if var_meta is None:
-            raise TypeError('Could not parse meta data for NSRDB variables '
-                            'from: {}'.format(inp))
+            raise TypeError(
+                f'Could not parse meta data for NSRDB variables from: {inp}'
+            )
 
         var_meta['var'] = var_meta['var'].str.strip(' ')
 
@@ -93,19 +95,21 @@ class AncillaryVarHandler:
             Namespace of attributes to define the dataset.
         """
 
-        attrs = dict({'units': self.units,
-                      'scale_factor': self.scale_factor,
-                      'physical_min': self.physical_min,
-                      'physical_max': self.physical_max,
-                      'elevation_correction': self.elevation_correct,
-                      'temporal_interp_method': self.temporal_method,
-                      'spatial_interp_method': self.spatial_method,
-                      'data_source': self.data_source,
-                      'source_dir': self.source_dir,
-                      'psm_units': self.units,
-                      'psm_scale_factor': self.scale_factor,
-                      'chunks': self.chunks,
-                      })
+        attrs = {
+            'description': self.description,
+            'units': self.units,
+            'scale_factor': self.scale_factor,
+            'physical_min': self.physical_min,
+            'physical_max': self.physical_max,
+            'elevation_correction': self.elevation_correct,
+            'temporal_interp_method': self.temporal_method,
+            'spatial_interp_method': self.spatial_method,
+            'data_source': self.data_source,
+            'source_dir': self.source_dir,
+            'psm_units': self.units,
+            'psm_scale_factor': self.scale_factor,
+            'chunks': self.chunks,
+        }
         return attrs
 
     @property
@@ -137,14 +141,15 @@ class AncillaryVarHandler:
 
     @property
     def mask(self):
-        """Get a boolean mask to locate the current variable in the meta data.
-        """
+        """Get a boolean mask to locate the current variable in the meta
+        data."""
         if self._mask is None:
             if self._name in self.var_meta['var'].values:
                 self._mask = self.var_meta['var'] == self._name
             else:
-                raise KeyError('Variable "{}" not found in NSRDB meta.'
-                               .format(self._name))
+                raise KeyError(
+                    'Variable "{}" not found in NSRDB meta.'.format(self._name)
+                )
 
         return self._mask
 
@@ -241,6 +246,23 @@ class AncillaryVarHandler:
         return str(self.var_meta.loc[self.mask, 'final_dtype'].values[0])
 
     @property
+    def description(self):
+        """Long variable description.
+
+        Returns
+        -------
+        description : str
+            Description of the variable to provide more info than the sometimes
+            opaque dset names.
+        """
+
+        return str(
+            VAR_DESCRIPTIONS.loc[
+                VAR_DESCRIPTIONS['var'] == self._name, 'description'
+            ].values[0]
+        )
+
+    @property
     def units(self):
         """Get the units attribute.
 
@@ -307,8 +329,7 @@ class AncillaryVarHandler:
         """
         sd = self.var_meta.loc[self.mask, 'source_directory'].values[0]
         if not sd:
-            warn('Using default data directory for "{}"'
-                 .format(self.name))
+            warn('Using default data directory for "{}"'.format(self.name))
             sd = self.DEFAULT_DIR
 
         return str(sd)
@@ -328,12 +349,13 @@ class AncillaryVarHandler:
         str
         """
         pat = getattr(self, key)
-        fps = NFS(pat).glob()
+        fps = NSRDBfs(pat).glob()
         if not any(fps) or len(fps) > 1:
-            emsg = ('Could not find or found too many source files '
-                    'for dataset "{}" with glob pattern: "{}". '
-                    'Found {} files: {}'
-                    .format(self.name, pat, len(fps), fps))
+            emsg = (
+                'Could not find or found too many source files '
+                'for dataset "{}" with glob pattern: "{}". '
+                'Found {} files: {}'.format(self.name, pat, len(fps), fps)
+            )
             logger.error(emsg)
             raise FileNotFoundError(emsg)
 
@@ -365,7 +387,7 @@ class AncillaryVarHandler:
     @property
     def next_file_exists(self):
         """Check if file for next date exists"""
-        fps = NFS(self.next_pattern).glob()
+        fps = NSRDBfs(self.next_pattern).glob()
         return any(fps) or len(fps) > 1
 
     @property
@@ -476,10 +498,13 @@ class AncillaryVarHandler:
 
         missing = ''
         # empty cell (no source dir) evaluates to 'nan'.
-        if self.source_dir != 'nan' and ~np.isnan(self.source_dir):
-            if not NFS(self.source_dir).exists():
-                # source dir is not nan and does not exist
-                missing = self.source_dir
+        if (
+            self.source_dir != 'nan'
+            and ~np.isnan(self.source_dir)
+            and not NSRDBfs(self.source_dir).exists()
+        ):
+            # source dir is not nan and does not exist
+            missing = self.source_dir
 
         return missing
 
@@ -506,48 +531,49 @@ class AncillaryVarHandler:
         """
 
         # check to make sure variable is in NSRDB meta config
-        if self._name in self.var_meta['var'].values:
-
-            # if the data is not in the final dtype yet
-            if not np.issubdtype(self.final_dtype, array.dtype):
-
-                # Warning if nan values are present. Will assign d_min below.
-                if np.sum(np.isnan(array)) != 0:
-                    d_min = ''
-                    if np.issubdtype(self.final_dtype, np.integer):
-                        d_min = np.iinfo(self.final_dtype).min
-
-                    w = ('NaN values found in "{}" before dtype conversion '
-                         'to "{}". Will be assigned value of: "{}"'
-                         .format(self.name, self.final_dtype, d_min))
-                    logger.warning(w)
-                    warn(w)
-
-                # truncate unscaled array at physical min/max values
-                array[array < self.physical_min] = self.physical_min
-                array[array > self.physical_max] = self.physical_max
-
-                if self.scale_factor != 1:
-                    # apply scale factor
-                    array *= self.scale_factor
-
-                # if int, round at decimal precision determined by scale factor
+        if self._name in self.var_meta['var'].values and not np.issubdtype(
+            self.final_dtype, array.dtype
+        ):
+            # Warning if nan values are present. Will assign d_min below.
+            if np.sum(np.isnan(array)) != 0:
+                d_min = ''
                 if np.issubdtype(self.final_dtype, np.integer):
-                    array = np.round(array)
-
-                    # Get the min/max of the bit range
                     d_min = np.iinfo(self.final_dtype).min
-                    d_max = np.iinfo(self.final_dtype).max
 
-                    # set any nan values to the min of the bit range
-                    array[np.isnan(array)] = d_min
+                w = (
+                    'NaN values found in "{}" before dtype conversion '
+                    'to "{}". Will be assigned value of: "{}"'.format(
+                        self.name, self.final_dtype, d_min
+                    )
+                )
+                logger.warning(w)
+                warn(w)
 
-                    # Truncate scaled array at bit range min/max
-                    array[array < d_min] = d_min
-                    array[array > d_max] = d_max
+            # truncate unscaled array at physical min/max values
+            array[array < self.physical_min] = self.physical_min
+            array[array > self.physical_max] = self.physical_max
 
-                # perform type conversion to final dtype
-                array = array.astype(self.final_dtype)
+            if self.scale_factor != 1:
+                # apply scale factor
+                array *= self.scale_factor
+
+            # if int, round at decimal precision determined by scale factor
+            if np.issubdtype(self.final_dtype, np.integer):
+                array = np.round(array)
+
+                # Get the min/max of the bit range
+                d_min = np.iinfo(self.final_dtype).min
+                d_max = np.iinfo(self.final_dtype).max
+
+                # set any nan values to the min of the bit range
+                array[np.isnan(array)] = d_min
+
+                # Truncate scaled array at bit range min/max
+                array[array < d_min] = d_min
+                array[array > d_max] = d_max
+
+            # perform type conversion to final dtype
+            array = array.astype(self.final_dtype)
 
         return array
 
@@ -566,16 +592,14 @@ class AncillaryVarHandler:
         """
 
         # check to make sure variable is in NSRDB meta config
-        if self._name in self.var_meta['var'].values:
+        if self._name in self.var_meta['var'].values and not np.issubdtype(
+            np.float32, array.dtype
+        ):
+            # increase precision to float32
+            array = array.astype(np.float32)
 
-            # if the data is not in the desired dtype yet
-            if not np.issubdtype(np.float32, array.dtype):
-
-                # increase precision to float32
-                array = array.astype(np.float32)
-
-                # apply scale factor
-                array /= self.scale_factor
+            # apply scale factor
+            array /= self.scale_factor
 
         return array
 
@@ -596,9 +620,11 @@ class AncillaryVarHandler:
             Pandas datetime index for the current day.
         """
 
-        ti = pd.date_range('1-1-{y}'.format(y=date.year),
-                           '1-1-{y}'.format(y=date.year + 1),
-                           freq=freq)[:-1]
+        ti = pd.date_range(
+            '1-1-{y}'.format(y=date.year),
+            '1-1-{y}'.format(y=date.year + 1),
+            freq=freq,
+        )[:-1]
         # pylint: disable=no-member
         mask = (ti.month == date.month) & (ti.day == date.day)
         ti = ti[mask]
@@ -611,7 +637,7 @@ class BaseDerivedVar(ABC):
 
     # Class variable to store list of strings that are datasets interpolated
     # from source data like MERRA that are used to derive this variable
-    DEPENDENCIES = tuple()
+    DEPENDENCIES = ()
 
     @abstractmethod
     def derive(self):

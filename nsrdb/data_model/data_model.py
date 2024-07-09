@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""This data model handles NSRDB data sources, with the end goal of preparing
+"""The data model handles NSRDB data sources, with the end goal of preparing
 data inputs to the NSRDB all-sky irradiance models.
 
 A primary function of this model is to perform spatial and temporal
@@ -31,12 +30,14 @@ class variables in Ancillary() below.
      'wind_speed',
      'dew_point')
 """
+
 import copy
 import logging
 import os
 import time
 from concurrent.futures import as_completed
 from glob import glob
+from typing import ClassVar
 from warnings import warn
 
 import numpy as np
@@ -48,7 +49,7 @@ from nsrdb import DATADIR
 from nsrdb.data_model.base_handler import BaseDerivedVar
 from nsrdb.data_model.clouds import CloudVar
 from nsrdb.data_model.variable_factory import VarFactory
-from nsrdb.file_handlers.file_system import NSRDBFileSystem as NFS
+from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.file_utils import clean_meta
 from nsrdb.utilities.interpolation import (
@@ -69,68 +70,84 @@ class DataModel:
     CACHE_DIR = '/projects/pxs/reference_grids/_nn_query_cache'
 
     # source files for weight factors
-    WEIGHTS = {
+    WEIGHTS: ClassVar = {
         'aod': os.path.join(
-            DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'),
+            DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'
+        ),
         'alpha': os.path.join(
-            DATADIR, 'Monthly_pixel_correction_MERRA2_Alpha.txt')}
+            DATADIR, 'Monthly_pixel_correction_MERRA2_Alpha.txt'
+        ),
+    }
 
     # variables used for all-sky that are processed in this module
-    ALL_SKY_VARS = ('alpha',
-                    'aod',
-                    'asymmetry',
-                    'cloud_type',
-                    'cld_opd_dcomp',
-                    'cld_reff_dcomp',
-                    'ozone',
-                    'ssa',
-                    'surface_albedo',
-                    'surface_pressure',
-                    'total_precipitable_water',
-                    'solar_zenith_angle',
-                    )
+    ALL_SKY_VARS = (
+        'alpha',
+        'aod',
+        'asymmetry',
+        'cloud_type',
+        'cld_opd_dcomp',
+        'cld_reff_dcomp',
+        'ozone',
+        'ssa',
+        'surface_albedo',
+        'surface_pressure',
+        'total_precipitable_water',
+        'solar_zenith_angle',
+    )
 
     # variables from MERRA processed in this module
-    MERRA_VARS = ('surface_pressure',
-                  'air_temperature',
-                  'ozone',
-                  'total_precipitable_water',
-                  'wind_speed',
-                  'wind_direction',
-                  'alpha',
-                  'aod',
-                  'ssa',
-                  'relative_humidity',  # Derived from MERRA vars
-                  'dew_point',  # Derived from MERRA vars
-                  'solar_zenith_angle',  # Derived from MERRA vars
-                  )
+    MERRA_VARS = (
+        'surface_pressure',
+        'air_temperature',
+        'ozone',
+        'total_precipitable_water',
+        'wind_speed',
+        'wind_direction',
+        'alpha',
+        'aod',
+        'ssa',
+        'relative_humidity',  # Derived from MERRA vars
+        'dew_point',  # Derived from MERRA vars
+        'solar_zenith_angle',  # Derived from MERRA vars
+    )
 
     # cloud variables from UW/GOES
-    CLOUD_VARS = ('cloud_type',
-                  'cld_opd_dcomp',
-                  'cld_reff_dcomp',
-                  'cld_press_acha',
-                  )
+    CLOUD_VARS = (
+        'cloud_type',
+        'cld_opd_dcomp',
+        'cld_reff_dcomp',
+        'cld_press_acha',
+    )
 
-    MLCLOUDS_VARS = ('cloud_fraction',
-                     'cloud_probability',
-                     'temp_3_75um_nom',
-                     'temp_11_0um_nom',
-                     'temp_11_0um_nom_stddev_3x3',
-                     'refl_0_65um_nom',
-                     'refl_0_65um_nom_stddev_3x3',
-                     'refl_3_75um_nom',
-                     )
+    MLCLOUDS_VARS = (
+        'cloud_fraction',
+        'cloud_probability',
+        'temp_3_75um_nom',
+        'temp_11_0um_nom',
+        'temp_11_0um_nom_stddev_3x3',
+        'refl_0_65um_nom',
+        'refl_0_65um_nom_stddev_3x3',
+        'refl_3_75um_nom',
+    )
 
     # all variables processed by this module
     ALL_VARS = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS))
 
     # all variables processed by this module WITH mlclouds gap fill
-    ALL_VARS_ML = tuple(set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS
-                            + MLCLOUDS_VARS))
+    ALL_VARS_ML = tuple(
+        set(ALL_SKY_VARS + MERRA_VARS + CLOUD_VARS + MLCLOUDS_VARS)
+    )
 
-    def __init__(self, date, nsrdb_grid, nsrdb_freq='5min', var_meta=None,
-                 factory_kwargs=None, scale=True, max_workers=None):
+    def __init__(
+        self,
+        date,
+        nsrdb_grid,
+        nsrdb_freq='5min',
+        var_meta=None,
+        factory_kwargs=None,
+        scale=True,
+        max_workers=None,
+    ):
         """
         Parameters
         ----------
@@ -184,14 +201,17 @@ class DataModel:
         elif isinstance(value, dict):
             self._processed.update(value)
         else:
-            raise TypeError('Did not recognize dtype sent to DataModel '
-                            'processed dictionary: {}'.format(type(value)))
+            raise TypeError(
+                'Did not recognize dtype sent to DataModel '
+                'processed dictionary: {}'.format(type(value))
+            )
 
     def __contains__(self, dset):
         return dset in self._processed
 
-    def _parse_nsrdb_grid(self, inp,
-                          req=('latitude', 'longitude', 'elevation')):
+    def _parse_nsrdb_grid(
+        self, inp, req=('latitude', 'longitude', 'elevation')
+    ):
         """Set the NSRDB reference grid from a csv file.
 
         Parameters
@@ -209,8 +229,10 @@ class DataModel:
             self._nsrdb_grid_file = inp
             self._nsrdb_grid = clean_meta(pd.read_csv(inp, index_col=0))
         else:
-            raise TypeError('Expected csv grid file or DataFrame but '
-                            'received: {}'.format(inp))
+            raise TypeError(
+                'Expected csv grid file or DataFrame but '
+                'received: {}'.format(inp)
+            )
 
         # check requirements
         missing = [r for r in req if r not in self._nsrdb_grid]
@@ -248,11 +270,14 @@ class DataModel:
             Pandas datetime index for the current day at the NSRDB resolution.
         """
         if self._ti is None:
-            self._ti = pd.date_range('1-1-{y}'.format(y=self.date.year),
-                                     '1-1-{y}'.format(y=self.date.year + 1),
-                                     freq=self._nsrdb_freq)[:-1]
-            mask = ((self._ti.month == self.date.month)
-                    & (self._ti.day == self.date.day))
+            self._ti = pd.date_range(
+                '1-1-{y}'.format(y=self.date.year),
+                '1-1-{y}'.format(y=self.date.year + 1),
+                freq=self._nsrdb_freq,
+            )[:-1]
+            mask = (self._ti.month == self.date.month) & (
+                self._ti.day == self.date.day
+            )
             self._ti = self._ti[mask]
             self['time_index'] = self._ti
 
@@ -294,8 +319,15 @@ class DataModel:
         """
         return self._processed
 
-    def get_geo_nn(self, df1, df2, interp_method='NN', nn_method='haversine',
-                   labels=('latitude', 'longitude'), cache=False):
+    def get_geo_nn(
+        self,
+        df1,
+        df2,
+        interp_method='NN',
+        nn_method='haversine',
+        labels=('latitude', 'longitude'),
+        cache=False,
+    ):
         """Get the geographic nearest neighbor distances (km) and indices.
 
         Parameters
@@ -333,25 +365,20 @@ class DataModel:
             logger.error(e)
             raise ValueError(e)
 
-        if 'NN' in interp_method.upper():
-            # always get 1 nearest neighbor for NN data copy
-            k = 1
-        elif 'IDW' in interp_method.upper():
-            # always get 4 nearest neighbors for dist interp interp_method
-            k = 4
-        elif 'AGG' in interp_method.upper():
-            # aggregation can be from any number of neighbors, default to 4
-            k = parse_method(interp_method)
-            if k is None:
-                k = 4
-        else:
-            e = ('Did not recognize spatial interp_method: "{}"'
-                 .format(interp_method))
-            logger.error(e)
-            raise ValueError(e)
+        k = (
+            1
+            if 'NN' in interp_method.upper()
+            else 4
+            if 'IDW' in interp_method.upper()
+            else (parse_method(interp_method) or 4)
+            if 'AGG' in interp_method.upper()
+            else None
+        )
+        msg = f'Did not recognize spatial interp_method: "{interp_method}"'
+        assert k is not None, msg
 
         # Do not cache results if the intended Cache directory isn't available
-        if not NFS(self.CACHE_DIR).exists():
+        if not NSRDBfs(self.CACHE_DIR).exists():
             cache = False
 
         if isinstance(cache, str):
@@ -362,36 +389,49 @@ class DataModel:
             if self._nsrdb_grid_file is not None:
                 # make sure cache file is nsrdb-grid-specific
                 cache = cache.replace(
-                    '.csv', '_' + os.path.basename(self._nsrdb_grid_file))
+                    '.csv', '_' + os.path.basename(self._nsrdb_grid_file)
+                )
 
             # try to get cached kdtree results. fast for prototyping.
-            cache_d = os.path.join(self.CACHE_DIR,
-                                   cache.replace('.csv', '_d.csv'))
-            cache_i = os.path.join(self.CACHE_DIR,
-                                   cache.replace('.csv', '_i.csv'))
+            cache_d = os.path.join(
+                self.CACHE_DIR, cache.replace('.csv', '_d.csv')
+            )
+            cache_i = os.path.join(
+                self.CACHE_DIR, cache.replace('.csv', '_i.csv')
+            )
 
-            if NFS(cache_i).exists() and NFS(cache_d).exists():
-                logger.warning('Found cached nearest neighbor indices, '
-                               'importing: {}'.format(cache_i))
+            if NSRDBfs(cache_i).exists() and NSRDBfs(cache_d).exists():
+                logger.warning(
+                    'Found cached nearest neighbor indices, '
+                    'importing: {}'.format(cache_i)
+                )
                 dist = np.genfromtxt(cache_d, dtype=np.float32, delimiter=',')
                 ind = np.genfromtxt(cache_i, dtype=np.uint32, delimiter=',')
 
             else:
                 dist, ind = nn_method(df1, df2, labels=labels, k=k)
-                logger.info('Saving nearest neighbor indices to: {}'
-                            .format(cache_i))
+                logger.info(
+                    'Saving nearest neighbor indices to: {}'.format(cache_i)
+                )
                 np.savetxt(cache_d, dist, delimiter=',')
                 np.savetxt(cache_i, ind, delimiter=',')
 
         else:
             dist, ind = nn_method(df1, df2, labels=labels, k=k)
 
-        if (dist.shape[0] != len(df2) or ind.shape[0] != len(df2)
-                or dist.shape[1] != k or ind.shape[1] != k):
-            e = ('NSRDB DataModel.get_geo_nn() method returned dist of '
-                 'shape {} and ind of shape {} while the query dataframe '
-                 'is of shape {} and k is {}. Maybe check the cached NN file.'
-                 .format(dist.shape, ind.shape, df2.shape, k))
+        if (
+            dist.shape[0] != len(df2)
+            or ind.shape[0] != len(df2)
+            or dist.shape[1] != k
+            or ind.shape[1] != k
+        ):
+            e = (
+                'NSRDB DataModel.get_geo_nn() method returned dist of '
+                'shape {} and ind of shape {} while the query dataframe is of '
+                'shape {} and k is {}. Maybe check the cached NN file.'.format(
+                    dist.shape, ind.shape, df2.shape, k
+                )
+            )
             logger.error(e)
             raise RuntimeError(e)
 
@@ -433,38 +473,48 @@ class DataModel:
         try:
             grid = cloud_obj_single.grid
         except Exception as e:
-            msg = ('Exception building cloud NN '
-                   'tree for {}: {}'.format(cloud_obj_single, e))
+            msg = 'Exception building cloud NN ' 'tree for {}: {}'.format(
+                cloud_obj_single, e
+            )
             logger.error(msg)
             raise RuntimeError(msg) from e
 
         if grid is None:
             return None
 
-        else:
-            # Get the index of NN to NSRDB grid
-            dist, index = cloud_obj_single.tree.query(
-                nsrdb_grid[cloud_obj_single.GRID_LABELS].values, k=1)
-            out_of_bounds = dist > dist_lim
-            index[out_of_bounds] = -1
+        # Get the index of NN to NSRDB grid
+        dist, index = cloud_obj_single.tree.query(
+            nsrdb_grid[cloud_obj_single.GRID_LABELS].values, k=1
+        )
+        out_of_bounds = dist > dist_lim
+        index[out_of_bounds] = -1
 
-            logger.debug('ReGrid distances range from {:.2f} to {:.2f} with '
-                         'a mean of {:.2f} and median of {:.2f} for '
-                         'cloud fpath: {}'
-                         .format(dist.min(), dist.max(), dist.mean(),
-                                 np.median(dist), cloud_obj_single.fpath))
+        logger.debug(
+            'ReGrid distances range from {:.2f} to {:.2f} with '
+            'a mean of {:.2f} and median of {:.2f} for '
+            'cloud fpath: {}'.format(
+                dist.min(),
+                dist.max(),
+                dist.mean(),
+                np.median(dist),
+                cloud_obj_single.fpath,
+            )
+        )
 
-            if any(out_of_bounds):
-                msg = ('The following NSRDB gids were further '
-                       'than {} distance from cloud coordinates: {}'
-                       .format(dist_lim, np.where(out_of_bounds)[0]))
-                logger.warning(msg)
-                warn(msg)
+        if any(out_of_bounds):
+            msg = (
+                'The following NSRDB gids were further '
+                'than {} distance from cloud coordinates: {}'.format(
+                    dist_lim, np.where(out_of_bounds)[0]
+                )
+            )
+            logger.warning(msg)
+            warn(msg)
 
-            index = index.astype(np.int32)
-            cloud_obj_single.clean_attrs()
+        index = index.astype(np.int32)
+        cloud_obj_single.clean_attrs()
 
-            return index, cloud_obj_single
+        return index, cloud_obj_single
 
     def get_weights(self, var_obj):
         """Get the irradiance model weights for AOD/Alpha.
@@ -483,28 +533,36 @@ class DataModel:
 
         if var_obj.name in self.WEIGHTS and var_obj.name not in self._weights:
             logger.debug('Extracting weights for "{}"'.format(var_obj.name))
-            wdf = pd.read_csv(self.WEIGHTS[var_obj.name], sep=' ',
-                              skiprows=4, skipinitialspace=1)
+            wdf = pd.read_csv(
+                self.WEIGHTS[var_obj.name],
+                sep=' ',
+                skiprows=4,
+                skipinitialspace=1,
+            )
 
             # use lat/lon and the current month and drop everything else
             current_col = str(self.date.month).zfill(2)
-            wdf = wdf.rename({'Lat.': 'latitude', 'Long.': 'longitude',
-                              current_col: 'weights'}, axis='columns')
+            wdf = wdf.rename(
+                {
+                    'Lat.': 'latitude',
+                    'Long.': 'longitude',
+                    current_col: 'weights',
+                },
+                axis='columns',
+            )
             wdf = wdf[['latitude', 'longitude', 'weights']]
 
             # use geo nearest neighbors to find closest indices
             # between weights and MERRA grid
-            _, i_nn = self.get_geo_nn(wdf, var_obj.grid, interp_method='NN',
-                                      nn_method='haversine')
+            _, i_nn = self.get_geo_nn(
+                wdf, var_obj.grid, interp_method='NN', nn_method='haversine'
+            )
 
             weight_arr = wdf['weights'].values[i_nn.ravel()]
             weight_arr[(weight_arr < 0)] = 1
             self._weights[var_obj.name] = weight_arr
 
-        if var_obj.name in self._weights:
-            weights = self._weights[var_obj.name]
-        else:
-            weights = None
+        weights = self._weights.get(var_obj.name, None)
 
         return weights
 
@@ -526,7 +584,8 @@ class DataModel:
 
         if self._scale and isinstance(data, np.ndarray):
             var_obj = self._var_factory.get_base_handler(
-                var, var_meta=self._var_meta, date=self.date)
+                var, var_meta=self._var_meta, date=self.date
+            )
             data = var_obj.scale_data(data)
 
         return data
@@ -549,7 +608,8 @@ class DataModel:
 
         if self._scale and isinstance(data, np.ndarray):
             var_obj = self._var_factory.get_base_handler(
-                var, var_meta=self._var_meta, date=self.date)
+                var, var_meta=self._var_meta, date=self.date
+            )
             data = var_obj.unscale_data(data)
 
         return data
@@ -568,9 +628,13 @@ class DataModel:
             if var in self._var_factory.MAPPING:
                 var_kwargs = self._factory_kwargs.get(var, {})
                 var_obj = self._var_factory.get_instance(
-                    var, var_meta=self._var_meta,
-                    name=var, date=self.date,
-                    dsets=[var], **var_kwargs)
+                    var,
+                    var_meta=self._var_meta,
+                    name=var,
+                    date=self.date,
+                    dsets=[var],
+                    **var_kwargs,
+                )
 
                 if hasattr(var_obj, 'pre_flight'):
                     missing = var_obj.pre_flight()
@@ -581,9 +645,11 @@ class DataModel:
                     missing_list.append(missing)
 
         if missing_list:
-            e = ('The data model pre-flight checks could not find '
-                 'some required directories and/or files. '
-                 'The following are missing: {}'.format(missing_list))
+            e = (
+                'The data model pre-flight checks could not find '
+                'some required directories and/or files. '
+                'The following are missing: {}'.format(missing_list)
+            )
             logger.exception(e)
             raise OSError(e)
 
@@ -616,7 +682,7 @@ class DataModel:
 
         elif var == 'ozone':
             # convert Dobson to atm-cm
-            data /= 1000.
+            data /= 1000.0
 
         elif var == 'total_precipitable_water':
             # Convert precip from kg/m2 to cm
@@ -625,8 +691,9 @@ class DataModel:
         return data
 
     @classmethod
-    def check_merra_cloud_source(cls, var_list, cloud_vars, date, var_meta,
-                                 factory_kwargs):
+    def check_merra_cloud_source(
+        cls, var_list, cloud_vars, date, var_meta, factory_kwargs
+    ):
         """Check if the cloud data source is a merra file and adjust variable
         lists and factory kwargs accordingly.
 
@@ -664,14 +731,18 @@ class DataModel:
             variables are being sourced from merra, appropriate kwargs are
             added to this dict.
         """
-        merra_c_vars = ('cld_opd_dcomp', 'cld_reff_dcomp', 'cloud_type',
-                        'cld_press_acha')
+        merra_c_vars = (
+            'cld_opd_dcomp',
+            'cld_reff_dcomp',
+            'cloud_type',
+            'cld_press_acha',
+        )
 
         if any(cv in cloud_vars for cv in merra_c_vars):
             var_kwargs = factory_kwargs.get('cloud_type', {})
-            handler = VarFactory.get_base_handler('cloud_type',
-                                                  var_meta=var_meta,
-                                                  date=date, **var_kwargs)
+            handler = VarFactory.get_base_handler(
+                'cloud_type', var_meta=var_meta, date=date, **var_kwargs
+            )
             is_merra, new_kwargs = cls.is_merra_cloud(handler)
 
             if is_merra:
@@ -686,8 +757,10 @@ class DataModel:
                 var_list += keep_cloud_vars
                 cloud_vars = []
 
-                logger.info('Updated factory kwargs for cloud data from '
-                            'MERRA: {}'.format(factory_kwargs))
+                logger.info(
+                    'Updated factory kwargs for cloud data from '
+                    'MERRA: {}'.format(factory_kwargs)
+                )
 
         return var_list, cloud_vars, factory_kwargs
 
@@ -732,14 +805,16 @@ class DataModel:
             return False, {}
 
         fn = fns[0]
-        kwargs = {'handler': 'MerraVar',
-                  'pattern': os.path.join(source_dir, fn),
-                  'merra_dset': 'tavg1_2d_rad_Nx_clouds',
-                  'data_source': 'MERRA2',
-                  'elevation_correct': False,
-                  'spatial_interp': 'NN',
-                  'temporal_interp': 'nearest',
-                  'source_directory': source_dir}
+        kwargs = {
+            'handler': 'MerraVar',
+            'pattern': os.path.join(source_dir, fn),
+            'merra_dset': 'tavg1_2d_rad_Nx_clouds',
+            'data_source': 'MERRA2',
+            'elevation_correct': False,
+            'spatial_interp': 'NN',
+            'temporal_interp': 'nearest',
+            'source_directory': source_dir,
+        }
 
         if handler.name == 'cld_opd_dcomp':
             kwargs['merra_name'] = 'TAUTOT'
@@ -786,8 +861,9 @@ class DataModel:
         """
 
         kwargs = self._factory_kwargs.get(var, {})
-        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
-                                               **kwargs)
+        VarClass = self._var_factory.get_class(
+            var, var_meta=self._var_meta, **kwargs
+        )
         is_derived = issubclass(VarClass, BaseDerivedVar)
 
         return is_derived
@@ -808,9 +884,10 @@ class DataModel:
         """
 
         kwargs = self._factory_kwargs.get(var, {})
-        VarClass = self._var_factory.get_class(var, var_meta=self._var_meta,
-                                               **kwargs)
-        deps = tuple()
+        VarClass = self._var_factory.get_class(
+            var, var_meta=self._var_meta, **kwargs
+        )
+        deps = ()
         if issubclass(VarClass, BaseDerivedVar):
             deps = VarClass.DEPENDENCIES
 
@@ -836,16 +913,19 @@ class DataModel:
         cloud_data = {}
         for dset in cloud_obj_all._dsets:
             if dset == 'cloud_type':
-                cloud_data[dset] = np.full(self.nsrdb_data_shape, -15,
-                                           dtype=np.int16)
+                cloud_data[dset] = np.full(
+                    self.nsrdb_data_shape, -15, dtype=np.int16
+                )
             else:
-                cloud_data[dset] = np.full(self.nsrdb_data_shape, np.nan,
-                                           dtype=np.float32)
+                cloud_data[dset] = np.full(
+                    self.nsrdb_data_shape, np.nan, dtype=np.float32
+                )
         return cloud_data
 
     @classmethod
-    def get_single_cloud_data(cls, fp_cloud, cloud_kwargs, nsrdb_grid,
-                              dist_lim=1.0):
+    def get_single_cloud_data(
+        cls, fp_cloud, cloud_kwargs, nsrdb_grid, dist_lim=1.0
+    ):
         """Get all that good stuff from a cloud data file.
 
         Parameters
@@ -873,9 +953,9 @@ class DataModel:
             nsrdb_grid. Returns None if something went wrong.
         """
 
-        regrid_ind, cloud_obj_single = cls.get_cloud_nn(fp_cloud, cloud_kwargs,
-                                                        nsrdb_grid,
-                                                        dist_lim=dist_lim)
+        regrid_ind, cloud_obj_single = cls.get_cloud_nn(
+            fp_cloud, cloud_kwargs, nsrdb_grid, dist_lim=dist_lim
+        )
 
         single_data = None
         if cloud_obj_single is not None:
@@ -891,16 +971,20 @@ class DataModel:
                 else:
                     # if cloud data array has zero size, something about the
                     # cloud file was corrupted and returned no data
-                    msg = ('Cloud dataset "{}" had no valid data for source '
-                           'file: {}'.format(dset, os.path.basename(fp_cloud)))
+                    msg = (
+                        'Cloud dataset "{}" had no valid data for source '
+                        'file: {}'.format(dset, os.path.basename(fp_cloud))
+                    )
                     logger.warning(msg)
                     warn(msg)
                     if dset == 'cloud_type':
-                        single_data[dset] = np.full(len(regrid_ind), -15,
-                                                    dtype=np.int16)
+                        single_data[dset] = np.full(
+                            len(regrid_ind), -15, dtype=np.int16
+                        )
                     else:
-                        single_data[dset] = np.full(len(regrid_ind), np.nan,
-                                                    dtype=np.float32)
+                        single_data[dset] = np.full(
+                            len(regrid_ind), np.nan, dtype=np.float32
+                        )
 
                 if any(out_of_bounds):
                     if dset == 'cloud_type':
@@ -943,19 +1027,23 @@ class DataModel:
         for i, (index, row) in enumerate(cloud_obj_all.file_df.iterrows()):
             assert index == self.nsrdb_ti[i]
             fp_cloud = row['flist']
-            fp_cloud_msg = (fp_cloud if not isinstance(fp_cloud, str)
-                            else os.path.basename(fp_cloud))
+            fp_cloud_msg = (
+                fp_cloud
+                if not isinstance(fp_cloud, str)
+                else os.path.basename(fp_cloud)
+            )
             mem = psutil.virtual_memory()
-            logger.info('Cloud data timestep {} has source file: {}. '
-                        'Memory usage is {:.3f} GB out of '
-                        '{:.3f} GB total.'
-                        .format(index, fp_cloud_msg,
-                                mem.used / 1e9, mem.total / 1e9))
+            logger.info(
+                'Cloud data timestep {} has source file: {}. '
+                'Memory usage is {:.3f} GB out of '
+                '{:.3f} GB total.'.format(
+                    index, fp_cloud_msg, mem.used / 1e9, mem.total / 1e9
+                )
+            )
             if isinstance(fp_cloud, str):
-                single_data = self.get_single_cloud_data(fp_cloud,
-                                                         cloud_kwargs,
-                                                         self.nsrdb_grid,
-                                                         dist_lim=dist_lim)
+                single_data = self.get_single_cloud_data(
+                    fp_cloud, cloud_kwargs, self.nsrdb_grid, dist_lim=dist_lim
+                )
 
                 for dset, array in single_data.items():
                     # write single timestep with NSRDB sites to row
@@ -963,8 +1051,9 @@ class DataModel:
 
         return cloud_data
 
-    def _cloud_regrid_parallel(self, cloud_obj_all, dist_lim=1.0,
-                               max_workers=None):
+    def _cloud_regrid_parallel(
+        self, cloud_obj_all, dist_lim=1.0, max_workers=None
+    ):
         """Perform the ReGrid nearest neighbor calculations in parallel.
 
         Parameters
@@ -995,8 +1084,9 @@ class DataModel:
         cloud_data = self.init_cloud_data(cloud_obj_all)
 
         # start a local cluster
-        logger.debug('Starting local cluster with {} workers.'
-                     .format(max_workers))
+        logger.debug(
+            'Starting local cluster with {} workers.'.format(max_workers)
+        )
         futures = {}
         loggers = ['nsrdb']
         cloud_kwargs = cloud_obj_all.single_handler_kwargs
@@ -1005,26 +1095,36 @@ class DataModel:
             for i, (index, row) in enumerate(cloud_obj_all.file_df.iterrows()):
                 assert index == self.nsrdb_ti[i]
                 fp_cloud = row['flist']
-                fp_cloud_msg = (fp_cloud if not isinstance(fp_cloud, str)
-                                else os.path.basename(fp_cloud))
-                logger.info('Cloud data timestep {} has source file: {}.'
-                            .format(index, fp_cloud_msg))
+                fp_cloud_msg = (
+                    fp_cloud
+                    if not isinstance(fp_cloud, str)
+                    else os.path.basename(fp_cloud)
+                )
+                logger.info(
+                    'Cloud data timestep {} has source file: {}.'.format(
+                        index, fp_cloud_msg
+                    )
+                )
                 if isinstance(fp_cloud, str):
-                    future = exe.submit(self.get_single_cloud_data,
-                                        fp_cloud,
-                                        cloud_kwargs,
-                                        self.nsrdb_grid,
-                                        dist_lim=dist_lim)
+                    future = exe.submit(
+                        self.get_single_cloud_data,
+                        fp_cloud,
+                        cloud_kwargs,
+                        self.nsrdb_grid,
+                        dist_lim=dist_lim,
+                    )
                     futures[future] = i
 
             mem = psutil.virtual_memory()
 
-            logger.info('All {} cloud data futures submitted! '
-                        'Memory usage is {:.3f} GB out of {:.3f} GB total.'
-                        .format(len(futures), mem.used / 1e9, mem.total / 1e9))
+            logger.info(
+                'All {} cloud data futures submitted! '
+                'Memory usage is {:.3f} GB out of {:.3f} GB total.'.format(
+                    len(futures), mem.used / 1e9, mem.total / 1e9
+                )
+            )
 
-            completed = 0
-            for future in as_completed(futures):
+            for completed, future in enumerate(as_completed(futures)):
                 i = futures[future]
                 single_data = future.result()
 
@@ -1032,13 +1132,17 @@ class DataModel:
                     # write single timestep with NSRDB sites to row
                     cloud_data[dset][i, :] = array
 
-                completed += 1
                 mem = psutil.virtual_memory()
-                logger.info('Cloud data Regrid and IO futures completed: '
-                            '{} out of {}. Current memory usage is '
-                            '{:.3f} GB out of {:.3f} GB total.'
-                            .format(completed, len(futures),
-                                    mem.used / 1e9, mem.total / 1e9))
+                logger.info(
+                    'Cloud data Regrid and IO futures completed: '
+                    '{} out of {}. Current memory usage is '
+                    '{:.3f} GB out of {:.3f} GB total.'.format(
+                        completed,
+                        len(futures),
+                        mem.used / 1e9,
+                        mem.total / 1e9,
+                    )
+                )
 
         return cloud_data
 
@@ -1085,8 +1189,11 @@ class DataModel:
         # seems too implicit. Not sure if there's a better solution here. At
         # least logging this will help the user debug if something goes wrong.
         var_kwargs = self._factory_kwargs.get(cloud_vars[0], {})
-        logger.info('Variable factory kwargs for cloud data processing: {}'
-                    .format(var_kwargs))
+        logger.info(
+            'Variable factory kwargs for cloud data processing: {}'.format(
+                var_kwargs
+            )
+        )
 
         cloud_obj_all = self._var_factory.get_instance(
             cloud_vars[0],
@@ -1095,28 +1202,36 @@ class DataModel:
             date=self.date,
             dsets=cloud_vars,
             freq=self.nsrdb_ti.freqstr,
-            **var_kwargs)
+            **var_kwargs,
+        )
 
-        logger.debug('Cloud ReGrid file list of length {}: \n\t{}'
-                     .format(len(cloud_obj_all.flist),
-                             '\n\t'.join(cloud_obj_all.flist)))
+        logger.debug(
+            'Cloud ReGrid file list of length {}: \n\t{}'.format(
+                len(cloud_obj_all.flist), '\n\t'.join(cloud_obj_all.flist)
+            )
+        )
 
         # cloud regrid
         if max_workers != 1:
-            logger.info('Starting cloud data Regrid and IO with {} futures '
-                        '(cloud timesteps) with {} parallel workers.'
-                        .format(len(cloud_obj_all.flist), max_workers))
+            logger.info(
+                'Starting cloud data Regrid and IO with {} futures '
+                '(cloud timesteps) with {} parallel workers.'.format(
+                    len(cloud_obj_all.flist), max_workers
+                )
+            )
 
-            cloud_data = self._cloud_regrid_parallel(cloud_obj_all,
-                                                     dist_lim=dist_lim,
-                                                     max_workers=max_workers)
+            cloud_data = self._cloud_regrid_parallel(
+                cloud_obj_all, dist_lim=dist_lim, max_workers=max_workers
+            )
 
         else:
-            logger.info('Starting cloud data Regrid and IO with {} iterations '
-                        '(cloud timesteps) in serial.'
-                        .format(len(cloud_obj_all.flist)))
-            cloud_data = self._cloud_regrid_serial(cloud_obj_all,
-                                                   dist_lim=dist_lim)
+            logger.info(
+                'Starting cloud data Regrid and IO with {} iterations '
+                '(cloud timesteps) in serial.'.format(len(cloud_obj_all.flist))
+            )
+            cloud_data = self._cloud_regrid_serial(
+                cloud_obj_all, dist_lim=dist_lim
+            )
 
         logger.debug('Finished processing ReGrid and cloud data extraction.')
 
@@ -1125,12 +1240,16 @@ class DataModel:
             for var, arr in cloud_data.items():
                 cloud_data[var] = self.scale_data(var, arr)
 
-        logger.info('Finished extracting cloud data '
-                    'and writing to NSRDB arrays.')
+        logger.info(
+            'Finished extracting cloud data ' 'and writing to NSRDB arrays.'
+        )
         mem = psutil.virtual_memory()
-        logger.info('Current memory usage is '
-                    '{:.3f} GB out of {:.3f} GB total.'
-                    .format(mem.used / 1e9, mem.total / 1e9))
+        logger.info(
+            'Current memory usage is '
+            '{:.3f} GB out of {:.3f} GB total.'.format(
+                mem.used / 1e9, mem.total / 1e9
+            )
+        )
 
         return cloud_data
 
@@ -1145,7 +1264,6 @@ class DataModel:
         """
 
         for dep in dependencies:
-
             # process and save data to processed attribute
             # (unscale to physical units)
             if dep not in self._processed:
@@ -1155,8 +1273,11 @@ class DataModel:
 
             # dependency data dumped to disk, load from disk
             elif isinstance(self._processed[dep], str):
-                logger.debug('Importing dependency "{}" from: {}'
-                             .format(dep, self._processed[dep]))
+                logger.debug(
+                    'Importing dependency "{}" from: {}'.format(
+                        dep, self._processed[dep]
+                    )
+                )
                 with Outputs(self._processed[dep]) as dep_out:
                     self[dep] = dep_out[dep]
 
@@ -1183,13 +1304,17 @@ class DataModel:
 
         if fpath_out is not None:
             fpath_out = fpath_out.format(var=var, i=self.nsrdb_grid.index[0])
-            if NFS(fpath_out).exists():
-                logger.info('Skipping DataModel for "{}" with existing '
-                            'fpath_out: {}'.format(var, fpath_out))
+            if NSRDBfs(fpath_out).exists():
+                logger.info(
+                    'Skipping DataModel for "{}" with existing '
+                    'fpath_out: {}'.format(var, fpath_out)
+                )
                 return fpath_out
-            else:
-                logger.info('Processing DataModel for "{}" with fpath_out: {}'
-                            .format(var, fpath_out))
+            logger.info(
+                'Processing DataModel for "{}" with fpath_out: {}'.format(
+                    var, fpath_out
+                )
+            )
 
         # ensure dependencies are processed before working on derived var
         dependencies = self.get_dependencies(var)
@@ -1206,13 +1331,16 @@ class DataModel:
                     self.nsrdb_ti,
                     self.nsrdb_grid[['latitude', 'longitude']].values,
                     self.nsrdb_grid['elevation'].values,
-                    **dep_kwargs)
+                    **dep_kwargs,
+                )
             else:
                 data = obj.derive(**dep_kwargs)
 
         except Exception as e:
-            logger.exception('Could not derive "{}" using "{}", received the '
-                             'exception: {}'.format(var, obj, e))
+            logger.exception(
+                'Could not derive "{}" using "{}", received the '
+                'exception: {}'.format(var, obj, e)
+            )
             raise e
 
         # convert units from MERRA to NSRDB
@@ -1248,9 +1376,13 @@ class DataModel:
         """
 
         var_kwargs = self._factory_kwargs.get(var, {})
-        var_obj = self._var_factory.get_instance(var, var_meta=self._var_meta,
-                                                 name=var, date=self.date,
-                                                 **var_kwargs)
+        var_obj = self._var_factory.get_instance(
+            var,
+            var_meta=self._var_meta,
+            name=var,
+            date=self.date,
+            **var_kwargs,
+        )
 
         if 'albedo' in var:
             # special exclusions for large-extent albedo
@@ -1260,10 +1392,13 @@ class DataModel:
         data = var_obj.source_data
 
         # get mapping from source data grid to NSRDB
-        dist, ind = self.get_geo_nn(var_obj.grid, self.nsrdb_grid,
-                                    interp_method=var_obj.spatial_method,
-                                    nn_method=var_obj.NN_METHOD,
-                                    cache=var_obj.cache_file)
+        dist, ind = self.get_geo_nn(
+            var_obj.grid,
+            self.nsrdb_grid,
+            interp_method=var_obj.spatial_method,
+            nn_method=var_obj.NN_METHOD,
+            cache=var_obj.cache_file,
+        )
 
         # perform weighting if applicable
         if var in self.WEIGHTS and 'merra' in str(type(var_obj)).lower():
@@ -1273,25 +1408,36 @@ class DataModel:
                 data *= weights
 
         # run spatial interpolation
-        logger.debug('Performing spatial interpolation on "{}" '
-                     'with shape {}'
-                     .format(var, data.shape))
-        data = spatial_interp(var, data, var_obj.grid, self.nsrdb_grid,
-                              var_obj.spatial_method, dist, ind,
-                              var_obj.elevation_correct)
+        logger.debug(
+            'Performing spatial interpolation on "{}" ' 'with shape {}'.format(
+                var, data.shape
+            )
+        )
+        data = spatial_interp(
+            var,
+            data,
+            var_obj.grid,
+            self.nsrdb_grid,
+            var_obj.spatial_method,
+            dist,
+            ind,
+            var_obj.elevation_correct,
+        )
 
         # run temporal interpolation
         if var_obj.temporal_method == 'linear':
-            logger.debug('Performing linear temporal interpolation on '
-                         '"{}" with shape {}'.format(var, data.shape))
-            data = temporal_lin(data, var_obj.time_index,
-                                self.nsrdb_ti)
+            logger.debug(
+                'Performing linear temporal interpolation on '
+                '"{}" with shape {}'.format(var, data.shape)
+            )
+            data = temporal_lin(data, var_obj.time_index, self.nsrdb_ti)
 
         elif var_obj.temporal_method == 'nearest':
-            logger.debug('Performing stepwise temporal interpolation on '
-                         '"{}" with shape {}'.format(var, data.shape))
-            data = temporal_step(data, var_obj.time_index,
-                                 self.nsrdb_ti)
+            logger.debug(
+                'Performing stepwise temporal interpolation on '
+                '"{}" with shape {}'.format(var, data.shape)
+            )
+            data = temporal_step(data, var_obj.time_index, self.nsrdb_ti)
 
         # convert units from MERRA to NSRDB
         data = self.convert_units(var, data)
@@ -1302,10 +1448,46 @@ class DataModel:
         return data
 
     @classmethod
-    def _process_multiple(cls, var_list, date, nsrdb_grid,
-                          nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
-                          max_workers=None, max_workers_regrid=None,
-                          scale=True, fpath_out=None, factory_kwargs=None):
+    def _get_var_lists(cls, var_list, data_model):
+        # default multiple compute
+        if var_list is None:
+            var_list = cls.ALL_VARS
+
+        deps = ()
+        for var in var_list:
+            deps += data_model.get_dependencies(var)
+
+        var_list += deps
+        var_list = tuple(set(var_list))
+
+        # remove cloud variables from var_list to be processed together
+        # (most efficient to process all cloud variables together to minimize
+        # number of kdtrees during regrid)
+        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
+        var_list = [v for v in var_list if v not in cloud_vars]
+
+        # remove derived (dependent) variables from var_list to be processed
+        # last (most efficient to process depdencies first, dependents last)
+        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
+        var_list = [v for v in var_list if v not in derived_vars]
+
+        return var_list, cloud_vars, derived_vars
+
+    @classmethod
+    def _process_multiple(
+        cls,
+        var_list,
+        date,
+        nsrdb_grid,
+        nsrdb_freq='5min',
+        dist_lim=1.0,
+        var_meta=None,
+        max_workers=None,
+        max_workers_regrid=None,
+        scale=True,
+        fpath_out=None,
+        factory_kwargs=None,
+    ):
         """Process ancillary data for multiple variables for a single day.
 
         Parameters
@@ -1356,34 +1538,23 @@ class DataModel:
             Full DataModel object with the data in the .processed property.
         """
 
-        data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs,
-                         scale=scale, max_workers=max_workers)
+        data_model = cls(
+            date,
+            nsrdb_grid,
+            nsrdb_freq=nsrdb_freq,
+            var_meta=var_meta,
+            factory_kwargs=factory_kwargs,
+            scale=scale,
+            max_workers=max_workers,
+        )
 
-        # default multiple compute
-        if var_list is None:
-            var_list = cls.ALL_VARS
+        var_list, cloud_vars, derived_vars = cls._get_var_lists(
+            var_list=var_list, data_model=data_model
+        )
 
-        deps = tuple()
-        for var in var_list:
-            deps += data_model.get_dependencies(var)
-
-        var_list += deps
-        var_list = tuple(set(var_list))
-
-        # remove cloud variables from var_list to be processed together
-        # (most efficient to process all cloud variables together to minimize
-        # number of kdtrees during regrid)
-        cloud_vars = [var for var in var_list if data_model.is_cloud_var(var)]
-        var_list = [v for v in var_list if v not in cloud_vars]
-
-        # remove derived (dependent) variables from var_list to be processed
-        # last (most efficient to process depdencies first, dependents last)
-        derived_vars = [v for v in var_list if data_model.is_derived_var(v)]
-        var_list = [v for v in var_list if v not in derived_vars]
-
-        temp = cls.check_merra_cloud_source(var_list, cloud_vars, date,
-                                            var_meta, factory_kwargs)
+        temp = cls.check_merra_cloud_source(
+            var_list, cloud_vars, date, var_meta, factory_kwargs
+        )
         var_list, cloud_vars, factory_kwargs = temp
 
         factory_kwargs = {} if factory_kwargs is None else factory_kwargs
@@ -1394,51 +1565,57 @@ class DataModel:
         data_model.run_pre_flight(cloud_vars)
         data_model.run_pre_flight(derived_vars)
 
-        logger.info('First processing data for variable list: {}'
-                    .format(var_list))
-        logger.info('Then processing cloud data for variable list: {}'
-                    .format(cloud_vars))
-        logger.info('Finally, processing derived data for variable list: {}'
-                    .format(derived_vars))
+        logger.info(
+            f'First processing data for variable list: {var_list}. Then '
+            f'processing cloud data for variable list: {cloud_vars}. Finally, '
+            f'processing derived data for variable list: {derived_vars}'
+        )
 
-        if var_list:
-            # run in serial
-            if max_workers == 1:
-                data = {}
-                for var in var_list:
-                    data_model[var] = cls.run_single(
-                        var, date, nsrdb_grid,
-                        nsrdb_freq=nsrdb_freq,
-                        var_meta=var_meta,
-                        fpath_out=fpath_out,
-                        scale=scale,
-                        factory_kwargs=factory_kwargs)
-
-            # run in parallel
-            else:
-                data = cls._process_parallel(
-                    var_list, date, nsrdb_grid,
-                    max_workers=max_workers,
+        if var_list and max_workers == 1:
+            data = {}
+            for var in var_list:
+                data_model[var] = cls.run_single(
+                    var,
+                    date,
+                    nsrdb_grid,
                     nsrdb_freq=nsrdb_freq,
                     var_meta=var_meta,
                     fpath_out=fpath_out,
                     scale=scale,
-                    factory_kwargs=factory_kwargs)
+                    factory_kwargs=factory_kwargs,
+                )
 
-                for k, v in data.items():
-                    data_model[k] = v
+        # run in parallel
+        elif var_list:
+            data = cls._process_parallel(
+                var_list,
+                date,
+                nsrdb_grid,
+                max_workers=max_workers,
+                nsrdb_freq=nsrdb_freq,
+                var_meta=var_meta,
+                fpath_out=fpath_out,
+                scale=scale,
+                factory_kwargs=factory_kwargs,
+            )
+
+            for k, v in data.items():
+                data_model[k] = v
 
         # process cloud variables together
         if cloud_vars:
             data_model['clouds'] = cls.run_clouds(
-                cloud_vars, date, nsrdb_grid,
+                cloud_vars,
+                date,
+                nsrdb_grid,
                 nsrdb_freq=nsrdb_freq,
                 dist_lim=dist_lim,
                 var_meta=var_meta,
                 max_workers_regrid=max_workers_regrid,
                 fpath_out=fpath_out,
                 scale=scale,
-                factory_kwargs=factory_kwargs)
+                factory_kwargs=factory_kwargs,
+            )
 
         # process derived (dependent) variables last using the built
         # AncillaryDataProcessing object instance.
@@ -1454,8 +1631,9 @@ class DataModel:
         return data_model
 
     @classmethod
-    def _process_parallel(cls, var_list, date, nsrdb_grid, max_workers=None,
-                          scale=True, **kwargs):
+    def _process_parallel(
+        cls, var_list, date, nsrdb_grid, max_workers=None, scale=True, **kwargs
+    ):
         """Process ancillary variables in parallel.
 
         Parameters
@@ -1487,14 +1665,21 @@ class DataModel:
         logger.info('Processing variables in parallel: {}'.format(var_list))
         # start a local cluster
         futures = {}
-        logger.debug('Starting local cluster with {} workers.'
-                     .format(max_workers))
+        logger.debug(
+            'Starting local cluster with {} workers.'.format(max_workers)
+        )
         loggers = ['nsrdb']
         with SpawnProcessPool(loggers=loggers, max_workers=max_workers) as exe:
             # submit a future for each merra variable (non-calculated)
             for var in var_list:
-                futures[var] = exe.submit(cls.run_single, var, date,
-                                          nsrdb_grid, scale=scale, **kwargs)
+                futures[var] = exe.submit(
+                    cls.run_single,
+                    var,
+                    date,
+                    nsrdb_grid,
+                    scale=scale,
+                    **kwargs,
+                )
 
             # watch memory during futures to get max memory usage
             logger.debug('Waiting on parallel futures...')
@@ -1511,19 +1696,27 @@ class DataModel:
                         running += 1
                         keys += [key]
 
-                logger.info('{} DataModel processing futures are running: {} '
-                            'memory usage is {:.3f} GB out of {:.3f} GB total'
-                            .format(running, keys, mem.used / 1e9,
-                                    mem.total / 1e9))
+                logger.info(
+                    '{} DataModel processing futures are running: {} '
+                    'memory usage is {:.3f} GB out of {:.3f} GB total'.format(
+                        running, keys, mem.used / 1e9, mem.total / 1e9
+                    )
+                )
 
-            logger.info('Futures finished, maximum memory usage was '
-                        '{:.3f} GB out of {:.3f} GB total.'
-                        .format(max_mem, mem.total / 1e9))
+            logger.info(
+                'Futures finished, maximum memory usage was '
+                '{:.3f} GB out of {:.3f} GB total.'.format(
+                    max_mem, mem.total / 1e9
+                )
+            )
 
             mem = psutil.virtual_memory()
-            logger.info('Current memory usage is '
-                        '{:.3f} GB out of {:.3f} GB total.'
-                        .format(mem.used / 1e9, mem.total / 1e9))
+            logger.info(
+                'Current memory usage is '
+                '{:.3f} GB out of {:.3f} GB total.'.format(
+                    mem.used / 1e9, mem.total / 1e9
+                )
+            )
 
             # gather results
             for k, v in futures.items():
@@ -1556,11 +1749,13 @@ class DataModel:
 
         if isinstance(fpath_out, str):
             if '{var}' in fpath_out and '{i}' in fpath_out:
-                fpath_out = fpath_out.format(var=var,
-                                             i=self.nsrdb_grid.index[0])
+                fpath_out = fpath_out.format(
+                    var=var, i=self.nsrdb_grid.index[0]
+                )
 
-            logger.info('Writing {} to: {}'
-                        .format(var, os.path.basename(fpath_out)))
+            logger.info(
+                'Writing {} to: {}'.format(var, os.path.basename(fpath_out))
+            )
 
             if data is None:
                 data = self[var]
@@ -1576,15 +1771,18 @@ class DataModel:
                     fout.meta = meta_gids
 
                 var_kwargs = self._factory_kwargs.get(var, {})
-                var_obj = VarFactory.get_base_handler(var,
-                                                      var_meta=self._var_meta,
-                                                      date=self.date,
-                                                      **var_kwargs)
+                var_obj = VarFactory.get_base_handler(
+                    var, var_meta=self._var_meta, date=self.date, **var_kwargs
+                )
                 attrs = var_obj.attrs
 
-                fout._add_dset(dset_name=var, data=data,
-                               dtype=var_obj.final_dtype,
-                               chunks=var_obj.chunks, attrs=attrs)
+                fout._add_dset(
+                    dset_name=var,
+                    data=data,
+                    dtype=var_obj.final_dtype,
+                    chunks=var_obj.chunks,
+                    attrs=attrs,
+                )
 
             os.rename(fpath_out, fpath_out.replace('.tmp', ''))
             fpath_out = fpath_out.replace('.tmp', '')
@@ -1595,9 +1793,18 @@ class DataModel:
         return data
 
     @classmethod
-    def run_single(cls, var, date, nsrdb_grid, nsrdb_freq='5min',
-                   var_meta=None, fpath_out=None, factory_kwargs=None,
-                   scale=True, **kwargs):
+    def run_single(
+        cls,
+        var,
+        date,
+        nsrdb_grid,
+        nsrdb_freq='5min',
+        var_meta=None,
+        fpath_out=None,
+        factory_kwargs=None,
+        scale=True,
+        **kwargs,
+    ):
         """Run ancillary data processing for one variable for a single day.
 
         Parameters
@@ -1640,25 +1847,37 @@ class DataModel:
             NSRDB-resolution data for the given var and the current day.
         """
 
-        data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs,
-                         scale=scale)
+        data_model = cls(
+            date,
+            nsrdb_grid,
+            nsrdb_freq=nsrdb_freq,
+            var_meta=var_meta,
+            factory_kwargs=factory_kwargs,
+            scale=scale,
+        )
 
         if fpath_out is None:
             logger.info('Processing data for "{}".'.format(var))
         else:
             if '{var}' not in fpath_out or '{i}' not in fpath_out:
-                raise OSError('Cannot write to fpath_out, need "var" and "i" '
-                              'format keywords: {}'.format(fpath_out))
-            fpath_out = fpath_out.format(var=var,
-                                         i=data_model.nsrdb_grid.index[0])
-            if NFS(fpath_out).exists():
-                logger.info('Skipping DataModel for "{}" with existing '
-                            'fpath_out: {}'.format(var, fpath_out))
+                raise OSError(
+                    'Cannot write to fpath_out, need "var" and "i" '
+                    'format keywords: {}'.format(fpath_out)
+                )
+            fpath_out = fpath_out.format(
+                var=var, i=data_model.nsrdb_grid.index[0]
+            )
+            if NSRDBfs(fpath_out).exists():
+                logger.info(
+                    'Skipping DataModel for "{}" with existing '
+                    'fpath_out: {}'.format(var, fpath_out)
+                )
                 return fpath_out
-            else:
-                logger.info('Processing DataModel for "{}" with fpath_out: {}'
-                            .format(var, fpath_out))
+            logger.info(
+                'Processing DataModel for "{}" with fpath_out: {}'.format(
+                    var, fpath_out
+                )
+            )
 
         if data_model.is_cloud_var(var):
             method = data_model._process_clouds
@@ -1670,15 +1889,20 @@ class DataModel:
         try:
             data = method(var, **kwargs)
         except Exception as e:
-            logger.exception('Processing method "DataModel.{}()" failed for '
-                             '"{}"'.format(method.__name__, var))
+            logger.exception(
+                'Processing method "DataModel.{}()" failed for ' '"{}"'.format(
+                    method.__name__, var
+                )
+            )
             raise e
 
         if data.shape != data_model.nsrdb_data_shape:
-            raise ValueError('Expected NSRDB data shape of {}, but '
-                             'received shape {} for "{}"'
-                             .format(data_model.nsrdb_data_shape,
-                                     data.shape, var))
+            raise ValueError(
+                'Expected NSRDB data shape of {}, but '
+                'received shape {} for "{}"'.format(
+                    data_model.nsrdb_data_shape, data.shape, var
+                )
+            )
 
         if fpath_out is not None:
             data = data_model.dump(var, fpath_out, data, purge=True)
@@ -1688,10 +1912,39 @@ class DataModel:
         return data
 
     @classmethod
-    def run_clouds(cls, cloud_vars, date, nsrdb_grid,
-                   nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
-                   max_workers_regrid=None, scale=True, fpath_out=None,
-                   factory_kwargs=None):
+    def _check_cloud_output(cls, data, data_model):
+        for k, v in data.items():
+            if v.shape != data_model.nsrdb_data_shape:
+                raise ValueError(
+                    'Expected NSRDB data shape of {}, but received shape {} '
+                    'for "{}"'.format(data_model.nsrdb_data_shape, v.shape, k)
+                )
+
+    @classmethod
+    def _write_cloud_output(cls, data, data_model, fpath_out):
+        if fpath_out is not None:
+            for var, arr in data.items():
+                fpath_out_var = fpath_out.format(
+                    var=var, i=data_model.nsrdb_grid.index[0]
+                )
+                data[var] = data_model.dump(
+                    var, fpath_out_var, arr, purge=True
+                )
+
+    @classmethod
+    def run_clouds(
+        cls,
+        cloud_vars,
+        date,
+        nsrdb_grid,
+        nsrdb_freq='5min',
+        dist_lim=1.0,
+        var_meta=None,
+        max_workers_regrid=None,
+        scale=True,
+        fpath_out=None,
+        factory_kwargs=None,
+    ):
         """Run cloud processing for multiple cloud variables.
 
         (most efficient to process all cloud variables together to minimize
@@ -1741,22 +1994,32 @@ class DataModel:
             Namespace of nsrdb data numpy arrays keyed by nsrdb variable name.
         """
 
-        logger.info('Processing data for multiple cloud variables: {}'
-                    .format(cloud_vars))
+        logger.info(
+            f'Processing data for multiple cloud variables: {cloud_vars}'
+        )
 
-        data_model = cls(date, nsrdb_grid, nsrdb_freq=nsrdb_freq,
-                         var_meta=var_meta, factory_kwargs=factory_kwargs,
-                         max_workers=max_workers_regrid, scale=scale)
+        data_model = cls(
+            date,
+            nsrdb_grid,
+            nsrdb_freq=nsrdb_freq,
+            var_meta=var_meta,
+            factory_kwargs=factory_kwargs,
+            max_workers=max_workers_regrid,
+            scale=scale,
+        )
 
         if fpath_out is not None:
             data = {}
             skip_list = []
             for var in cloud_vars:
                 fpath_out_var = fpath_out.format(
-                    var=var, i=data_model.nsrdb_grid.index[0])
-                if NFS(fpath_out_var).exists():
-                    logger.info('Skipping DataModel for "{}" with existing '
-                                'fpath_out: {}'.format(var, fpath_out_var))
+                    var=var, i=data_model.nsrdb_grid.index[0]
+                )
+                if NSRDBfs(fpath_out_var).exists():
+                    logger.info(
+                        'Skipping DataModel for "{}" with existing '
+                        'fpath_out: {}'.format(var, fpath_out_var)
+                    )
                     skip_list.append(var)
                     data[var] = fpath_out_var
 
@@ -1767,38 +2030,42 @@ class DataModel:
                 return data
 
         try:
-            data = data_model._process_clouds(cloud_vars,
-                                              max_workers=max_workers_regrid,
-                                              dist_lim=dist_lim)
+            data = data_model._process_clouds(
+                cloud_vars, max_workers=max_workers_regrid, dist_lim=dist_lim
+            )
         except Exception as e:
-            logger.exception('Processing method "DataModel._process_clouds()" '
-                             'failed for "{}"'.format(cloud_vars))
+            logger.exception(
+                'Processing method "DataModel._process_clouds()" '
+                'failed for "{}"'.format(cloud_vars)
+            )
             raise e
 
-        for k, v in data.items():
-            if v.shape != data_model.nsrdb_data_shape:
-                raise ValueError('Expected NSRDB data shape of {}, but '
-                                 'received shape {} for "{}"'
-                                 .format(data_model.nsrdb_data_shape,
-                                         v.shape, k))
+        cls._check_cloud_output(data=data, data_model=data_model)
 
-        if fpath_out is not None:
-            for var, arr in data.items():
-                fpath_out_var = fpath_out.format(
-                    var=var, i=data_model.nsrdb_grid.index[0])
-                data[var] = data_model.dump(var, fpath_out_var, arr,
-                                            purge=True)
+        cls._write_cloud_output(
+            data=data, data_model=data_model, fpath_out=fpath_out
+        )
 
         logger.info('Finished "{}".'.format(cloud_vars))
 
         return data
 
     @classmethod
-    def run_multiple(cls, var_list, date, nsrdb_grid,
-                     nsrdb_freq='5min', dist_lim=1.0, var_meta=None,
-                     max_workers=None, max_workers_regrid=None,
-                     return_obj=False, scale=True, fpath_out=None,
-                     factory_kwargs=None):
+    def run_multiple(
+        cls,
+        var_list,
+        date,
+        nsrdb_grid,
+        nsrdb_freq='5min',
+        dist_lim=1.0,
+        var_meta=None,
+        max_workers=None,
+        max_workers_regrid=None,
+        return_obj=False,
+        scale=True,
+        fpath_out=None,
+        factory_kwargs=None,
+    ):
         """Run ancillary data processing for multiple variables for single day.
 
         Parameters
@@ -1853,28 +2120,42 @@ class DataModel:
             flag.
         """
 
-        logger.info('Building NSRDB data model for {} at a {} temporal '
-                    'resolution.'.format(date, nsrdb_freq))
+        logger.info(
+            'Building NSRDB data model for {} at a {} temporal '
+            'resolution.'.format(date, nsrdb_freq)
+        )
 
         if isinstance(nsrdb_grid, str):
-            logger.info('Using the NSRDB reference grid file: {}'
-                        .format(nsrdb_grid))
+            logger.info(
+                'Using the NSRDB reference grid file: {}'.format(nsrdb_grid)
+            )
         elif isinstance(nsrdb_grid, pd.DataFrame):
-            logger.info('Using the NSRDB reference grid dataframe with '
-                        'shape, head, tail:\n{}\n{}\n{}'
-                        .format(nsrdb_grid.shape, nsrdb_grid.head(),
-                                nsrdb_grid.tail()))
+            logger.info(
+                'Using the NSRDB reference grid dataframe with '
+                'shape, head, tail:\n{}\n{}\n{}'.format(
+                    nsrdb_grid.shape, nsrdb_grid.head(), nsrdb_grid.tail()
+                )
+            )
         else:
-            raise TypeError('Expected csv grid file or DataFrame but '
-                            'received: {}'.format(nsrdb_grid))
+            raise TypeError(
+                'Expected csv grid file or DataFrame but '
+                'received: {}'.format(nsrdb_grid)
+            )
 
-        logger.debug('Running DataModel with the following var meta: {}'
-                     .format(var_meta))
-        logger.debug('Running DataModel with the following variable '
-                     'factory kwargs: {}'.format(factory_kwargs))
+        logger.debug(
+            'Running DataModel with the following var meta: {}'.format(
+                var_meta
+            )
+        )
+        logger.debug(
+            'Running DataModel with the following variable '
+            'factory kwargs: {}'.format(factory_kwargs)
+        )
 
         data_model = cls._process_multiple(
-            var_list, date, nsrdb_grid,
+            var_list,
+            date,
+            nsrdb_grid,
             nsrdb_freq=nsrdb_freq,
             dist_lim=dist_lim,
             var_meta=var_meta,
@@ -1882,15 +2163,18 @@ class DataModel:
             max_workers_regrid=max_workers_regrid,
             fpath_out=fpath_out,
             scale=scale,
-            factory_kwargs=factory_kwargs)
+            factory_kwargs=factory_kwargs,
+        )
 
         # Create an AncillaryDataProcessing object instance for storing data.
-        logger.info('Final NSRDB output shape is: {}'
-                    .format(data_model.nsrdb_data_shape))
+        logger.info(
+            'Final NSRDB output shape is: {}'.format(
+                data_model.nsrdb_data_shape
+            )
+        )
 
         logger.info('DataModel processing complete for: {}'.format(date))
 
         if return_obj:
             return data_model
-        else:
-            return data_model.processed_data
+        return data_model.processed_data
