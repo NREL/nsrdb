@@ -727,11 +727,11 @@ class NSRDB:
 
         if final:
             if final_file_name is not None:
-                fname = fname.replace('nsrdb_', '{}_'.format(final_file_name))
+                fname = fname.replace('nsrdb_', f'{final_file_name}_')
             f_out = os.path.join(nsrdb._final_dir, fname)
         else:
             f_out = os.path.join(nsrdb._collect_dir, fname)
-            f_out = f_out.replace('.h5', '_{}.h5'.format(i_chunk))
+            f_out = f_out.replace('.h5', f'_{i_chunk}.h5')
 
         meta_chunk = nsrdb.meta.iloc[chunk, :]
         if n_chunks > 1 and 'gid' not in meta_chunk:
@@ -742,14 +742,9 @@ class NSRDB:
                 meta_chunk = meta_chunk[['gid']]
 
         logger.info(
-            'Running data model collection for chunk {} out of {} '
-            'with meta gid {} to {} and target file: {}'.format(
-                i_chunk,
-                n_chunks,
-                meta_chunk.index.values[0],
-                meta_chunk.index.values[-1],
-                f_out,
-            )
+            f'Running data model collection for chunk {i_chunk} out of '
+            f'{n_chunks} with meta gid {meta_chunk.index.values[0]} to '
+            f'{meta_chunk.index.values[-1]} and target file: {f_out}.'
         )
 
         nsrdb.init_output_h5(
