@@ -1270,11 +1270,9 @@ class MLCloudsFill:
         """
 
         logger.info(
-            'Running MLCloudsFill with h5_source: {}'.format(h5_source)
-        )
-        logger.info('Running MLCloudsFill with model: {}'.format(model_path))
-        logger.info(
-            'Running MLCloudsFill with col_chunk: {}'.format(col_chunk)
+            f'Running MLCloudsFill with h5_source: {h5_source}. Running '
+            f'MLCloudsFill with model: {model_path}. Running MLCloudsFill '
+            f'with col_chunk: {col_chunk}.'
         )
         obj = cls(
             h5_source,
@@ -1290,11 +1288,9 @@ class MLCloudsFill:
             slices = [slice(None)]
             logger.info(
                 'MLClouds gap fill is being run without col_chunk for '
-                'full data shape {} all on one process. If you see '
-                'memory errors, try setting the col_chunk input to '
-                'distribute the problem across multiple small workers.'.format(
-                    obj._res_shape
-                )
+                f'full data shape {obj._res_shape} all on one process. If you '
+                'see memory errors, try setting the col_chunk input to '
+                'distribute the problem across multiple small workers.'
             )
         else:
             columns = np.arange(obj._res_shape[1])
@@ -1303,10 +1299,8 @@ class MLCloudsFill:
             slices = [slice(a[0], 1 + a[-1]) for a in arrays]
             logger.info(
                 'MLClouds gap fill will be run across the full data '
-                'column shape {} in {} column chunks with '
-                'approximately {} sites per chunk'.format(
-                    len(columns), len(slices), col_chunk
-                )
+                f'column shape {len(columns)} in {len(slices)} column chunks '
+                f'with approximately {col_chunk} sites per chunk.'
             )
 
         if max_workers == 1:
@@ -1335,7 +1329,7 @@ class MLCloudsFill:
             futures = {}
             logger.info(
                 'Starting process pool for parallel phygnn cloud '
-                'fill with {} workers.'.format(max_workers)
+                f'fill with {max_workers} workers.'
             )
             loggers = ['nsrdb', 'rex', 'phygnn']
             with SpawnProcessPool(
@@ -1352,7 +1346,7 @@ class MLCloudsFill:
                     )
                     futures[future] = col_slice
 
-                logger.info('Kicked off {} futures.'.format(len(futures)))
+                logger.info(f'Kicked off {len(futures)} futures.')
                 for i, future in enumerate(as_completed(futures)):
                     col_slice = futures[future]
                     i_features, i_clean, i_flag = future.result()

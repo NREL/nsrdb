@@ -74,8 +74,8 @@ def make_fill_flag(
     new_fill_flag = np.zeros_like(irrad).astype(np.uint8)
 
     # make fill flags
-    new_fill_flag[(cloud_type == -15)] = 1
-    new_fill_flag[:, (cloud_type == -15).all(axis=0)] = 2
+    new_fill_flag[(cloud_type < 0)] = 1
+    new_fill_flag[:, (cloud_type < 0).all(axis=0)] = 2
     new_fill_flag[missing_cld_props & (cs_irrad > 0)] = 3
     new_fill_flag[:, missing_cld_props.all(axis=0)] = 4
     # clearsky limit (fill flag 5) is filled in enforce_clearsky()
@@ -131,11 +131,7 @@ def gap_fill_irrad(
     # assign sites csr=1 with all NaN or just one non-NaN but warn
     all_na = np.isnan(csr).sum(axis=0) >= (csr.shape[0] - 1)
     if any(all_na):
-        warn(
-            '{} sites exist with full NaN csr timeseries.'.format(
-                np.sum(all_na)
-            )
-        )
+        warn(f'{all_na} sites exist with full NaN csr timeseries.')
         csr[:, all_na] = 1.0
 
     # fill nan ratio values with nearest good ratio values

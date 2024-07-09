@@ -15,7 +15,7 @@ from rex.utilities.loggers import init_logger
 from nsrdb import __version__
 from nsrdb.aggregation.aggregation import Manager
 from nsrdb.blend.blend import Blender
-from nsrdb.create_configs import CreateConfigs
+from nsrdb.config.create_configs import CreateConfigs
 from nsrdb.file_handlers.collection import Collector
 from nsrdb.nsrdb import NSRDB
 from nsrdb.tmy import TmyRunner

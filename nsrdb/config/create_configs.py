@@ -1,4 +1,7 @@
-"""Config creation class for CONUS / Full Disc NSRDB runs."""
+"""Config creation class for CONUS / Full Disc NSRDB runs.
+
+TODO: This can probably be streamlined a bunch more. Lots of hardcoded stuff
+"""
 
 import calendar
 import copy
@@ -7,19 +10,13 @@ import logging
 import os
 import pprint
 
-from nsrdb import CONFIGDIR
 from nsrdb.aggregation.aggregation import NSRDB_2018
+from nsrdb.config import (
+    PIPELINE_CONFIG_TEMPLATE,
+    POST2017_CONFIG_TEMPLATE,
+    PRE2018_CONFIG_TEMPLATE,
+)
 from nsrdb.utilities.file_utils import get_format_keys, str_replace_dict
-
-PRE2018_CONFIG_TEMPLATE = os.path.join(
-    CONFIGDIR, 'templates/config_nsrdb_pre2018.json'
-)
-POST2017_CONFIG_TEMPLATE = os.path.join(
-    CONFIGDIR, 'templates/config_nsrdb_post2017.json'
-)
-PIPELINE_CONFIG_TEMPLATE = os.path.join(
-    CONFIGDIR, 'templates/config_pipeline.json'
-)
 
 DEFAULT_EXEC_CONFIG = {
     'option': 'kestrel',
@@ -75,6 +72,27 @@ COLLECT_AGG_KWARGS = {
     'max_workers': 10,
 }
 
+EXTENT_MAP = {
+    'lon_seam': {'full': -105, 'conus': -113},
+    'extent_tag': {'full': 'RadF', 'conus': 'RadC'},
+    'map_col': {'full': 'gid_full', 'conus': 'gid_full_conus'},
+}
+
+
+DEFAULT_RES = {
+    'POST_2018': {
+        'conus': {'spatial': '2km', 'freq': '5min'},
+        'full': {'spatial': '2km', 'freq': '10min'},
+    },
+    '2018': {
+        'conus': {'spatial': '2km', 'freq': '5min'},
+        'full': {
+            'east': {'spatial': '2km', 'freq': '10min'},
+            'west': {'spatial': '4km', 'freq': '30min'},
+        },
+    },
+    'PRE_2018': {'spatial': '4km', 'freq': '30min'},
+}
 
 logger = logging.getLogger(__name__)
 
@@ -113,37 +131,30 @@ class CreateConfigs:
         if spatial is not None and freq is not None:
             return spatial, freq
 
-        if config['year'] >= 2018:
-            msg = (
-                '"extent" key not provided. Provide "spatial" and "freq" '
-                'or "extent".'
-            )
-            assert 'extent' in config, msg
-        if config['year'] == 2018 and config['extent'] == 'full':
-            msg = (
-                '"satellite" key not provided. Provide "spatial" and '
-                '"freq" or "satellite".'
-            )
-            assert 'satellite' in config, msg
+        required_args = (
+            ['extent', 'satellite']
+            if config['year'] == 2018
+            else ['extent']
+            if config['year'] > 2018
+            else []
+        )
+        msg = (
+            'To automatically get resolution we need required_args: '
+            f'{required_args}". Either provide "spatial" and "freq" or '
+            'the required args.'
+        )
+        assert all(arg in config for arg in required_args), msg
 
         if config['year'] == 2018:
-            spatial = '2km'
-            freq = '5min'
-            if config['extent'] == 'full':
-                if config['satellite'] == 'east':
-                    spatial = '2km'
-                    freq = '10min'
-                else:
-                    spatial = '4km'
-                    freq = '30min'
+            res = DEFAULT_RES['2018'][config['extent']][config['satellite']]
 
         elif config['year'] > 2018:
-            spatial = '2km'
-            freq = '10min' if config['extent'] == 'full' else '5min'
+            res = DEFAULT_RES['POST_2018'][config['extent']]
         else:
-            spatial = '4km'
-            freq = '30min'
-        return config.get('spatial', spatial), config.get('freq', freq)
+            res = DEFAULT_RES['PRE_2018']
+        return config.get('spatial', res['spatial']), config.get(
+            'freq', res['freq']
+        )
 
     @classmethod
     def _get_meta(cls, config, run_type='main'):
@@ -179,6 +190,14 @@ class CreateConfigs:
         )
 
         return meta_file
+
+    @classmethod
+    def _get_config_file(cls, config, run_type='main'):
+        """Get config file path for a given run type."""
+        return os.path.join(
+            config.get('out_dir', './'),
+            f'config_{run_type.replace("-", "_")}.json',
+        )
 
     @classmethod
     def _get_run_name(cls, config, run_type='main'):
@@ -223,9 +242,8 @@ class CreateConfigs:
             else POST2017_CONFIG_TEMPLATE
         )
         with open(template, encoding='utf-8') as s:
-            s = s.read()
+            config_dict = json.loads(str_replace_dict(s.read(), config))
 
-        config_dict = json.loads(str_replace_dict(s, config))
         config_dict.update(
             {k: v for k, v in config.items() if k in config_dict}
         )
@@ -236,19 +254,13 @@ class CreateConfigs:
         if config['year'] == 2018 and config['satellite'] == 'west':
             config_dict['data-model']['dist_lim'] = 1e6
 
-        cls._write_config(
-            config_dict,
-            os.path.join(config['out_dir'], 'config_nsrdb.json'),
-        )
+        cls._write_config(config_dict, cls._get_config_file(config, 'nsrdb'))
 
         with open(PIPELINE_CONFIG_TEMPLATE, encoding='utf-8') as s:
-            s = s.read()
-
-        config_dict = json.loads(str_replace_dict(s, config))
+            config_dict = json.loads(str_replace_dict(s.read(), config))
 
         cls._write_config(
-            config_dict,
-            os.path.join(config['out_dir'], 'config_pipeline.json'),
+            config_dict, cls._get_config_file(config, 'pipeline')
         )
 
     @classmethod
@@ -262,15 +274,13 @@ class CreateConfigs:
             extent, freq, spatial, meta_file, doy_range
         """
         config = cls._init_kwargs(kwargs, MAIN_KWARGS)
-        extent_tag_map = {'full': 'RadF', 'conus': 'RadC'}
-        lon_seam_map = {'full': -105, 'conus': -113}
         msg = (
             '"extent" key not provided. Provide "extent" so correct input '
             'data can be selected'
         )
         assert 'extent' in config, msg
-        config['extent_tag'] = extent_tag_map[config['extent']]
-        config['lon_seam'] = lon_seam_map[config['extent']]
+        config['extent_tag'] = EXTENT_MAP['extent_tag'][config['extent']]
+        config['lon_seam'] = EXTENT_MAP['lon_seam'][config['extent']]
         config['meta_file'] = cls._get_meta(config)
         config['spatial'], config['freq'] = cls._get_res(config)
 
@@ -369,39 +379,22 @@ class CreateConfigs:
 
         if kwargs['year'] > 2018:
             kwargs_list = [{'extent': 'conus'}, {'extent': 'full'}, None, None]
-            fnames = [
-                'config_blend_conus.json',
-                'config_blend_full.json',
-                'config_aggregate.json',
-                'config_collect_aggregate.json',
-            ]
             step_names = [
                 'blend-conus',
                 'blend-full',
                 'aggregate',
                 'collect-aggregate',
             ]
-            mod_names = ['blend', 'blend', *step_names[2:]]
         elif kwargs['year'] == 2018:
             kwargs_list = [None, None]
-            fnames = [
-                'config_aggregate.json',
-                'config_collect_aggregate.json',
-            ]
             step_names = ['aggregate', 'collect-aggregate']
-            mod_names = step_names
         else:
             kwargs_list = [None, None]
-            fnames = [
-                'config_blend.json',
-                'config_collect_blend.json',
-            ]
             step_names = ['blend', 'collect-blend']
-            mod_names = step_names
 
-        for kws, fname, step_name, mod_name in zip(
-            kwargs_list, fnames, step_names, mod_names
-        ):
+        for kws, step_name in zip(kwargs_list, step_names):
+            fname = f'config_{step_name.replace("-", "_")}.json'
+            mod_name = 'blend' if '_blend_' in fname else step_name
             func = getattr(cls, f'_{mod_name.replace("-", "_")}')
             config = func(kwargs if kws is None else {**kwargs, **kws})
             if mod_name == 'blend':
@@ -418,7 +411,7 @@ class CreateConfigs:
             )
         cls._write_config(
             pipeline_config,
-            os.path.join(post_proc_dir, 'config_pipeline_post.json'),
+            cls._get_config_file({'out_dir': post_proc_dir}, 'pipeline_post'),
         )
         run_file = os.path.join(post_proc_dir, 'run.sh')
         with open(run_file, 'w') as f:
@@ -529,13 +522,8 @@ class CreateConfigs:
             files
         """
         config = cls._init_kwargs(kwargs, BLEND_KWARGS)
-
-        map_col_map = {'full': 'gid_full', 'conus': 'gid_full_conus'}
-        config['map_col'] = map_col_map[config['extent']]
-
-        lon_seam_map = {'full': -105, 'conus': -113}
-        config['lon_seam'] = lon_seam_map[config['extent']]
-
+        config['map_col'] = EXTENT_MAP['map_col'][config['extent']]
+        config['lon_seam'] = EXTENT_MAP['lon_seam'][config['extent']]
         config['meta_file'] = cls._get_meta(config, run_type='blend')
 
         config['east_dir'] = os.path.join(
@@ -591,10 +579,7 @@ class CreateConfigs:
         config = cls._blend(kwargs)
         cls._write_config(
             config,
-            os.path.join(
-                kwargs.get('out_dir', './'),
-                f'config_blend_{config["extent"]}.json',
-            ),
+            cls._get_config_file(kwargs, f'blend_{config["extent"]}'),
             module_name='blend',
         )
 
@@ -646,9 +631,7 @@ class CreateConfigs:
         config = cls._collect_blend(kwargs)
         cls._write_config(
             config,
-            os.path.join(
-                kwargs.get('out_dir', './'), 'config_collect_blend.json'
-            ),
+            cls._get_config_file(kwargs, 'collect_blend'),
             module_name='collect-blend',
         )
 
@@ -673,7 +656,7 @@ class CreateConfigs:
             config, run_type='collect-aggregate'
         )
         config['collect_dir'] = (
-            f'nsrdb_{config["final_spatial"]}_' f'{config["final_freq"]}'
+            f'nsrdb_{config["final_spatial"]}_{config["final_freq"]}'
         )
         config['collect_tag'] = f'{config["basename"]}_'
         config['fout'] = os.path.join(
@@ -704,8 +687,6 @@ class CreateConfigs:
         config = cls._collect_aggregate(kwargs)
         cls._write_config(
             config,
-            os.path.join(
-                kwargs.get('out_dir', './'), 'config_collect_aggregate.json'
-            ),
+            cls._get_config_file(kwargs, 'collect_aggregate'),
             module_name='collect-aggregate',
         )
