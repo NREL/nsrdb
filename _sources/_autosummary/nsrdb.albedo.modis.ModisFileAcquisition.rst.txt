@@ -1,0 +1,32 @@
+nsrdb.albedo.modis.ModisFileAcquisition
+=======================================
+
+.. currentmodule:: nsrdb.albedo.modis
+
+.. autoclass:: ModisFileAcquisition
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~ModisFileAcquisition.get_file
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ModisFileAcquisition.FILE_PATTERN
+      ~ModisFileAcquisition.HTTP_FOLDER
+      ~ModisFileAcquisition.HTTP_SERVER
+   
+   

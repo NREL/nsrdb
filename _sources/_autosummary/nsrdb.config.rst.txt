@@ -1,0 +1,30 @@
+nsrdb.config
+============
+
+.. automodule:: nsrdb.config
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   nsrdb.config.create_configs
+

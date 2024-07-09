@@ -1,0 +1,35 @@
+nsrdb.albedo
+============
+
+.. automodule:: nsrdb.albedo
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
+.. autosummary::
+   :toctree:
+   :template: custom-module-template.rst
+   :recursive:
+
+   nsrdb.albedo.albedo
+   nsrdb.albedo.cli
+   nsrdb.albedo.ims
+   nsrdb.albedo.modis
+   nsrdb.albedo.modis_v6_download
+   nsrdb.albedo.temperature_model
+
