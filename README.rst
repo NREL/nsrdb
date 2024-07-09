@@ -90,6 +90,10 @@ NSRDB Versions
       - Effective Date
       - Data Years*
       - Notes
+    * - 4.1.0
+      - 7/9/24
+      - None
+      - Complete CLI refactor.
     * - 4.0.0
       - 5/1/23
       - 2022
