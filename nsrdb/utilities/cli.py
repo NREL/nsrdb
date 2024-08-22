@@ -440,7 +440,6 @@ class BaseCLI:
             f'{fun_str};\n'
             't_elap = time.time() - t0;\n'
         )
-
         cmd += cls.get_status_cmd(config, pipeline_step)
 
         ctx.obj['JOB_NAME'] = config['job_name']
@@ -534,7 +533,6 @@ class BaseCLI:
             config_dict['date'] = date
             config_dict['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'
             config_dict['doy'] = doy
-
             cls.kickoff_job(
                 ctx,
                 module_name=module_name,

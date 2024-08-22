@@ -21,6 +21,7 @@ class ModuleName(str, Enum):
     COLLECT_AGGREGATE = 'collect-aggregate'
     COLLECT_DATA_MODEL = 'collect-data-model'
     COLLECT_FINAL = 'collect-final'
+    COLLECT_DAILY = 'collect-daily'
     TMY = 'tmy'
     COLLECT_TMY = 'collect-tmy'
 

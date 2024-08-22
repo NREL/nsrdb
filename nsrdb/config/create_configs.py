@@ -34,10 +34,12 @@ BASE_KWARGS = {
     'meta_dir': DEFAULT_META_DIR,
 }
 
-MAIN_KWARGS = {
-    **BASE_KWARGS,
-    'extent': 'full',
-    'satellite': 'east',
+MAIN_KWARGS = {**BASE_KWARGS, 'extent': 'full', 'satellite': 'east'}
+
+SURFRAD_KWARGS = {
+    **MAIN_KWARGS,
+    'freq': '15min',
+    'spatial': '4km',
 }
 
 BLEND_KWARGS = {
@@ -47,10 +49,7 @@ BLEND_KWARGS = {
     'main_dir': '../',
 }
 
-COLLECT_BLEND_KWARGS = {
-    **BASE_KWARGS,
-    'extent': 'full',
-}
+COLLECT_BLEND_KWARGS = {**BASE_KWARGS, 'extent': 'full'}
 
 AGG_KWARGS = {
     **BASE_KWARGS,
@@ -102,14 +101,16 @@ class CreateConfigs:
     standard CONUS / Full Disc runs."""
 
     MAIN_RUN_NAME = '{basename}_{satellite}_{extent}_{year}_{spatial}_{freq}'
+    SURFRAD_RUN_NAME = '{basename}_{year}_surfrad'
     BLEND_RUN_NAME = '{basename}_{extent}_{year}_blend'
     AGG_RUN_NAME = '{basename}_{year}_aggregate'
     COLLECT_AGG_RUN_NAME = '{basename}_{year}_collect_aggregate'
     COLLECT_BLEND_RUN_NAME = '{basename}_{extent}_{year}_collect_blend'
 
     @classmethod
-    def _init_kwargs(cls, kwargs, default_kwargs):
+    def init_kwargs(cls, kwargs=None, default_kwargs=None):
         """Initialize config with default kwargs."""
+        default_kwargs = default_kwargs or {}
         msg = f'kwargs must have a "year" key. Received {kwargs}.'
         assert 'year' in kwargs, msg
         config = copy.deepcopy(default_kwargs)
@@ -211,6 +212,7 @@ class CreateConfigs:
             {k: v for k, v in BASE_KWARGS.items() if k not in config}
         )
         pattern_dict = {
+            'surfrad': cls.SURFRAD_RUN_NAME,
             'main': cls.MAIN_RUN_NAME,
             'blend': cls.BLEND_RUN_NAME,
             'aggregate': cls.AGG_RUN_NAME,
@@ -227,7 +229,7 @@ class CreateConfigs:
         return pattern.format(**run_config)
 
     @classmethod
-    def _update_run_templates(cls, config):
+    def _update_run_templates(cls, config, run_type='main'):
         """Replace format keys and dictionary keys in config templates with
         user input values."""
 
@@ -235,6 +237,17 @@ class CreateConfigs:
             'Updating NSRDB run templates with config:\n'
             f'{pprint.pformat(config, indent=2)}'
         )
+
+        config['doy_range'] = config.get(
+            'doy_range',
+            ([1, 367] if calendar.isleap(config['year']) else [1, 366]),
+        )
+        config['start_doy'], config['end_doy'] = (
+            config['doy_range'][0],
+            config['doy_range'][1],
+        )
+        config['run_name'] = cls._get_run_name(config, run_type=run_type)
+        config['out_dir'] = os.path.join(config['out_dir'], config['run_name'])
 
         template = (
             PRE2018_CONFIG_TEMPLATE
@@ -263,6 +276,21 @@ class CreateConfigs:
             config_dict, cls._get_config_file(config, 'pipeline')
         )
 
+        run_file = os.path.join(config['out_dir'], 'run.sh')
+        with open(run_file, 'w') as f:
+            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
+
+        logger.info(f'Saved run script: {run_file}.')
+
+    @classmethod
+    def surfrad(cls, kwargs):
+        """Get basic config template specified parameters replaced."""
+        config = cls.init_kwargs(kwargs, SURFRAD_KWARGS)
+        config['meta_file'] = os.path.join(
+            config['meta_dir'], 'surfrad_meta.csv'
+        )
+        cls._update_run_templates(config, run_type='surfrad')
+
     @classmethod
     def main(cls, kwargs):
         """Modify config files with specified parameters
@@ -273,7 +301,7 @@ class CreateConfigs:
             Dictionary of parameters including year, basename, satellite,
             extent, freq, spatial, meta_file, doy_range
         """
-        config = cls._init_kwargs(kwargs, MAIN_KWARGS)
+        config = cls.init_kwargs(kwargs, MAIN_KWARGS)
         msg = (
             '"extent" key not provided. Provide "extent" so correct input '
             'data can be selected'
@@ -284,26 +312,7 @@ class CreateConfigs:
         config['meta_file'] = cls._get_meta(config)
         config['spatial'], config['freq'] = cls._get_res(config)
 
-        config['doy_range'] = config.get(
-            'doy_range',
-            ([1, 367] if calendar.isleap(config['year']) else [1, 366]),
-        )
-
-        config['start_doy'], config['end_doy'] = (
-            config['doy_range'][0],
-            config['doy_range'][1],
-        )
-
-        config['run_name'] = cls._get_run_name(config)
-        config['out_dir'] = os.path.join(config['out_dir'], config['run_name'])
-
         cls._update_run_templates(config)
-
-        run_file = os.path.join(config['out_dir'], 'run.sh')
-        with open(run_file, 'w') as f:
-            f.write('python -m nsrdb.cli pipeline -c config_pipeline.json')
-
-        logger.info(f'Saved run script: {run_file}.')
 
     @classmethod
     def main_all(cls, kwargs):
@@ -472,7 +481,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to aggregate
             files
         """
-        config = cls._init_kwargs(kwargs, AGG_KWARGS)
+        config = cls.init_kwargs(kwargs, AGG_KWARGS)
 
         if config['year'] == 2018:
             data = NSRDB_2018
@@ -521,7 +530,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for which to blend data
             files
         """
-        config = cls._init_kwargs(kwargs, BLEND_KWARGS)
+        config = cls.init_kwargs(kwargs, BLEND_KWARGS)
         config['map_col'] = EXTENT_MAP['map_col'][config['extent']]
         config['lon_seam'] = EXTENT_MAP['lon_seam'][config['extent']]
         config['meta_file'] = cls._get_meta(config, run_type='blend')
@@ -599,7 +608,7 @@ class CreateConfigs:
             Dictionary with keys specifying the case for blend collection
         """
 
-        config = cls._init_kwargs(kwargs, COLLECT_BLEND_KWARGS)
+        config = cls.init_kwargs(kwargs, COLLECT_BLEND_KWARGS)
         config['meta_final'] = cls._get_meta(config, run_type='collect-blend')
         config['collect_dir'] = cls._get_run_name(config, run_type='blend')
         config['collect_tag'] = config['collect_dir'].replace('_blend', '')
@@ -650,7 +659,7 @@ class CreateConfigs:
         kwargs : dict
             Dictionary with keys specifying the case for aggregation collection
         """
-        config = cls._init_kwargs(kwargs, COLLECT_AGG_KWARGS)
+        config = cls.init_kwargs(kwargs, COLLECT_AGG_KWARGS)
 
         config['meta_final'] = cls._get_meta(
             config, run_type='collect-aggregate'

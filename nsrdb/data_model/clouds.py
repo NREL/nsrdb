@@ -215,7 +215,7 @@ class CloudCoords:
             "parallax") or B) the sun position so that clouds are mapped to the
             coordinates they are shading (option == "shading").
         """
-
+        logger.info(f'Correcting cloud coordinates with option = {option}.')
         shapes = {
             'lat': lat.shape,
             'lon': lon.shape,
@@ -321,7 +321,7 @@ class CloudVarSingle:
     def get_dset(self, dset):
         """Abstract placeholder for data retrieval method"""
         raise NotImplementedError(
-            'get_dset() must be defined for H5 or NC ' 'file types.'
+            'get_dset() must be defined for H5 or NC file types.'
         )
 
     @property

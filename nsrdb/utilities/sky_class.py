@@ -108,7 +108,11 @@ class SkyClass:
         self._sza_lim = sza_lim
 
         self._handle_surf = Surfrad(self._fp_surf)
-        Handler = MultiFileResource if '*' in self._fp_nsrdb else Resource
+        Handler = (
+            MultiFileResource
+            if '*' in self._fp_nsrdb or isinstance(self._fp_nsrdb, list)
+            else Resource
+        )
         self._handle_nsrdb = Handler(self._fp_nsrdb)
 
     def __enter__(self):

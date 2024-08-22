@@ -2,7 +2,7 @@
   "collect-data-model": {
     "final": true,
     "max_workers": 10,
-    "n_writes": 50,
+    "n_writes": 5,
     "n_chunks": 1,
     "final_file_name": "%basename%_%satellite%_%extent%_%spatial%_%freq%"
   },

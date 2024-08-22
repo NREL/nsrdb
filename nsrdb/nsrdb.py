@@ -979,7 +979,12 @@ class NSRDB:
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        is_merra = MLCloudsFill.merra_clouds(h5_source, var_meta=var_meta)
+        is_merra = MLCloudsFill.merra_clouds(
+            h5_source,
+            var_meta=var_meta,
+            model_path=model_path,
+            fill_all=fill_all,
+        )
 
         if not is_merra:
             MLCloudsFill.run(

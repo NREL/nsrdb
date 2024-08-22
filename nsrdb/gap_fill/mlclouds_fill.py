@@ -12,7 +12,7 @@ import pandas as pd
 import psutil
 from farms import ICE_TYPES, WATER_TYPES
 from mlclouds import MODEL_FPATH
-from phygnn import PhygnnModel
+from mlclouds.model.base import MLCloudsModel
 from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
 
@@ -76,7 +76,7 @@ class MLCloudsFill:
                 self._fill_all
             )
         )
-        self._phygnn_model = PhygnnModel.load(model_path)
+        self._phygnn_model = MLCloudsModel.load(model_path)
 
         if self.h5_source is not None:
             with MultiFileNSRDB(self.h5_source) as res:
@@ -605,16 +605,17 @@ class MLCloudsFill:
                 col_slice
             )
         )
+        predict_feats = feature_df[self.phygnn_model.feature_names]
         if not low_mem:
-            labels = self.phygnn_model.predict(feature_df, table=False)
+            labels = self.phygnn_model.predict(predict_feats, table=False)
         else:
-            len_df = len(feature_df)
+            len_df = len(predict_feats)
             chunks = np.array_split(
                 np.arange(len_df), int(np.ceil(len_df / 1000))
             )
             labels = []
             for index_chunk in chunks:
-                sub = feature_df.iloc[index_chunk]
+                sub = predict_feats.iloc[index_chunk]
                 labels.append(self.phygnn_model.predict(sub, table=False))
             labels = np.concatenate(labels, axis=0)
 
@@ -633,7 +634,7 @@ class MLCloudsFill:
 
         shape = feature_data['flag'].shape
         predicted_data = {}
-        for i, dset in enumerate(self.phygnn_model.label_names):
+        for i, dset in enumerate(self.phygnn_model.output_names):
             logger.debug('Reshaping predicted {} to {}'.format(dset, shape))
             predicted_data[dset] = labels[:, i].reshape(shape, order='F')
 
@@ -1177,7 +1178,14 @@ class MLCloudsFill:
         return data_model
 
     @classmethod
-    def merra_clouds(cls, h5_source, var_meta=None, merra_fill_flag=8):
+    def merra_clouds(
+        cls,
+        h5_source,
+        var_meta=None,
+        merra_fill_flag=8,
+        fill_all=False,
+        model_path=None,
+    ):
         """Quick check to see if cloud data is from a merra source in which
         case it should be gap-free and cloud_fill_flag will be written with all
         8's
@@ -1195,6 +1203,14 @@ class MLCloudsFill:
         merra_fill_flag : int
             Integer fill flag representing where merra data was used as source
             cloud data.
+        fill_all : bool
+            Flag to fill all cloud properties for all timesteps where
+            cloud_type is cloudy.
+        model_path : str | None
+            Directory to load phygnn model from. This is typically a fpath to
+            a .pkl file with an accompanying .json file in the same directory.
+            None will try to use the default model path from the mlclouds
+            project directory.
 
         Returns
         -------
@@ -1202,7 +1218,12 @@ class MLCloudsFill:
             Flag that is True if cloud data is from merra
         """
 
-        mlclouds = cls(h5_source, var_meta=var_meta)
+        mlclouds = cls(
+            h5_source,
+            var_meta=var_meta,
+            model_path=model_path,
+            fill_all=fill_all,
+        )
 
         with MultiFileNSRDB(h5_source) as res:
             attrs = res.attrs.get('cld_opd_dcomp', {})

@@ -5,7 +5,7 @@
     "max_workers": 10,
     "n_chunks": 1,
     "memory": 178,
-    "n_writes": 50,
+    "n_writes": 5,
     "walltime": 48
   },
   "daily-all-sky": {},
