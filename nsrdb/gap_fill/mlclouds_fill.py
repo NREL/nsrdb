@@ -605,7 +605,10 @@ class MLCloudsFill:
                 col_slice
             )
         )
-        predict_feats = feature_df[self.phygnn_model.feature_names]
+        predict_feats = set(feature_df.columns).intersection(
+            self.phygnn_model.input_feature_names
+        )
+        predict_feats = feature_df[list(predict_feats)]
         if not low_mem:
             labels = self.phygnn_model.predict(predict_feats, table=False)
         else:

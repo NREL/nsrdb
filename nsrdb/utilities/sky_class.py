@@ -302,7 +302,10 @@ class SkyClass:
         """Add NSRDB and SURFRAD ghi and dni data to a DataFrame."""
         df = df.reindex(self.nsrdb_time_index)
         assert len(df) == len(self.nsrdb_time_index)
-        ti_deltas = self.nsrdb_time_index - np.roll(self.nsrdb_time_index, 1)
+        ti_deltas = (
+            self.nsrdb_time_index.values[1:]
+            - self.nsrdb_time_index.values[:-1]
+        )
         ti_deltas_minutes = pd.Series(ti_deltas).dt.seconds / 60
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
         freq = '{}T'.format(ti_delta_minutes)
