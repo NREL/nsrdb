@@ -61,7 +61,7 @@ AGG_KWARGS = {
     'conus_freq': '5min',
     'final_freq': '30min',
     'n_chunks': 32,
-    'source_priority': ['conus', 'full_disk'],
+    'source_priority': ['conus', 'full_disc'],
 }
 
 COLLECT_AGG_KWARGS = {
@@ -286,6 +286,7 @@ class CreateConfigs:
     def surfrad(cls, kwargs):
         """Get basic config template specified parameters replaced."""
         config = cls.init_kwargs(kwargs, SURFRAD_KWARGS)
+        config['extent_tag'] = EXTENT_MAP['extent_tag'][config['extent']]
         config['meta_file'] = os.path.join(
             config['meta_dir'], 'surfrad_meta.csv'
         )
@@ -472,7 +473,7 @@ class CreateConfigs:
 
     @classmethod
     def _aggregate(cls, kwargs):
-        """Get config for conus and full disk high-resolution to low-resolution
+        """Get config for conus and full disc high-resolution to low-resolution
         aggregation.  This is then used as the input to `nsrdb.cli.aggregate`
 
         Parameters
@@ -488,7 +489,7 @@ class CreateConfigs:
 
         else:
             data = {
-                'full_disk': cls._get_agg_entry(config, extent='full'),
+                'full_disc': cls._get_agg_entry(config, extent='full'),
                 'conus': cls._get_agg_entry(config, extent='conus'),
                 'final': cls._get_agg_entry(config, extent='final'),
             }
@@ -499,7 +500,7 @@ class CreateConfigs:
 
     @classmethod
     def aggregate(cls, kwargs):
-        """Get config for conus and full disk high-resolution to low-resolution
+        """Get config for conus and full disc high-resolution to low-resolution
         aggregation.  This is then used as the input to `nsrdb.cli.aggregate`
 
         Parameters
