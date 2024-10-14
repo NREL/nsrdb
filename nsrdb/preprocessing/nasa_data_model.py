@@ -143,6 +143,16 @@ class NasaDataModel:
     def remap_dims(cls, ds):
         """Rename dims and coords to standards. Make lat / lon into 2d arrays,
         as expected by cloud regridding routine."""
+
+        sdims = ('south_north', 'west_east')
+        for var in ds.data_vars:
+            single_ts = (
+                'time' in ds[var].dims
+                and ds[var].transpose('time', ...).shape[0] == 1
+            )
+            if single_ts and var != 'reference_time':
+                ds[var] = (sdims, ds[var].isel(time=0).data)
+
         ref_time = ds.attrs.get('reference_time', None)
         if ref_time is not None:
             ti = pd.DatetimeIndex([ref_time]).values
@@ -156,7 +166,6 @@ class NasaDataModel:
         ds['west_east'] = ds['longitude']
 
         lons, lats = np.meshgrid(ds['longitude'], ds['latitude'])
-        sdims = ('south_north', 'west_east')
         ds = ds.assign_coords(
             {'latitude': (sdims, lats), 'longitude': (sdims, lons)}
         )
@@ -180,6 +189,7 @@ class NasaDataModel:
     def write_output(cls, ds, output_file):
         """Write converted dataset to output_file."""
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        ds = ds.transpose('latitude', 'longitude', ...)
         ds.load().to_netcdf(output_file, format='NETCDF4', engine='h5netcdf')
 
     @classmethod
