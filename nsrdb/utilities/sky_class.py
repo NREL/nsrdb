@@ -308,7 +308,7 @@ class SkyClass:
         )
         ti_deltas_minutes = pd.Series(ti_deltas).dt.seconds / 60
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
-        freq = '{}T'.format(ti_delta_minutes)
+        freq = '{}min'.format(ti_delta_minutes)
         df = df.drop(['ghi_ground', 'clear'], axis=1)
         surf_df = self.surfrad.get_df(
             dt_out=freq, window_minutes=self._window_min
