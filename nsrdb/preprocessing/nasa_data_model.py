@@ -186,10 +186,25 @@ class NasaDataModel:
         return ds
 
     @classmethod
+    def derive_stdevs(cls, ds):
+        """Derive standard deviations of some variables, which are used as
+        training features."""
+        for var_name in ('refl_0_65um_nom', 'temp_11_0um_nom'):
+            stddev = (
+                ds[var_name]
+                .rolling(
+                    south_north=3, west_east=3, center=True, min_periods=1
+                )
+                .std()
+            )
+            ds[f'{var_name}_stddev_3x3'] = stddev
+        return ds
+
+    @classmethod
     def write_output(cls, ds, output_file):
         """Write converted dataset to output_file."""
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        ds = ds.transpose('latitude', 'longitude', ...)
+        ds = ds.transpose('south_north', 'west_east', ...)
         ds.load().to_netcdf(output_file, format='NETCDF4', engine='h5netcdf')
 
     @classmethod
@@ -216,6 +231,9 @@ class NasaDataModel:
 
             logger.info('Remapping cloud type values.')
             ds = dm.remap_cloud_phase(ds)
+
+            logger.info('Deriving some stddev variables.')
+            ds = dm.derive_stdevs(ds)
 
             logger.info('Writing converted file to %s', dm.output_file)
             dm.write_output(ds, dm.output_file)

@@ -12,7 +12,7 @@ import pandas as pd
 import psutil
 from farms import ICE_TYPES, WATER_TYPES
 from mlclouds import MODEL_FPATH
-from mlclouds.model.base import MLCloudsModel
+from mlclouds.model.multi_step import MultiCloudsModel
 from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
 
@@ -45,11 +45,13 @@ class MLCloudsFill:
         fill_all : bool
             Flag to fill all cloud properties for all timesteps where
             cloud_type is cloudy.
-        model_path : str | None
-            Directory to load phygnn model from. This is typically a fpath to
-            a .pkl file with an accompanying .json file in the same directory.
-            None will try to use the default model path from the mlclouds
-            project directory.
+        model_path : dict | None
+            kwargs for ``MultiCloudsModel.load`` method. Specifies
+            ``cloud_prop_model_path`` for cloud property model and optionally
+            ``cloud_type_model_path`` for a cloud type model. Each value is
+            typically a fpath to a .pkl file with an accompanying .json file in
+            the same directory. None will try to use the default model path
+            from the mlclouds project directory.
         var_meta : str | pd.DataFrame | None
             CSV file or dataframe containing meta data for all NSRDB variables.
             Defaults to the NSRDB var meta csv in git repo.
@@ -76,7 +78,8 @@ class MLCloudsFill:
                 self._fill_all
             )
         )
-        self._phygnn_model = MLCloudsModel.load(model_path)
+
+        self._phygnn_model = MultiCloudsModel.load(**model_path)
 
         if self.h5_source is not None:
             with MultiFileNSRDB(self.h5_source) as res:
