@@ -125,11 +125,16 @@ def main(ctx, config, verbose):
 
     To do a standard CONUS / Full Disc run use the following commands::
 
-        $ config='{"year": <year>, "out_dir": <out_dir>}'
-        $ python -m nsrdb.cli create-configs -c config
+        $ CONFIG='{"year": <year>, "out_dir": <out_dir>}'
+
+        $ python -m nsrdb.cli create-configs -c ${CONFIG}
+
         $ cd <out_dir>
+
         $ bash run.sh (run this until all main steps are complete)
+
         $ cd post_proc
+
         $ bash run.sh (run this until all post-proc steps are complete)
 
     See the help pages of the module CLIs for more details on the config files
@@ -248,16 +253,17 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
 @click.option(
     '--run_type',
     '-r',
-    default='full',
+    default='surfrad',
     type=str,
-    help="""Run type to create configs for. Can be "full" (generates all config
-    and pipline files for the given year, including all domain main runs,
-    blending, aggregation, and collection), or "main" (for standard run without
-    post-processing, with data-model, ml-cloud-fill, all-sky, and
-    collect-data-model), "aggregate" (for aggregating post-2018 data to
-    pre-2018 resolution), "blend" (for blending east and west domains into a
-    single domain), or "post" (for all blending / aggregation / collection for
-    a given year)""",
+    help="""Run type to create configs for. Can be "surfrad" (just writes a
+    single template config with any provided kwargs replaced, with a surfrad
+    meta file), "full" (generates all config and pipline files for the given
+    year, including all domain main runs, blending, aggregation, and
+    collection), or "main" (for standard run without post-processing, with
+    data-model, ml-cloud-fill, all-sky, and collect-data-model), "aggregate"
+    (for aggregating post-2018 data to pre-2018 resolution), "blend" (for
+    blending east and west domains into a single domain), or "post" (for all
+    blending / aggregation / collection for a given year)""",
 )
 @click.option(
     '--all_domains',
@@ -277,19 +283,22 @@ def pipeline(ctx, config, cancel, monitor, background, verbose):
 )
 @click.pass_context
 def create_configs(
-    ctx, config, run_type='full', all_domains=False, collect=False
+    ctx, config, run_type='surfrad', all_domains=False, collect=False
 ):
     """Create config files for standard NSRDB runs using config templates.
 
-    Examples
-    --------
-    $ python -m nsrdb.cli create-configs -c '{"year": 2020, "out_dir": "./"}'
+    To generate all full_disc / conus run directories for east /
+    west regions, each with main routine config files contained run the
+    following::
 
-    The above will generate all full_disc / conus run directories for east /
-    west regions, each with main routine config files contained. Additionally,
-    conus / full_disc blend configs, aggregation config, collection config, and
-    a post processing pipeline config with all these steps will be written to a
-    "post_proc" directory so that post-processing can be run simply with::
+    $ CONFIG='{"year": 2020, "out_dir": "./"}'
+
+    $ python -m nsrdb.cli create-configs --run_type full -c ${CONFIG}
+
+    Additionally, conus / full_disc blend configs, aggregation config,
+    collection config, and a post processing pipeline config with all these
+    steps will be written to a "post_proc" directory so that post-processing
+    can be run simply with::
 
     $ python -m nsrdb.cli pipeline -c config_pipeline_post.json
     """
@@ -297,7 +306,7 @@ def create_configs(
     ctx.ensure_object(dict)
     func_name = f'collect_{run_type}' if collect else run_type
     func_name = 'main_all' if run_type == 'main' and all_domains else func_name
-    valid_types = ['full', 'main', 'aggregate', 'blend', 'post']
+    valid_types = ['full', 'main', 'aggregate', 'blend', 'post', 'surfrad']
     msg = (
         f'Received unknown "run_type" {run_type}. Accepted values are '
         f'{valid_types}'
@@ -436,6 +445,7 @@ def ml_cloud_fill(ctx, config, verbose=False, pipeline_step=None):
                 "col_chunk": 10000,
                 "fill_all": false,
                 "max_workers": 4
+                "model_path": ...
             }
         }
 
@@ -659,7 +669,7 @@ def collect_data_model(ctx, config, verbose=False, pipeline_step=None):
     '-c',
     type=CONFIG_TYPE,
     required=True,
-    help='Path to config file or dict with kwargs for NSRDB.all_sky()',
+    help='Path to config file or dict with kwargs for NSRDB.collect_final()',
 )
 @click.option(
     '-v',
@@ -690,6 +700,34 @@ def collect_final(ctx, config, verbose=False, pipeline_step=None):
             config=config,
             log_id=log_id,
         )
+
+
+@main.command()
+@click.option(
+    '--config',
+    '-c',
+    type=CONFIG_TYPE,
+    required=True,
+    help='Path to config file or dict with kwargs for NSRDB.collect_daily()',
+)
+@click.option(
+    '-v',
+    '--verbose',
+    is_flag=True,
+    help='Flag to turn on debug logging. Default is False.',
+)
+@click.pass_context
+def collect_daily(ctx, config, verbose=False, pipeline_step=None):
+    """Collect daily files into a final file."""
+
+    BaseCLI.kickoff_single(
+        ctx=ctx,
+        module_name=ModuleName.COLLECT_DAILY,
+        func=Collector.collect_daily,
+        config=config,
+        verbose=verbose,
+        pipeline_step=pipeline_step,
+    )
 
 
 @main.command()
@@ -1045,6 +1083,7 @@ Pipeline.COMMANDS[ModuleName.BLEND] = blend
 Pipeline.COMMANDS[ModuleName.AGGREGATE] = aggregate
 Pipeline.COMMANDS[ModuleName.COLLECT_DATA_MODEL] = collect_data_model
 Pipeline.COMMANDS[ModuleName.COLLECT_FINAL] = collect_final
+Pipeline.COMMANDS[ModuleName.COLLECT_DAILY] = collect_daily
 Pipeline.COMMANDS[ModuleName.TMY] = tmy
 Pipeline.COMMANDS[ModuleName.COLLECT_BLEND] = collect_blend
 Pipeline.COMMANDS[ModuleName.COLLECT_AGGREGATE] = collect_aggregate

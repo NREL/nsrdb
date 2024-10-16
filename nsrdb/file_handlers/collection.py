@@ -664,7 +664,7 @@ class Collector:
     def collect_daily(
         cls,
         collect_dir,
-        f_out,
+        fn_out,
         dsets,
         sites=None,
         n_writes=1,
@@ -687,7 +687,7 @@ class Collector:
         collect_dir : str
             Directory of chunked files. Each file should be one variable for
             one day.
-        f_out : str
+        fn_out : str
             File path of final output file.
         dsets : list | str
             List of datasets / variable names to collect. Can also be a single
@@ -720,7 +720,9 @@ class Collector:
                 json.loads(dsets) if '[' in dsets and ']' in dsets else [dsets]
             )
 
-        logger.info('Collecting data from {} to {}'.format(collect_dir, f_out))
+        logger.info(
+            'Collecting data from {} to {}'.format(collect_dir, fn_out)
+        )
 
         for i, dset in enumerate(dsets):
             logger.debug('Collecting dataset "{}".'.format(dset))
@@ -747,11 +749,11 @@ class Collector:
                     logger.error(e)
                     raise ValueError(e)
 
-                if not os.path.exists(f_out):
+                if not os.path.exists(fn_out):
                     time_index, meta, _ = collector._get_collection_attrs(
                         collector.flist, collect_dir, sites=sites
                     )
-                    collector._init_collected_h5(f_out, time_index, meta)
+                    collector._init_collected_h5(fn_out, time_index, meta)
 
                 flist_chunks = np.array_split(
                     np.array(collector.flist), n_writes
@@ -767,7 +769,7 @@ class Collector:
                     collector.collect_flist(
                         flist,
                         collect_dir,
-                        f_out,
+                        fn_out,
                         dset,
                         sites=sites,
                         var_meta=var_meta,

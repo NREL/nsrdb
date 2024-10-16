@@ -59,8 +59,7 @@ class Surfrad(Resource):
         )
         n_steps = len(np.where(one_hr_mask)[0])
         window = int(np.ceil((window_minutes / 60) * n_steps))
-
-        return window
+        return np.max((1, window))
 
     @property
     def native_df(self):

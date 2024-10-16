@@ -49,6 +49,12 @@ The NSRDB `Data Model
 aggregation framework that sources, processes, and prepares data for input to
 All-Sky.
 
+The MLClouds Model
+==================
+The `MLClouds Model <https://github.com/NREL/mlclouds.git>`_ is used to predict
+missing cloud properties (a.k.a. Gap Fill). The NSRDB interface with MLClouds
+can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/gap_fill>`_.
+
 Installation
 ============
 

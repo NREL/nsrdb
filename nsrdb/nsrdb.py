@@ -762,10 +762,10 @@ class NSRDB:
     @classmethod
     def collect_final(
         cls,
-        collect_dir,
         out_dir,
         year,
         grid,
+        collect_dir=None,
         freq='5min',
         var_meta=None,
         i_fname=None,
@@ -777,8 +777,6 @@ class NSRDB:
 
         Parameters
         ----------
-        collect_dir : str
-            Directory with chunked files to be collected.
         out_dir : str
             Project directory.
         year : int | str
@@ -786,6 +784,8 @@ class NSRDB:
         grid : str
             Final/full NSRDB grid file. The first column must be the NSRDB
             site gid's.
+        collect_dir : str
+            Directory with chunked files to be collected.
         freq : str
             Final desired NSRDB temporal frequency.
         var_meta : str | pd.DataFrame | None
@@ -804,7 +804,7 @@ class NSRDB:
             Logging level (DEBUG, INFO). If None, no logging will be
             initialized.
         """
-
+        collect_dir = collect_dir or os.path.join(out_dir, 'collect')
         nsrdb = cls(out_dir, year, grid, freq=freq, var_meta=var_meta)
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
         ti = nsrdb._parse_data_model_output_ti(nsrdb._daily_dir, freq)
@@ -979,7 +979,12 @@ class NSRDB:
         h5_source = os.path.join(nsrdb._daily_dir, str(date) + '_*.h5')
         nsrdb._init_loggers(log_file=log_file, log_level=log_level)
 
-        is_merra = MLCloudsFill.merra_clouds(h5_source, var_meta=var_meta)
+        is_merra = MLCloudsFill.merra_clouds(
+            h5_source,
+            var_meta=var_meta,
+            model_path=model_path,
+            fill_all=fill_all,
+        )
 
         if not is_merra:
             MLCloudsFill.run(
