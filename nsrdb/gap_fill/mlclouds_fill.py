@@ -500,7 +500,7 @@ class MLCloudsFill:
             'cld_press_acha',
             'cloud_type',
         ]
-        for dset in cld_dsets:
+        for dset in [ds for ds in cld_dsets if ds in self.dset_map]:
             src_fpath = self.dset_map[dset]
             src_dir, f_name = os.path.split(src_fpath)
             dst_dir = os.path.join(src_dir, 'raw')

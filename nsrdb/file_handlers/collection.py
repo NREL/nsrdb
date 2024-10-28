@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from concurrent.futures import as_completed
+from warnings import warn
 
 import numpy as np
 import pandas as pd
@@ -207,7 +208,16 @@ class Collector:
         row_slice = slice(np.min(row_loc), np.max(row_loc) + 1)
         col_slice = slice(np.min(col_loc), np.max(col_loc) + 1)
 
-        return row_slice, col_slice
+        if col_slice.stop - col_slice.start != len(col_loc):
+            msg = (
+                'Indices for coordinates are not ascending and / or '
+                'contiguous.'
+            )
+            logger.warning(msg)
+            warn(msg)
+            col_slice = col_loc
+
+        return row_slice, col_loc
 
     @staticmethod
     def get_data(
