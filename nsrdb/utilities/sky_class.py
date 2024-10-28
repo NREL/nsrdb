@@ -108,7 +108,11 @@ class SkyClass:
         self._sza_lim = sza_lim
 
         self._handle_surf = Surfrad(self._fp_surf)
-        Handler = MultiFileResource if '*' in self._fp_nsrdb else Resource
+        Handler = (
+            MultiFileResource
+            if '*' in self._fp_nsrdb or isinstance(self._fp_nsrdb, list)
+            else Resource
+        )
         self._handle_nsrdb = Handler(self._fp_nsrdb)
 
     def __enter__(self):
@@ -298,10 +302,13 @@ class SkyClass:
         """Add NSRDB and SURFRAD ghi and dni data to a DataFrame."""
         df = df.reindex(self.nsrdb_time_index)
         assert len(df) == len(self.nsrdb_time_index)
-        ti_deltas = self.nsrdb_time_index - np.roll(self.nsrdb_time_index, 1)
+        ti_deltas = (
+            self.nsrdb_time_index.values[1:]
+            - self.nsrdb_time_index.values[:-1]
+        )
         ti_deltas_minutes = pd.Series(ti_deltas).dt.seconds / 60
         ti_delta_minutes = int(mode(ti_deltas_minutes)[0])
-        freq = '{}T'.format(ti_delta_minutes)
+        freq = '{}min'.format(ti_delta_minutes)
         df = df.drop(['ghi_ground', 'clear'], axis=1)
         surf_df = self.surfrad.get_df(
             dt_out=freq, window_minutes=self._window_min
