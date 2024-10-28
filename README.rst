@@ -95,6 +95,11 @@ NSRDB Versions
       - Effective Date
       - Data Years*
       - Notes
+    * - 4.1.1
+      - 10/28/24
+      - None
+      - Integration with extended MLClouds models. 
+        Extended models can perform both cloud type and cloud property predictions.
     * - 4.1.0
       - 7/9/24
       - None
