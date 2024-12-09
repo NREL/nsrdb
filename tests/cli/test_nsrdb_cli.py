@@ -8,6 +8,7 @@ import traceback
 from glob import glob
 
 import pytest
+from mlclouds import CPROP_MODEL_FPATH, MODEL_FPATH
 from rex import safe_json_load
 
 from nsrdb import NSRDB, TESTDATADIR, cli
@@ -34,6 +35,14 @@ DATA_MODEL_CONFIG = {
     'max_workers_regrid': 1,
     'dist_lim': 1.0,
 }
+REDUCED_CLOUD_VARS = [
+    'cld_opd_dcomp',
+    'cld_reff_dcomp',
+    'cld_press_acha',
+    'temp_3_75um_nom',
+    'temp_11_0um_nom',
+    'refl_0_65um_nom',
+]
 
 
 @pytest.fixture(scope='function')
@@ -120,6 +129,73 @@ def modern_config(tmpdir_factory):
             'fill_all': False,
             'max_workers': 1,
             'col_chunk': 100,
+            'model_path': {'cloud_prop_model_path': CPROP_MODEL_FPATH},
+        },
+        'daily-all-sky': {},
+        'collect-data-model': {
+            'max_workers': 1,
+            'final': True,
+            'final_file_name': 'test',
+        },
+        'execution_control': {'option': 'local'},
+    }
+    with open(config_file, 'w') as f:
+        f.write(json.dumps(config_dict))
+
+    with open(pipeline_file, 'w') as f:
+        f.write(
+            json.dumps(
+                {
+                    'logging': {'log_file': None, 'log_level': 'INFO'},
+                    'pipeline': [
+                        {'data-model': config_file},
+                        {'ml-cloud-fill': config_file},
+                        {'daily-all-sky': config_file},
+                        {'collect-data-model': config_file},
+                    ],
+                }
+            )
+        )
+    return config_file, pipeline_file
+
+
+@pytest.fixture(scope='function')
+def modern_config_no_cloud_type(tmpdir_factory):
+    """Write configs for cli calls for use with extended mlclouds model with
+    cloud type predictions"""
+    td = str(tmpdir_factory.mktemp('tmp'))
+    config_file = os.path.join(td, 'config_nsrdb.json')
+    pipeline_file = os.path.join(td, 'config_pipeline.json')
+    var_list = (
+        list(DataModel.ALL_SKY_VARS)
+        + list(DataModel.MERRA_VARS)
+        + REDUCED_CLOUD_VARS
+    )
+    var_list.pop(var_list.index('cloud_type'))
+    factory_kwargs = dict.fromkeys(REDUCED_CLOUD_VARS, kwargs)
+    factory_kwargs['surface_albedo'] = {
+        'source_dir': os.path.dirname(ALBEDO_FILE),
+        'cache_file': False,
+    }
+    config_dict = {
+        'direct': {
+            'out_dir': td,
+            'year': 2013,
+            'grid': NSRDB_GRID,
+            'freq': '30min',
+            'var_meta': VAR_META,
+            'var_list': var_list,
+        },
+        'data-model': {
+            **DATA_MODEL_CONFIG,
+            'mlclouds': True,
+            'factory_kwargs': factory_kwargs,
+        },
+        'ml-cloud-fill': {
+            'fill_all': False,
+            'max_workers': 1,
+            'col_chunk': 100,
+            'model_path': MODEL_FPATH,
         },
         'daily-all-sky': {},
         'collect-data-model': {
@@ -414,10 +490,17 @@ def test_cli_steps(runner, modern_config):
         assert all('successful' in str(vals) for vals in sd.values())
 
 
-def test_cli_pipeline(runner, modern_config):
+@pytest.mark.parametrize(
+    ('test_config', 'cloud_vars'),
+    [
+        ('modern_config', DataModel.MLCLOUDS_VARS),
+        ('modern_config_no_cloud_type', REDUCED_CLOUD_VARS),
+    ],
+)
+def test_cli_pipeline(runner, test_config, cloud_vars, request):
     """Test cli for pipeline, run using cli.pipeline"""
 
-    config_file, pipeline_file = modern_config
+    config_file, pipeline_file = request.getfixturevalue(test_config)
     config = safe_json_load(config_file)
     out_dir = os.path.dirname(pipeline_file)
     n_days = len(config['data-model']['doy_range']) - 1
@@ -433,7 +516,8 @@ def test_cli_pipeline(runner, modern_config):
     assert len(glob(out_dir + '/logs/ml_cloud_fill/*.log')) == n_days
 
     # specific_humidity and cloud_fill_flag not included in ALL_VARS_ML
-    assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(DataModel.ALL_VARS_ML)
+    var_list = config['direct'].get('var_list', DataModel.ALL_VARS_ML)
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 2 + len(var_list)
 
     # all-sky
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])
@@ -441,9 +525,9 @@ def test_cli_pipeline(runner, modern_config):
     assert len(glob(out_dir + '/logs/daily_all_sky/*.log')) == n_days
 
     # specific_humidity not included in OUTS or MLCLOUDS_VARS
-    assert len(glob(f'{out_dir}/daily/*.h5')) == 1 + len(
-        DataModel.MLCLOUDS_VARS
-    ) + sum(len(v) for v in NSRDB.OUTS.values())
+    assert len(glob(f'{out_dir}/daily/*.h5')) == 1 + len(cloud_vars) + sum(
+        len(v) for v in NSRDB.OUTS.values()
+    )
 
     # data collection
     result = runner.invoke(cli.pipeline, ['-c', pipeline_file, '-v'])

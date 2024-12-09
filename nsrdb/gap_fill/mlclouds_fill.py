@@ -745,8 +745,9 @@ class MLCloudsFill:
         filled_data = {}
         for dset, arr in predicted_data.items():
             varobj = VarFactory.get_base_handler(dset, var_meta=self._var_meta)
-            arr = np.maximum(arr, 0.01)
-            arr = np.minimum(arr, varobj.physical_max)
+            if dset != 'cloud_type':
+                arr = np.maximum(arr, 0.01)
+                arr = np.minimum(arr, varobj.physical_max)
 
             cld_data = feature_data[dset]
             if self._fill_all:
@@ -786,8 +787,7 @@ class MLCloudsFill:
 
         return filled_data
 
-    @staticmethod
-    def fill_ctype_press(h5_source, col_slice=slice(None)):
+    def fill_ctype_press(self, h5_source, col_slice=slice(None)):
         """Fill cloud type and pressure using simple temporal nearest neighbor.
 
         Parameters

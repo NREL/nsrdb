@@ -244,16 +244,16 @@ def run_jobs(input_pattern, output_pattern, max_workers=None):
 
     files = glob(input_pattern)
 
-    tasks = [
-        dask.delayed(NasaDataModel.run)(
-            input_file=file, output_pattern=output_pattern
-        )
-        for file in files
-    ]
-
     if max_workers == 1:
-        _ = dask.compute(*tasks, scheduler='single-threaded')
+        for file in files:
+            NasaDataModel.run(input_file=file, output_pattern=output_pattern)
     else:
+        tasks = [
+            dask.delayed(NasaDataModel.run)(
+                input_file=file, output_pattern=output_pattern
+            )
+            for file in files
+        ]
         _ = dask.compute(*tasks, scheduler='threads', num_workers=max_workers)
 
     logger.info('Finished converting %s files.', len(files))

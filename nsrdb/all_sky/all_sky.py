@@ -208,12 +208,13 @@ def all_sky(
         parallel=False,
     )
 
+    Tuuclr = np.minimum(Tuuclr, 1.0)
+
     # Ensure that clearsky irradiance is zero when sun is below horizon
     rest_data.dhi = dark_night(rest_data.dhi, solar_zenith_angle, lim=SZA_LIM)
     rest_data.dni = dark_night(rest_data.dni, solar_zenith_angle, lim=SZA_LIM)
     rest_data.ghi = dark_night(rest_data.ghi, solar_zenith_angle, lim=SZA_LIM)
 
-    # use FARMS to calculate cloudy GHI
     ghi, dni_farmsdni, _ = farms(
         tau=cld_opd_dcomp,
         cloud_type=cloud_type,
