@@ -385,6 +385,7 @@ class CreateConfigs:
         pipeline_config = {'pipeline': []}
         out_dir = os.path.abspath(kwargs.get('out_dir', './'))
         post_proc_dir = os.path.join(out_dir, 'post_proc')
+        kwargs['post_proc_dir'] = kwargs.get('post_proc_dir', post_proc_dir)
         kwargs['main_dir'] = out_dir
 
         if kwargs['year'] > 2018:
@@ -410,6 +411,10 @@ class CreateConfigs:
             if mod_name == 'blend':
                 config['out_dir'] = os.path.join(
                     post_proc_dir, config['run_name']
+                )
+            if mod_name == 'collect-blend':
+                config['collect_dir'] = os.path.join(
+                    post_proc_dir, config['run_name'].replace('_collect', '')
                 )
             cls._write_config(
                 config,
@@ -611,15 +616,20 @@ class CreateConfigs:
 
         config = cls.init_kwargs(kwargs, COLLECT_BLEND_KWARGS)
         config['meta_final'] = cls._get_meta(config, run_type='collect-blend')
-        config['collect_dir'] = cls._get_run_name(config, run_type='blend')
-        config['collect_tag'] = config['collect_dir'].replace('_blend', '')
+        config['collect_dir'] = os.path.join(
+            config['out_dir'],
+            'post_proc',
+            cls._get_run_name(config, run_type='blend'),
+        )
         config['fout'] = os.path.join(
             f'{config["out_dir"]}',
             f'{config["basename"]}_{config["year"]}.h5',
         )
-
         config['run_name'] = cls._get_run_name(
             config, run_type='collect-blend'
+        )
+        config['collect_tag'] = config['run_name'].replace(
+            '_collect_blend', ''
         )
         return config
 

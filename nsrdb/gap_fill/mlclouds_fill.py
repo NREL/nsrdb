@@ -74,7 +74,7 @@ class MLCloudsFill:
             'Initializing MLCloudsFill with model: {}'.format(model_path)
         )
         logger.info(
-            'MLCloudsFill fill filling all cloud properties: {}'.format(
+            'MLCloudsFill filling all cloud properties: {}'.format(
                 self._fill_all
             )
         )
