@@ -140,17 +140,6 @@ class Blender:
         self._meta_west = self._meta_west[west_mask]
         self._meta_east = self._meta_east[east_mask]
 
-        """
-        if len(self._meta_east) < 10:
-            e = 'Eastern meta got totally eliminated by seam mask!'
-            logger.error(e)
-            raise RuntimeError(e)
-        if len(self._meta_west) < 10:
-            e = 'Western meta got totally eliminated by seam mask!'
-            logger.error(e)
-            raise RuntimeError(e)
-        """
-
         west_gid_full = self._meta_west[self._map_col].values.tolist()
         east_gid_full = self._meta_east[self._map_col].values.tolist()
         gid_full_all = list(set(west_gid_full + east_gid_full))

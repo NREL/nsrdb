@@ -356,6 +356,12 @@ class Collector:
             Output (collected) dataset shape
         """
 
+        logger.info(
+            'Getting collection attrs from collect_dir=%s, flist=%s',
+            collect_dir,
+            flist,
+        )
+
         if sort:
             flist = sorted(flist, key=sort_key)
 

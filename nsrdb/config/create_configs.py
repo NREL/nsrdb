@@ -628,9 +628,7 @@ class CreateConfigs:
         config['run_name'] = cls._get_run_name(
             config, run_type='collect-blend'
         )
-        config['collect_tag'] = config['run_name'].replace(
-            '_collect_blend', ''
-        )
+        config['collect_tag'] = f'{config["basename"]}_{config["extent"]}'
         return config
 
     @classmethod
