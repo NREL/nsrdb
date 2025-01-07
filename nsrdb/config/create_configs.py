@@ -10,6 +10,8 @@ import logging
 import os
 import pprint
 
+from mlclouds import LEG_MODEL_FPATH
+
 from nsrdb.aggregation.aggregation import NSRDB_2018
 from nsrdb.config import (
     PIPELINE_CONFIG_TEMPLATE,
@@ -34,7 +36,19 @@ BASE_KWARGS = {
     'meta_dir': DEFAULT_META_DIR,
 }
 
-MAIN_KWARGS = {**BASE_KWARGS, 'extent': 'full', 'satellite': 'east'}
+DEFAULT_MLCLOUDS = {
+    'model_path': LEG_MODEL_FPATH,
+    'col_chunk': 10000,
+    'fill_all': False,
+    'max_workers': 4,
+}
+
+MAIN_KWARGS = {
+    **BASE_KWARGS,
+    'extent': 'full',
+    'satellite': 'east',
+    'ml-cloud-fill': DEFAULT_MLCLOUDS,
+}
 
 SURFRAD_KWARGS = {
     **MAIN_KWARGS,
