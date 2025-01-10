@@ -37,7 +37,7 @@ BASE_KWARGS = {
 }
 
 DEFAULT_MLCLOUDS = {
-    'model_path': LEG_MODEL_FPATH,
+    'model_path': {'cloud_prop_model_path': LEG_MODEL_FPATH},
     'col_chunk': 10000,
     'fill_all': False,
     'max_workers': 4,
@@ -63,7 +63,7 @@ BLEND_KWARGS = {
     'main_dir': '../',
 }
 
-COLLECT_BLEND_KWARGS = {**BASE_KWARGS, 'extent': 'full'}
+COLLECT_BLEND_KWARGS = {**BASE_KWARGS, 'extent': 'full', 'max_workers': 1}
 
 AGG_KWARGS = {
     **BASE_KWARGS,
