@@ -67,7 +67,6 @@ class MerraVar(AncillaryVarHandler):
                 self.file_set,
                 '*{}*'.format(self.next_date_stamp),
             )
-
         return pat
 
     def _get_date_stamp(self, key):
@@ -231,7 +230,14 @@ class MerraVar(AncillaryVarHandler):
                         data = np.where(ctype == 6, 250.0, data)
 
             else:
-                data = f[self.dset_name][:]
+                try:
+                    data = f[self.dset_name][:]
+                except Exception as e:
+                    msg = 'Could not find {} in {}'.format(
+                        self.dset_name, file
+                    )
+                    logger.error(msg)
+                    raise OSError(msg) from e
 
         # make the data a flat 2d array
         data = self._format_2d(data)

@@ -264,7 +264,10 @@ if __name__ == '__main__':
     default_output_pattern += '/{doy}/nacomposite_{timestamp}.nc'
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'input_pattern', type=str, help='File pattern for input_files.'
+        'input_pattern',
+        type=str,
+        help="""File pattern for input_files. e.g.
+             /projects/pxs/nasa_polar/2023/*/*/*.nc""",
     )
     parser.add_argument(
         '-output_pattern',
