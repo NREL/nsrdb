@@ -1,0 +1,27 @@
+nsrdb.blend.blend.Blender
+=========================
+
+.. currentmodule:: nsrdb.blend.blend
+
+.. autoclass:: Blender
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~Blender.blend_dir
+      ~Blender.blend_file
+      ~Blender.run_blend
+      ~Blender.run_full
+   
+   
+
+   
+   
+   
