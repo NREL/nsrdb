@@ -799,8 +799,11 @@ class DataModel:
         if not fns:
             return False, {}
 
-        fns = [fn for fn in fns if fn.lower().startswith('merra')]
+        # if there is more than one source file this should be non-merra data
+        if len(fns) > 1:
+            return False, {}
 
+        fns = [fn for fn in fns if fn.lower().startswith('merra')]
         if len(fns) != 1:
             return False, {}
 
