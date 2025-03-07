@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import psutil
 from farms import ICE_TYPES, WATER_TYPES
-from mlclouds import MODEL_FPATH
+from mlclouds import LEG_MODEL_FPATH
 from mlclouds.model.multi_step import MultiCloudsModel
 from rex import MultiFileNSRDB
 from rex.utilities.execution import SpawnProcessPool
@@ -29,7 +29,10 @@ class MLCloudsFill:
     Use the MLClouds algorithm with phygnn model to fill missing cloud data
     """
 
-    DEFAULT_MODEL = MODEL_FPATH
+    DEFAULT_MODEL = {
+        'cloud_type_model_path': None,
+        'cloud_prop_model_path': LEG_MODEL_FPATH,
+    }
 
     def __init__(
         self, h5_source, fill_all=False, model_path=None, var_meta=None
