@@ -576,7 +576,8 @@ class CloudVarSingleH5(CloudVarSingle):
         solar_shading=True,
         pre_proc_flag=True,
     ):
-        """Extract the cloud data grid for the current timestep.
+        """Extract the cloud data grid for the current timestep. Performs
+        parallax correction and solar shading on raw grid, if requested.
 
         Parameters
         ----------
@@ -937,7 +938,8 @@ class CloudVarSingleNC(CloudVarSingle):
         solar_shading=True,
         pre_proc_flag=True,
     ):
-        """Extract the cloud data grid for the current timestep.
+        """Extract the cloud data grid for the current timestep. Performs
+        parallax correction and solar shading on raw grid, if requested.
 
         Parameters
         ----------
