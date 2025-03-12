@@ -106,7 +106,7 @@ NSRDB Versions
       - Complete CLI refactor.
     * - 4.0.0
       - 5/1/23
-      - GOES: 2022-2023. Meteosat: 2005-2022.
+      - GOES: 1998-2023. Meteosat: 2005-2022.
       - Integrated new FARMS-DNI model.
     * - 3.2.3
       - 4/13/23
