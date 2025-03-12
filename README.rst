@@ -107,7 +107,10 @@ NSRDB Versions
     * - 4.0.0
       - 5/1/23
       - GOES: 1998-2023. Meteosat: 2005-2022.
-      - Integrated new FARMS-DNI model.
+      - Integrated an improved direct normal irradiance model (FARMS-DNI), 
+        described in the paper "Integration of a physics-based direct 
+        normal irradiance (DNI) model to enhance the National Solar 
+        Radiation Database (NSRDB)"
     * - 3.2.3
       - 4/13/23
       - None
