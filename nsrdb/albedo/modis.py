@@ -16,11 +16,16 @@ from nsrdb.albedo.ims import get_dt
 
 logger = logging.getLogger(__name__)
 
+
+HTTP_SERVER = 'e4ftl01.cr.usgs.gov'
 MODIS_NODATA = 32767
 
 # Last year of MODIS data. Any dates after this year will use the data for the
 # appropriate day from this year.
-LAST_YEAR = 2017
+LAST_YEAR = 2021
+
+# Last v6 data year.
+LAST_V6_YEAR = 2017
 
 # First available MODIS data is 3/3/2000.
 FIRST_YEAR = 2000
@@ -150,16 +155,31 @@ class ModisDay:
 
 
 class ModisFileAcquisition:
-    """
-    Class to acquire MODIS data for requested day. Attempts to get data from
-    disk first. If not available the data is downloaded
-    exist it is downloaded.
+    """Class to acquire MODIS data for requested day. Attempts to get data from
+    disk first. If not available the data is downloaded (Not supported
+    currently).
     """
 
-    HTTP_SERVER = 'e4ftl01.cr.usgs.gov'
-    HTTP_FOLDER = '/MOTA/MCD43GF.006/'
-    FILE_PATTERN = 'MCD43GF_wsa_shortwave_{day}_{year}_V006.hdf'
-    # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
+    @property
+    def http_folder(self):
+        """Get MODIS data server folder based on run year. This is different
+        for v6 / v6.1 data."""
+
+        if int(self.year) > LAST_V6_YEAR:
+            return HTTP_SERVER + '/MOTA/MCD43GF.061/'
+        return HTTP_SERVER + '/MOTA/MCD43GF.006/'
+
+    @property
+    def file_pattern(self):
+        """Get MODIS data file pattern based on run year. The run year
+        determines whether v6 or v6.1 should be used.
+
+        Example file name: MCD43GF_wsa_shortwave_033_2010_v061.hdf
+        """
+
+        if int(self.year) > LAST_V6_YEAR:
+            return 'MCD43GF_wsa_shortwave_{doy}_{year}_V061.hdf'
+        return 'MCD43GF_wsa_shortwave_{doy}_{year}_V006.hdf'
 
     @classmethod
     def get_file(cls, date, path):
@@ -188,9 +208,9 @@ class ModisFileAcquisition:
         else:
             # Download it
             logger.info(
-                f'{mfa.filename} not found on disk, attempting to ' 'download'
+                f'{mfa.filename} not found on disk, attempting to download.'
             )
-            mfa._download()
+            mfa._download_data()
         return os.path.join(mfa.path, mfa.filename)
 
     def __init__(self, date, path):
@@ -247,20 +267,30 @@ class ModisFileAcquisition:
 
         self.path = path
 
-        # Extract day as day of year (e.g. 1-366), left pad with 0
-        self.day = str(self.date.timetuple().tm_yday).zfill(3)
         self.year = str(self.date.year)
+        self.month = str(self.date.month).zfill(2)
+        self.day = str(self.date.day).zfill(2)
+        self.doy = str(self.date.timetuple().tm_yday).zfill(3)
 
         # Example file name: MCD43GF_wsa_shortwave_033_2010.hdf
-        self.filename = self.FILE_PATTERN.format(day=self.day, year=self.year)
+        self.filename = self.file_pattern.format(doy=self.doy, year=self.year)
 
-    @staticmethod
-    def _download():
-        """
-        Download Ver 6 MODIS hdf file from server
-        """
-        # Example: https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006/2012.01.15/
-        #                  MCD43GF_wsa_shortwave_015_2012_V006.hdf
-        msg = 'Automatic downloading of MODIS data is currently not supported.'
-        logger.exception(msg)
-        raise NotImplementedError(msg)
+    def _download_data(self):
+        """Download MODIS hdf file from server"""
+
+        cmd = 'wget --load-cookies ~/.urs_cookies --save-cookies '
+        cmd += '~/.urs_cookies --keep-session-cookies -O "{outfile}" "{url}"'
+
+        url = self.http_folder + f'{self.year}.{self.month}.{self.day}/'
+        url += self.filename
+        outfile = self.path + self.filename
+
+        if not os.path.isdir(self.path):
+            logger.info('Making dir {}'.format(self.path))
+            os.mkdir(self.path)
+
+        if not os.path.exists(outfile):
+            day_cmd = cmd.format(outfile=outfile, url=url)
+            logger.info(f'Running: {day_cmd}')
+            os.system(day_cmd)
+            logger.info(f'Finished downloading {self.filename}')

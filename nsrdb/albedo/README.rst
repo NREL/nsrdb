@@ -28,6 +28,6 @@ The processing of surface albedo was updated in February 2020 . The new process 
 Downloading MODIS data
 -----------------------
 
-The current MODIS data requires a free `Earthdata <https://wiki.earthdata.nasa.gov/display/EL/Earthdata+Login+Home>`_ login account and must be downloaded manually. Files are available at the Earthdata `Data Pool <https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.006>`_. The albedo processing requires the shortwave, white-sky albedo datasets, which have the filename format `MCD43GF_wsa_shortwave_113_2017_V006.hdf`.
+The current MODIS data requires a free `Earthdata <https://wiki.earthdata.nasa.gov/display/EL/Earthdata+Login+Home>`_ login account and must be downloaded manually. Files are available at the Earthdata `Data Pool <https://e4ftl01.cr.usgs.gov/MOTA/MCD43GF.061>`_. The albedo processing requires the shortwave, white-sky albedo datasets, which have the filename format `MCD43GF_wsa_shortwave_113_2018_V061.hdf`.
 
-`Directions <https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget>`_ are available to download the MODIS data via curl and wget. Additionally, the provided Python script `modis_v6_download.py` can be used to automate downloading MODIS data after the `.netrc` and `.urs_cookies` files are setup per the directions above.
+`Directions <https://urs.earthdata.nasa.gov/documentation/for_users/data_access/curl_and_wget>`_ are available to download the MODIS data via curl and wget. Additionally, the provided Python script `modis_v6.1_download.py` can be used to automate downloading MODIS data after the `.netrc` and `.urs_cookies` files are setup per the directions above.
