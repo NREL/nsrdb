@@ -41,15 +41,15 @@ def test_version_1_3_date_shift():
     """
     d = get_dt(2014, 335)
     ifa = ims.ImsFileAcquisition(d, '.')
-    assert ifa._pfilename == 'ims2014335_4km_v1.2.asc'
+    assert ifa._pfilename == 'ims2014335_00UTC_4km_v1.2.asc'
 
     d = get_dt(2014, 336)
     ifa = ims.ImsFileAcquisition(d, '.')
-    assert ifa._pfilename == 'ims2014337_1km_v1.3.asc'
+    assert ifa._pfilename == 'ims2014337_00UTC_1km_v1.3.asc'
 
     d = get_dt(2014, 365)
     ifa = ims.ImsFileAcquisition(d, '.')
-    assert ifa._pfilename == 'ims2015001_1km_v1.3.asc'
+    assert ifa._pfilename == 'ims2015001_00UTC_1km_v1.3.asc'
 
 
 def test_ims_res():
