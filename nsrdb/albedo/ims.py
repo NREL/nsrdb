@@ -432,8 +432,8 @@ class ImsGapFill:
 
 class ImsFileAcquisition:
     """
-    Class to IMS data file for requested day. Attempts to get data from
-    disk first. If not on disk the data is downloaded.
+    Class to download IMS data file for requested day. Attempts to get data
+    from disk first. If not on disk the data is downloaded.
 
     Files are acquired and loaded by calling self.get_file() after class is
     initialized. ImsDataNotFoundError is raised if there is any issue obtaining
@@ -444,7 +444,7 @@ class ImsFileAcquisition:
     """
 
     # Example file name: ims2015010_4km_v1.3.asc
-    FILE_PATTERN = 'ims{year}{day}_{res}_{ver}.asc'
+    FILE_PATTERN = 'ims{year}{day}_00UTC_{res}_{ver}.asc'
 
     EARLIEST_4KM = get_dt(2004, 55)
     EARLIEST_1KM = get_dt(2014, 336)
@@ -584,7 +584,7 @@ class ImsFileAcquisition:
         while True:
             try:
                 ftp = ftplib.FTP(FTP_SERVER)
-                ftp.login()
+                ftp.login('anonymous', 'email_address')
                 ftp.cwd(ftp_path)
                 rfiles = []
                 ftp.retrlines('LIST', rfiles.append)
