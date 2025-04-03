@@ -8,6 +8,7 @@ from warnings import warn
 import numpy as np
 import pandas as pd
 from rex import init_logger
+from scipy.spatial import KDTree
 
 from nsrdb.data_model import VarFactory
 from nsrdb.file_handlers.outputs import Outputs
@@ -59,6 +60,7 @@ class Blender:
         self._west_fpath = west_fpath
         self._map_col = map_col
         self._lon_seam = lon_seam
+        self._meta_out_tree = None
 
         self._meta_out = self._parse_meta_file(meta_out)
         self._meta_east = self._parse_meta_file(east_fpath)
@@ -127,21 +129,43 @@ class Blender:
 
         return meta_out
 
+    @property
+    def out_meta_tree(self):
+        """Get KDTree for blended output meta"""
+        if self._out_meta_tree is None:
+            self._out_meta_tree = KDTree(
+                self._out_meta[['latitude', 'longitude']].values
+            )
+        return self._out_meta_tree
+
+    def check_map_col(self, meta):
+        """Check if given meta has a column which maps to the full output meta.
+        If not add this using queries to a KDTree."""
+        if self._map_col not in meta:
+            msg = (
+                'gid mapping column not found in given meta. Will build '
+                'and query a KDTree instead. This might take some time.'
+            )
+            logger.warning(msg)
+            warn(msg)
+            _, gids = self.out_meta_tree.query(
+                meta[['latitude', 'longitude']].values
+            )
+            meta[self._map_col] = gids
+        return meta
+
     def _parse_blended_meta(self):
         """Check meta dfs and reduce to active blended source extents."""
-
-        emsg = 'Source meta data needs mapping col: "{}"'.format(self._map_col)
-        assert self._map_col in self._meta_west, emsg
-        assert self._map_col in self._meta_east, emsg
 
         west_mask = self._meta_west['longitude'] < self._lon_seam
         east_mask = self._meta_east['longitude'] >= self._lon_seam
 
-        self._meta_west = self._meta_west[west_mask]
-        self._meta_east = self._meta_east[east_mask]
+        self._meta_west = self.check_map_col(self._meta_west[west_mask])
+        self._meta_east = self.check_map_col(self._meta_east[east_mask])
 
-        west_gid_full = self._meta_west[self._map_col].values.tolist()
-        east_gid_full = self._meta_east[self._map_col].values.tolist()
+        west_gid_full = self._meta_west[self._map_col].values.to_list()
+        east_gid_full = self._meta_east[self._map_col].values.to_list()
+
         gid_full_all = list(set(west_gid_full + east_gid_full))
 
         self._check_sequential(
@@ -329,7 +353,10 @@ class Blender:
         chunk_size=100000,
     ):
         """Initialize and run the blender using explicit source and output
-        filepaths.
+        filepaths. This initializes a "blended" output file with the meta given
+        by ``meta_out``, and then imputes east and west data into this output
+        file using the indices in ``map_col``. This might be more appropriately
+        called "stitching".
 
         Parameters
         ----------
