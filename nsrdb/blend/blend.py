@@ -130,25 +130,26 @@ class Blender:
         return meta_out
 
     @property
-    def out_meta_tree(self):
+    def meta_out_tree(self):
         """Get KDTree for blended output meta"""
-        if self._out_meta_tree is None:
-            self._out_meta_tree = KDTree(
-                self._out_meta[['latitude', 'longitude']].values
+        if self._meta_out_tree is None:
+            self._meta_out_tree = KDTree(
+                self._meta_out[['latitude', 'longitude']].values
             )
-        return self._out_meta_tree
+        return self._meta_out_tree
 
     def check_map_col(self, meta):
         """Check if given meta has a column which maps to the full output meta.
         If not add this using queries to a KDTree."""
         if self._map_col not in meta:
             msg = (
-                'gid mapping column not found in given meta. Will build '
-                'and query a KDTree instead. This might take some time.'
+                f'gid mapping column ({self._map_col}) not found in given '
+                'meta. Will build and query a KDTree instead. This might take '
+                'some time.'
             )
             logger.warning(msg)
             warn(msg)
-            _, gids = self.out_meta_tree.query(
+            _, gids = self.meta_out_tree.query(
                 meta[['latitude', 'longitude']].values
             )
             meta[self._map_col] = gids
@@ -163,8 +164,8 @@ class Blender:
         self._meta_west = self.check_map_col(self._meta_west[west_mask])
         self._meta_east = self.check_map_col(self._meta_east[east_mask])
 
-        west_gid_full = self._meta_west[self._map_col].values.to_list()
-        east_gid_full = self._meta_east[self._map_col].values.to_list()
+        west_gid_full = self._meta_west[self._map_col].values.tolist()
+        east_gid_full = self._meta_east[self._map_col].values.tolist()
 
         gid_full_all = list(set(west_gid_full + east_gid_full))
 

@@ -9,21 +9,26 @@ import tempfile
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from nsrdb.blend.blend import Blender
 from nsrdb.file_handlers.outputs import Outputs
 from nsrdb.utilities.file_utils import pd_date_range
 
 
-def test_blend(lon_seam=0.25):
-    """Test the blend function"""
+@pytest.mark.parametrize('include_map_col', [True, False])
+def test_blend(include_map_col, lon_seam=0.25):
+    """Test the blend function, with and without map column"""
     meta_out = pd.DataFrame(
         {'longitude': np.linspace(-100, 100, 500), 'latitude': np.zeros(500)}
     )
     meta_east = meta_out.copy()
     meta_west = meta_out.copy()
-    meta_east['gid_full_map'] = np.arange(len(meta_out))
-    meta_west['gid_full_map'] = np.arange(len(meta_out))
+
+    if include_map_col:
+        meta_east['gid_full_map'] = np.arange(len(meta_out))
+        meta_west['gid_full_map'] = np.arange(len(meta_out))
+
     time_index = pd_date_range(
         '20190101', '20200101', freq='1h', closed='left'
     )

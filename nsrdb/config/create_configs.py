@@ -70,7 +70,7 @@ AGG_KWARGS = {
     'full_spatial': '2km',
     'conus_spatial': '2km',
     'final_spatial': '4km',
-    'data_dir': './',
+    'data_dir': './post_proc',
     'full_freq': '10min',
     'conus_freq': '5min',
     'final_freq': '30min',

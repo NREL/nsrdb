@@ -24,8 +24,8 @@ MODIS_NODATA = 32767
 # appropriate day from this year.
 LAST_YEAR = 2021
 
-# Last v6 data year.
-LAST_V6_YEAR = 2017
+# Last v6 data year to use.
+LAST_V6_YEAR = 2012
 
 # First available MODIS data is 3/3/2000.
 FIRST_YEAR = 2000
