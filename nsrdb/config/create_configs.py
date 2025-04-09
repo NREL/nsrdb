@@ -687,8 +687,9 @@ class CreateConfigs:
         config['meta_final'] = cls._get_meta(
             config, run_type='collect-aggregate'
         )
-        config['collect_dir'] = (
-            f'nsrdb_{config["final_spatial"]}_{config["final_freq"]}'
+        config['collect_dir'] = os.path.join(
+            config['post_proc_dir'],
+            f'nsrdb_{config["final_spatial"]}_{config["final_freq"]}',
         )
         config['collect_tag'] = f'{config["basename"]}_'
         config['fout'] = os.path.join(
