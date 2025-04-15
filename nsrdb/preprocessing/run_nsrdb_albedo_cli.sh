@@ -45,7 +45,7 @@ fi
 if [ $YEAR -gt 2021 ]; then
     echo Setting modis source to 2021
     MPATH=/kfs2/projects/pxs/ancillary/albedo/modis/v6.1/source_2021/
-elif [ $YEAR -gt 2017 ]; then
+elif [ $YEAR -gt 2012 ]; then
     echo Setting modis source to v6.1 for ${YEAR}
     MPATH=/kfs2/projects/pxs/ancillary/albedo/modis/v6.1/source_${YEAR}/
 elif [ $YEAR -lt 2001 ]; then
