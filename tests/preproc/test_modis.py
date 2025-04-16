@@ -83,7 +83,7 @@ def test_last_year():
 
     with tempfile.TemporaryDirectory() as td:
         mfa = modis.ModisFileAcquisition(d1, td)
-        assert mfa.filename == 'MCD43GF_wsa_shortwave_233_2016_V006.hdf'
+        assert mfa.filename == 'MCD43GF_wsa_shortwave_233_2016_V061.hdf'
 
         mfa = modis.ModisFileAcquisition(d2, td)
         assert (
