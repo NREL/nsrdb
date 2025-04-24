@@ -32,9 +32,9 @@ fi
 
 if [ -z $3 ]; then
     if [ $ISLEAP ]; then
-        ENDDAY=367
+        ENDDAY=365
     else
-        ENDDAY=366
+        ENDDAY=364
     fi
 else
     ENDDAY=$3
@@ -81,7 +81,7 @@ MEPATH=/kfs2/projects/pxs/ancillary/merra/
 # --- Check for existing albedo h5 files and process if missing
 START=${YEAR}${STARTDAY}
 END=${YEAR}${ENDDAY}
-#echo Processing albedo from $START to $END
+echo Processing albedo from $START to $END
 
 for DAY in $(seq -f "%03g"  $STARTDAY $ENDDAY)
 do
