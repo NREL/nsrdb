@@ -240,9 +240,10 @@ class MetaManager:
         meta.loc[east_mask, 'source'] = 'east'
 
         # conus includes all of US except for Alaska and Hawaii
-        conus_mask = (meta.country == 'United States') & ~meta.state.isin(
-            ['Alaska', 'Hawaii']
-        )
+        conus_mask = (meta.country == 'United States') & ~meta.state.isin([
+            'Alaska',
+            'Hawaii',
+        ])
         meta.loc[conus_mask, 'source'] = 'conus'
 
         # made a line specific to the observed 2018 GOES East extreme angle
@@ -1298,8 +1299,10 @@ class Manager:
             w = 1
 
         elif final_tres == '30min':
-            if tres in ('15min', '10min'):
+            if tres == '15min':
                 w = 3
+            elif tres == '10min':
+                w = 4
             elif tres == '5min':
                 w = 7
             else:

@@ -159,12 +159,12 @@ class BaseCLI:
             warn(msg)
 
         # replace any args with higher priority entries in command dict
-        exec_kwargs.update(
-            {k: v for k, v in cmd_args.items() if k in exec_kwargs}
-        )
-        direct_args.update(
-            {k: v for k, v in cmd_args.items() if k in direct_args}
-        )
+        exec_kwargs.update({
+            k: v for k, v in cmd_args.items() if k in exec_kwargs
+        })
+        direct_args.update({
+            k: v for k, v in cmd_args.items() if k in direct_args
+        })
         exec_kwargs['stdout_path'] = os.path.join(status_dir, 'stdout/')
         logger.debug(
             f'Found execution kwargs {exec_kwargs} for {module_name} module'
