@@ -1,0 +1,23 @@
+{
+    "tmy": {
+        "n_nodes": 10
+    },
+    "collect-tmy": {"purge_chunks": true},
+    "direct": {
+        "tmy_types": ["tmy", "tgy", "tdy"],
+        "nsrdb_base_fp": "/datasets/NSRDB/current/nsrdb_{}.h5",
+        "years": [
+            1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+            2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
+            2020, 2021, 2022, 2023, 2024
+        ],
+        "out_dir": "./",
+        "fn_out": "tmy_1998_2024.h5"
+    },
+    "execution_control": {
+        "option": "kestrel",
+        "memory": 234,
+        "walltime": 10,
+        "alloc": "pxs"
+    }
+}
