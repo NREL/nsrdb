@@ -27,7 +27,7 @@ classifiers=[
 ]
 dependencies = [
   "netCDF4>=1.6,<1.7",
-  "matplotlib>=3.9.0",
+  "matplotlib>=3.10.0",
   "NREL-gaps>=0.8.0,<0.9",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.6",
