@@ -28,7 +28,6 @@ classifiers=[
 dependencies = [
   "netCDF4>=1.6,<1.7",
   "matplotlib>=3.9.0",
-  "fonttools>=4.55.0",
   "NREL-gaps>=0.8.0,<0.9",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.6",
@@ -46,8 +45,8 @@ dev = [
 ]
 doc = [
   "sphinx>=7.4.7",
-  "sphinx_rtd_theme>=2.0",
-  "sphinx-click>=4.0",
+  "sphinx_rtd_theme>=3.0.2",
+  "sphinx-click>=5.2.1",
 ]
 test = [
   "pytest>=5.2",
