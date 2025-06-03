@@ -43,7 +43,7 @@ dev = [
   "matplotlib>=3.10.0"
 ]
 doc = [
-  "sphinx>=7.4.7",
+  "sphinx>=8.0.2",
   "sphinx_rtd_theme>=3.0.2",
   "sphinx-click>=5.2.1",
 ]
