@@ -17,7 +17,7 @@ from time import sleep
 from typing import ClassVar
 
 import numpy as np
-import scipy
+
 from nsrdb.utilities.file_utils import url_download
 
 logger = logging.getLogger(__name__)
