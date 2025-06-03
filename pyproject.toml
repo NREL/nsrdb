@@ -26,6 +26,7 @@ classifiers=[
   "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
+  "docutils>=0.20",
   "sphinx>=8.0.2",
   "sphinx-tabs>=3.4.7,<4",
   "NREL-gaps>=0.6.13",
