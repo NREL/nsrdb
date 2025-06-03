@@ -4,10 +4,10 @@ import argparse
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import cached_property
 from glob import glob
 
-import dask
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -166,9 +166,10 @@ class NasaDataModel:
         ds['west_east'] = ds['longitude']
 
         lons, lats = np.meshgrid(ds['longitude'], ds['latitude'])
-        ds = ds.assign_coords(
-            {'latitude': (sdims, lats), 'longitude': (sdims, lons)}
-        )
+        ds = ds.assign_coords({
+            'latitude': (sdims, lats),
+            'longitude': (sdims, lons),
+        })
         return ds
 
     @classmethod
@@ -244,17 +245,26 @@ def run_jobs(input_pattern, output_pattern, max_workers=None):
 
     files = glob(input_pattern)
 
-    tasks = [
-        dask.delayed(NasaDataModel.run)(
-            input_file=file, output_pattern=output_pattern
-        )
-        for file in files
-    ]
-
     if max_workers == 1:
-        _ = dask.compute(*tasks, scheduler='single-threaded')
+        for file in files:
+            NasaDataModel.run(input_file=file, output_pattern=output_pattern)
     else:
-        _ = dask.compute(*tasks, scheduler='threads', num_workers=max_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {}
+            for file in files:
+                fut = executor.submit(
+                    NasaDataModel.run,
+                    input_file=file,
+                    output_pattern=output_pattern,
+                )
+                futures[fut] = file
+
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error('Error processing file: %s', futures[future])
+                    logger.exception(e)
 
     logger.info('Finished converting %s files.', len(files))
 
