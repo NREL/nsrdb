@@ -6,7 +6,6 @@ Created on Thu Nov 29 09:54:51 2018
 @author: gbuster
 """
 
-
 import numpy as np
 import pandas as pd
 
@@ -21,38 +20,27 @@ lon_mesh = lon_mesh.flatten()
 lat_mesh = lat_mesh.flatten()
 source_meta = pd.DataFrame({'latitude': lat_mesh, 'longitude': lon_mesh})
 
-nsrdb_meta = pd.DataFrame(
-    {'latitude': [1.1, 12.8, 23.3, 43.4, 44.2],
-     'longitude': [-120.4, -112.3, -101.1, -91.3, -88.4]})
+nsrdb_meta = pd.DataFrame({
+    'latitude': [1.1, 12.8, 23.3, 43.4, 44.2],
+    'longitude': [-120.4, -112.3, -101.1, -91.3, -88.4],
+})
 
-baseline4 = np.array([[[1, -120],
-                       [1, -121],
-                       [2, -120],
-                       [2, -121]],
-                      [[13, -112],
-                       [13, -113],
-                       [12, -112],
-                       [12, -113]],
-                      [[23, -101],
-                       [24, -101],
-                       [23, -102],
-                       [23, -100]],
-                      [[43, -91],
-                       [44, -91],
-                       [43, -92],
-                       [44, -92]],
-                      [[44, -88],
-                       [44, -89],
-                       [45, -88],
-                       [45, -89]]])
+baseline4 = np.array([
+    [[1, -120], [1, -121], [2, -120], [2, -121]],
+    [[13, -112], [13, -113], [12, -112], [12, -113]],
+    [[23, -101], [24, -101], [23, -102], [23, -100]],
+    [[43, -91], [44, -91], [43, -92], [44, -92]],
+    [[44, -88], [44, -89], [45, -88], [45, -89]],
+])
 
 # calculated using Vincenty: https://www.cqsrg.org/tools/GCDistance/
-baseline_dist = np.array([45.873,
-                          39.365,
-                          34.766,
-                          50.688,
-                          38.983,
-                          ])
+baseline_dist = np.array([
+    45.873,
+    39.365,
+    34.766,
+    50.688,
+    38.983,
+])
 
 
 def test_geo_haversine_nn():
@@ -63,20 +51,19 @@ def test_geo_haversine_nn():
     result = np.allclose(baseline4, coords_closest)
     msg = 'Haversine NN failed!'
     assert result, msg
-    return coords_closest
 
 
 def test_geo_haversine_dist():
     """Test the geographic haversine nearest neighbor."""
 
-    dist, ind = geo_nn(source_meta, nsrdb_meta, k=1)
+    dist, _ = geo_nn(source_meta, nsrdb_meta, k=1)
     dist = dist.flatten()
     result = np.allclose(baseline_dist, dist, rtol=0.01, atol=0.0)
     diff = np.abs(baseline_dist - dist)
-    msg = ('Haversine distance failed! '
-           '\nDist: \n{}\nDiff:\n{}'.format(dist, diff))
+    msg = 'Haversine distance failed! ' '\nDist: \n{}\nDiff:\n{}'.format(
+        dist, diff
+    )
     assert result, msg
-    return dist
 
 
 def test_knn():
@@ -87,7 +74,6 @@ def test_knn():
     result = np.allclose(baseline4, coords_closest)
     msg = 'KNN failed!'
     assert result, msg
-    return coords_closest
 
 
 def test_regular_grid_nn():
@@ -98,7 +84,6 @@ def test_regular_grid_nn():
     coords_closest_knn = source_meta.values[ind]
     msg = 'Regular grid NN failed!'
     assert np.allclose(coords_closest_knn, coords_closest_reg), msg
-    return coords_closest_reg
 
 
 if __name__ == '__main__':
