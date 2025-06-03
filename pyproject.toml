@@ -26,13 +26,14 @@ classifiers=[
   "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-  "netCDF4>=1.6,<1.7",
-  "NREL-gaps>=0.8.0,<0.9",
+  "NREL-gaps>=0.6.13",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.6",
-  "scikit-learn>=1.0",
   "NREL-rest2>=1.0.2",
   "NREL-mlclouds>=0.0.5",
+  "netCDF4>=1.5.8,<1.7",
+  "scikit-learn>=1.0",
+  "matplotlib>=3.1"
 ]
 
 [project.optional-dependencies]
@@ -40,7 +41,6 @@ dev = [
   "build>=0.5",
   "pre-commit",
   "ruff>=0.5.0",
-  "matplotlib>=3.10.0"
 ]
 doc = [
   "sphinx>=8.0.2",
