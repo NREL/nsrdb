@@ -12,12 +12,12 @@
             2020, 2021, 2022, 2023, 2024
         ],
         "out_dir": "./",
-        "fn_out": "tmy_1998_2024.h5"
+        "fn_out": "nsrdb_{}-2024.h5"
     },
     "execution_control": {
         "option": "kestrel",
         "memory": 234,
-        "walltime": 10,
+        "walltime": 39,
         "alloc": "pxs"
     }
 }

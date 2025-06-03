@@ -27,7 +27,6 @@ classifiers=[
 ]
 dependencies = [
   "netCDF4>=1.6,<1.7",
-  "matplotlib>=3.10.0",
   "NREL-gaps>=0.8.0,<0.9",
   "NREL-cloud_fs>=0.0.8",
   "NREL-farms>=1.0.6",
@@ -41,7 +40,8 @@ dependencies = [
 dev = [
   "build>=0.5",
   "pre-commit",
-  "ruff>=0.5.0"
+  "ruff>=0.5.0",
+  "matplotlib>=3.10.0"
 ]
 doc = [
   "sphinx>=7.4.7",
@@ -174,7 +174,3 @@ packages = ["nsrdb"]
 
 [tool.setuptools_scm]
 version_file = "nsrdb/_version.py"
-
-[tool.pytest_env]
-CUDA_VISIBLE_DEVICES = "-1"
-TF_ENABLE_ONEDNN_OPTS = "0"

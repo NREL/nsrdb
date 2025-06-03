@@ -232,19 +232,20 @@ class Temporal:
         day : int
             Day of the time index in df1/df2 to plot.
         """
-
         mask1 = (df1.index.month == month) & (df1.index.day == day)
         mask2 = (df2.index.month == month) & (df2.index.day == day)
 
         plt.plot(df1.index[mask1], df1.iloc[mask1, 0], '-o')
         plt.plot(df2.index[mask2], df2.iloc[mask2, 0], '--x')
 
-        y_min = np.min(
-            (np.min(df1.iloc[mask1, 0]), np.min(df2.iloc[mask2, 0]))
-        )
-        y_max = np.max(
-            (np.max(df1.iloc[mask1, 0]), np.max(df2.iloc[mask2, 0]))
-        )
+        y_min = np.min((
+            np.min(df1.iloc[mask1, 0]),
+            np.min(df2.iloc[mask2, 0]),
+        ))
+        y_max = np.max((
+            np.max(df1.iloc[mask1, 0]),
+            np.max(df2.iloc[mask2, 0]),
+        ))
         plt.ylim((y_min, 1.1 * y_max))
 
         plt.xlabel('Time Index')

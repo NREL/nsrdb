@@ -886,7 +886,12 @@ def _run_or_collect_tmy(
         config['tmy_type'] = tmy_type
         config['out_dir'] = os.path.join(out_dir, f'{tmy_type}/')
         config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{tmy_type}'
-        config['fn_out'] = fn_out.replace('.h5', f'_{tmy_type}.h5')
+
+        if '{}' in fn_out:
+            config['fn_out'] = fn_out.format(tmy_type)
+        else:
+            config['fn_out'] = fn_out.replace('.h5', f'_{tmy_type}.h5')
+
         for node_index in range(config.get('n_nodes', 1)):
             log_id = f'{tmy_type}_{node_index}'
             config['job_name'] = f'{ctx.obj["RUN_NAME"]}_{log_id}'

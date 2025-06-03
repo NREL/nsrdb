@@ -16,9 +16,8 @@ from datetime import datetime, timedelta
 from time import sleep
 from typing import ClassVar
 
-import matplotlib.pyplot as plt
 import numpy as np
-
+import scipy
 from nsrdb.utilities.file_utils import url_download
 
 logger = logging.getLogger(__name__)
@@ -259,6 +258,8 @@ class ImsDay:
 
     def plot(self):
         """Plot values as map."""
+        import matplotlib.pyplot as plt
+
         plt.imshow(self.data)
         plt.title(f'{self._year} - {self._day}')
         plt.colorbar()
@@ -387,9 +388,10 @@ class ImsGapFill:
         for i in range(1, self._search_range + 1):
             day_before = self.date - timedelta(days=i)
             day_after = self.date + timedelta(days=i)
-            dates_list.extend(
-                [(day_before, i, 'before'), (day_after, i, 'after')]
-            )
+            dates_list.extend([
+                (day_before, i, 'before'),
+                (day_after, i, 'after'),
+            ])
 
         for date, i, direction in dates_list:
             logger.debug(f'Trying {i} day {direction} missing date: {date}')

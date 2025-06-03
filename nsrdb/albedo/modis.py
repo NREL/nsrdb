@@ -9,7 +9,6 @@ import calendar
 import logging
 import os
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from nsrdb.albedo.ims import get_dt
@@ -141,6 +140,8 @@ class ModisDay:
 
     def plot(self):
         """Plot data as map. Nodata is corrected so colors are sane"""
+        import matplotlib.pyplot as plt
+
         vals = self.data.copy()
         vals[vals > 1000] = 0
         plt.imshow(vals)

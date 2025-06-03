@@ -720,9 +720,10 @@ class Tmy:
 
                     for arr in [t_low, t_high, g_low]:
                         m_temp, n_temp = self._count_runs(arr[mask, j])
-                        max_run_len[m][j][i] = np.max(
-                            (max_run_len[m][j][i], m_temp)
-                        )
+                        max_run_len[m][j][i] = np.max((
+                            max_run_len[m][j][i],
+                            m_temp,
+                        ))
                         n_runs[m][j][i] += n_temp
 
                 tmy_years[(m - 1), j] = tmy_years_5[m][0, j]
