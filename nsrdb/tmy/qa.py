@@ -16,7 +16,7 @@ from nsrdb.file_handlers.file_system import NSRDBFileSystem as NSRDBfs
 logger = logging.getLogger(__name__)
 
 
-def run_checks(fp, i0, iend, interval=1, step=1000):
+def run_checks(fp, i0=0, iend=None, interval=1, step=1000):
     """Run various checks on TMY files.
 
     Checks:
@@ -38,19 +38,20 @@ def run_checks(fp, i0, iend, interval=1, step=1000):
         Chunk size to read at once.
     """
 
-    logger.info(
-        f'Running QA on {fp} from {i0} to {iend} with step size {step} and '
-        f'interval {interval}'
-    )
-
-    n_split = int(np.ceil((iend - i0) / step))
-    chunks = np.array_split(np.arange(i0, iend), n_split)
-    chunks = [slice(x[0], x[-1] + 1) for x in chunks]
-    chunks = chunks[::interval]
-
     with NSRDBfs(fp, use_rex=True) as res:
         ti = res.time_index
         meta = res.meta
+        iend = iend if iend is not None else len(meta)
+
+        logger.info(
+            f'Running QA on {fp} from {i0} to {iend} with step size {step} '
+            f'and interval {interval}'
+        )
+
+        n_split = int(np.ceil((iend - i0) / step))
+        chunks = np.array_split(np.arange(i0, iend), n_split)
+        chunks = [slice(x[0], x[-1] + 1) for x in chunks]
+        chunks = chunks[::interval]
 
         assert all(ti.minute == 30), 'Time_index must be at 30min!'
         assert len(ti) == 8760, 'Time_index must be an 8760!'
