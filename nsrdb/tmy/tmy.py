@@ -797,8 +797,8 @@ class Tmy:
         )
         assert len(data) % 8760 == 0, msg
 
-        data = data[1::step, :]
-        self._tmy_years_long = self._tmy_years_long[1::step, :]
+        data = data[::step, :]
+        self._tmy_years_long = self._tmy_years_long[::step, :]
 
         return data
 
