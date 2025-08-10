@@ -797,8 +797,9 @@ class Tmy:
         )
         assert len(data) % 8760 == 0, msg
 
-        data = data[::step, :]
-        self._tmy_years_long = self._tmy_years_long[::step, :]
+        start_idx = step // 2  # take data from the middle of the hour.
+        data = data[start_idx::step, :]
+        self._tmy_years_long = self._tmy_years_long[start_idx::step, :]
 
         return data
 
