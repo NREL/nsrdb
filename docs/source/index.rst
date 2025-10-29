@@ -11,5 +11,5 @@
 Welcome to NSRDB!
 #################
 
-.. include:: ../../../README.rst
-   :start-after: inclusion-intro
+.. include:: ../../README.rst
+   :start-after: start

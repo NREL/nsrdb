@@ -1,3 +1,5 @@
+.. start
+
 ##########################################################
 Welcome to the National Solar Radiation Data Base (NSRDB)!
 ##########################################################
@@ -24,28 +26,31 @@ Welcome to the National Solar Radiation Data Base (NSRDB)!
 .. |Zenodo| image:: https://zenodo.org/badge/340209614.svg
     :target: https://zenodo.org/badge/latestdoi/340209614
 
-.. inclusion-intro
 
 The National Solar Radiation Database (NSRDB) software includes all the methods
 for the irradiance data processing pipeline. To get started, check out the
-NSRDB command line interface `(CLI) <https://nrel.github.io/nsrdb/_cli/nsrdb.html#nsrdb>`_.
-Refer to the `NREL website
-<https://nsrdb.nrel.gov/>`_ and the original `journal article
+NSRDB command line interface `(CLI)
+<https://nrel.github.io/nsrdb/_cli/nsrdb.html#nsrdb>`_. Refer to the `NREL
+website <https://nsrdb.nrel.gov/>`_ and the original `journal article
 <https://www.sciencedirect.com/science/article/pii/S136403211830087X>`_ for
-more information on the NSRDB.  For details on NSRDB variable units, datatypes,
-and attributes, see the `NSRDB variable meta data
-<https://github.com/NREL/nsrdb/blob/master/config/nsrdb_vars.csv>`_.
+more information on the NSRDB.  For details on NSRDB variable units,
+datatypes, interpolation methods, and other attributes, see the `NSRDB
+variable meta data
+<https://github.com/NREL/nsrdb/blob/main/config/nsrdb_vars.csv>`_ and
+`NSRDB variable descriptions
+<https://github.com/NREL/nsrdb/blob/main/config/nsrdb_descriptions.csv>`_.
+
 
 The PXS All-Sky Irradiance Model
 ================================
 The PXS All-Sky `Irradiance Model
-<https://github.com/NREL/nsrdb/tree/master/nsrdb/all_sky>`_ is the main physics
+<https://github.com/NREL/nsrdb/tree/main/nsrdb/all_sky>`_ is the main physics
 package that calculates surface irradiance variables.
 
 The NSRDB Data Model
 ====================
 The NSRDB `Data Model
-<https://github.com/NREL/nsrdb/tree/master/nsrdb/data_model>`_ is the data
+<https://github.com/NREL/nsrdb/tree/main/nsrdb/data_model>`_ is the data
 aggregation framework that sources, processes, and prepares data for input to
 All-Sky.
 
@@ -53,7 +58,7 @@ The MLClouds Model
 ==================
 The `MLClouds Model <https://github.com/NREL/mlclouds.git>`_ is used to predict
 missing cloud properties (a.k.a. Gap Fill). The NSRDB interface with MLClouds
-can be found `here <https://github.com/NREL/nsrdb/tree/master/nsrdb/gap_fill>`_.
+can be found `here <https://github.com/NREL/nsrdb/tree/main/nsrdb/gap_fill>`_.
 
 Installation
 ============
@@ -98,7 +103,7 @@ NSRDB Versions
     * - 4.1.1
       - 10/28/24
       - None
-      - Integration with extended MLClouds models. 
+      - Integration with extended MLClouds models.
         Extended models can perform both cloud type and cloud property predictions.
     * - 4.1.0
       - 7/9/24
@@ -106,10 +111,10 @@ NSRDB Versions
       - Complete CLI refactor.
     * - 4.0.0
       - 5/1/23
-      - GOES: 1998-2023. Meteosat: 2005-2022.
-      - Integrated an improved direct normal irradiance model (FARMS-DNI), 
-        described in the paper "Integration of a physics-based direct 
-        normal irradiance (DNI) model to enhance the National Solar 
+      - GOES: 1998-2024. Meteosat: 2005-2022.
+      - Integrated an improved direct normal irradiance model (FARMS-DNI),
+        described in the paper "Integration of a physics-based direct
+        normal irradiance (DNI) model to enhance the National Solar
         Radiation Database (NSRDB)"
     * - 3.2.3
       - 4/13/23
