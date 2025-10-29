@@ -70,6 +70,7 @@ class DataModel:
     CACHE_DIR = '/projects/pxs/reference_grids/_nn_query_cache'
 
     # source files for weight factors
+
     WEIGHTS: ClassVar = {
         'aod': os.path.join(
             DATADIR, 'Monthly_pixel_correction_MERRA2_AOD.txt'
@@ -230,8 +231,9 @@ class DataModel:
             self._nsrdb_grid = clean_meta(pd.read_csv(inp, index_col=0))
         else:
             raise TypeError(
-                'Expected csv grid file or DataFrame but '
-                'received: {}'.format(inp)
+                'Expected csv grid file or DataFrame but received: {}'.format(
+                    inp
+                )
             )
 
         # check requirements
@@ -473,7 +475,7 @@ class DataModel:
         try:
             grid = cloud_obj_single.grid
         except Exception as e:
-            msg = 'Exception building cloud NN ' 'tree for {}: {}'.format(
+            msg = 'Exception building cloud NN tree for {}: {}'.format(
                 cloud_obj_single, e
             )
             logger.error(msg)
@@ -1244,12 +1246,11 @@ class DataModel:
                 cloud_data[var] = self.scale_data(var, arr)
 
         logger.info(
-            'Finished extracting cloud data ' 'and writing to NSRDB arrays.'
+            'Finished extracting cloud data and writing to NSRDB arrays.'
         )
         mem = psutil.virtual_memory()
         logger.info(
-            'Current memory usage is '
-            '{:.3f} GB out of {:.3f} GB total.'.format(
+            'Current memory usage is {:.3f} GB out of {:.3f} GB total.'.format(
                 mem.used / 1e9, mem.total / 1e9
             )
         )
@@ -1412,8 +1413,9 @@ class DataModel:
 
         # run spatial interpolation
         logger.debug(
-            'Performing spatial interpolation on "{}" ' 'with shape {}'.format(
-                var, data.shape
+            'Performing spatial interpolation on "{}" with method "{}", '
+            'metric "{}", and with shape {}'.format(
+                var, var_obj.spatial_method, var_obj.NN_METHOD, data.shape
             )
         )
         data = spatial_interp(
@@ -1893,7 +1895,7 @@ class DataModel:
             data = method(var, **kwargs)
         except Exception as e:
             logger.exception(
-                'Processing method "DataModel.{}()" failed for ' '"{}"'.format(
+                'Processing method "DataModel.{}()" failed for "{}"'.format(
                     method.__name__, var
                 )
             )
@@ -2141,8 +2143,9 @@ class DataModel:
             )
         else:
             raise TypeError(
-                'Expected csv grid file or DataFrame but '
-                'received: {}'.format(nsrdb_grid)
+                'Expected csv grid file or DataFrame but received: {}'.format(
+                    nsrdb_grid
+                )
             )
 
         logger.debug(

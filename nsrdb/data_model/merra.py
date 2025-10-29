@@ -277,9 +277,10 @@ class MerraVar(AncillaryVarHandler):
             with NSRDBfs(self.file) as f:
                 lon2d, lat2d = np.meshgrid(f['lon'][:], f['lat'][:])
 
-            self._grid = pd.DataFrame(
-                {'longitude': lon2d.ravel(), 'latitude': lat2d.ravel()}
-            )
+            self._grid = pd.DataFrame({
+                'longitude': lon2d.ravel(),
+                'latitude': lat2d.ravel(),
+            })
 
             # merra grid has some bad values around 0 lat/lon
             # quick fix is to set to zero
@@ -310,7 +311,21 @@ class MerraVar(AncillaryVarHandler):
 
 
 class RelativeHumidity(BaseDerivedVar):
-    """Class to derive the relative humidity from other MERRA2 vars."""
+    """Class to derive the relative humidity from other MERRA2 vars. This is
+    derived as the ratio of mixing ratio to saturation mixing ratio, times 100.
+    Intermediate calculations are done to get saturation vapor pressure,
+    mixing ratio, and saturation mixing ratio. Saturation vapor pressure is
+    calculated using the Tetens formula. Mixing ratio is calculated from
+    specific humidity. Saturation mixing ratio is calculated from saturation
+    vapor pressure.
+
+    References
+    ----------
+    .. https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
+    .. http://snowball.millersville.edu/~adecaria/ESCI241/esci241_lesson06_humidity.pdf
+    .. https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
+
+    """
 
     DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
 
@@ -383,7 +398,16 @@ class RelativeHumidity(BaseDerivedVar):
 
 
 class DewPoint(BaseDerivedVar):
-    """Class to derive the dew point from other MERRA2 vars."""
+    """Class to derive the dew point from other MERRA2 vars. The dew point is
+    derived from air temperature, specific humidity, and surface pressure.
+    Relative humidity is first derived from these variables, then the dew
+    point is calculated from temperature and relative humidity using the
+    Magnus formula.
+
+    References
+    ----------
+    .. https://journals.ametsoc.org/view/journals/bams/86/2/bams-86-2-225.xml?tab_body=pdf
+    """
 
     DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
 
@@ -406,7 +430,7 @@ class DewPoint(BaseDerivedVar):
             Dew point in Celsius.
         """
         logger.info(
-            'Deriving Dew Point from temperature, ' 'humidity, and pressure'
+            'Deriving Dew Point from temperature, humidity, and pressure'
         )
 
         # ensure that Temperature is in C (scale from Kelvin if not)

@@ -1,4 +1,4 @@
 # NSRDB Supporting Data
-This folder holds some low-volume data to support the NSRDB data model.
-All of the real full-volume source data is stored on HPC in /projects/pxs/.
-The data saved here is just metadata and other minor supplemental information.
+This folder holds some low-volume data to support the NSRDB data model. The
+txt files contain climatological correction factors for alpha and aod which
+are used to correct for systemic biases in MERRA2 data.
