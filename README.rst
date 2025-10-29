@@ -36,9 +36,9 @@ website <https://nsrdb.nrel.gov/>`_ and the original `journal article
 more information on the NSRDB.  For details on NSRDB variable units,
 datatypes, interpolation methods, and other attributes, see the `NSRDB
 variable meta data
-<https://github.com/NREL/nsrdb/blob/main/config/nsrdb_vars.csv>`_ and
+<https://github.com/NREL/nsrdb/tree/main/nsrdb/config/nsrdb_vars.csv>`_ and
 `NSRDB variable descriptions
-<https://github.com/NREL/nsrdb/blob/main/config/nsrdb_descriptions.csv>`_.
+<https://github.com/NREL/nsrdb/tree/main/nsrdb/config/nsrdb_descriptions.csv>`_.
 
 
 The PXS All-Sky Irradiance Model
