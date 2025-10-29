@@ -7,9 +7,5 @@
    API reference <_autosummary/nsrdb>
    CLI reference <_cli/cli>
 
-#################
-Welcome to NSRDB!
-#################
-
 .. include:: ../../README.rst
    :start-after: start
