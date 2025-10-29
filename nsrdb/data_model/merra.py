@@ -321,9 +321,9 @@ class RelativeHumidity(BaseDerivedVar):
 
     References
     ----------
-    .. https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
-    .. http://snowball.millersville.edu/~adecaria/ESCI241/esci241_lesson06_humidity.pdf
-    .. https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
+    .. [atomclc2] https://www.conservationphysics.org/atmcalc/atmoclc2.pdf
+    .. [esci241] http://snowball.millersville.edu/~adecaria/ESCI241/esci241_lesson06_humidity.pdf
+    .. [wxcalc] https://www.weather.gov/media/epz/wxcalc/mixingRatio.pdf
 
     """
 
@@ -406,7 +406,10 @@ class DewPoint(BaseDerivedVar):
 
     References
     ----------
-    .. https://journals.ametsoc.org/view/journals/bams/86/2/bams-86-2-225.xml?tab_body=pdf
+    .. [Lawrence2005] Lawrence, M. G., 2005: The Relationship between Relative
+       Humidity and the Dewpoint Temperature in Moist Air: A Simple Conversion
+       and Applications. Bull. Amer. Meteor. Soc., 86, 225-234,
+       https://doi.org/10.1175/BAMS-86-2-225.
     """
 
     DEPENDENCIES = ('air_temperature', 'specific_humidity', 'surface_pressure')
