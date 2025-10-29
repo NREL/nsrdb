@@ -38,7 +38,7 @@ datatypes, interpolation methods, and other attributes, see the `NSRDB
 variable meta data
 <https://github.com/NREL/nsrdb/tree/main/nsrdb/config/nsrdb_vars.csv>`_ and
 `NSRDB variable descriptions
-<https://github.com/NREL/nsrdb/tree/main/nsrdb/config/nsrdb_descriptions.csv>`_.
+<https://github.com/NREL/nsrdb/tree/main/nsrdb/config/var_descriptions.csv>`_.
 
 
 The PXS All-Sky Irradiance Model
