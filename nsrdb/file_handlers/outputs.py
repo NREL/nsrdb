@@ -52,7 +52,7 @@ class Outputs(RexOutputs):
         dtypes,
         time_index,
         meta,
-        add_coords=False,
+        add_coords=True,
         mode='w-',
     ):
         """Initialize a full h5 output file with the final intended shape.
